@@ -1,5 +1,9 @@
 # Sample compose — one container = one persona + one model + one memory volume.
 # Copy .env.example → .env and fill secrets before `docker compose up`.
+#
+# Milestone 1 (stdio REPL):
+#   set CHANNEL=stdio in .env, then:
+#   docker compose run --rm -it gantry
 
 services:
   gantry:

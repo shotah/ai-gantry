@@ -1,15 +1,22 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/shotah/ai-gantry/internal/agent"
+	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/channel/stdio"
 	"github.com/shotah/ai-gantry/internal/config"
+	"github.com/shotah/ai-gantry/internal/persona"
+	"github.com/shotah/ai-gantry/internal/provider"
 )
 
-// run boots the gantry. Milestone 0: load config and exit cleanly.
-// Later milestones wire channel → agent → MCP → memory here.
+// run boots config, persona, provider, agent, and the selected channel.
 func run() int {
 	cfg, err := config.Load()
 	if err != nil {
@@ -31,9 +38,53 @@ func run() int {
 		"memory_backend", cfg.MemoryBackend,
 	)
 
-	// Milestone 0 scaffold only — the daemon loop arrives in M1+.
-	logger.Info("scaffold complete; agent loop not yet implemented (see readme §11)")
+	personaText, err := persona.Load(cfg.PersonaDir)
+	if err != nil {
+		logger.Error("persona load failed", "err", err)
+		return 1
+	}
+	logger.Info("persona loaded", "chars", len(personaText))
+
+	completer := provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel)
+	ag, err := agent.New(agent.Options{
+		Persona:      personaText,
+		Completer:    completer,
+		Model:        cfg.LLMModel,
+		MaxMessages:  cfg.HistoryMaxMessages,
+		MaxEstTokens: cfg.HistoryMaxTokens,
+		Logger:       logger,
+	})
+	if err != nil {
+		logger.Error("agent init failed", "err", err)
+		return 1
+	}
+
+	ch, err := newChannel(cfg)
+	if err != nil {
+		logger.Error("channel init failed", "err", err)
+		return 1
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := ch.Run(ctx, ag.Handle); err != nil {
+		logger.Error("channel stopped", "err", err)
+		return 1
+	}
+	logger.Info("gantry stopped")
 	return 0
+}
+
+func newChannel(cfg *config.Config) (channel.Channel, error) {
+	switch cfg.Channel {
+	case config.ChannelStdio:
+		return stdio.New(), nil
+	case config.ChannelTelegram:
+		return nil, fmt.Errorf("CHANNEL=telegram is not implemented yet (milestone 2); use CHANNEL=stdio for now")
+	default:
+		return nil, fmt.Errorf("unknown channel %q", cfg.Channel)
+	}
 }
 
 func newLogger(level string) *slog.Logger {
@@ -48,5 +99,6 @@ func newLogger(level string) *slog.Logger {
 	default:
 		lv = slog.LevelInfo
 	}
-	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lv}))
+	// stderr keeps the stdio REPL on stdout readable; docker logs still captures both.
+	return slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: lv}))
 }

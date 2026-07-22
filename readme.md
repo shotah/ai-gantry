@@ -19,7 +19,7 @@ mounts. No dashboard, no config UI, no open ports — ever.
 - 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
   not an endpoint
 
-> **Status: building.** Milestone 0 (scaffold) is in; §11 is the build order.
+> **Status: building.** Milestone 1 (talk / no tools) is in; §11 is the build order.
 
 ## Quick start (the target UX)
 
@@ -375,11 +375,11 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 
 ### Milestone 1 — talk (no tools)
 
-- [ ] `internal/provider`: OpenAI-compat chat client (base URL/key/model), streaming optional
-- [ ] `internal/persona`: load + concat `/persona/*.md` (fixed order, missing-file tolerant)
-- [ ] `internal/channel/stdio`: dev REPL channel
-- [ ] `internal/agent`: minimal loop (prompt → model → reply), no tools yet
-- [ ] Milestone test: chat with persona via `docker run -it`
+- [x] `internal/provider`: OpenAI-compat chat client (base URL/key/model), streaming optional
+- [x] `internal/persona`: load + concat `/persona/*.md` (fixed order, missing-file tolerant)
+- [x] `internal/channel/stdio`: dev REPL channel
+- [x] `internal/agent`: minimal loop (prompt → model → reply), no tools yet
+- [x] Milestone test: chat with persona via `docker run -it`
 
 ### Milestone 2 — Telegram
 
