@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-label="ai-gantry - the frame that holds the tools">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#15202b"/>
+      <stop offset="55%" stop-color="#1c2a38"/>
+      <stop offset="100%" stop-color="#243746"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d7e2ec"/>
+      <stop offset="45%" stop-color="#9fb3c5"/>
+      <stop offset="100%" stop-color="#6d8498"/>
+    </linearGradient>
+    <linearGradient id="post" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#5f7386"/>
+      <stop offset="50%" stop-color="#a8bbc9"/>
+      <stop offset="100%" stop-color="#5f7386"/>
+    </linearGradient>
+    <linearGradient id="bed" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a3a48"/>
+      <stop offset="100%" stop-color="#17232e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="62%" cy="48%" r="28%">
+      <stop offset="0%" stop-color="#f0b429" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#f0b429" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#8fa3b4" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Atmosphere -->
+  <rect width="1280" height="420" fill="url(#sky)"/>
+  <rect width="1280" height="420" fill="url(#grid)"/>
+  <ellipse cx="790" cy="200" rx="260" ry="140" fill="url(#glow)"/>
+
+  <!-- Machine bed -->
+  <rect x="120" y="318" width="1040" height="54" rx="6" fill="url(#bed)" stroke="#3d5366" stroke-width="2"/>
+  <g stroke="#6f8799" stroke-width="1.5" opacity="0.55">
+    <line x1="160" y1="336" x2="1120" y2="336"/>
+    <line x1="160" y1="354" x2="1120" y2="354"/>
+    <line x1="240" y1="318" x2="240" y2="372"/>
+    <line x1="400" y1="318" x2="400" y2="372"/>
+    <line x1="560" y1="318" x2="560" y2="372"/>
+    <line x1="720" y1="318" x2="720" y2="372"/>
+    <line x1="880" y1="318" x2="880" y2="372"/>
+    <line x1="1040" y1="318" x2="1040" y2="372"/>
+  </g>
+
+  <!-- Gantry posts -->
+  <g filter="url(#soft)">
+    <rect x="210" y="145" width="36" height="183" rx="4" fill="url(#post)"/>
+    <rect x="1034" y="145" width="36" height="183" rx="4" fill="url(#post)"/>
+  </g>
+
+  <!-- Bridge / beam -->
+  <g filter="url(#soft)">
+    <rect x="190" y="135" width="900" height="42" rx="5" fill="url(#beam)"/>
+    <rect x="210" y="147" width="860" height="8" rx="2" fill="#eef4f8" opacity="0.55"/>
+    <!-- truss accents -->
+    <g stroke="#4d6274" stroke-width="2" opacity="0.55">
+      <line x1="280" y1="135" x2="320" y2="177"/>
+      <line x1="320" y1="135" x2="280" y2="177"/>
+      <line x1="400" y1="135" x2="440" y2="177"/>
+      <line x1="440" y1="135" x2="400" y2="177"/>
+      <line x1="840" y1="135" x2="880" y2="177"/>
+      <line x1="880" y1="135" x2="840" y2="177"/>
+      <line x1="960" y1="135" x2="1000" y2="177"/>
+      <line x1="1000" y1="135" x2="960" y2="177"/>
+    </g>
+  </g>
+
+  <!-- Carriage + spindle gripping one MCP box -->
+  <g transform="translate(700,135)" filter="url(#soft)">
+    <rect x="0" y="0" width="88" height="48" rx="4" fill="#c9d7e3"/>
+    <rect x="8" y="8" width="72" height="10" rx="2" fill="#6d8498"/>
+    <rect x="30" y="40" width="28" height="18" rx="2" fill="#8fa3b4"/>
+    <!-- mast -->
+    <rect x="38" y="58" width="12" height="52" rx="2" fill="#b7c7d4"/>
+    <!-- gripper arms -->
+    <g fill="#e8a317">
+      <rect x="18" y="108" width="14" height="10" rx="2"/>
+      <rect x="56" y="108" width="14" height="10" rx="2"/>
+      <rect x="22" y="116" width="6" height="22" rx="1"/>
+      <rect x="60" y="116" width="6" height="22" rx="1"/>
+    </g>
+    <!-- lifted MCP box -->
+    <rect x="0" y="132" width="88" height="36" rx="4" fill="#3f5870" stroke="#f0b429" stroke-width="2"/>
+    <text x="44" y="155" text-anchor="middle" fill="#f4f7fa" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="700">GWS-MCP</text>
+    <!-- lift motion ticks -->
+    <g stroke="#f0b429" stroke-width="2" stroke-linecap="round" opacity="0.85">
+      <line x1="86" y1="140" x2="102" y2="132"/>
+      <line x1="86" y1="150" x2="106" y2="150"/>
+      <line x1="86" y1="160" x2="102" y2="168"/>
+    </g>
+  </g>
+
+  <!-- MCP tool boxes waiting on the bed -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12">
+    <rect x="260" y="286" width="90" height="32" rx="4" fill="#3a4f60" stroke="#6f8799"/>
+    <text x="305" y="307" text-anchor="middle" fill="#c9d7e3">GH-MCP</text>
+
+    <rect x="366" y="286" width="118" height="32" rx="4" fill="#3a4f60" stroke="#6f8799"/>
+    <text x="425" y="307" text-anchor="middle" fill="#c9d7e3">Garmin-MCP</text>
+
+    <rect x="500" y="286" width="110" height="32" rx="4" fill="#3a4f60" stroke="#6f8799"/>
+    <text x="555" y="307" text-anchor="middle" fill="#c9d7e3">Strava-MCP</text>
+
+    <!-- empty slot where the lifted GWS-MCP came from -->
+    <rect x="680" y="292" width="100" height="26" rx="4" fill="none" stroke="#6f8799" stroke-dasharray="4 3" opacity="0.7"/>
+    <text x="730" y="310" text-anchor="middle" fill="#6f8799" font-size="10">GWS-MCP</text>
+
+    <rect x="800" y="286" width="100" height="32" rx="4" fill="#3a4f60" stroke="#6f8799"/>
+    <text x="850" y="307" text-anchor="middle" fill="#c9d7e3">Files-MCP</text>
+
+    <rect x="916" y="286" width="100" height="32" rx="4" fill="#3a4f60" stroke="#6f8799"/>
+    <text x="966" y="307" text-anchor="middle" fill="#c9d7e3">Cal-MCP</text>
+  </g>
+
+  <!-- Wordmark (kept above the beam) -->
+  <g transform="translate(120,28)">
+    <text x="0" y="42" fill="#f4f7fa" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="54" font-weight="700" letter-spacing="-1">ai-gantry</text>
+    <text x="2" y="68" fill="#e8a317" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" letter-spacing="2">THE FRAME THAT HOLDS THE TOOLS</text>
+  </g>
+</svg>

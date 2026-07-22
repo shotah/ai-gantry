@@ -1,7 +1,13 @@
 # ai-gantry 🏗️
 
-[![CI](https://github.com/shotah/ai-gantry/actions/workflows/ci.yml/badge.svg)](https://github.com/shotah/ai-gantry/actions/workflows/ci.yml)
-[![Coverage](https://github.com/shotah/ai-gantry/raw/gh-pages/badges/coverage.svg)](https://github.com/shotah/ai-gantry/actions/workflows/ci.yml)
+<p align="center">
+  <img src="assets/banner.svg" alt="ai-gantry — the frame that holds the tools" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/shotah/ai-gantry/actions/workflows/ci.yml"><img src="https://github.com/shotah/ai-gantry/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/shotah/ai-gantry/actions/workflows/ci.yml"><img src="https://github.com/shotah/ai-gantry/raw/gh-pages/badges/coverage.svg" alt="Coverage"></a>
+</p>
 
 > **gantry** *(n.)* — the rigid frame in a CNC machine or crane that holds and
 > positions tools. The frame does nothing by itself; the tools do everything.
