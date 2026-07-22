@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,15 @@ type Store struct {
 	db           *sql.DB
 	maxMessages  int
 	maxEstTokens int
+	summarizer   Summarizer // optional; folds trimmed turns into session.summary
+}
+
+// WithSummarizer enables rolling summary when history is trimmed.
+func (s *Store) WithSummarizer(sum Summarizer) *Store {
+	if s != nil {
+		s.summarizer = sum
+	}
+	return s
 }
 
 // Open opens (or creates) gantry.db under dataDir and runs migrations.
@@ -162,11 +172,28 @@ func (s *Store) Append(ctx context.Context, sessionID string, msgs ...Message) e
 		}
 	}
 
-	if err := s.trimTx(ctx, tx, sessionID); err != nil {
+	dropped, err := s.trimTx(ctx, tx, sessionID)
+	if err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("session: commit: %w", err)
+	}
+
+	if len(dropped) > 0 && s.summarizer != nil {
+		prior, err := s.Summary(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		next, err := s.summarizer.Fold(ctx, prior, dropped)
+		if err != nil {
+			// Trim already committed; keep going with prior summary.
+			slog.Warn("session summary fold failed", "session_id", sessionID, "err", err)
+			return nil
+		}
+		if err := s.setSummary(ctx, sessionID, next); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -189,7 +216,8 @@ func (s *Store) Stats(ctx context.Context, sessionID string) (messages int, estT
 	return len(msgs), EstTokens(msgs), nil
 }
 
-func (s *Store) trimTx(ctx context.Context, tx *sql.Tx, sessionID string) error {
+func (s *Store) trimTx(ctx context.Context, tx *sql.Tx, sessionID string) ([]Message, error) {
+	var dropped []Message
 	for {
 		var count int
 		var chars int
@@ -197,30 +225,38 @@ func (s *Store) trimTx(ctx context.Context, tx *sql.Tx, sessionID string) error 
 			SELECT COUNT(*), COALESCE(SUM(LENGTH(content)), 0)
 			FROM session_message WHERE session_id = ?`, sessionID).Scan(&count, &chars)
 		if err != nil {
-			return fmt.Errorf("session: trim stats: %w", err)
+			return dropped, fmt.Errorf("session: trim stats: %w", err)
 		}
 		est := (chars + 3) / 4
 		if count <= s.maxMessages && est <= s.maxEstTokens {
-			return nil
+			return dropped, nil
 		}
 		if count <= 2 {
-			return nil // keep a minimal tail
+			return dropped, nil // keep a minimal tail
 		}
-		res, err := tx.ExecContext(ctx, `
-			DELETE FROM session_message
-			WHERE id = (
-				SELECT id FROM session_message
-				WHERE session_id = ?
-				ORDER BY id ASC
-				LIMIT 1
-			)`, sessionID)
+
+		var id int64
+		var m Message
+		err = tx.QueryRowContext(ctx, `
+			SELECT id, role, content FROM session_message
+			WHERE session_id = ?
+			ORDER BY id ASC
+			LIMIT 1`, sessionID).Scan(&id, &m.Role, &m.Content)
+		if err == sql.ErrNoRows {
+			return dropped, nil
+		}
 		if err != nil {
-			return fmt.Errorf("session: trim delete: %w", err)
+			return dropped, fmt.Errorf("session: trim peek: %w", err)
+		}
+		res, err := tx.ExecContext(ctx, `DELETE FROM session_message WHERE id = ?`, id)
+		if err != nil {
+			return dropped, fmt.Errorf("session: trim delete: %w", err)
 		}
 		n, _ := res.RowsAffected()
 		if n == 0 {
-			return nil
+			return dropped, nil
 		}
+		dropped = append(dropped, m)
 	}
 }
 

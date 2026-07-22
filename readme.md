@@ -19,7 +19,7 @@ mounts. No dashboard, no config UI, no open ports — ever.
 - 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
   not an endpoint
 
-> **Status: building.** Milestone 4 (memory) is in; §11 is the build order.
+> **Status: building.** Milestone 5 code path is in; cutover/deploy items remain; §11 is the build order.
 
 ## Quick start (the target UX)
 
@@ -51,7 +51,8 @@ Local REPL instead of Telegram: `CHANNEL=stdio` and
 `docker compose run --rm -it gantry` (or `make run`).
 
 That is the whole operator surface. Everything below is the design that keeps
-it that small.
+it that small. Deeper docs (architecture diagrams, security tradeoffs, decision
+log): **[docs/](docs/)**.
 
 ## 1. Problem statement
 
@@ -144,7 +145,10 @@ internal/agent/      the loop: prompt assembly, tool iteration, caps
 internal/session/    bounded history, /new reset, rolling summary
 internal/memory/     SQLite structured memory + FTS5 + consolidation
 internal/persona/    load + concat markdown from /persona
+internal/heartbeat/  SQLite heartbeat for `gantry status`
+internal/drain/      wait for in-flight turn on shutdown
 ```
+(Diagrams + sequences: [docs/architecture.md](docs/architecture.md).)
 
 ### 4.3 Dependencies (import over write)
 
@@ -247,19 +251,18 @@ This is the part that earns its keep. Keep it boring and bounded:
    `TOOL_RESULT_MAX_CHARS`, loop until final text or `TOOL_MAX_ITERATIONS`.
 4. **Reply** on the channel; append turn to session.
 
-Bounding rules (v1 — no LLM summarization yet):
+Bounding rules:
 
 - Hard cap `HISTORY_MAX_MESSAGES`; drop oldest turns past `HISTORY_MAX_TOKENS`.
   Token counts are chars/4 **estimates** and are labeled as such everywhere
   they surface (logs, `/status`) — see §12.2. Persona + last N turns are
   always protected.
-- Tool results older than 4 turns collapse to one line:
-  `[tool gmail.search: 14 results, truncated]`.
+- When history is trimmed, dropped turns fold into a persistent per-session
+  `summary` paragraph via the same LLM (one string — not a framework). The
+  summary is injected as a system block on later turns.
+- Tool results older than the last 4 collapse to one line:
+  `[tool gmail.search: N chars, truncated]`.
 - `/new` wipes the session (memory untouched).
-
-v2 adds a rolling summary: when history is trimmed, fold dropped turns into a
-persistent per-session summary paragraph using the same LLM. That is the whole
-"context compression" feature — one summary string, not a framework.
 
 ## 7. Memory design
 
@@ -347,7 +350,7 @@ contradictions get surfaced, not obeyed.
 ## 8. Ops surface
 
 - `gantry run` — the daemon (default)
-- `gantry status` — exit-code healthcheck (heartbeat row lands in M5; until then exits 1)
+- `gantry status` — exit-code healthcheck (reads `heartbeat` row in `/data/gantry.db`)
 - `gantry version` — build info
 - Logs: JSON `slog` to stderr; `docker logs` is the console.
 - Telegram/stdio `/new` — session reset; `/status` — uptime, model, history, tool count.
@@ -424,43 +427,31 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 - [x] `sqlite3`-friendly docs: how to inspect/fix memory by hand ([docs/memory.md](docs/memory.md))
 - [x] Milestone test: store→recall across `/new`; consolidation dedupes; `memory_forget` works
 
-### Milestone 5 — hardening & cutover *(not implemented yet)*
+### Milestone 5 — hardening & cutover
 
-- [ ] `gantry status` healthcheck + heartbeat row
-- [ ] Rolling session summary (context compression v2)
-- [ ] Graceful shutdown (finish in-flight turn, kill MCP children)
-- [ ] Load test: fat tool dumps don't blow context (assert bounded prompt size)
+- [x] `gantry status` healthcheck + heartbeat row
+- [x] Rolling session summary (context compression v2)
+- [x] Graceful shutdown (finish in-flight turn, kill MCP children)
+- [x] Load test: fat tool dumps don't blow context (assert bounded prompt size)
 - [ ] Side-by-side deploy next to ZeroClaw tim; compare a week of use
 - [ ] Retire ZeroClaw service; pin gantry release tags
 
 ## 12. Decisions (was: open questions)
 
-1. **Name: ai-gantry 🏗️** — a gantry is the frame that holds and positions
-   tools while the tools do the work. Repo `ai-gantry`, binary/command
-   `gantry`. (Earlier candidates lost to collisions: `noclaw` is a C
-   assistant in the claw-benchmark lineage, `armature` is a Python YAML
-   agent harness.)
-2. **Token counting: estimates, labeled as estimates.** chars/4 heuristic;
-   every log field, status output, and config knob that uses it says so
-   (`est_tokens`, "estimated"). Only add a real tokenizer dep if trimming
-   demonstrably misbehaves.
-3. **Memory: built in, but replaceable.** v1 ships the SQLite implementation
-   inside the gantry, behind a `Memory` interface whose surface is exactly
-   the three tools (`memory_store` / `memory_recall` / `memory_forget`) plus
-   the hydration call. A config switch (`MEMORY_BACKEND=builtin|mcp:<name>`)
-   lets an MCP server from the manifest satisfy that interface instead, so
-   people can plug in their own memory and tinker. Builtin stays the default.
-4. **Streaming replies: deferred, and it's gantry work when it happens.**
-   Note: this cannot be outsourced to MCP — servers stream tool results to
-   the gantry, but streaming *to the user* is the channel layer editing the
-   Telegram message as model tokens arrive. Nice-to-have, not v1.
-5. **Telegram auth: allowlist only.** Empty `TELEGRAM_ALLOWED_USERS` fails
-   boot. No pairing codes, no interactive bind — that was a ZeroClaw pain
-   point we deliberately skipped.
-6. **Runtime image: distroless/static-debian12:nonroot.** Not Alpine. MCP
-   child binaries must be static too.
-7. **Logs on stderr.** Stdout stays clean for the stdio REPL; Docker still
-   shows both streams.
+Locked choices are summarized here; full rationale and rejected alternatives
+live in **[docs/choices.md](docs/choices.md)**.
+
+1. **Name: ai-gantry 🏗️** — frame that holds tools; binary `gantry`.
+2. **Token counting: estimates** (chars/4), labeled as estimates.
+3. **Memory: builtin SQLite, replaceable** via `MEMORY_BACKEND=mcp:<name>`.
+4. **Streaming replies: deferred** (channel-layer work when it happens).
+5. **Telegram auth: allowlist only** — empty allowlist fails boot.
+6. **Runtime image: distroless/static-debian12:nonroot** — MCP children static too.
+7. **Logs on stderr** — stdout stays clean for the stdio REPL.
+
+Architecture diagrams / sequences: [docs/architecture.md](docs/architecture.md).
+Security tradeoffs & residual risks: [docs/security.md](docs/security.md).
+Design deep-dive: [docs/design.md](docs/design.md).
 
 ## License
 

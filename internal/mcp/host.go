@@ -276,7 +276,9 @@ func (h *Host) restartServer(ctx context.Context, name string) error {
 }
 
 func defaultDial(ctx context.Context, spec ServerSpec, stderr io.Writer) (Conn, error) {
-	cmd := exec.CommandContext(ctx, spec.Command, spec.Args...)
+	// Do not bind the child to the boot/signal context: SIGTERM must let the
+	// agent finish the in-flight turn before Host.Close kills MCP children.
+	cmd := exec.Command(spec.Command, spec.Args...) //nolint:gosec // G204: command comes from operator mcp.toml
 	cmd.Env = append(os.Environ(), spec.Env...)
 	cmd.Stderr = stderr
 

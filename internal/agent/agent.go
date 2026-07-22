@@ -21,6 +21,7 @@ type History interface {
 	Append(ctx context.Context, sessionID string, msgs ...session.Message) error
 	Reset(ctx context.Context, sessionID string) error
 	Stats(ctx context.Context, sessionID string) (messages int, estTokens int, err error)
+	Summary(ctx context.Context, sessionID string) (string, error)
 }
 
 // Tools executes MCP (or other) tools during the agent loop.
@@ -135,6 +136,14 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			})
 		}
 	}
+	if summary, err := a.sessions.Summary(ctx, msg.SessionID); err != nil {
+		a.log.Warn("session summary load failed", "err", err)
+	} else if s := strings.TrimSpace(summary); s != "" {
+		messages = append(messages, provider.Message{
+			Role:    provider.RoleSystem,
+			Content: "[session summary]\n" + s,
+		})
+	}
 	for _, h := range history {
 		messages = append(messages, provider.Message{
 			Role:    provider.Role(h.Role),
@@ -174,8 +183,9 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 
 func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDefs []provider.ToolDef) (string, error) {
 	for iter := 0; iter < a.maxToolIters; iter++ {
+		bounded := collapseOldToolResults(messages)
 		res, err := a.completer.Complete(ctx, provider.Request{
-			Messages: messages,
+			Messages: bounded,
 			Tools:    toolDefs,
 		})
 		if err != nil {

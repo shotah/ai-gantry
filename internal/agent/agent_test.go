@@ -68,6 +68,10 @@ func (m *memHistory) Stats(ctx context.Context, id string) (int, int, error) {
 	return len(msgs), session.EstTokens(msgs), nil
 }
 
+func (m *memHistory) Summary(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
 type fakeTools struct {
 	defs  []provider.ToolDef
 	calls []string

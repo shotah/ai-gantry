@@ -16,6 +16,8 @@ import (
 	"github.com/shotah/ai-gantry/internal/channel/stdio"
 	"github.com/shotah/ai-gantry/internal/channel/telegram"
 	"github.com/shotah/ai-gantry/internal/config"
+	"github.com/shotah/ai-gantry/internal/drain"
+	"github.com/shotah/ai-gantry/internal/heartbeat"
 	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/persona"
@@ -52,11 +54,14 @@ func run() int {
 	}
 	logger.Info("persona loaded", "chars", len(personaText))
 
+	completer := provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel)
+
 	sessions, err := session.Open(cfg.DataDir, cfg.HistoryMaxMessages, cfg.HistoryMaxTokens)
 	if err != nil {
 		logger.Error("session store open failed", "err", err)
 		return 1
 	}
+	sessions.WithSummarizer(&session.LLMSummarizer{Completer: completer})
 	defer func() {
 		if err := sessions.Close(); err != nil {
 			logger.Error("session store close failed", "err", err)
@@ -64,8 +69,16 @@ func run() int {
 	}()
 	logger.Info("session store ready", "path", filepath.Join(cfg.DataDir, "gantry.db"))
 
+	hb, err := heartbeat.OpenDB(sessions.DB())
+	if err != nil {
+		logger.Error("heartbeat open failed", "err", err)
+		return 1
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	go hb.Start(ctx, heartbeat.DefaultInterval, version, logger)
 
 	mcpHost, err := mcp.Start(ctx, mcp.Options{
 		ManifestPath:   cfg.MCPManifest,
@@ -128,7 +141,7 @@ func run() int {
 		if memBuiltin != nil && cfg.MemoryConsolidateMinutes > 0 {
 			consol := &memory.Consolidator{
 				Store:     memBuiltin,
-				Completer: provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel),
+				Completer: completer,
 				Interval:  time.Duration(cfg.MemoryConsolidateMinutes) * time.Minute,
 				Logger:    logger,
 			}
@@ -136,7 +149,6 @@ func run() int {
 		}
 	}
 
-	completer := provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel)
 	ag, err := agent.New(agent.Options{
 		Persona:      personaText,
 		Completer:    completer,
@@ -158,8 +170,14 @@ func run() int {
 		return 1
 	}
 
-	if err := ch.Run(ctx, ag.Handle); err != nil {
-		logger.Error("channel stopped", "err", err)
+	gate := &drain.Gate{}
+	runErr := ch.Run(ctx, gate.Handler(ag.Handle))
+	// Finish the in-flight turn before deferred MCP Close kills children.
+	if !gate.Wait(drain.DefaultWait) {
+		logger.Warn("shutdown: in-flight turn still running after wait", "timeout", drain.DefaultWait.String())
+	}
+	if runErr != nil {
+		logger.Error("channel stopped", "err", runErr)
 		return 1
 	}
 	logger.Info("gantry stopped")

@@ -2,16 +2,40 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/shotah/ai-gantry/internal/channel/stdio"
 	"github.com/shotah/ai-gantry/internal/config"
+	"github.com/shotah/ai-gantry/internal/heartbeat"
+	"github.com/shotah/ai-gantry/internal/session"
 )
 
 func TestStatus(t *testing.T) {
+	dir := t.TempDir()
+	store, err := session.Open(dir, 10, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hb, err := heartbeat.OpenDB(store.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := hb.Touch(context.Background(), "test"); err != nil {
+		t.Fatal(err)
+	}
+	_ = store.Close()
+
+	t.Setenv("DATA_DIR", dir)
+	if code := status(); code != 0 {
+		t.Fatalf("status() = %d, want 0", code)
+	}
+
+	t.Setenv("DATA_DIR", filepath.Join(dir, "missing"))
 	if code := status(); code != 1 {
 		t.Fatalf("status() = %d, want 1", code)
 	}

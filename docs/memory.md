@@ -1,5 +1,7 @@
 # Inspecting gantry memory with `sqlite3`
 
+> Design context: [design.md](design.md) · [docs index](README.md)
+
 Builtin memory lives in the same SQLite file as sessions:
 
 ```text
