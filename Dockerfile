@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
 
+# Build on Alpine (musl toolchain is fine — we link statically).
 FROM golang:1.24-alpine AS build
 WORKDIR /src
 
@@ -21,14 +22,16 @@ RUN go build \
     -o /out/gantry \
     ./cmd/gantry
 
-FROM alpine:3.22
-RUN apk add --no-cache ca-certificates tzdata \
-    && adduser -D -H -u 65532 nonroot
+# Runtime: distroless/static — ca-certs + tzdata, no shell, uid 65532.
+# Pin the Debian track (not :nonroot alone) so the base OS doesn't drift under us.
+# MCP child binaries copied into persona images must also be static (CGO off)
+# or link only against libs present here (effectively: none).
+FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=build /out/gantry /usr/local/bin/gantry
 
 USER nonroot
 WORKDIR /data
 
-ENTRYPOINT ["gantry"]
+ENTRYPOINT ["/usr/local/bin/gantry"]
 CMD ["run"]

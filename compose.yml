@@ -26,8 +26,9 @@ services:
       - ./deploy/data:/data
       - ./deploy/secrets:/secrets:ro
     # No ports — outbound only (Telegram long-poll). Healthcheck is an exit code.
+    # Exec form required: distroless has no shell (do not use CMD-SHELL).
     healthcheck:
-      test: ["CMD", "gantry", "status"]
+      test: ["CMD", "/usr/local/bin/gantry", "status"]
       interval: 30s
       timeout: 5s
       retries: 3

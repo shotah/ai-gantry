@@ -5,7 +5,7 @@
 
 **ai-gantry** is a stupid-simple agent runtime: one static Go binary that runs
 **one persona** with **one model** and whatever **MCP tool binaries** you mount
-next to it. Built for Alpine/scratch containers, configured entirely by env +
+next to it. Built for distroless/static containers, configured entirely by env +
 mounts. No dashboard, no config UI, no open ports — ever.
 
 - 🧱 **MCP-first** — capabilities are external binaries over stdio; the frame
@@ -71,8 +71,8 @@ binary with a kernel we own that does exactly that and nothing else.
    needs a diagram to explain, it probably belongs in an MCP binary, not here.
 2. **Highly performant.** Pure Go, static binary, no CGO, small RSS, no
    background frameworks. Long-poll + goroutines; nothing dials in.
-3. **Highly portable.** `CGO_ENABLED=0`, runs on Alpine, distroless, or
-   `scratch`. No glibc, no shell requirement, no writable rootfs beyond mounts.
+3. **Highly portable.** `CGO_ENABLED=0`, ships on distroless/static (no shell).
+   No glibc dependency in our binary, no writable rootfs beyond mounts.
 4. **Plugin-centric.** Capabilities come from external binaries over MCP
    stdio. The gantry hosts tools; it does not implement them. Import libraries
    over writing our own (official MCP SDK, maintained Telegram lib, pure-Go
@@ -101,7 +101,7 @@ binary with a kernel we own that does exactly that and nothing else.
 flowchart LR
   TG[Telegram] <-->|long poll, outbound only| K
 
-  subgraph Container["container (alpine/scratch)"]
+  subgraph Container["container (distroless/static)"]
     K[gantry binary]
     M1[mcp binary A]
     M2[mcp binary B]
@@ -348,9 +348,11 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 
 - Go ≥ 1.24, single module, `CGO_ENABLED=0`, `-trimpath -ldflags="-s -w"`.
 - Targets: `linux/amd64`, `linux/arm64`.
-- Image: multi-stage — build gantry, copy tool binaries in, final
-  `FROM alpine` (or scratch + tzdata/ca-certs).
-  No busybox shim needed: the gantry must never require `/bin/sh`.
+- Image: multi-stage — build gantry (and later copy MCP tool binaries in),
+  final `FROM gcr.io/distroless/static-debian12:nonroot` (ca-certs + tzdata,
+  uid 65532, **no shell**). Healthchecks must use exec form
+  (`["CMD","gantry","status"]`), never `CMD-SHELL`.
+  MCP children must be static binaries too — there is no libc/shell to lean on.
 - CI: `go vet`, `golangci-lint`, `go test ./...`, goreleaser for tagged
   binaries + image.
 
@@ -370,7 +372,7 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 
 - [x] New repo `ai-gantry`, Go module, `cmd/gantry` + `internal/` skeleton
 - [x] `golangci-lint` config, CI (vet/lint/test), MIT/Apache license
-- [x] `Dockerfile` (multi-stage, alpine final, CGO off), `compose.yml` sample
+- [x] `Dockerfile` (multi-stage, distroless/static final, CGO off), `compose.yml` sample
 - [x] `internal/config`: env struct, fail-fast validation, unit tests
 
 ### Milestone 1 — talk (no tools)
