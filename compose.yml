@@ -1,0 +1,31 @@
+# Sample compose — one container = one persona + one model + one memory volume.
+# Copy .env.example → .env and fill secrets before `docker compose up`.
+
+services:
+  gantry:
+    build:
+      context: .
+      args:
+        VERSION: local
+        COMMIT: local
+        DATE: local
+    image: gantry:local
+    env_file: .env
+    environment:
+      CHANNEL: telegram
+      PERSONA_DIR: /persona
+      DATA_DIR: /data
+      MCP_MANIFEST: /etc/gantry/mcp.toml
+    volumes:
+      - ./deploy/persona:/persona:ro
+      - ./deploy/mcp.toml:/etc/gantry/mcp.toml:ro
+      - ./deploy/data:/data
+      - ./deploy/secrets:/secrets:ro
+    # No ports — outbound only (Telegram long-poll). Healthcheck is an exit code.
+    healthcheck:
+      test: ["CMD", "gantry", "status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped

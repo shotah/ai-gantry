@@ -19,8 +19,7 @@ mounts. No dashboard, no config UI, no open ports — ever.
 - 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
   not an endpoint
 
-> **Status: design phase.** This document is the founding design doc and
-> build plan. Nothing is implemented yet — §11 is the build order.
+> **Status: building.** Milestone 0 (scaffold) is in; §11 is the build order.
 
 ## Quick start (the target UX)
 
@@ -369,10 +368,10 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 
 ### Milestone 0 — scaffold
 
-- [ ] New repo `ai-gantry`, Go module, `cmd/gantry` + `internal/` skeleton
-- [ ] `golangci-lint` config, CI (vet/lint/test), MIT/Apache license
-- [ ] `Dockerfile` (multi-stage, alpine final, CGO off), `compose.yml` sample
-- [ ] `internal/config`: env struct, fail-fast validation, unit tests
+- [x] New repo `ai-gantry`, Go module, `cmd/gantry` + `internal/` skeleton
+- [x] `golangci-lint` config, CI (vet/lint/test), MIT/Apache license
+- [x] `Dockerfile` (multi-stage, alpine final, CGO off), `compose.yml` sample
+- [x] `internal/config`: env struct, fail-fast validation, unit tests
 
 ### Milestone 1 — talk (no tools)
 
@@ -441,4 +440,4 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 
 ## License
 
-MIT (finalize at repo creation).
+MIT — see [LICENSE](LICENSE).

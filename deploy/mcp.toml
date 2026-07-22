@@ -1,0 +1,7 @@
+# MCP servers mounted into this persona's container.
+# If a server is listed here, the agent gets it — the compose IS the grant.
+
+# [[server]]
+# name    = "example"
+# command = "example-mcp"
+# args    = ["--flag", "value"]

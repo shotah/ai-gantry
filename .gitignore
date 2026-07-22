@@ -1,0 +1,31 @@
+# Binaries
+/gantry
+/gantry.exe
+/bin/
+/dist/
+
+# Test / coverage
+*.test
+*.out
+coverage.out
+coverage.html
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Local runtime
+.env
+.env.*
+!.env.example
+/data/
+/secrets/
+*.db
+*.db-*
+
+# Go
+vendor/
