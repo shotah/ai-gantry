@@ -1,0 +1,444 @@
+# ai-gantry 🏗️
+
+> **gantry** *(n.)* — the rigid frame in a CNC machine or crane that holds and
+> positions tools. The frame does nothing by itself; the tools do everything.
+
+**ai-gantry** is a stupid-simple agent runtime: one static Go binary that runs
+**one persona** with **one model** and whatever **MCP tool binaries** you mount
+next to it. Built for Alpine/scratch containers, configured entirely by env +
+mounts. No dashboard, no config UI, no open ports — ever.
+
+- 🧱 **MCP-first** — capabilities are external binaries over stdio; the frame
+  hosts tools, it does not implement them
+- 1️⃣ **1:1 by design** — one container = one persona + one model + one memory
+  volume; want another brain, run another container
+- ⚙️ **Env/compose is the config plane** — secrets via env, structure via two
+  read-only mounts (persona markdown + MCP manifest); boot is fail-fast
+- 🧠 **Inspectable memory** — typed SQLite rows you can read and delete with
+  `sqlite3`, consolidated on a timer; no embeddings, no vector service
+- 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
+  not an endpoint
+
+> **Status: design phase.** This document is the founding design doc and
+> build plan. Nothing is implemented yet — §11 is the build order.
+
+## Quick start (the target UX)
+
+This is the UX contract the milestones build toward:
+
+```bash
+# .env — the only required config
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+LLM_API_KEY=...
+LLM_MODEL=gemini-3.5-flash
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_ALLOWED_USERS=123456789
+```
+
+```toml
+# mcp.toml — the tools you chose to mount
+[[server]]
+name    = "strava"
+command = "strava-mcp"
+```
+
+```bash
+docker compose up -d     # persona/*.md + mcp.toml + data volume mounted
+docker logs -f tim       # JSON logs are the console
+# ...message your bot on Telegram
+```
+
+That is the whole operator surface. Everything below is the design that keeps
+it that small.
+
+## 1. Problem statement
+
+ZeroClaw gives us a good runtime kernel (Telegram loop, tool host, memory,
+context management) but it is drifting toward a multi-agent platform: multiple
+providers, multiple agents, dashboards, console features, config UI. Our
+deployment model is the opposite:
+
+```text
+container = persona + model + MCP set + memory volume
+```
+
+Want another LLM or persona? Spin up another container. No in-process routing,
+no dashboard, no manual config surface. This project replaces the ZeroClaw
+binary with a kernel we own that does exactly that and nothing else.
+
+## 2. Design principles
+
+1. **Stupid simple.** One agent, one model, one channel loop. If a feature
+   needs a diagram to explain, it probably belongs in an MCP binary, not here.
+2. **Highly performant.** Pure Go, static binary, no CGO, small RSS, no
+   background frameworks. Long-poll + goroutines; nothing dials in.
+3. **Highly portable.** `CGO_ENABLED=0`, runs on Alpine, distroless, or
+   `scratch`. No glibc, no shell requirement, no writable rootfs beyond mounts.
+4. **Plugin-centric.** Capabilities come from external binaries over MCP
+   stdio. The gantry hosts tools; it does not implement them. Import libraries
+   over writing our own (official MCP SDK, maintained Telegram lib, pure-Go
+   SQLite).
+5. **1:1, always.** No multi-provider config, no multi-agent config, no peer
+   routing. Scaling = more containers via compose.
+6. **Env/compose is the config plane.** Secrets and scalars via env. The only
+   files are mounts: persona markdown, MCP server manifest, data volume.
+7. **Memory is structured and inspectable.** SQLite rows you can read and
+   delete with `sqlite3`, not opaque embedding blobs. Persona files always
+   outrank recalled memory.
+
+## 3. Non-goals
+
+- Web dashboard, gateway, REST/WS API, pairing
+- Multi-agent, multi-provider, model routing/fallback chains
+- WhatsApp/SMS/Discord (channel interface exists; only Telegram + stdio ship)
+- Built-in web search, built-in workspace tools (those are MCP binaries)
+- Vector database service (see memory design — SQLite is the store)
+- Sandboxing/risk-profile machinery (the container IS the sandbox; we run
+  full-autonomy with a Telegram allowlist)
+
+## 4. Architecture
+
+```mermaid
+flowchart LR
+  TG[Telegram] <-->|long poll, outbound only| K
+
+  subgraph Container["container (alpine/scratch)"]
+    K[gantry binary]
+    M1[mcp binary A]
+    M2[mcp binary B]
+    K -->|MCP stdio| M1
+    K -->|MCP stdio| M2
+  end
+
+  K -->|HTTPS| LLM[one LLM endpoint]
+  K --- P[("/persona *.md")]
+  K --- D[("/data gantry.db")]
+  M1 --- S[("/secrets/...")]
+```
+
+### 4.1 Process model
+
+One OS process. Goroutines:
+
+| Goroutine | Job |
+| --- | --- |
+| channel poller | Telegram `getUpdates` long-poll, allowlist filter |
+| agent loop | per-message: assemble prompt → model → tool calls → reply |
+| MCP supervisors | one per server: spawn, health, restart w/ backoff |
+| memory consolidator | optional timer job (see §7) |
+
+No goroutine talks to the network inbound. Healthcheck is `gantry status`
+(exit-code) reading a heartbeat row in SQLite — no port needed.
+
+### 4.2 Package layout (single module)
+
+```text
+cmd/gantry/          main: run | status | version
+internal/config/     env parsing + validation, fail-fast at boot
+internal/channel/    Channel interface; telegram/, stdio/ (test/dev)
+internal/provider/   ONE implementation: OpenAI-compatible chat client
+internal/mcp/        stdio host: spawn, list tools, call, truncate, restart
+internal/agent/      the loop: prompt assembly, tool iteration, caps
+internal/session/    bounded history, /new reset, rolling summary
+internal/memory/     SQLite structured memory + FTS5 + consolidation
+internal/persona/    load + concat markdown from /persona
+```
+
+### 4.3 Dependencies (import over write)
+
+| Concern | Library | Why |
+| --- | --- | --- |
+| MCP client | `github.com/modelcontextprotocol/go-sdk` | Official SDK; stdio transport, schema handling |
+| SQLite | `modernc.org/sqlite` | Pure Go (no CGO), FTS5 works, one file DB |
+| Telegram | `github.com/go-telegram/bot` | Zero-dep, maintained, long-poll native |
+| LLM client | `github.com/openai/openai-go` | Official; custom `base_url` covers Gemini's OpenAI-compat endpoint, xAI, Ollama, etc. |
+| Env config | `github.com/caarlos0/env` | Struct tags → env, tiny |
+| Logging | stdlib `log/slog` | JSON to stdout, no dep |
+
+One provider implementation (OpenAI-compatible) is deliberate: Gemini, Grok,
+and local models all speak it. Model identity is just `LLM_BASE_URL` +
+`LLM_MODEL` + `LLM_API_KEY`. No provider registry.
+
+## 5. Configuration contract
+
+Everything is env or a mount. No config UI, no `config set`, no sync step.
+
+### 5.1 Environment variables
+
+| Var | Required | Example / default |
+| --- | --- | --- |
+| `LLM_BASE_URL` | yes | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| `LLM_API_KEY` | yes | — |
+| `LLM_MODEL` | yes | `gemini-3.5-flash` |
+| `TELEGRAM_BOT_TOKEN` | yes (telegram) | — |
+| `TELEGRAM_ALLOWED_USERS` | yes (telegram) | `123456789,987654321` |
+| `CHANNEL` | no | `telegram` (or `stdio` for dev) |
+| `PERSONA_DIR` | no | `/persona` |
+| `DATA_DIR` | no | `/data` |
+| `MCP_MANIFEST` | no | `/etc/gantry/mcp.toml` |
+| `HISTORY_MAX_MESSAGES` | no | `200` |
+| `HISTORY_MAX_TOKENS` | no | `128000` |
+| `TOOL_RESULT_MAX_CHARS` | no | `16000` |
+| `TOOL_MAX_ITERATIONS` | no | `20` |
+| `MEMORY_ENABLED` | no | `true` |
+| `MEMORY_BACKEND` | no | `builtin` (or `mcp:<server-name>`, see §12.3) |
+| `MEMORY_CONSOLIDATE_MINUTES` | no | `30` (`0` = off; builtin backend only) |
+| `LOG_LEVEL` | no | `info` |
+
+Boot is fail-fast: missing required env = clear error + exit 1. No partial
+starts, no interactive setup.
+
+### 5.2 MCP manifest (the one file)
+
+Lists of processes don't fit env vars; this is the single structured file,
+mounted read-only. TOML, minimal:
+
+```toml
+[[server]]
+name    = "google-workspace"
+command = "google-workspace-mcp-go"
+args    = ["--tools", "gmail drive calendar docs sheets tasks contacts", "--tool-tier", "core"]
+
+[[server]]
+name    = "strava"
+command = "strava-mcp"
+```
+
+No bundles/grants layer: if a server is in the manifest, the agent gets it.
+The container composition IS the grant (1:1 model — you built this image/mount
+for this persona on purpose).
+
+### 5.3 Container contract
+
+```yaml
+services:
+  tim:
+    image: gantry-tim:local        # gantry + tool binaries copied in
+    env_file: .env
+    volumes:
+      - ./persona:/persona:ro      # SOUL.md USER.md TOOLS.md ...
+      - ./mcp.toml:/etc/gantry/mcp.toml:ro
+      - ./data:/data               # gantry.db (sessions + memory)
+      - ./secrets:/secrets:ro      # tool creds, consumed by MCP children
+    healthcheck:
+      test: ["CMD", "gantry", "status"]
+```
+
+Second persona/LLM = second service block. Nothing shared but the host.
+
+## 6. The agent loop (context management)
+
+This is the part that earns its keep. Keep it boring and bounded:
+
+1. **Assemble prompt**: persona markdown (concat, fixed order) + memory
+   hydration block (§7.4) + session history (bounded) + user message.
+2. **Call model** with MCP tool schemas (loaded eagerly at boot; refreshed on
+   server restart).
+3. **Tool iteration**: execute calls via MCP host, truncate each result to
+   `TOOL_RESULT_MAX_CHARS`, loop until final text or `TOOL_MAX_ITERATIONS`.
+4. **Reply** on the channel; append turn to session.
+
+Bounding rules (v1 — no LLM summarization yet):
+
+- Hard cap `HISTORY_MAX_MESSAGES`; drop oldest turns past `HISTORY_MAX_TOKENS`.
+  Token counts are chars/4 **estimates** and are labeled as such everywhere
+  they surface (logs, `/status`) — see §12.2. Persona + last N turns are
+  always protected.
+- Tool results older than 4 turns collapse to one line:
+  `[tool gmail.search: 14 results, truncated]`.
+- `/new` wipes the session (memory untouched).
+
+v2 adds a rolling summary: when history is trimmed, fold dropped turns into a
+persistent per-session summary paragraph using the same LLM. That is the whole
+"context compression" feature — one summary string, not a framework.
+
+## 7. Memory design
+
+Direction taken from Google's Always-On Memory Agent (2026): **no embeddings,
+no vector DB — an LLM writes structured rows into SQLite and a background job
+consolidates them.** At personal-agent scale, structured + FTS5 beats ANN
+search and stays greppable/deletable. (Meta/OpenAI memory products converge on
+the same shape: typed facts + episodic notes + periodic distillation.)
+
+### 7.1 Store
+
+One SQLite file `/data/gantry.db` (WAL mode), pure-Go driver:
+
+```sql
+CREATE TABLE memory (
+  id          INTEGER PRIMARY KEY,
+  kind        TEXT NOT NULL,       -- fact | preference | person | episode | insight
+  subject     TEXT NOT NULL,       -- "chris", "climbing", "mom"
+  content     TEXT NOT NULL,       -- one atomic statement
+  source      TEXT NOT NULL,       -- chat | consolidation | operator
+  confidence  REAL DEFAULT 1.0,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL,
+  expires_at  TEXT,                -- TTL per kind (episodes decay, facts don't)
+  superseded_by INTEGER            -- consolidation links, never silent delete
+);
+CREATE VIRTUAL TABLE memory_fts USING fts5(subject, content, content=memory);
+
+CREATE TABLE session (...);        -- bounded history + rolling summary
+CREATE TABLE heartbeat (...);      -- for `gantry status`
+```
+
+### 7.2 Write path
+
+The model gets three built-in tools (the only non-MCP tools in the gantry):
+
+- `memory_store(kind, subject, content)` — atomic statements only
+- `memory_recall(query)` — FTS5 + recency-ranked
+- `memory_forget(id | query)` — hard requirement; memory must be correctable
+
+Auto-save is **off by default**. ZeroClaw taught us auto-saved hallucinations
+(wrong emails) are worse than no memory. The model stores deliberately; the
+consolidator promotes.
+
+### 7.3 Consolidation (the Google idea)
+
+A timer job (default 30 min, `0` disables) runs a cheap pass with the same LLM:
+
+1. Read unconsolidated `episode` rows + recent session summaries.
+2. Extract durable `fact`/`preference`/`person` rows; link duplicates via
+   `superseded_by`; flag contradictions with persona files for the human
+   instead of overwriting.
+3. Write `insight` rows for cross-cutting patterns ("trains Tue/Thu, skips
+   when traveling").
+
+Cheap model, bounded batch, fully skippable. This is our "sleep cycle."
+
+### 7.4 Read path (hydration)
+
+At session start and on `memory_recall`, hydrate at most ~30 rows:
+active facts/preferences (non-expired, non-superseded) + FTS5 hits for the
+current message, rendered as a compact block:
+
+```text
+[memory]
+- (person) mom: prefers calls over texts
+- (preference) chris: coaching tone, no fluff
+```
+
+**Persona precedence is law**: anything in `/persona/USER.md` outranks memory;
+contradictions get surfaced, not obeyed.
+
+### 7.5 Why not vectors / cloud vector storage
+
+- One user, one container: recall corpus is hundreds–thousands of rows, not
+  millions. FTS5 + recency + kind filters is enough and is debuggable.
+- Embeddings add a second model dependency, cache, and dimension migration
+  for marginal recall gain at this scale.
+- Cloud vector stores add network, cost, and privacy surface to the most
+  sensitive data in the system.
+- Escape hatch: schema reserves the option of an `embedding BLOB` column
+  later. If recall quality ever demonstrably hurts, add it then — behind the
+  same `memory_recall` interface, no design change.
+
+## 8. Ops surface
+
+- `gantry run` — the daemon (default)
+- `gantry status` — exit-code healthcheck (reads heartbeat; used by Docker)
+- `gantry version` — build info
+- Logs: JSON `slog` to stdout; `docker logs` is the console.
+- Telegram `/new` — session reset; `/status` — uptime, model, tool count.
+
+That's the entire ops/UI story. No port is opened by the gantry, ever.
+
+## 9. Build & packaging
+
+- Go ≥ 1.24, single module, `CGO_ENABLED=0`, `-trimpath -ldflags="-s -w"`.
+- Targets: `linux/amd64`, `linux/arm64`.
+- Image: multi-stage — build gantry, copy tool binaries in, final
+  `FROM alpine` (or scratch + tzdata/ca-certs).
+  No busybox shim needed: the gantry must never require `/bin/sh`.
+- CI: `go vet`, `golangci-lint`, `go test ./...`, goreleaser for tagged
+  binaries + image.
+
+## 10. Migration path from tim/ZeroClaw
+
+1. Persona markdown moves as-is (`config/agents/main/workspace/*.md` → `/persona`).
+2. MCP binaries move as-is (already ours, already stdio).
+3. `.env` keys map ~1:1 (`GEMINI_API_KEY`→`LLM_API_KEY`, etc.).
+4. ZeroClaw hybrid memory does NOT migrate — start clean; persona files carry
+   identity, consolidator rebuilds the rest.
+5. Run both side by side (different bot tokens) until the gantry is trusted,
+   then retire the ZeroClaw service.
+
+## 11. TODO — build order
+
+### Milestone 0 — scaffold
+
+- [ ] New repo `ai-gantry`, Go module, `cmd/gantry` + `internal/` skeleton
+- [ ] `golangci-lint` config, CI (vet/lint/test), MIT/Apache license
+- [ ] `Dockerfile` (multi-stage, alpine final, CGO off), `compose.yml` sample
+- [ ] `internal/config`: env struct, fail-fast validation, unit tests
+
+### Milestone 1 — talk (no tools)
+
+- [ ] `internal/provider`: OpenAI-compat chat client (base URL/key/model), streaming optional
+- [ ] `internal/persona`: load + concat `/persona/*.md` (fixed order, missing-file tolerant)
+- [ ] `internal/channel/stdio`: dev REPL channel
+- [ ] `internal/agent`: minimal loop (prompt → model → reply), no tools yet
+- [ ] Milestone test: chat with persona via `docker run -it`
+
+### Milestone 2 — Telegram
+
+- [ ] `internal/channel/telegram`: long-poll, allowlist, typing indicator, message splitting (4096 chars)
+- [ ] `/new` and `/status` commands
+- [ ] `internal/session`: SQLite-backed bounded history, token estimate, trim rules
+- [ ] Milestone test: daily-drivable chat bot in a container
+
+### Milestone 3 — MCP host (the point of the project)
+
+- [ ] `internal/mcp`: manifest parse, spawn via official go-sdk, eager tool listing
+- [ ] Tool call execution + per-result truncation + iteration cap
+- [ ] Supervisor: restart with backoff, stderr → slog, boot-time hard fail if a manifest server can't start
+- [ ] Tool-name collision handling (prefix with server name)
+- [ ] Milestone test: google-workspace-mcp-go + strava-mcp end-to-end from Telegram
+
+### Milestone 4 — memory
+
+- [ ] `Memory` interface (store/recall/forget + hydrate) so backends are swappable (§12.3)
+- [ ] `internal/memory`: builtin backend — schema, WAL, FTS5, migrations (embedded SQL)
+- [ ] `MEMORY_BACKEND=mcp:<name>` adapter: route the three tools + hydration to a manifest server
+- [ ] Built-in tools: `memory_store` / `memory_recall` / `memory_forget`
+- [ ] Hydration block in prompt assembly (cap ~30 rows, persona precedence rule in system prompt)
+- [ ] Consolidation timer job (cheap pass, bounded batch, `0` disables)
+- [ ] `sqlite3`-friendly docs: how to inspect/fix memory by hand
+- [ ] Milestone test: store→recall across `/new`; consolidation dedupes; `memory_forget` works
+
+### Milestone 5 — hardening & cutover
+
+- [ ] `gantry status` healthcheck + heartbeat row
+- [ ] Rolling session summary (context compression v2)
+- [ ] Graceful shutdown (finish in-flight turn, kill MCP children)
+- [ ] Load test: fat tool dumps don't blow context (assert bounded prompt size)
+- [ ] Side-by-side deploy next to ZeroClaw tim; compare a week of use
+- [ ] Retire ZeroClaw service; pin gantry release tags
+
+## 12. Decisions (was: open questions)
+
+1. **Name: ai-gantry 🏗️** — a gantry is the frame that holds and positions
+   tools while the tools do the work. Repo `ai-gantry`, binary/command
+   `gantry`. (Earlier candidates lost to collisions: `noclaw` is a C
+   assistant in the claw-benchmark lineage, `armature` is a Python YAML
+   agent harness.)
+2. **Token counting: estimates, labeled as estimates.** chars/4 heuristic;
+   every log field, status output, and config knob that uses it says so
+   (`est_tokens`, "estimated"). Only add a real tokenizer dep if trimming
+   demonstrably misbehaves.
+3. **Memory: built in, but replaceable.** v1 ships the SQLite implementation
+   inside the gantry, behind a `Memory` interface whose surface is exactly
+   the three tools (`memory_store` / `memory_recall` / `memory_forget`) plus
+   the hydration call. A config switch (`MEMORY_BACKEND=builtin|mcp:<name>`)
+   lets an MCP server from the manifest satisfy that interface instead, so
+   people can plug in their own memory and tinker. Builtin stays the default.
+4. **Streaming replies: deferred, and it's gantry work when it happens.**
+   Note: this cannot be outsourced to MCP — servers stream tool results to
+   the gantry, but streaming *to the user* is the channel layer editing the
+   Telegram message as model tokens arrive. Nice-to-have, not v1.
+
+## License
+
+MIT (finalize at repo creation).
