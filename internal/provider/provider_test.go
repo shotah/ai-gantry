@@ -39,22 +39,74 @@ func TestClient_Complete(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	c := provider.New(srv.URL, "test-key", "test-model")
-	got, err := c.Complete(context.Background(), []provider.Message{
-		{Role: provider.RoleSystem, Content: "be brief"},
-		{Role: provider.RoleUser, Content: "hi"},
-		{Role: provider.RoleAssistant, Content: "prior"},
+	got, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{
+			{Role: provider.RoleSystem, Content: "be brief"},
+			{Role: provider.RoleUser, Content: "hi"},
+			{Role: provider.RoleAssistant, Content: "prior"},
+		},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if got != "hello there" {
-		t.Errorf("Complete = %q, want %q", got, "hello there")
+	if got.Content != "hello there" {
+		t.Errorf("Content = %q, want %q", got.Content, "hello there")
+	}
+}
+
+func TestClient_Complete_ToolCall(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if _, ok := body["tools"]; !ok {
+			t.Error("expected tools in request")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "chatcmpl-tools",
+			"choices": []map[string]any{
+				{
+					"index": 0,
+					"message": map[string]any{
+						"role":    "assistant",
+						"content": nil,
+						"tool_calls": []map[string]any{
+							{
+								"id":   "call_1",
+								"type": "function",
+								"function": map[string]any{
+									"name":      "demo__echo",
+									"arguments": `{"text":"hi"}`,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m")
+	got, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "echo"}},
+		Tools: []provider.ToolDef{{
+			Name:        "demo__echo",
+			Description: "echo",
+			Parameters:  map[string]any{"type": "object"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.ToolCalls) != 1 || got.ToolCalls[0].Name != "demo__echo" {
+		t.Fatalf("%+v", got.ToolCalls)
 	}
 }
 
 func TestClient_Complete_EmptyMessages(t *testing.T) {
 	c := provider.New("http://example.invalid", "k", "m")
-	_, err := c.Complete(context.Background(), nil)
+	_, err := c.Complete(context.Background(), provider.Request{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -62,8 +114,8 @@ func TestClient_Complete_EmptyMessages(t *testing.T) {
 
 func TestClient_Complete_UnknownRole(t *testing.T) {
 	c := provider.New("http://example.invalid", "k", "m")
-	_, err := c.Complete(context.Background(), []provider.Message{
-		{Role: "tool", Content: "x"},
+	_, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: "nope", Content: "x"}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "unknown role") {
 		t.Fatalf("err = %v", err)
@@ -81,8 +133,8 @@ func TestClient_Complete_EmptyChoices(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	c := provider.New(srv.URL, "k", "m")
-	_, err := c.Complete(context.Background(), []provider.Message{
-		{Role: provider.RoleUser, Content: "hi"},
+	_, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "empty choices") {
 		t.Fatalf("err = %v", err)
@@ -102,8 +154,8 @@ func TestClient_Complete_EmptyContent(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	c := provider.New(srv.URL, "k", "m")
-	_, err := c.Complete(context.Background(), []provider.Message{
-		{Role: provider.RoleUser, Content: "hi"},
+	_, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "empty assistant content") {
 		t.Fatalf("err = %v", err)
@@ -117,10 +169,56 @@ func TestClient_Complete_HTTPError(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	c := provider.New(srv.URL, "k", "m")
-	_, err := c.Complete(context.Background(), []provider.Message{
-		{Role: provider.RoleUser, Content: "hi"},
+	_, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
 	})
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestClient_Complete_ToolMessageRoundTrip(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Messages []map[string]any `json:"messages"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		foundTool := false
+		for _, m := range body.Messages {
+			if m["role"] == "tool" {
+				foundTool = true
+			}
+		}
+		if !foundTool {
+			t.Error("expected tool role message")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "x",
+			"choices": []map[string]any{
+				{"index": 0, "message": map[string]any{"role": "assistant", "content": "done"}},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m")
+	got, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{
+			{Role: provider.RoleUser, Content: "hi"},
+			{
+				Role: provider.RoleAssistant,
+				ToolCalls: []provider.ToolCall{
+					{ID: "c1", Name: "demo__echo", Arguments: `{}`},
+				},
+			},
+			{Role: provider.RoleTool, Content: "ok", ToolCallID: "c1"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Content != "done" {
+		t.Fatalf("%q", got.Content)
 	}
 }

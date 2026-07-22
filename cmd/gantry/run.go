@@ -14,12 +14,13 @@ import (
 	"github.com/shotah/ai-gantry/internal/channel/stdio"
 	"github.com/shotah/ai-gantry/internal/channel/telegram"
 	"github.com/shotah/ai-gantry/internal/config"
+	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/persona"
 	"github.com/shotah/ai-gantry/internal/provider"
 	"github.com/shotah/ai-gantry/internal/session"
 )
 
-// run boots config, persona, sessions, provider, agent, and the selected channel.
+// run boots config, persona, sessions, MCP host, provider, agent, and channel.
 func run() int {
 	cfg, err := config.Load()
 	if err != nil {
@@ -60,13 +61,33 @@ func run() int {
 	}()
 	logger.Info("session store ready", "path", filepath.Join(cfg.DataDir, "gantry.db"))
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	mcpHost, err := mcp.Start(ctx, mcp.Options{
+		ManifestPath:   cfg.MCPManifest,
+		Logger:         logger,
+		ResultMaxChars: cfg.ToolResultMaxChars,
+	})
+	if err != nil {
+		logger.Error("mcp host failed", "err", err)
+		return 1
+	}
+	defer func() {
+		if err := mcpHost.Close(); err != nil {
+			logger.Error("mcp host close failed", "err", err)
+		}
+	}()
+
 	completer := provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel)
 	ag, err := agent.New(agent.Options{
-		Persona:   personaText,
-		Completer: completer,
-		Sessions:  sessions,
-		Model:     cfg.LLMModel,
-		Logger:    logger,
+		Persona:      personaText,
+		Completer:    completer,
+		Sessions:     sessions,
+		Tools:        mcpHost,
+		Model:        cfg.LLMModel,
+		MaxToolIters: cfg.ToolMaxIterations,
+		Logger:       logger,
 	})
 	if err != nil {
 		logger.Error("agent init failed", "err", err)
@@ -78,9 +99,6 @@ func run() int {
 		logger.Error("channel init failed", "err", err)
 		return 1
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	if err := ch.Run(ctx, ag.Handle); err != nil {
 		logger.Error("channel stopped", "err", err)

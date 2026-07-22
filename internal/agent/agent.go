@@ -1,8 +1,9 @@
-// Package agent implements the agent loop: prompt assembly, model calls, and reply.
+// Package agent implements the agent loop: prompt assembly, model calls, tool iteration, and reply.
 package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -21,24 +22,35 @@ type History interface {
 	Stats(ctx context.Context, sessionID string) (messages int, estTokens int, err error)
 }
 
-// Options configures a minimal (no-tools) agent.
-type Options struct {
-	Persona   string
-	Completer provider.Completer
-	Sessions  History
-	Model     string
-	Logger    *slog.Logger
-	StartedAt time.Time
+// Tools executes MCP (or other) tools during the agent loop.
+type Tools interface {
+	Tools() []provider.ToolDef
+	Call(ctx context.Context, name string, arguments json.RawMessage) (string, error)
+	ToolCount() int
 }
 
-// Agent runs the prompt → model → reply loop.
+// Options configures the agent.
+type Options struct {
+	Persona      string
+	Completer    provider.Completer
+	Sessions     History
+	Tools        Tools // optional
+	Model        string
+	MaxToolIters int
+	Logger       *slog.Logger
+	StartedAt    time.Time
+}
+
+// Agent runs the prompt → model → (tools) → reply loop.
 type Agent struct {
-	persona   string
-	completer provider.Completer
-	sessions  History
-	model     string
-	log       *slog.Logger
-	startedAt time.Time
+	persona      string
+	completer    provider.Completer
+	sessions     History
+	tools        Tools
+	model        string
+	maxToolIters int
+	log          *slog.Logger
+	startedAt    time.Time
 }
 
 // New creates an Agent. Completer and Sessions are required.
@@ -57,17 +69,23 @@ func New(opts Options) (*Agent, error) {
 	if started.IsZero() {
 		started = time.Now()
 	}
+	maxIters := opts.MaxToolIters
+	if maxIters < 1 {
+		maxIters = 20
+	}
 	return &Agent{
-		persona:   opts.Persona,
-		completer: opts.Completer,
-		sessions:  opts.Sessions,
-		model:     opts.Model,
-		log:       log,
-		startedAt: started,
+		persona:      opts.Persona,
+		completer:    opts.Completer,
+		sessions:     opts.Sessions,
+		tools:        opts.Tools,
+		model:        opts.Model,
+		maxToolIters: maxIters,
+		log:          log,
+		startedAt:    started,
 	}, nil
 }
 
-// Handle is a channel.Handler: assemble prompt, call model, return reply.
+// Handle is a channel.Handler: assemble prompt, call model (with tools), return reply.
 func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error) {
 	text := strings.TrimSpace(msg.Text)
 	if text == "" {
@@ -109,13 +127,19 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		Content: text,
 	})
 
+	var toolDefs []provider.ToolDef
+	if a.tools != nil {
+		toolDefs = a.tools.Tools()
+	}
+
 	a.log.Debug("agent complete",
 		"session_id", msg.SessionID,
 		"history_messages", len(history),
+		"tools", len(toolDefs),
 		"est_tokens", estTokens(messages),
 	)
 
-	reply, err := a.completer.Complete(ctx, messages)
+	reply, err := a.runLoop(ctx, messages, toolDefs)
 	if err != nil {
 		return "", err
 	}
@@ -129,14 +153,68 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 	return reply, nil
 }
 
+func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDefs []provider.ToolDef) (string, error) {
+	for iter := 0; iter < a.maxToolIters; iter++ {
+		res, err := a.completer.Complete(ctx, provider.Request{
+			Messages: messages,
+			Tools:    toolDefs,
+		})
+		if err != nil {
+			return "", err
+		}
+		if len(res.ToolCalls) == 0 {
+			if res.Content == "" {
+				return "", fmt.Errorf("agent: empty model reply")
+			}
+			return res.Content, nil
+		}
+		if a.tools == nil {
+			return "", fmt.Errorf("agent: model requested tools but none are configured")
+		}
+
+		messages = append(messages, provider.Message{
+			Role:      provider.RoleAssistant,
+			Content:   res.Content,
+			ToolCalls: res.ToolCalls,
+		})
+
+		for _, call := range res.ToolCalls {
+			a.log.Info("tool call",
+				"name", call.Name,
+				"id", call.ID,
+				"iteration", iter+1,
+			)
+			args := json.RawMessage(call.Arguments)
+			if len(args) == 0 {
+				args = json.RawMessage(`{}`)
+			}
+			out, err := a.tools.Call(ctx, call.Name, args)
+			if err != nil {
+				out = fmt.Sprintf("tool error: %v", err)
+				a.log.Warn("tool call failed", "name", call.Name, "err", err)
+			}
+			messages = append(messages, provider.Message{
+				Role:       provider.RoleTool,
+				Content:    out,
+				ToolCallID: call.ID,
+			})
+		}
+	}
+	return "", fmt.Errorf("agent: exceeded TOOL_MAX_ITERATIONS (%d)", a.maxToolIters)
+}
+
 func (a *Agent) status(ctx context.Context, sessionID string) (string, error) {
 	n, est, err := a.sessions.Stats(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}
+	tools := 0
+	if a.tools != nil {
+		tools = a.tools.ToolCount()
+	}
 	uptime := time.Since(a.startedAt).Truncate(time.Second)
-	return fmt.Sprintf("uptime=%s model=%s history_messages=%d est_tokens=%d tools=0",
-		uptime, a.model, n, est), nil
+	return fmt.Sprintf("uptime=%s model=%s history_messages=%d est_tokens=%d tools=%d",
+		uptime, a.model, n, est, tools), nil
 }
 
 // parseCommand returns the slash command (lowercased, @bot suffix stripped)
@@ -160,6 +238,9 @@ func estTokens(messages []provider.Message) int {
 	n := 0
 	for _, m := range messages {
 		n += (len(m.Content) + 3) / 4
+		for _, tc := range m.ToolCalls {
+			n += (len(tc.Arguments) + 3) / 4
+		}
 	}
 	return n
 }

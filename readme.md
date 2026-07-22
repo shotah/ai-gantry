@@ -19,7 +19,7 @@ mounts. No dashboard, no config UI, no open ports — ever.
 - 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
   not an endpoint
 
-> **Status: building.** Milestone 2 (Telegram + SQLite sessions) is in; §11 is the build order.
+> **Status: building.** Milestone 3 (MCP host) is in; §11 is the build order.
 
 ## Quick start (the target UX)
 
@@ -43,9 +43,12 @@ command = "strava-mcp"
 
 ```bash
 docker compose up -d     # persona/*.md + mcp.toml + data volume mounted
-docker logs -f tim       # JSON logs are the console
+docker logs -f gantry    # JSON logs (stderr) are the console
 # ...message your bot on Telegram
 ```
+
+Local REPL instead of Telegram: `CHANNEL=stdio` and
+`docker compose run --rm -it gantry` (or `make run`).
 
 That is the whole operator surface. Everything below is the design that keeps
 it that small.
@@ -150,9 +153,10 @@ internal/persona/    load + concat markdown from /persona
 | MCP client | `github.com/modelcontextprotocol/go-sdk` | Official SDK; stdio transport, schema handling |
 | SQLite | `modernc.org/sqlite` | Pure Go (no CGO), FTS5 works, one file DB |
 | Telegram | `github.com/go-telegram/bot` | Zero-dep, maintained, long-poll native |
-| LLM client | `github.com/openai/openai-go` | Official; custom `base_url` covers Gemini's OpenAI-compat endpoint, xAI, Ollama, etc. |
-| Env config | `github.com/caarlos0/env` | Struct tags → env, tiny |
-| Logging | stdlib `log/slog` | JSON to stdout, no dep |
+| LLM client | `github.com/openai/openai-go/v3` | Official; custom `base_url` covers Gemini's OpenAI-compat endpoint, xAI, Ollama, etc. |
+| Env config | `github.com/caarlos0/env/v11` | Struct tags → env, tiny |
+| MCP manifest | `github.com/pelletier/go-toml/v2` | Minimal TOML for `mcp.toml` |
+| Logging | stdlib `log/slog` | JSON to **stderr** (keeps stdio REPL clean); `docker logs` still captures it |
 
 One provider implementation (OpenAI-compatible) is deliberate: Gemini, Grok,
 and local models all speak it. Model identity is just `LLM_BASE_URL` +
@@ -170,7 +174,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `LLM_API_KEY` | yes | — |
 | `LLM_MODEL` | yes | `gemini-3.5-flash` |
 | `TELEGRAM_BOT_TOKEN` | yes (telegram) | — |
-| `TELEGRAM_ALLOWED_USERS` | yes (telegram) | `123456789,987654321` |
+| `TELEGRAM_ALLOWED_USERS` | yes (telegram) | `123456789,987654321` (numeric IDs; **allowlist only — no pairing**) |
 | `CHANNEL` | no | `telegram` (or `stdio` for dev) |
 | `PERSONA_DIR` | no | `/persona` |
 | `DATA_DIR` | no | `/data` |
@@ -207,20 +211,26 @@ No bundles/grants layer: if a server is in the manifest, the agent gets it.
 The container composition IS the grant (1:1 model — you built this image/mount
 for this persona on purpose).
 
+Tool names are always prefixed `{server}__{tool}` (OpenAI-safe; avoids collisions).
+
 ### 5.3 Container contract
+
+Sample layout matches `compose.yml` today; rename the service when you ship a
+persona-specific image (e.g. `tim` / `gantry-tim:local`):
 
 ```yaml
 services:
-  tim:
-    image: gantry-tim:local        # gantry + tool binaries copied in
+  gantry:
+    image: gantry:local            # gantry (+ tool binaries in persona images)
     env_file: .env
     volumes:
-      - ./persona:/persona:ro      # SOUL.md USER.md TOOLS.md ...
-      - ./mcp.toml:/etc/gantry/mcp.toml:ro
-      - ./data:/data               # gantry.db (sessions + memory)
-      - ./secrets:/secrets:ro      # tool creds, consumed by MCP children
+      - ./deploy/persona:/persona:ro
+      - ./deploy/mcp.toml:/etc/gantry/mcp.toml:ro
+      - ./deploy/data:/data        # gantry.db (sessions; memory in M4)
+      - ./deploy/secrets:/secrets:ro
     healthcheck:
-      test: ["CMD", "gantry", "status"]
+      # exec form + full path — distroless has no shell
+      test: ["CMD", "/usr/local/bin/gantry", "status"]
 ```
 
 Second persona/LLM = second service block. Nothing shared but the host.
@@ -337,16 +347,17 @@ contradictions get surfaced, not obeyed.
 ## 8. Ops surface
 
 - `gantry run` — the daemon (default)
-- `gantry status` — exit-code healthcheck (reads heartbeat; used by Docker)
+- `gantry status` — exit-code healthcheck (heartbeat row lands in M5; until then exits 1)
 - `gantry version` — build info
 - Logs: JSON `slog` to stderr; `docker logs` is the console.
-- Telegram `/new` — session reset; `/status` — uptime, model, tool count.
+- Telegram/stdio `/new` — session reset; `/status` — uptime, model, history, tool count.
+- Dev: `make build|test|lint|run|ci` (see `Makefile`).
 
 That's the entire ops/UI story. No port is opened by the gantry, ever.
 
 ## 9. Build & packaging
 
-- Go ≥ 1.24, single module, `CGO_ENABLED=0`, `-trimpath -ldflags="-s -w"`.
+- Go ≥ 1.26, single module, `CGO_ENABLED=0`, `-trimpath -ldflags="-s -w"`.
 - Targets: `linux/amd64`, `linux/arm64`.
 - Image: multi-stage — build gantry (and later copy MCP tool binaries in),
   final `FROM gcr.io/distroless/static-debian12:nonroot` (ca-certs + tzdata,
@@ -392,13 +403,14 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 
 ### Milestone 3 — MCP host (the point of the project)
 
-- [ ] `internal/mcp`: manifest parse, spawn via official go-sdk, eager tool listing
-- [ ] Tool call execution + per-result truncation + iteration cap
-- [ ] Supervisor: restart with backoff, stderr → slog, boot-time hard fail if a manifest server can't start
-- [ ] Tool-name collision handling (prefix with server name)
+- [x] `internal/mcp`: manifest parse, spawn via official go-sdk, eager tool listing
+- [x] Tool call execution + per-result truncation + iteration cap
+- [x] Supervisor: restart with backoff, stderr → slog, boot-time hard fail if a manifest server can't start
+- [x] Tool-name collision handling (prefix with server name as `{server}__{tool}`)
 - [ ] Milestone test: google-workspace-mcp-go + strava-mcp end-to-end from Telegram
+  (unit/in-memory SDK covered; live tool binaries are a deploy-time check)
 
-### Milestone 4 — memory
+### Milestone 4 — memory *(design locked; not implemented yet)*
 
 - [ ] `Memory` interface (store/recall/forget + hydrate) so backends are swappable (§12.3)
 - [ ] `internal/memory`: builtin backend — schema, WAL, FTS5, migrations (embedded SQL)
@@ -409,7 +421,7 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 - [ ] `sqlite3`-friendly docs: how to inspect/fix memory by hand
 - [ ] Milestone test: store→recall across `/new`; consolidation dedupes; `memory_forget` works
 
-### Milestone 5 — hardening & cutover
+### Milestone 5 — hardening & cutover *(not implemented yet)*
 
 - [ ] `gantry status` healthcheck + heartbeat row
 - [ ] Rolling session summary (context compression v2)
@@ -439,6 +451,13 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
    Note: this cannot be outsourced to MCP — servers stream tool results to
    the gantry, but streaming *to the user* is the channel layer editing the
    Telegram message as model tokens arrive. Nice-to-have, not v1.
+5. **Telegram auth: allowlist only.** Empty `TELEGRAM_ALLOWED_USERS` fails
+   boot. No pairing codes, no interactive bind — that was a ZeroClaw pain
+   point we deliberately skipped.
+6. **Runtime image: distroless/static-debian12:nonroot.** Not Alpine. MCP
+   child binaries must be static too.
+7. **Logs on stderr.** Stdout stays clean for the stdio REPL; Docker still
+   shows both streams.
 
 ## License
 

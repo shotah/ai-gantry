@@ -8,6 +8,7 @@ import (
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/shared"
 )
 
 // Role is a chat message role.
@@ -18,17 +19,46 @@ const (
 	RoleSystem    Role = "system"
 	RoleUser      Role = "user"
 	RoleAssistant Role = "assistant"
+	RoleTool      Role = "tool"
 )
 
 // Message is one turn in a chat completion request.
 type Message struct {
-	Role    Role
-	Content string
+	Role       Role
+	Content    string
+	ToolCallID string     // RoleTool
+	ToolCalls  []ToolCall // RoleAssistant (model-requested calls)
 }
 
-// Completer generates a single assistant reply from a message list.
+// ToolDef is an OpenAI function tool schema.
+type ToolDef struct {
+	Name        string
+	Description string
+	Parameters  map[string]any
+}
+
+// ToolCall is a model-requested function invocation.
+type ToolCall struct {
+	ID        string
+	Name      string
+	Arguments string // JSON object
+}
+
+// Request is one chat completion call.
+type Request struct {
+	Messages []Message
+	Tools    []ToolDef
+}
+
+// Result is the model response (text and/or tool calls).
+type Result struct {
+	Content   string
+	ToolCalls []ToolCall
+}
+
+// Completer generates a chat completion result.
 type Completer interface {
-	Complete(ctx context.Context, messages []Message) (string, error)
+	Complete(ctx context.Context, req Request) (*Result, error)
 }
 
 // Client talks to one OpenAI-compatible chat completions endpoint.
@@ -49,40 +79,89 @@ func New(baseURL, apiKey, model string) *Client {
 	}
 }
 
-// Complete calls chat.completions and returns the first choice's text content.
-func (c *Client) Complete(ctx context.Context, messages []Message) (string, error) {
-	if len(messages) == 0 {
-		return "", fmt.Errorf("provider: messages must not be empty")
+// Complete calls chat.completions and returns text and/or tool calls.
+func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
+	if len(req.Messages) == 0 {
+		return nil, fmt.Errorf("provider: messages must not be empty")
 	}
 
 	params := openai.ChatCompletionNewParams{
 		Model:    c.model,
-		Messages: make([]openai.ChatCompletionMessageParamUnion, 0, len(messages)),
+		Messages: make([]openai.ChatCompletionMessageParamUnion, 0, len(req.Messages)),
 	}
-	for _, m := range messages {
-		switch m.Role {
-		case RoleSystem:
-			params.Messages = append(params.Messages, openai.SystemMessage(m.Content))
-		case RoleUser:
-			params.Messages = append(params.Messages, openai.UserMessage(m.Content))
-		case RoleAssistant:
-			params.Messages = append(params.Messages, openai.AssistantMessage(m.Content))
-		default:
-			return "", fmt.Errorf("provider: unknown role %q", m.Role)
+	for _, m := range req.Messages {
+		msg, err := toParam(m)
+		if err != nil {
+			return nil, err
 		}
+		params.Messages = append(params.Messages, msg)
+	}
+	for _, t := range req.Tools {
+		params.Tools = append(params.Tools, openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        t.Name,
+			Description: openai.String(t.Description),
+			Parameters:  shared.FunctionParameters(t.Parameters),
+		}))
 	}
 
 	resp, err := c.client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("provider: chat completion: %w", err)
+		return nil, fmt.Errorf("provider: chat completion: %w", err)
 	}
 	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("provider: empty choices in response")
+		return nil, fmt.Errorf("provider: empty choices in response")
 	}
 
-	content := strings.TrimSpace(resp.Choices[0].Message.Content)
-	if content == "" {
-		return "", fmt.Errorf("provider: empty assistant content")
+	msg := resp.Choices[0].Message
+	out := &Result{Content: strings.TrimSpace(msg.Content)}
+	for _, tc := range msg.ToolCalls {
+		switch v := tc.AsAny().(type) {
+		case openai.ChatCompletionMessageFunctionToolCall:
+			out.ToolCalls = append(out.ToolCalls, ToolCall{
+				ID:        v.ID,
+				Name:      v.Function.Name,
+				Arguments: v.Function.Arguments,
+			})
+		}
 	}
-	return content, nil
+	if out.Content == "" && len(out.ToolCalls) == 0 {
+		return nil, fmt.Errorf("provider: empty assistant content")
+	}
+	return out, nil
+}
+
+func toParam(m Message) (openai.ChatCompletionMessageParamUnion, error) {
+	switch m.Role {
+	case RoleSystem:
+		return openai.SystemMessage(m.Content), nil
+	case RoleUser:
+		return openai.UserMessage(m.Content), nil
+	case RoleAssistant:
+		if len(m.ToolCalls) == 0 {
+			return openai.AssistantMessage(m.Content), nil
+		}
+		var asst openai.ChatCompletionAssistantMessageParam
+		if m.Content != "" {
+			asst.Content.OfString = openai.String(m.Content)
+		}
+		for _, tc := range m.ToolCalls {
+			asst.ToolCalls = append(asst.ToolCalls, openai.ChatCompletionMessageToolCallUnionParam{
+				OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+					ID: tc.ID,
+					Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+						Name:      tc.Name,
+						Arguments: tc.Arguments,
+					},
+				},
+			})
+		}
+		return openai.ChatCompletionMessageParamUnion{OfAssistant: &asst}, nil
+	case RoleTool:
+		if m.ToolCallID == "" {
+			return openai.ChatCompletionMessageParamUnion{}, fmt.Errorf("provider: tool message missing tool_call_id")
+		}
+		return openai.ToolMessage(m.Content, m.ToolCallID), nil
+	default:
+		return openai.ChatCompletionMessageParamUnion{}, fmt.Errorf("provider: unknown role %q", m.Role)
+	}
 }

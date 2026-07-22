@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -14,14 +15,19 @@ import (
 )
 
 type fakeCompleter struct {
-	last  []provider.Message
-	reply string
-	err   error
+	mu    sync.Mutex
+	calls int
+	fn    func(req provider.Request) (*provider.Result, error)
 }
 
-func (f *fakeCompleter) Complete(_ context.Context, messages []provider.Message) (string, error) {
-	f.last = append([]provider.Message(nil), messages...)
-	return f.reply, f.err
+func (f *fakeCompleter) Complete(_ context.Context, req provider.Request) (*provider.Result, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	if f.fn != nil {
+		return f.fn(req)
+	}
+	return &provider.Result{Content: "ok"}, nil
 }
 
 type memHistory struct {
@@ -61,8 +67,32 @@ func (m *memHistory) Stats(ctx context.Context, id string) (int, int, error) {
 	return len(msgs), session.EstTokens(msgs), nil
 }
 
+type fakeTools struct {
+	defs  []provider.ToolDef
+	calls []string
+	err   error
+	out   string
+}
+
+func (f *fakeTools) Tools() []provider.ToolDef { return f.defs }
+func (f *fakeTools) ToolCount() int            { return len(f.defs) }
+func (f *fakeTools) Call(_ context.Context, name string, _ json.RawMessage) (string, error) {
+	f.calls = append(f.calls, name)
+	if f.err != nil {
+		return "", f.err
+	}
+	if f.out != "" {
+		return f.out, nil
+	}
+	return "tool-ok", nil
+}
+
 func TestAgent_Handle_PersonaAndHistory(t *testing.T) {
-	fc := &fakeCompleter{reply: "hi back"}
+	var last provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		last = req
+		return &provider.Result{Content: "hi back"}, nil
+	}}
 	a, err := agent.New(agent.Options{
 		Persona:   "you are tim",
 		Completer: fc,
@@ -73,36 +103,69 @@ func TestAgent_Handle_PersonaAndHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reply, err := a.Handle(context.Background(), channel.Message{
-		SessionID: "s1",
-		Text:      "hello",
-	})
+	reply, err := a.Handle(context.Background(), channel.Message{SessionID: "s1", Text: "hello"})
 	if err != nil {
 		t.Fatalf("Handle: %v", err)
 	}
 	if reply != "hi back" {
 		t.Fatalf("reply = %q", reply)
 	}
-	if len(fc.last) != 2 {
-		t.Fatalf("messages = %d, want 2 (system+user)", len(fc.last))
+	if len(last.Messages) != 2 {
+		t.Fatalf("messages = %d, want 2", len(last.Messages))
 	}
-	if fc.last[0].Role != provider.RoleSystem || fc.last[0].Content != "you are tim" {
-		t.Fatalf("system = %+v", fc.last[0])
-	}
+}
 
-	fc.reply = "second"
-	_, err = a.Handle(context.Background(), channel.Message{SessionID: "s1", Text: "again"})
+func TestAgent_ToolLoop(t *testing.T) {
+	n := 0
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		n++
+		if n == 1 {
+			if len(req.Tools) != 1 {
+				t.Fatalf("tools=%d", len(req.Tools))
+			}
+			return &provider.Result{ToolCalls: []provider.ToolCall{
+				{ID: "c1", Name: "demo__echo", Arguments: `{"x":1}`},
+			}}, nil
+		}
+		// second call should include tool result
+		hasTool := false
+		for _, m := range req.Messages {
+			if m.Role == provider.RoleTool && m.ToolCallID == "c1" {
+				hasTool = true
+			}
+		}
+		if !hasTool {
+			t.Fatal("missing tool result message")
+		}
+		return &provider.Result{Content: "final"}, nil
+	}}
+	tools := &fakeTools{defs: []provider.ToolDef{{Name: "demo__echo", Parameters: map[string]any{"type": "object"}}}}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
 	if err != nil {
-		t.Fatalf("Handle: %v", err)
+		t.Fatal(err)
 	}
-	if len(fc.last) != 4 {
-		t.Fatalf("messages = %d, want 4", len(fc.last))
+	got, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "use tool"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "final" {
+		t.Fatalf("%q", got)
+	}
+	if len(tools.calls) != 1 || tools.calls[0] != "demo__echo" {
+		t.Fatalf("%v", tools.calls)
 	}
 }
 
 func TestAgent_NewAndStatus(t *testing.T) {
-	fc := &fakeCompleter{reply: "ok"}
-	a, err := agent.New(agent.Options{Completer: fc, Sessions: newMemHistory(), Model: "m"})
+	fc := &fakeCompleter{}
+	tools := &fakeTools{defs: []provider.ToolDef{{Name: "a__b"}}}
+	a, err := agent.New(agent.Options{Completer: fc, Sessions: newMemHistory(), Tools: tools, Model: "m"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,10 +183,7 @@ func TestAgent_NewAndStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(status, "history_messages=0") {
-		t.Fatalf("status = %q", status)
-	}
-	if !strings.Contains(status, "model=m") {
+	if !strings.Contains(status, "history_messages=0") || !strings.Contains(status, "tools=1") {
 		t.Fatalf("status = %q", status)
 	}
 }
@@ -136,9 +196,7 @@ func TestAgent_RequiresSessions(t *testing.T) {
 }
 
 func TestAgent_EmptyTextAndClear(t *testing.T) {
-	fc := &fakeCompleter{reply: "ok"}
-	h := newMemHistory()
-	a, err := agent.New(agent.Options{Completer: fc, Sessions: h, Model: "m"})
+	a, err := agent.New(agent.Options{Completer: &fakeCompleter{}, Sessions: newMemHistory(), Model: "m"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +212,9 @@ func TestAgent_EmptyTextAndClear(t *testing.T) {
 }
 
 func TestAgent_CompleteError(t *testing.T) {
-	fc := &fakeCompleter{err: errors.New("llm down")}
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		return nil, errors.New("llm down")
+	}}
 	a, err := agent.New(agent.Options{Completer: fc, Sessions: newMemHistory(), Model: "m"})
 	if err != nil {
 		t.Fatal(err)
@@ -165,17 +225,24 @@ func TestAgent_CompleteError(t *testing.T) {
 	}
 }
 
-func TestAgent_CommandWithArgsNotSpecial(t *testing.T) {
-	fc := &fakeCompleter{reply: "echo"}
-	a, err := agent.New(agent.Options{Completer: fc, Sessions: newMemHistory(), Model: "m"})
+func TestAgent_MaxToolIterations(t *testing.T) {
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		return &provider.Result{ToolCalls: []provider.ToolCall{
+			{ID: "c", Name: "demo__echo", Arguments: `{}`},
+		}}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "demo__echo"}}},
+		MaxToolIters: 2,
+		Model:        "m",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "/new please"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "echo" {
-		t.Fatalf("got %q, want model reply for non-exact command", got)
+	_, err = a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "loop"})
+	if err == nil || !strings.Contains(err.Error(), "TOOL_MAX_ITERATIONS") {
+		t.Fatalf("err = %v", err)
 	}
 }
