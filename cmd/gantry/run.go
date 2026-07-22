@@ -167,6 +167,20 @@ func run() int {
 		logger.Info("cron ready", "tz", cfg.CronTZ, "max_jobs", cfg.CronMaxJobs)
 	}
 
+	estTokens := mcp.EstimateToolSchemaTokens(tools.Tools())
+	logger.Info("tool schema estimate",
+		"tools", tools.ToolCount(),
+		"est_tokens", estTokens,
+		"max_tokens", cfg.ToolSchemaMaxTokens,
+	)
+	if cfg.ToolSchemaMaxTokens > 0 && estTokens > cfg.ToolSchemaMaxTokens {
+		logger.Error("tool schema exceeds TOOL_SCHEMA_MAX_TOKENS",
+			"est_tokens", estTokens,
+			"max_tokens", cfg.ToolSchemaMaxTokens,
+		)
+		return 1
+	}
+
 	ag, err := agent.New(agent.Options{
 		Persona:       personaText,
 		Completer:     completer,
@@ -182,6 +196,7 @@ func run() int {
 		logger.Error("agent init failed", "err", err)
 		return 1
 	}
+	go watchPersonaReload(ctx, cfg.PersonaDir, ag, logger)
 
 	ch, err := newChannel(cfg, logger)
 	if err != nil {

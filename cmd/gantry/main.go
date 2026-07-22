@@ -1,6 +1,7 @@
 // Command gantry is the ai-gantry agent runtime binary.
 //
 //	gantry run      — start the daemon (default)
+//	gantry init     — scaffold persona + mcp.toml from examples/
 //	gantry status   — exit-code healthcheck (Docker healthcheck)
 //	gantry version  — build info
 package main
@@ -26,6 +27,8 @@ func main() {
 	switch cmd {
 	case "run":
 		os.Exit(run())
+	case "init":
+		os.Exit(initCmd())
 	case "status":
 		os.Exit(status())
 	case "version":
@@ -44,8 +47,13 @@ func printHelp() {
 
 Usage:
   gantry [run]     Start the daemon (default)
+  gantry init      Scaffold persona + mcp.toml (+ .env.example) from embedded templates
   gantry status    Exit 0 if healthy (Docker healthcheck)
   gantry version   Print build info
   gantry help      Show this help
+
+init env (optional):
+  PERSONA_DIR    default deploy/persona
+  MCP_MANIFEST   default deploy/mcp.toml
 `)
 }

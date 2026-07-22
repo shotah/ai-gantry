@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/channel"
@@ -48,6 +50,7 @@ type Options struct {
 
 // Agent runs the prompt → model → (tools) → reply loop.
 type Agent struct {
+	personaMu     sync.RWMutex
 	persona       string
 	completer     provider.Completer
 	sessions      History
@@ -80,12 +83,7 @@ func New(opts Options) (*Agent, error) {
 	if maxIters < 1 {
 		maxIters = 20
 	}
-	personaText := opts.Persona
-	if opts.Memory != nil {
-		personaText = strings.TrimRight(personaText, "\n") + "\n" + strings.TrimSpace(memory.PersonaPrecedenceNote)
-	}
-	return &Agent{
-		persona:       personaText,
+	a := &Agent{
 		completer:     opts.Completer,
 		sessions:      opts.Sessions,
 		tools:         opts.Tools,
@@ -95,7 +93,26 @@ func New(opts Options) (*Agent, error) {
 		streamReplies: opts.StreamReplies,
 		log:           log,
 		startedAt:     started,
-	}, nil
+	}
+	a.SetPersona(opts.Persona)
+	return a, nil
+}
+
+// SetPersona replaces the system persona text (e.g. after SIGHUP reload).
+// When memory is enabled, the persona-precedence note is appended.
+func (a *Agent) SetPersona(text string) {
+	if a.memory != nil {
+		text = strings.TrimRight(text, "\n") + "\n" + strings.TrimSpace(memory.PersonaPrecedenceNote)
+	}
+	a.personaMu.Lock()
+	a.persona = text
+	a.personaMu.Unlock()
+}
+
+func (a *Agent) personaText() string {
+	a.personaMu.RLock()
+	defer a.personaMu.RUnlock()
+	return a.persona
 }
 
 // Handle is a channel.Handler: assemble prompt, call model (with tools), return reply.
@@ -122,6 +139,8 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			return "session reset", nil
 		case "/status":
 			return a.status(ctx, msg.SessionID)
+		case "/tools":
+			return a.listTools(), nil
 		}
 	}
 
@@ -131,10 +150,10 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 	}
 
 	messages := make([]provider.Message, 0, 3+len(history))
-	if a.persona != "" {
+	if p := a.personaText(); p != "" {
 		messages = append(messages, provider.Message{
 			Role:    provider.RoleSystem,
-			Content: a.persona,
+			Content: p,
 		})
 	}
 	if a.memory != nil {
@@ -271,6 +290,40 @@ func (a *Agent) status(ctx context.Context, sessionID string) (string, error) {
 	uptime := time.Since(a.startedAt).Truncate(time.Second)
 	return fmt.Sprintf("uptime=%s model=%s history_messages=%d est_tokens=%d tools=%d",
 		uptime, a.model, n, est, tools), nil
+}
+
+func (a *Agent) listTools() string {
+	if a.tools == nil {
+		return "tools: (none)"
+	}
+	defs := a.tools.Tools()
+	if len(defs) == 0 {
+		return "tools: (none)"
+	}
+	names := make([]string, 0, len(defs))
+	for _, d := range defs {
+		names = append(names, d.Name)
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	fmt.Fprintf(&b, "tools (%d):\n", len(names))
+	for _, name := range names {
+		server, tool := splitPrefixedTool(name)
+		if server != "" {
+			fmt.Fprintf(&b, "- %s  (server=%s tool=%s)\n", name, server, tool)
+		} else {
+			fmt.Fprintf(&b, "- %s\n", name)
+		}
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func splitPrefixedTool(name string) (server, tool string) {
+	i := strings.Index(name, "__")
+	if i <= 0 || i+2 >= len(name) {
+		return "", name
+	}
+	return name[:i], name[i+2:]
 }
 
 // parseCommand returns the slash command (lowercased, @bot suffix stripped)

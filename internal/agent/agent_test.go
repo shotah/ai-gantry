@@ -233,6 +233,16 @@ func TestAgent_NewAndStatus(t *testing.T) {
 	if !strings.Contains(status, "history_messages=0") || !strings.Contains(status, "tools=1") {
 		t.Fatalf("status = %q", status)
 	}
+
+	listed, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "/tools"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(listed, "a__b") || !strings.Contains(listed, "server=a") {
+		t.Fatalf("tools = %q", listed)
+	}
+
+	a.SetPersona("reloaded")
 }
 
 func TestAgent_RequiresSessions(t *testing.T) {

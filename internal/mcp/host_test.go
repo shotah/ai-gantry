@@ -107,6 +107,37 @@ command = "unused"
 	}
 }
 
+func TestHost_ToolsAllowlistAndPrefix(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "garmin"
+command = "unused"
+tools = ["get_sleep", "raw_dump"]
+exclude = ["raw_*"]
+tools_prefix = "garm"
+`)
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
+			return &fakeConn{tools: []mcp.Tool{
+				{OriginalName: "get_sleep"},
+				{OriginalName: "get_weight"},
+				{OriginalName: "raw_dump"},
+			}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+	if host.ToolCount() != 1 {
+		t.Fatalf("tools=%d", host.ToolCount())
+	}
+	if host.Tools()[0].Name != "garm__get_sleep" {
+		t.Fatalf("%q", host.Tools()[0].Name)
+	}
+}
+
 func TestHost_BootFail(t *testing.T) {
 	path := writeManifest(t, `
 [[server]]

@@ -28,7 +28,8 @@ mounts. No dashboard, no config UI, no open ports — ever.
 - 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
   not an endpoint
 
-> **Status: building.** Milestone 7 (streaming replies) is in; cutover items remain; §11 is the build order.
+> **Status: building.** Milestone 7 (streaming replies) is in; post-v0.0.1 work
+> lives in [todo.md](todo.md). Scaffold templates: [examples/](examples/).
 
 ## Quick start (the target UX)
 
@@ -60,8 +61,14 @@ Local REPL instead of Telegram: `CHANNEL=stdio` and
 `docker compose run --rm -it gantry` (or `make run`).
 
 That is the whole operator surface. Everything below is the design that keeps
-it that small. Deeper docs (architecture diagrams, security tradeoffs, decision
-log): **[docs/](docs/)**.
+it that small. Scaffold mounts from templates:
+
+```bash
+make init   # or: gantry init  → deploy/persona + deploy/mcp.toml + .env.example
+```
+
+Canonical templates: **[examples/](examples/)**. Remaining cutover notes:
+**[todo.md](todo.md)**. Deeper docs: **[docs/](docs/)**.
 
 ## 1. Problem statement
 
@@ -197,6 +204,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `HISTORY_MAX_TOKENS` | no | `128000` |
 | `TOOL_RESULT_MAX_CHARS` | no | `16000` |
 | `TOOL_MAX_ITERATIONS` | no | `20` |
+| `TOOL_SCHEMA_MAX_TOKENS` | no | `0` (log estimate only; `>0` = hard fail if over) |
 | `MEMORY_ENABLED` | no | `true` |
 | `MEMORY_BACKEND` | no | `builtin` (or `mcp:<server-name>`, see §12.3) |
 | `MEMORY_CONSOLIDATE_MINUTES` | no | `30` (`0` = off; builtin backend only) |
@@ -222,9 +230,22 @@ command = "google-workspace-mcp-go"
 args    = ["--tools", "gmail drive calendar docs sheets tasks contacts", "--tool-tier", "core"]
 
 [[server]]
+name    = "garmin"
+command = "garmin"
+args    = ["mcp"]
+tools   = ["get_sleep", "get_weight", "get_hrv"]  # optional allowlist
+# exclude = ["raw_*"]                               # optional denylist
+# tools_prefix = "garm"                             # optional; default name
+
+[[server]]
 name    = "strava"
 command = "strava-mcp"
 ```
+
+Listed servers still **start**; `tools` / `exclude` only filter what is
+**published** to the model (boot logs `tools_listed` vs `tools_published`).
+Schema cost is logged as `est_tokens` (chars/4); set `TOOL_SCHEMA_MAX_TOKENS`
+to hard-fail when the published set is too fat.
 
 No bundles/grants layer: if a server is in the manifest, the agent gets it.
 The container composition IS the grant (1:1 model — you built this image/mount
@@ -368,7 +389,7 @@ contradictions get surfaced, not obeyed.
 - `gantry status` — exit-code healthcheck (reads `heartbeat` row in `/data/gantry.db`)
 - `gantry version` — build info
 - Logs: JSON `slog` to stderr; `docker logs` is the console.
-- Telegram/stdio `/new` — session reset; `/status` — uptime, model, history, tool count.
+- Telegram/stdio `/new` — session reset; `/status` — uptime/model/history/tools; `/tools` — prefixed catalog; unix `SIGHUP` reloads persona.
 - Dev: `make build|test|lint|run|ci|check`; `make install-hooks` for pre-commit
   (autofix + lint + test; same shape as go-garmin).
 
@@ -391,13 +412,22 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 
 ## 10. Migration path from tim/ZeroClaw
 
-1. Persona markdown moves as-is (`config/agents/main/workspace/*.md` → `/persona`).
-2. MCP binaries move as-is (already ours, already stdio).
-3. `.env` keys map ~1:1 (`GEMINI_API_KEY`→`LLM_API_KEY`, etc.).
-4. ZeroClaw hybrid memory does NOT migrate — start clean; persona files carry
-   identity, consolidator rebuilds the rest.
-5. Run both side by side (different bot tokens) until the gantry is trusted,
-   then retire the ZeroClaw service.
+Operator wrapper notes live in the Tim compose repo (`docker_open_claw` /
+`DEPLOY_PATH` layout). Kernel-side checklist:
+
+1. **Persona** — copy workspace markdown → `PERSONA_DIR` (`/persona`). Prefer
+   `gantry init` then merge your SOUL/USER/… over the examples.
+2. **MCP binaries** — keep as stdio processes in `mcp.toml`. Prefer MCP-native
+   filters (`--tools` / `--tool-tier` on Workspace & go-garmin) **plus** gantry
+   `tools` / `exclude` allowlists so Flash is not fed ~150 schemas.
+3. **Env** — `.env` keys map ~1:1 (`GEMINI_API_KEY`→`LLM_API_KEY`, etc.). Point
+   `DEPLOY_PATH` / compose mounts at the new persona + manifest + data volume.
+4. **Memory does not migrate** — ZeroClaw hybrid memory stays behind. Start
+   clean; persona files carry identity; the consolidator rebuilds the rest.
+5. **Side-by-side** — second Telegram bot token (and allowlist) while Tim still
+   runs on the old service; cut DNS/users over when trusted, then retire ZeroClaw.
+6. **Gone on purpose** — no `gws` shell helper, no busybox toolbox in the image,
+   no gateway/dashboard/pairing. Capabilities are MCP binaries or they are out.
 
 ## 11. TODO — build order
 

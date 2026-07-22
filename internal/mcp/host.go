@@ -200,11 +200,13 @@ func (h *Host) connectServer(ctx context.Context, spec ServerSpec) error {
 	if err != nil {
 		return err
 	}
-	tools, err := conn.ListTools(ctx)
+	listed, err := conn.ListTools(ctx)
 	if err != nil {
 		_ = conn.Close()
 		return fmt.Errorf("list tools: %w", err)
 	}
+	tools, before := filterTools(spec, listed)
+	prefix := prefixFor(spec)
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -217,7 +219,7 @@ func (h *Host) connectServer(ctx context.Context, spec ServerSpec) error {
 	for i := range tools {
 		t := tools[i]
 		t.Server = spec.Name
-		prefixed, err := PrefixedName(spec.Name, t.OriginalName)
+		prefixed, err := PrefixedName(prefix, t.OriginalName)
 		if err != nil {
 			_ = conn.Close()
 			return err
@@ -230,7 +232,12 @@ func (h *Host) connectServer(ctx context.Context, spec ServerSpec) error {
 		h.tools[prefixed] = &t
 	}
 	h.servers[spec.Name] = &managedServer{spec: spec, conn: conn}
-	h.log.Info("mcp server connected", "server", spec.Name, "tools", len(tools))
+	h.log.Info("mcp server connected",
+		"server", spec.Name,
+		"tools_listed", before,
+		"tools_published", len(tools),
+		"prefix", prefix,
+	)
 	return nil
 }
 

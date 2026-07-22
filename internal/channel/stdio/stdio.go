@@ -59,7 +59,7 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 		errOut = os.Stderr
 	}
 
-	_, _ = fmt.Fprintln(errOut, "gantry stdio ready — type a message, /new to reset, /quit to exit")
+	_, _ = fmt.Fprintln(errOut, "gantry stdio ready — /new /status /tools /quit")
 
 	scanner := bufio.NewScanner(in)
 	// Allow long paste dumps in the REPL.

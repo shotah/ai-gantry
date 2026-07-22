@@ -35,6 +35,9 @@ type Config struct {
 	HistoryMaxTokens   int `env:"HISTORY_MAX_TOKENS" envDefault:"128000"` // estimated (chars/4)
 	ToolResultMaxChars int `env:"TOOL_RESULT_MAX_CHARS" envDefault:"16000"`
 	ToolMaxIterations  int `env:"TOOL_MAX_ITERATIONS" envDefault:"20"`
+	// ToolSchemaMaxTokens is an optional hard cap on estimated tool-schema tokens
+	// (chars/4 of name+description+parameters). 0 = log estimate only.
+	ToolSchemaMaxTokens int `env:"TOOL_SCHEMA_MAX_TOKENS" envDefault:"0"`
 
 	MemoryEnabled            bool   `env:"MEMORY_ENABLED" envDefault:"true"`
 	MemoryBackend            string `env:"MEMORY_BACKEND" envDefault:"builtin"`
@@ -101,6 +104,9 @@ func (c *Config) Validate() error {
 	}
 	if c.ToolMaxIterations < 1 {
 		return fmt.Errorf("TOOL_MAX_ITERATIONS: must be >= 1, got %d", c.ToolMaxIterations)
+	}
+	if c.ToolSchemaMaxTokens < 0 {
+		return fmt.Errorf("TOOL_SCHEMA_MAX_TOKENS: must be >= 0, got %d", c.ToolSchemaMaxTokens)
 	}
 	if c.MemoryConsolidateMinutes < 0 {
 		return fmt.Errorf("MEMORY_CONSOLIDATE_MINUTES: must be >= 0, got %d", c.MemoryConsolidateMinutes)

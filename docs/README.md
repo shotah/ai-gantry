@@ -5,6 +5,8 @@ is the product contract and milestone checklist; these pages go deeper.
 
 | Doc | What it covers |
 | --- | --- |
+| [../todo.md](../todo.md) | Remaining follow-ups (e.g. go-garmin tool tiers) |
+| [../examples/](../examples/) | Persona + `mcp.toml` templates (`make init` / `gantry init`) |
 | [architecture.md](architecture.md) | Process model, packages, mermaid diagrams + sequences |
 | [design.md](design.md) | Principles, agent loop, memory, config/ops contract |
 | [security.md](security.md) | Threat model, tradeoffs, residual risks |

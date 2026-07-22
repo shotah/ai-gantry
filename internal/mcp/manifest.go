@@ -15,10 +15,13 @@ type Manifest struct {
 
 // ServerSpec describes one stdio MCP server process.
 type ServerSpec struct {
-	Name    string   `toml:"name"`
-	Command string   `toml:"command"`
-	Args    []string `toml:"args"`
-	Env     []string `toml:"env"` // optional KEY=VALUE entries appended to process env
+	Name        string   `toml:"name"`
+	Command     string   `toml:"command"`
+	Args        []string `toml:"args"`
+	Env         []string `toml:"env"`          // optional KEY=VALUE entries appended to process env
+	Tools       []string `toml:"tools"`        // optional allowlist of original tool names
+	Exclude     []string `toml:"exclude"`      // optional denylist (shell-style * ? patterns)
+	ToolsPrefix string   `toml:"tools_prefix"` // optional prefix override (default: name)
 }
 
 // LoadManifest reads and validates a TOML MCP manifest.

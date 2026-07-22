@@ -9,9 +9,9 @@ import (
 	"strings"
 )
 
-// preferredOrder is the fixed concat order for well-known persona files.
+// PreferredOrder is the fixed concat order for well-known persona files.
 // Missing files are skipped. Any other *.md files follow alphabetically.
-var preferredOrder = []string{
+var PreferredOrder = []string{
 	"SOUL.md",
 	"IDENTITY.md",
 	"USER.md",
@@ -48,9 +48,9 @@ func Load(dir string) (string, error) {
 	}
 	sort.Strings(extras)
 
-	preferred := make(map[string]struct{}, len(preferredOrder))
+	preferred := make(map[string]struct{}, len(PreferredOrder))
 	var parts []string
-	for _, name := range preferredOrder {
+	for _, name := range PreferredOrder {
 		preferred[name] = struct{}{}
 		if _, ok := available[name]; !ok {
 			continue

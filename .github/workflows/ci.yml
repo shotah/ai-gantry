@@ -27,7 +27,7 @@ jobs:
 
       - name: Test + coverage
         run: |
-          go test ./internal/... ./cmd/... -coverprofile=coverage.out -covermode=atomic -count=1
+          go test ./internal/... ./cmd/... ./examples/... -coverprofile=coverage.out -covermode=atomic -count=1
           go tool cover -func=coverage.out | tee coverage.txt
 
       - name: golangci-lint

@@ -45,6 +45,7 @@ help: ## Show available targets
 	@echo ai-gantry targets:
 	@echo   make build          Build gantry into ./bin
 	@echo   make run            Run with CHANNEL=stdio (override: CHANNEL= PERSONA_DIR=)
+	@echo   make init           Scaffold deploy/persona + deploy/mcp.toml via gantry init
 	@echo   make test           Run all tests
 	@echo   make test-verbose   Run tests with -v
 	@echo   make race           Race detector (needs CGO)
@@ -78,6 +79,10 @@ build: ## Build gantry into ./bin
 run: ## Run gantry (CHANNEL=stdio by default for local REPL)
 	$(RUN_ENV) go run $(CMD) run
 
+.PHONY: init
+init: ## Scaffold deploy/ mounts from embedded examples (gantry init)
+	go run $(CMD) init
+
 .PHONY: test
 test: ## Run all tests
 	go test ./...
@@ -91,8 +96,8 @@ race: ## Run tests with the race detector (requires CGO)
 	CGO_ENABLED=1 go test -race ./...
 
 .PHONY: coverage
-coverage: ## Write coverage.out for ./internal/... ./cmd/... (matches CI badge) and print totals
-	go test ./internal/... ./cmd/... -coverprofile=$(COVERAGE) -covermode=atomic
+coverage: ## Write coverage.out for ./internal/... ./cmd/... ./examples/... (matches CI badge)
+	go test ./internal/... ./cmd/... ./examples/... -coverprofile=$(COVERAGE) -covermode=atomic
 	go tool cover -func=$(COVERAGE)
 
 .PHONY: coverage-html
