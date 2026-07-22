@@ -91,28 +91,25 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onText func(fu
 	}
 
 	out := &Result{Content: strings.TrimSpace(full.String())}
-	for i := 0; i < len(tools); i++ {
-		acc, ok := tools[i]
-		if !ok || (acc.name == "" && acc.id == "") {
-			continue
+	appendAcc := func(acc *toolAcc) {
+		if acc == nil || (acc.name == "" && acc.id == "") {
+			return
 		}
-		out.ToolCalls = append(out.ToolCalls, ToolCall{
-			ID:        acc.id,
-			Name:      acc.name,
-			Arguments: acc.args,
-		})
+		call := ToolCall{ID: acc.id, Name: acc.name, Arguments: acc.args}
+		// Streaming deltas don't carry Gemini thought_signature; synthesize
+		// with Google's skip token so the follow-up turn doesn't 400.
+		if raw, err := synthesizeToolCallRaw(call); err == nil {
+			call.Raw = raw
+		}
+		out.ToolCalls = append(out.ToolCalls, call)
+	}
+	for i := 0; i < len(tools); i++ {
+		appendAcc(tools[i])
 	}
 	// also pick up any non-contiguous indices
 	if len(out.ToolCalls) == 0 {
 		for _, acc := range tools {
-			if acc.name == "" && acc.id == "" {
-				continue
-			}
-			out.ToolCalls = append(out.ToolCalls, ToolCall{
-				ID:        acc.id,
-				Name:      acc.name,
-				Arguments: acc.args,
-			})
+			appendAcc(acc)
 		}
 	}
 	if out.Content == "" && len(out.ToolCalls) == 0 {

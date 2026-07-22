@@ -3,11 +3,13 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/shared"
 )
 
@@ -42,7 +44,15 @@ type ToolCall struct {
 	ID        string
 	Name      string
 	Arguments string // JSON object
+	// Raw is the original tool_call JSON from the provider response.
+	// Gemini 3 OpenAI-compat requires echoing extra_content.google.thought_signature
+	// on subsequent turns; when Raw is set we send it verbatim via param.Override.
+	Raw json.RawMessage
 }
+
+// skipThoughtSignature is Google's documented escape hatch when a signature
+// was not preserved (e.g. streaming assembly). Prefer echoing Raw when available.
+const skipThoughtSignature = "skip_thought_signature_validator"
 
 // Request is one chat completion call.
 type Request struct {
@@ -117,11 +127,15 @@ func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
 	for _, tc := range msg.ToolCalls {
 		switch v := tc.AsAny().(type) {
 		case openai.ChatCompletionMessageFunctionToolCall:
-			out.ToolCalls = append(out.ToolCalls, ToolCall{
+			call := ToolCall{
 				ID:        v.ID,
 				Name:      v.Function.Name,
 				Arguments: v.Function.Arguments,
-			})
+			}
+			if raw := strings.TrimSpace(v.RawJSON()); raw != "" {
+				call.Raw = json.RawMessage(raw)
+			}
+			out.ToolCalls = append(out.ToolCalls, call)
 		}
 	}
 	if out.Content == "" && len(out.ToolCalls) == 0 {
@@ -145,14 +159,12 @@ func toParam(m Message) (openai.ChatCompletionMessageParamUnion, error) {
 			asst.Content.OfString = openai.String(m.Content)
 		}
 		for _, tc := range m.ToolCalls {
+			p, err := toolCallParam(tc)
+			if err != nil {
+				return openai.ChatCompletionMessageParamUnion{}, err
+			}
 			asst.ToolCalls = append(asst.ToolCalls, openai.ChatCompletionMessageToolCallUnionParam{
-				OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
-					ID: tc.ID,
-					Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
-						Name:      tc.Name,
-						Arguments: tc.Arguments,
-					},
-				},
+				OfFunction: &p,
 			})
 		}
 		return openai.ChatCompletionMessageParamUnion{OfAssistant: &asst}, nil
@@ -164,4 +176,45 @@ func toParam(m Message) (openai.ChatCompletionMessageParamUnion, error) {
 	default:
 		return openai.ChatCompletionMessageParamUnion{}, fmt.Errorf("provider: unknown role %q", m.Role)
 	}
+}
+
+// toolCallParam rebuilds an OpenAI tool_call param, preserving Gemini thought
+// signatures when Raw is present.
+func toolCallParam(tc ToolCall) (openai.ChatCompletionMessageFunctionToolCallParam, error) {
+	raw := tc.Raw
+	if len(raw) == 0 {
+		var err error
+		raw, err = synthesizeToolCallRaw(tc)
+		if err != nil {
+			return openai.ChatCompletionMessageFunctionToolCallParam{}, err
+		}
+	}
+	return param.Override[openai.ChatCompletionMessageFunctionToolCallParam](raw), nil
+}
+
+func synthesizeToolCallRaw(tc ToolCall) (json.RawMessage, error) {
+	args := tc.Arguments
+	if strings.TrimSpace(args) == "" {
+		args = "{}"
+	}
+	// Include Google's skip token so Gemini 3 tool loops don't 400 when the
+	// original signature wasn't captured (streaming path).
+	payload := map[string]any{
+		"id":   tc.ID,
+		"type": "function",
+		"function": map[string]any{
+			"name":      tc.Name,
+			"arguments": args,
+		},
+		"extra_content": map[string]any{
+			"google": map[string]any{
+				"thought_signature": skipThoughtSignature,
+			},
+		},
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("provider: encode tool call: %w", err)
+	}
+	return b, nil
 }

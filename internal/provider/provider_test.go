@@ -184,13 +184,28 @@ func TestClient_Complete_ToolMessageRoundTrip(t *testing.T) {
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		foundTool := false
+		var sawSkipSig bool
 		for _, m := range body.Messages {
 			if m["role"] == "tool" {
 				foundTool = true
 			}
+			if m["role"] == "assistant" {
+				tcs, _ := m["tool_calls"].([]any)
+				for _, raw := range tcs {
+					tc, _ := raw.(map[string]any)
+					extra, _ := tc["extra_content"].(map[string]any)
+					google, _ := extra["google"].(map[string]any)
+					if google["thought_signature"] == "skip_thought_signature_validator" {
+						sawSkipSig = true
+					}
+				}
+			}
 		}
 		if !foundTool {
 			t.Error("expected tool role message")
+		}
+		if !sawSkipSig {
+			t.Error("expected synthesized thought_signature skip token on assistant tool_calls")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -220,5 +235,55 @@ func TestClient_Complete_ToolMessageRoundTrip(t *testing.T) {
 	}
 	if got.Content != "done" {
 		t.Fatalf("%q", got.Content)
+	}
+}
+
+func TestClient_Complete_PreservesThoughtSignatureRaw(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Messages []map[string]any `json:"messages"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		for _, m := range body.Messages {
+			if m["role"] != "assistant" {
+				continue
+			}
+			tcs, _ := m["tool_calls"].([]any)
+			if len(tcs) == 0 {
+				t.Fatal("missing tool_calls")
+			}
+			tc, _ := tcs[0].(map[string]any)
+			extra, _ := tc["extra_content"].(map[string]any)
+			google, _ := extra["google"].(map[string]any)
+			if google["thought_signature"] != "sig-from-model" {
+				t.Fatalf("thought_signature=%v want sig-from-model", google["thought_signature"])
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "x",
+			"choices": []map[string]any{
+				{"index": 0, "message": map[string]any{"role": "assistant", "content": "ok"}},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	raw := json.RawMessage(`{"id":"c1","type":"function","function":{"name":"demo__echo","arguments":"{}"},"extra_content":{"google":{"thought_signature":"sig-from-model"}}}`)
+	c := provider.New(srv.URL, "k", "m")
+	_, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{
+			{Role: provider.RoleUser, Content: "hi"},
+			{
+				Role: provider.RoleAssistant,
+				ToolCalls: []provider.ToolCall{
+					{ID: "c1", Name: "demo__echo", Arguments: `{}`, Raw: raw},
+				},
+			},
+			{Role: provider.RoleTool, Content: "ok", ToolCallID: "c1"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
