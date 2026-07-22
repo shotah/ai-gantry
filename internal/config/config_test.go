@@ -167,3 +167,42 @@ func TestLoad_Bounds(t *testing.T) {
 		t.Fatal("Load: expected error for HISTORY_MAX_MESSAGES=0")
 	}
 }
+
+func TestLoad_MoreValidation(t *testing.T) {
+	setRequiredLLM(t)
+	t.Setenv("CHANNEL", "stdio")
+
+	cases := []struct {
+		key, val, want string
+	}{
+		{"HISTORY_MAX_TOKENS", "0", "HISTORY_MAX_TOKENS"},
+		{"TOOL_RESULT_MAX_CHARS", "0", "TOOL_RESULT_MAX_CHARS"},
+		{"TOOL_MAX_ITERATIONS", "0", "TOOL_MAX_ITERATIONS"},
+		{"MEMORY_CONSOLIDATE_MINUTES", "-1", "MEMORY_CONSOLIDATE_MINUTES"},
+		{"MEMORY_BACKEND", "mcp:", "MEMORY_BACKEND"},
+		{"PERSONA_DIR", "   ", "PERSONA_DIR"},
+		{"DATA_DIR", "   ", "DATA_DIR"},
+		{"MCP_MANIFEST", "   ", "MCP_MANIFEST"},
+		{"LOG_LEVEL", "DEBUG", ""}, // valid after normalize
+	}
+	for _, tc := range cases {
+		t.Run(tc.key+"="+tc.val, func(t *testing.T) {
+			setRequiredLLM(t)
+			t.Setenv("CHANNEL", "stdio")
+			t.Setenv(tc.key, tc.val)
+			cfg, err := config.Load()
+			if tc.want == "" {
+				if err != nil {
+					t.Fatalf("unexpected err: %v", err)
+				}
+				if cfg.LogLevel != "debug" {
+					t.Fatalf("LogLevel=%q", cfg.LogLevel)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}

@@ -19,7 +19,7 @@ mounts. No dashboard, no config UI, no open ports — ever.
 - 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
   not an endpoint
 
-> **Status: building.** Milestone 1 (talk / no tools) is in; §11 is the build order.
+> **Status: building.** Milestone 2 (Telegram + SQLite sessions) is in; §11 is the build order.
 
 ## Quick start (the target UX)
 
@@ -339,7 +339,7 @@ contradictions get surfaced, not obeyed.
 - `gantry run` — the daemon (default)
 - `gantry status` — exit-code healthcheck (reads heartbeat; used by Docker)
 - `gantry version` — build info
-- Logs: JSON `slog` to stdout; `docker logs` is the console.
+- Logs: JSON `slog` to stderr; `docker logs` is the console.
 - Telegram `/new` — session reset; `/status` — uptime, model, tool count.
 
 That's the entire ops/UI story. No port is opened by the gantry, ever.
@@ -385,10 +385,10 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 
 ### Milestone 2 — Telegram
 
-- [ ] `internal/channel/telegram`: long-poll, allowlist, typing indicator, message splitting (4096 chars)
-- [ ] `/new` and `/status` commands
-- [ ] `internal/session`: SQLite-backed bounded history, token estimate, trim rules
-- [ ] Milestone test: daily-drivable chat bot in a container
+- [x] `internal/channel/telegram`: long-poll, allowlist, typing indicator, message splitting (4096 chars)
+- [x] `/new` and `/status` commands
+- [x] `internal/session`: SQLite-backed bounded history, token estimate, trim rules
+- [x] Milestone test: daily-drivable chat bot in a container
 
 ### Milestone 3 — MCP host (the point of the project)
 

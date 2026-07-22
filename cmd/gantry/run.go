@@ -6,17 +6,20 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/channel/stdio"
+	"github.com/shotah/ai-gantry/internal/channel/telegram"
 	"github.com/shotah/ai-gantry/internal/config"
 	"github.com/shotah/ai-gantry/internal/persona"
 	"github.com/shotah/ai-gantry/internal/provider"
+	"github.com/shotah/ai-gantry/internal/session"
 )
 
-// run boots config, persona, provider, agent, and the selected channel.
+// run boots config, persona, sessions, provider, agent, and the selected channel.
 func run() int {
 	cfg, err := config.Load()
 	if err != nil {
@@ -45,21 +48,32 @@ func run() int {
 	}
 	logger.Info("persona loaded", "chars", len(personaText))
 
+	sessions, err := session.Open(cfg.DataDir, cfg.HistoryMaxMessages, cfg.HistoryMaxTokens)
+	if err != nil {
+		logger.Error("session store open failed", "err", err)
+		return 1
+	}
+	defer func() {
+		if err := sessions.Close(); err != nil {
+			logger.Error("session store close failed", "err", err)
+		}
+	}()
+	logger.Info("session store ready", "path", filepath.Join(cfg.DataDir, "gantry.db"))
+
 	completer := provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel)
 	ag, err := agent.New(agent.Options{
-		Persona:      personaText,
-		Completer:    completer,
-		Model:        cfg.LLMModel,
-		MaxMessages:  cfg.HistoryMaxMessages,
-		MaxEstTokens: cfg.HistoryMaxTokens,
-		Logger:       logger,
+		Persona:   personaText,
+		Completer: completer,
+		Sessions:  sessions,
+		Model:     cfg.LLMModel,
+		Logger:    logger,
 	})
 	if err != nil {
 		logger.Error("agent init failed", "err", err)
 		return 1
 	}
 
-	ch, err := newChannel(cfg)
+	ch, err := newChannel(cfg, logger)
 	if err != nil {
 		logger.Error("channel init failed", "err", err)
 		return 1
@@ -76,12 +90,16 @@ func run() int {
 	return 0
 }
 
-func newChannel(cfg *config.Config) (channel.Channel, error) {
+func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error) {
 	switch cfg.Channel {
 	case config.ChannelStdio:
 		return stdio.New(), nil
 	case config.ChannelTelegram:
-		return nil, fmt.Errorf("CHANNEL=telegram is not implemented yet (milestone 2); use CHANNEL=stdio for now")
+		return telegram.New(telegram.Config{
+			Token:        cfg.TelegramBotToken,
+			AllowedUsers: cfg.TelegramAllowedUsers,
+			Logger:       logger,
+		})
 	default:
 		return nil, fmt.Errorf("unknown channel %q", cfg.Channel)
 	}

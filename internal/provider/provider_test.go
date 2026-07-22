@@ -42,6 +42,7 @@ func TestClient_Complete(t *testing.T) {
 	got, err := c.Complete(context.Background(), []provider.Message{
 		{Role: provider.RoleSystem, Content: "be brief"},
 		{Role: provider.RoleUser, Content: "hi"},
+		{Role: provider.RoleAssistant, Content: "prior"},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -54,6 +55,71 @@ func TestClient_Complete(t *testing.T) {
 func TestClient_Complete_EmptyMessages(t *testing.T) {
 	c := provider.New("http://example.invalid", "k", "m")
 	_, err := c.Complete(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestClient_Complete_UnknownRole(t *testing.T) {
+	c := provider.New("http://example.invalid", "k", "m")
+	_, err := c.Complete(context.Background(), []provider.Message{
+		{Role: "tool", Content: "x"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "unknown role") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestClient_Complete_EmptyChoices(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":      "chatcmpl-test",
+			"choices": []any{},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m")
+	_, err := c.Complete(context.Background(), []provider.Message{
+		{Role: provider.RoleUser, Content: "hi"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "empty choices") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestClient_Complete_EmptyContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "chatcmpl-test",
+			"choices": []map[string]any{
+				{"index": 0, "message": map[string]any{"role": "assistant", "content": "   "}},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m")
+	_, err := c.Complete(context.Background(), []provider.Message{
+		{Role: provider.RoleUser, Content: "hi"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "empty assistant content") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestClient_Complete_HTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "nope", http.StatusBadGateway)
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m")
+	_, err := c.Complete(context.Background(), []provider.Message{
+		{Role: provider.RoleUser, Content: "hi"},
+	})
 	if err == nil {
 		t.Fatal("expected error")
 	}
