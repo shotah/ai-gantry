@@ -19,7 +19,7 @@ mounts. No dashboard, no config UI, no open ports — ever.
 - 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
   not an endpoint
 
-> **Status: building.** Milestone 3 (MCP host) is in; §11 is the build order.
+> **Status: building.** Milestone 4 (memory) is in; §11 is the build order.
 
 ## Quick start (the target UX)
 
@@ -226,7 +226,7 @@ services:
     volumes:
       - ./deploy/persona:/persona:ro
       - ./deploy/mcp.toml:/etc/gantry/mcp.toml:ro
-      - ./deploy/data:/data        # gantry.db (sessions; memory in M4)
+      - ./deploy/data:/data        # gantry.db (sessions + memory)
       - ./deploy/secrets:/secrets:ro
     healthcheck:
       # exec form + full path — distroless has no shell
@@ -410,16 +410,16 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 - [ ] Milestone test: google-workspace-mcp-go + strava-mcp end-to-end from Telegram
   (unit/in-memory SDK covered; live tool binaries are a deploy-time check)
 
-### Milestone 4 — memory *(design locked; not implemented yet)*
+### Milestone 4 — memory
 
-- [ ] `Memory` interface (store/recall/forget + hydrate) so backends are swappable (§12.3)
-- [ ] `internal/memory`: builtin backend — schema, WAL, FTS5, migrations (embedded SQL)
-- [ ] `MEMORY_BACKEND=mcp:<name>` adapter: route the three tools + hydration to a manifest server
-- [ ] Built-in tools: `memory_store` / `memory_recall` / `memory_forget`
-- [ ] Hydration block in prompt assembly (cap ~30 rows, persona precedence rule in system prompt)
-- [ ] Consolidation timer job (cheap pass, bounded batch, `0` disables)
-- [ ] `sqlite3`-friendly docs: how to inspect/fix memory by hand
-- [ ] Milestone test: store→recall across `/new`; consolidation dedupes; `memory_forget` works
+- [x] `Memory` interface (store/recall/forget + hydrate) so backends are swappable (§12.3)
+- [x] `internal/memory`: builtin backend — schema, WAL, FTS5, migrations (embedded SQL)
+- [x] `MEMORY_BACKEND=mcp:<name>` adapter: route the three tools + hydration to a manifest server
+- [x] Built-in tools: `memory_store` / `memory_recall` / `memory_forget`
+- [x] Hydration block in prompt assembly (cap ~30 rows, persona precedence rule in system prompt)
+- [x] Consolidation timer job (cheap pass, bounded batch, `0` disables)
+- [x] `sqlite3`-friendly docs: how to inspect/fix memory by hand ([docs/memory.md](docs/memory.md))
+- [x] Milestone test: store→recall across `/new`; consolidation dedupes; `memory_forget` works
 
 ### Milestone 5 — hardening & cutover *(not implemented yet)*
 

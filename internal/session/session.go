@@ -86,6 +86,14 @@ func (s *Store) migrate() error {
 	return nil
 }
 
+// DB returns the underlying database handle (shared by memory when builtin).
+func (s *Store) DB() *sql.DB {
+	if s == nil {
+		return nil
+	}
+	return s.db
+}
+
 // Close closes the underlying database.
 func (s *Store) Close() error {
 	if s == nil || s.db == nil {

@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
@@ -15,12 +17,13 @@ import (
 	"github.com/shotah/ai-gantry/internal/channel/telegram"
 	"github.com/shotah/ai-gantry/internal/config"
 	"github.com/shotah/ai-gantry/internal/mcp"
+	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/persona"
 	"github.com/shotah/ai-gantry/internal/provider"
 	"github.com/shotah/ai-gantry/internal/session"
 )
 
-// run boots config, persona, sessions, MCP host, provider, agent, and channel.
+// run boots config, persona, sessions, MCP host, memory, provider, agent, and channel.
 func run() int {
 	cfg, err := config.Load()
 	if err != nil {
@@ -79,12 +82,67 @@ func run() int {
 		}
 	}()
 
+	var (
+		memBackend memory.Memory
+		memBuiltin *memory.Builtin
+		hideServer string
+		tools      agent.Tools = mcpHost
+	)
+
+	if cfg.MemoryEnabled {
+		switch {
+		case cfg.MemoryBackend == "builtin":
+			memBuiltin, err = memory.OpenDB(sessions.DB())
+			if err != nil {
+				logger.Error("memory open failed", "err", err)
+				return 1
+			}
+			memBackend = memBuiltin
+			logger.Info("memory ready", "backend", "builtin")
+		case strings.HasPrefix(cfg.MemoryBackend, "mcp:"):
+			server := strings.TrimPrefix(cfg.MemoryBackend, "mcp:")
+			adapter, err := memory.NewMCPAdapter(mcpHost, server)
+			if err != nil {
+				logger.Error("memory mcp adapter failed", "err", err)
+				return 1
+			}
+			memBackend = adapter
+			hideServer = server
+			logger.Info("memory ready", "backend", "mcp", "server", server)
+		default:
+			logger.Error("memory backend unsupported", "backend", cfg.MemoryBackend)
+			return 1
+		}
+		defer func() {
+			if err := memBackend.Close(); err != nil {
+				logger.Error("memory close failed", "err", err)
+			}
+		}()
+
+		tools = memory.Composite{
+			Memory:        memory.Tools{Backend: memBackend},
+			Other:         mcpHost,
+			HideMCPServer: hideServer,
+		}
+
+		if memBuiltin != nil && cfg.MemoryConsolidateMinutes > 0 {
+			consol := &memory.Consolidator{
+				Store:     memBuiltin,
+				Completer: provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel),
+				Interval:  time.Duration(cfg.MemoryConsolidateMinutes) * time.Minute,
+				Logger:    logger,
+			}
+			go consol.Start(ctx)
+		}
+	}
+
 	completer := provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel)
 	ag, err := agent.New(agent.Options{
 		Persona:      personaText,
 		Completer:    completer,
 		Sessions:     sessions,
-		Tools:        mcpHost,
+		Tools:        tools,
+		Memory:       memBackend,
 		Model:        cfg.LLMModel,
 		MaxToolIters: cfg.ToolMaxIterations,
 		Logger:       logger,

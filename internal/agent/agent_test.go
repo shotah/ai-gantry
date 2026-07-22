@@ -10,6 +10,7 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/provider"
 	"github.com/shotah/ai-gantry/internal/session"
 )
@@ -85,6 +86,46 @@ func (f *fakeTools) Call(_ context.Context, name string, _ json.RawMessage) (str
 		return f.out, nil
 	}
 	return "tool-ok", nil
+}
+
+func TestAgent_Handle_MemoryHydration(t *testing.T) {
+	ctx := context.Background()
+	mem, err := memory.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = mem.Close() }()
+	if _, err := mem.Store(ctx, memory.KindPreference, "chris", "coaching tone"); err != nil {
+		t.Fatal(err)
+	}
+
+	var last provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		last = req
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Persona:   "you are tim",
+		Completer: fc,
+		Sessions:  newMemHistory(),
+		Memory:    mem,
+		Model:     "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "hello chris"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(last.Messages) < 3 {
+		t.Fatalf("want persona + memory + user, got %d", len(last.Messages))
+	}
+	if !strings.Contains(last.Messages[0].Content, "Persona files") {
+		t.Fatalf("persona missing precedence note: %q", last.Messages[0].Content)
+	}
+	if !strings.Contains(last.Messages[1].Content, "[memory]") {
+		t.Fatalf("missing hydration: %q", last.Messages[1].Content)
+	}
 }
 
 func TestAgent_Handle_PersonaAndHistory(t *testing.T) {

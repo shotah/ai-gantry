@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/provider"
 	"github.com/shotah/ai-gantry/internal/session"
 )
@@ -34,7 +35,8 @@ type Options struct {
 	Persona      string
 	Completer    provider.Completer
 	Sessions     History
-	Tools        Tools // optional
+	Tools        Tools         // optional
+	Memory       memory.Memory // optional; hydration + persona precedence note
 	Model        string
 	MaxToolIters int
 	Logger       *slog.Logger
@@ -47,6 +49,7 @@ type Agent struct {
 	completer    provider.Completer
 	sessions     History
 	tools        Tools
+	memory       memory.Memory
 	model        string
 	maxToolIters int
 	log          *slog.Logger
@@ -73,11 +76,16 @@ func New(opts Options) (*Agent, error) {
 	if maxIters < 1 {
 		maxIters = 20
 	}
+	personaText := opts.Persona
+	if opts.Memory != nil {
+		personaText = strings.TrimRight(personaText, "\n") + "\n" + strings.TrimSpace(memory.PersonaPrecedenceNote)
+	}
 	return &Agent{
-		persona:      opts.Persona,
+		persona:      personaText,
 		completer:    opts.Completer,
 		sessions:     opts.Sessions,
 		tools:        opts.Tools,
+		memory:       opts.Memory,
 		model:        opts.Model,
 		maxToolIters: maxIters,
 		log:          log,
@@ -109,12 +117,23 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		return "", err
 	}
 
-	messages := make([]provider.Message, 0, 2+len(history))
+	messages := make([]provider.Message, 0, 3+len(history))
 	if a.persona != "" {
 		messages = append(messages, provider.Message{
 			Role:    provider.RoleSystem,
 			Content: a.persona,
 		})
+	}
+	if a.memory != nil {
+		entries, err := a.memory.Hydrate(ctx, text, 30)
+		if err != nil {
+			a.log.Warn("memory hydrate failed", "err", err)
+		} else if block := memory.FormatHydration(entries); block != "" {
+			messages = append(messages, provider.Message{
+				Role:    provider.RoleSystem,
+				Content: block,
+			})
+		}
 	}
 	for _, h := range history {
 		messages = append(messages, provider.Message{
