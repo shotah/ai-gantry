@@ -38,6 +38,15 @@ does exactly that — nothing else.
 - In-process sandboxing / risk profiles (the container is the sandbox;
   Telegram allowlist is the gate)
 
+## Planned (post daily-drive)
+
+| Milestone | Feature |
+| --- | --- |
+| **6** | Cron / scheduled turns — shipped; see [cron.md](cron.md) |
+| **7** | Streaming replies — provider chunks → Telegram `editMessageText` (optional stdio stream) |
+
+See [root readme §11](../readme.md#11-todo--build-order) for checklists.
+
 ## Configuration contract
 
 Everything is env or a mount. Boot is fail-fast: missing required env → exit 1.
@@ -51,6 +60,7 @@ Everything is env or a mount. Boot is fail-fast: missing required env → exit 1
 | Mounts | `PERSONA_DIR`, `DATA_DIR`, `MCP_MANIFEST` |
 | Bounds | `HISTORY_MAX_MESSAGES`, `HISTORY_MAX_TOKENS`, `TOOL_RESULT_MAX_CHARS`, `TOOL_MAX_ITERATIONS` |
 | Memory | `MEMORY_ENABLED`, `MEMORY_BACKEND` (`builtin`\|`mcp:<name>`), `MEMORY_CONSOLIDATE_MINUTES` |
+| Cron | `CRON_ENABLED`, `CRON_TZ`, `CRON_MAX_JOBS`, `CRON_TICK_SECONDS` |
 | Ops | `LOG_LEVEL` |
 
 Full table lives in the [root readme](../readme.md#51-environment-variables).

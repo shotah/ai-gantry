@@ -207,3 +207,43 @@ Tool schemas are attached on the completion request, not as chat messages.
 | Logs | stdlib `log/slog` → **stderr** |
 
 See [choices.md](choices.md) for why each pick stuck.
+
+## Cron push (Milestone 6)
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant A as agent
+  participant C as cron
+  participant T as Telegram
+
+  U->>A: "remind me at 5pm to…"
+  A->>C: cron_schedule(...)
+  Note over C: SQLite job row + next_run
+  C->>C: ticker: job due
+  C->>A: Handle(synthetic prompt)
+  A->>A: tools / MCP as usual
+  A->>T: push SendMessage (no inbound update)
+  T-->>U: reminder / digest
+```
+
+Outbound push needs a channel API beyond “reply to the update that invoked
+Handle” — Telegram chat/user id is stored with the job from the scheduling turn.
+
+## Planned: streaming (Milestone 7)
+
+```mermaid
+sequenceDiagram
+  participant L as LLM stream
+  participant A as agent
+  participant T as Telegram
+
+  A->>T: SendMessage("…")
+  loop token chunks
+    L-->>A: delta
+    A->>T: editMessageText (throttled)
+  end
+```
+
+Tool-call iterations can stay buffered; streaming targets the final assistant
+text path first.

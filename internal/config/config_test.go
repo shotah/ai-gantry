@@ -56,6 +56,15 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if cfg.MemoryConsolidateMinutes != 30 {
 		t.Errorf("MemoryConsolidateMinutes = %d, want 30", cfg.MemoryConsolidateMinutes)
 	}
+	if !cfg.CronEnabled {
+		t.Error("CronEnabled = false, want true")
+	}
+	if cfg.CronTZ != "UTC" {
+		t.Errorf("CronTZ = %q, want UTC", cfg.CronTZ)
+	}
+	if cfg.CronMaxJobs != 50 {
+		t.Errorf("CronMaxJobs = %d, want 50", cfg.CronMaxJobs)
+	}
 	if cfg.LogLevel != "info" {
 		t.Errorf("LogLevel = %q, want info", cfg.LogLevel)
 	}

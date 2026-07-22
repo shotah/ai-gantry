@@ -67,11 +67,21 @@ streams.
 
 ## Streaming replies to the user
 
-**Pick:** deferred.
+**Pick:** Milestone 7 (not in the first daily-drive cut).
 
-Streaming *to Telegram* is channel-layer work (edit-in-place as tokens
-arrive). MCP can stream tool results into the gantry, but that is a different
-problem. Not required for daily drive.
+Streaming *to Telegram* is channel-layer work (send placeholder, edit-in-place
+as tokens arrive). MCP streaming tool results into the gantry is a different
+problem. Cron/proactive turns (Milestone 6) can ship buffered first; streaming
+applies to the same outbound path when M7 lands.
+
+## Scheduled / cron turns
+
+**Pick:** Milestone 6 — builtin scheduler in the kernel (SQLite jobs + tools),
+not a pure-MCP cron.
+
+Firing a job must run `agent.Handle` and **push** on Telegram. An MCP server
+alone cannot outbound to the channel. External `docker exec` poke remains a
+valid interim escape hatch but is not the product surface.
 
 ## Tool naming
 

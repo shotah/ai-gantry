@@ -16,6 +16,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/channel/stdio"
 	"github.com/shotah/ai-gantry/internal/channel/telegram"
 	"github.com/shotah/ai-gantry/internal/config"
+	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/drain"
 	"github.com/shotah/ai-gantry/internal/heartbeat"
 	"github.com/shotah/ai-gantry/internal/mcp"
@@ -25,7 +26,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/session"
 )
 
-// run boots config, persona, sessions, MCP host, memory, provider, agent, and channel.
+// run boots config, persona, sessions, MCP host, memory, cron, provider, agent, and channel.
 func run() int {
 	cfg, err := config.Load()
 	if err != nil {
@@ -45,6 +46,8 @@ func run() int {
 		"mcp_manifest", cfg.MCPManifest,
 		"memory_enabled", cfg.MemoryEnabled,
 		"memory_backend", cfg.MemoryBackend,
+		"cron_enabled", cfg.CronEnabled,
+		"cron_tz", cfg.CronTZ,
 	)
 
 	personaText, err := persona.Load(cfg.PersonaDir)
@@ -149,6 +152,20 @@ func run() int {
 		}
 	}
 
+	var cronStore *cron.Store
+	if cfg.CronEnabled {
+		cronStore, err = cron.OpenDB(sessions.DB(), cfg.CronMaxJobs)
+		if err != nil {
+			logger.Error("cron store open failed", "err", err)
+			return 1
+		}
+		tools = cron.Composite{
+			Cron:  cron.Tools{Store: cronStore, TZ: cfg.CronTZ},
+			Other: tools,
+		}
+		logger.Info("cron ready", "tz", cfg.CronTZ, "max_jobs", cfg.CronMaxJobs)
+	}
+
 	ag, err := agent.New(agent.Options{
 		Persona:      personaText,
 		Completer:    completer,
@@ -171,7 +188,25 @@ func run() int {
 	}
 
 	gate := &drain.Gate{}
-	runErr := ch.Run(ctx, gate.Handler(ag.Handle))
+	handle := gate.Handler(ag.Handle)
+
+	if cronStore != nil {
+		pusher, ok := ch.(channel.Pusher)
+		if !ok {
+			logger.Error("cron enabled but channel does not support Push")
+			return 1
+		}
+		runner := &cron.Runner{
+			Store:    cronStore,
+			Handle:   handle,
+			Pusher:   pusher,
+			Interval: time.Duration(cfg.CronTickSeconds) * time.Second,
+			Logger:   logger,
+		}
+		go runner.Start(ctx)
+	}
+
+	runErr := ch.Run(ctx, handle)
 	// Finish the in-flight turn before deferred MCP Close kills children.
 	if !gate.Wait(drain.DefaultWait) {
 		logger.Warn("shutdown: in-flight turn still running after wait", "timeout", drain.DefaultWait.String())

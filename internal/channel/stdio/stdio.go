@@ -33,6 +33,16 @@ func New() *Channel {
 	}
 }
 
+// Push prints a proactive cron reply to the REPL output.
+func (c *Channel) Push(_ context.Context, msg channel.Outbound) error {
+	out := c.Out
+	if out == nil {
+		out = os.Stdout
+	}
+	_, err := fmt.Fprintf(out, "\n[cron] %s\n> ", msg.Text)
+	return err
+}
+
 // Run reads lines, invokes handle, and prints replies until EOF or ctx cancel.
 func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 	in := c.In

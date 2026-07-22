@@ -128,6 +128,8 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 		reply, err := handle(ctx, channel.Message{
 			SessionID: sessionID,
 			UserID:    strconv.FormatInt(userID, 10),
+			ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
+			ThreadID:  msg.MessageThreadID,
 			Text:      text,
 		})
 		if err != nil {
@@ -185,6 +187,35 @@ func (c *Channel) startTyping(ctx context.Context, b *bot.Bot, chatID int64, thr
 		}
 	}()
 	return func() { close(done) }
+}
+
+// Push sends a proactive message (cron) to the job's chat. Allowlist enforced.
+func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
+	chatID, err := resolveChatID(msg)
+	if err != nil {
+		return err
+	}
+	userID, _ := strconv.ParseInt(msg.UserID, 10, 64)
+	if userID != 0 && !c.isAllowed(userID) {
+		return fmt.Errorf("telegram: push denied for user %d", userID)
+	}
+	b, err := c.newBot(c.token)
+	if err != nil {
+		return fmt.Errorf("telegram: push bot: %w", err)
+	}
+	return c.sendChunks(ctx, b, chatID, msg.ThreadID, msg.Text)
+}
+
+func resolveChatID(msg channel.Outbound) (int64, error) {
+	if msg.ChatID != "" {
+		return strconv.ParseInt(msg.ChatID, 10, 64)
+	}
+	// session: telegram:<chat>:<user>[:thread]
+	parts := strings.Split(msg.SessionID, ":")
+	if len(parts) >= 3 && parts[0] == "telegram" {
+		return strconv.ParseInt(parts[1], 10, 64)
+	}
+	return 0, fmt.Errorf("telegram: missing chat id for push")
 }
 
 func (c *Channel) sendChunks(ctx context.Context, b *bot.Bot, chatID int64, threadID int, text string) error {

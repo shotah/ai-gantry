@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/provider"
 	"github.com/shotah/ai-gantry/internal/session"
@@ -100,6 +101,14 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 	if text == "" {
 		return "", nil
 	}
+
+	// Bind cron_* tools to this chat/session for scheduling.
+	ctx = cron.WithDelivery(ctx, cron.Delivery{
+		SessionID: msg.SessionID,
+		UserID:    msg.UserID,
+		ChatID:    msg.ChatID,
+		ThreadID:  msg.ThreadID,
+	})
 
 	if cmd, ok := parseCommand(text); ok {
 		switch cmd {

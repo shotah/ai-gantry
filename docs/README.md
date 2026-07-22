@@ -10,6 +10,7 @@ is the product contract and milestone checklist; these pages go deeper.
 | [security.md](security.md) | Threat model, tradeoffs, residual risks |
 | [choices.md](choices.md) | Decision log (why we picked X over Y) |
 | [memory.md](memory.md) | Hand-inspect / fix builtin SQLite memory with `sqlite3` |
+| [cron.md](cron.md) | Schedule tools, timezone, inspect jobs, overlap policy |
 
 Start with **architecture** if you're new to the code; **security** before
 exposing a bot to a Telegram allowlist with real tool credentials.

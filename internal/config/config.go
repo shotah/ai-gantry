@@ -5,6 +5,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -38,6 +39,11 @@ type Config struct {
 	MemoryEnabled            bool   `env:"MEMORY_ENABLED" envDefault:"true"`
 	MemoryBackend            string `env:"MEMORY_BACKEND" envDefault:"builtin"`
 	MemoryConsolidateMinutes int    `env:"MEMORY_CONSOLIDATE_MINUTES" envDefault:"30"` // 0 = off
+
+	CronEnabled     bool   `env:"CRON_ENABLED" envDefault:"true"`
+	CronTZ          string `env:"CRON_TZ" envDefault:"UTC"`
+	CronMaxJobs     int    `env:"CRON_MAX_JOBS" envDefault:"50"`
+	CronTickSeconds int    `env:"CRON_TICK_SECONDS" envDefault:"15"`
 
 	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
 }
@@ -97,6 +103,19 @@ func (c *Config) Validate() error {
 	if c.MemoryConsolidateMinutes < 0 {
 		return fmt.Errorf("MEMORY_CONSOLIDATE_MINUTES: must be >= 0, got %d", c.MemoryConsolidateMinutes)
 	}
+	c.CronTZ = strings.TrimSpace(c.CronTZ)
+	if c.CronTZ == "" {
+		c.CronTZ = "UTC"
+	}
+	if c.CronMaxJobs < 1 {
+		return fmt.Errorf("CRON_MAX_JOBS: must be >= 1, got %d", c.CronMaxJobs)
+	}
+	if c.CronTickSeconds < 1 {
+		return fmt.Errorf("CRON_TICK_SECONDS: must be >= 1, got %d", c.CronTickSeconds)
+	}
+	if _, err := timeLoadLocation(c.CronTZ); err != nil {
+		return fmt.Errorf("CRON_TZ: %w", err)
+	}
 
 	if err := validateMemoryBackend(c.MemoryBackend); err != nil {
 		return err
@@ -122,6 +141,13 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func timeLoadLocation(name string) (*time.Location, error) {
+	if strings.EqualFold(name, "UTC") {
+		return time.UTC, nil
+	}
+	return time.LoadLocation(name)
 }
 
 func validateMemoryBackend(backend string) error {
