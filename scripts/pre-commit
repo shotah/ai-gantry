@@ -1,0 +1,42 @@
+#!/usr/bin/env sh
+# Pre-commit: autofix → lint → test
+set -eu
+
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM || true)
+
+echo "==> Autofix: goimports-reviser"
+if ! command -v goimports-reviser >/dev/null 2>&1; then
+	echo "goimports-reviser not found. Run: make tools" >&2
+	exit 1
+fi
+goimports-reviser -format -recursive .
+
+echo "==> Autofix: golangci-lint"
+if ! command -v golangci-lint >/dev/null 2>&1; then
+	echo "golangci-lint not found. Run: make tools" >&2
+	exit 1
+fi
+# v2 formatter (no-op / harmless if unsupported)
+golangci-lint fmt ./... 2>/dev/null || true
+# Apply safe autofixes, then fail on anything still wrong
+golangci-lint run --fix ./... || true
+
+echo "==> Lint"
+golangci-lint run ./...
+
+echo "==> Test"
+go test ./...
+
+# Re-stage files that were already staged (autofix may have rewritten them)
+if [ -n "$STAGED_FILES" ]; then
+	echo "$STAGED_FILES" | while IFS= read -r f; do
+		if [ -n "$f" ] && [ -e "$f" ]; then
+			git add -- "$f"
+		fi
+	done
+fi
+
+echo "Pre-commit checks passed."

@@ -351,7 +351,8 @@ contradictions get surfaced, not obeyed.
 - `gantry version` — build info
 - Logs: JSON `slog` to stderr; `docker logs` is the console.
 - Telegram/stdio `/new` — session reset; `/status` — uptime, model, history, tool count.
-- Dev: `make build|test|lint|run|ci` (see `Makefile`).
+- Dev: `make build|test|lint|run|ci|check`; `make install-hooks` for pre-commit
+  (autofix + lint + test; same shape as go-garmin).
 
 That's the entire ops/UI story. No port is opened by the gantry, ever.
 
@@ -364,8 +365,10 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
   uid 65532, **no shell**). Healthchecks must use exec form
   (`["CMD","gantry","status"]`), never `CMD-SHELL`.
   MCP children must be static binaries too — there is no libc/shell to lean on.
-- CI: `go vet`, `golangci-lint`, `go test ./...`, goreleaser for tagged
-  binaries + image.
+- CI: `go vet`, `golangci-lint`, `go test ./...`.
+- Release: `make release` (or `BUMP=minor|major` / `TAG=vX.Y.Z`) bumps
+  `VERSION`, tags, and pushes; `.github/workflows/release.yml` runs GoReleaser
+  on `v*` tags (same flow as the other shotah MCP repos).
 
 ## 10. Migration path from tim/ZeroClaw
 

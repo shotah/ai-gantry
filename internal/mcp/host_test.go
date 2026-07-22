@@ -156,9 +156,11 @@ type longConn struct{}
 func (longConn) ListTools(context.Context) ([]mcp.Tool, error) {
 	return []mcp.Tool{{OriginalName: "big", InputSchema: map[string]any{"type": "object"}}}, nil
 }
+
 func (longConn) CallTool(context.Context, string, map[string]any) (string, error) {
 	return strings.Repeat("z", 200), nil
 }
+
 func (longConn) Close() error { return nil }
 
 func TestHost_InMemorySDK(t *testing.T) {

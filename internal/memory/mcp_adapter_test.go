@@ -72,7 +72,9 @@ type stubTools struct {
 }
 
 func (s *stubTools) Tools() []provider.ToolDef { return s.defs }
-func (s *stubTools) ToolCount() int            { return len(s.defs) }
+
+func (s *stubTools) ToolCount() int { return len(s.defs) }
+
 func (s *stubTools) Call(context.Context, string, json.RawMessage) (string, error) {
 	return "", nil
 }

@@ -76,7 +76,9 @@ type fakeTools struct {
 }
 
 func (f *fakeTools) Tools() []provider.ToolDef { return f.defs }
-func (f *fakeTools) ToolCount() int            { return len(f.defs) }
+
+func (f *fakeTools) ToolCount() int { return len(f.defs) }
+
 func (f *fakeTools) Call(_ context.Context, name string, _ json.RawMessage) (string, error) {
 	f.calls = append(f.calls, name)
 	if f.err != nil {
