@@ -25,11 +25,29 @@ mounts. No dashboard, no config UI, no open ports — ever.
   read-only mounts (persona markdown + MCP manifest); boot is fail-fast
 - 🧠 **Inspectable memory** — typed SQLite rows you can read and delete with
   `sqlite3`, consolidated on a timer; no embeddings, no vector service
+- ⚡ **Built for speed** — tiny Go binary, curated tool schemas, no embedding
+  round-trips; Gemini 3 tool loops work (thought signatures preserved)
 - 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
   not an endpoint
 
-> **Status: building.** Milestone 7 (streaming replies) is in; post-v0.0.1 work
-> lives in [todo.md](todo.md). Scaffold templates: [examples/](examples/).
+> **Status: daily-drivable.** Milestones 0–7 shipped; Tim cutover validated on
+> Gemini 3.5 Flash + Telegram. Open polish: [todo.md](todo.md). Templates:
+> [examples/](examples/).
+
+### Why it feels fast
+
+Platform agent stacks pay a tax every turn: huge tool catalogs, embedding
+memory, dashboards, pairing, shell shims. Gantry refuses that tax.
+
+| Lever | What we do | Why it matters |
+| --- | --- | --- |
+| Tool surface | `mcp.toml` filters + MCP `--tool-tier core` (e.g. Garmin ~10, not ~100) | Smaller schemas → lower TTFT, better tool picks on Flash |
+| Memory | SQLite + FTS5 in-process | No embedding API call before every reply |
+| Runtime | One static Go binary on distroless/static | No Node/Bun/gateway process sitting in the path |
+| Gemini 3 | Echo `thought_signature` on tool rounds (v0.0.3+) | Tool loops complete instead of 400’ing mid-turn |
+
+Publish only the tools the persona needs. The frame stays out of the way; the
+model and MCP binaries do the work.
 
 ## Quick start (the target UX)
 

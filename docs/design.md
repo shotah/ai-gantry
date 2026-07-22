@@ -17,7 +17,11 @@ does exactly that — nothing else.
 1. **Stupid simple.** One agent, one model, one channel loop. If it needs a
    diagram to explain, it probably belongs in an MCP binary.
 2. **Highly performant.** Pure Go, static binary, no CGO, small RSS. Long-poll
-   + goroutines; nothing dials in.
+   + goroutines; nothing dials in. Speed is a product feature: curated tool
+   schemas (manifest filters + MCP `--tool-tier`), in-process FTS memory (no
+   embedding round-trip), and a Gemini 3–compatible tool loop that preserves
+   `thought_signature` so multi-step turns finish instead of 400’ing. See the
+   root readme “Why it feels fast” table.
 3. **Highly portable.** `CGO_ENABLED=0`, distroless/static final image. No
    glibc in our binary; no writable rootfs beyond mounts.
 4. **Plugin-centric.** Capabilities are external MCP stdio binaries. The gantry

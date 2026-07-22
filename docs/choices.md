@@ -19,6 +19,26 @@ Gemini, Grok, Ollama, etc. already speak the shape. Model identity is
 `LLM_BASE_URL` + `LLM_MODEL` + `LLM_API_KEY`. A provider registry would be
 multi-agent platform gravity we don't want.
 
+## Gemini 3 thought signatures
+
+**Pick:** preserve `extra_content.google.thought_signature` on assistant
+`tool_calls` when echoing them back; synthesize
+`skip_thought_signature_validator` when streaming deltas omit it (v0.0.3+).
+
+Gemini 3 OpenAI-compat returns a signature on each tool call and **requires**
+it on the follow-up. Dropping it → HTTP 400 mid-loop (“something went wrong”
+on Telegram). Other OpenAI-compat backends ignore the field. This is not
+optional if Gemini 3 + tools is a supported path.
+
+## Tool surface budget
+
+**Pick:** prefer MCP-native filters (`--tools`, `--tool-tier`) plus optional
+gantry `tools` / `exclude` in `mcp.toml`. Cap schemas via
+`TOOL_SCHEMA_MAX_TOKENS` as a backstop.
+
+Flash models degrade when fed ~150 tool schemas. Curating to tens of tools
+is the largest latency/quality win after the thought-signature fix.
+
 ## Token counting
 
 **Pick:** chars/4 **estimates**, labeled (`est_tokens`, “estimated”).
