@@ -230,7 +230,10 @@ sequenceDiagram
 Outbound push needs a channel API beyond “reply to the update that invoked
 Handle” — Telegram chat/user id is stored with the job from the scheduling turn.
 
-## Planned: streaming (Milestone 7)
+## Streaming replies (Milestone 7)
+
+Opt-in: `STREAM_REPLIES=true`. Channel attaches a `ReplyWriter`; agent uses
+`provider.CompleteStream` when available.
 
 ```mermaid
 sequenceDiagram
@@ -243,7 +246,8 @@ sequenceDiagram
     L-->>A: delta
     A->>T: editMessageText (throttled)
   end
+  A->>T: Finish (final text; overflow as extra messages)
 ```
 
-Tool-call iterations can stay buffered; streaming targets the final assistant
-text path first.
+Tool-call chunks skip live text updates; cron push stays buffered.
+

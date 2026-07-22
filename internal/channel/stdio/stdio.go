@@ -19,9 +19,10 @@ const (
 
 // Channel is an interactive line-oriented REPL on stdin/stdout.
 type Channel struct {
-	In  io.Reader
-	Out io.Writer
-	Err io.Writer
+	In            io.Reader
+	Out           io.Writer
+	Err           io.Writer
+	StreamReplies bool
 }
 
 // New returns a Channel bound to process stdio.
@@ -87,7 +88,14 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 			return nil
 		}
 
-		reply, err := handle(ctx, channel.Message{
+		var stream *printStream
+		handleCtx := ctx
+		if c.StreamReplies {
+			stream = newPrintStream(out)
+			handleCtx = channel.WithReplyWriter(ctx, stream)
+		}
+
+		reply, err := handle(handleCtx, channel.Message{
 			SessionID: sessionID,
 			UserID:    userID,
 			Text:      line,
@@ -97,6 +105,10 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 				return nil
 			}
 			_, _ = fmt.Fprintf(errOut, "error: %v\n", err)
+			continue
+		}
+		if stream != nil && stream.Started() {
+			_ = stream.Finish(ctx, reply)
 			continue
 		}
 		if reply != "" {

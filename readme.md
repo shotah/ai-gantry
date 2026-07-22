@@ -1,5 +1,8 @@
 # ai-gantry 🏗️
 
+[![CI](https://github.com/shotah/ai-gantry/actions/workflows/ci.yml/badge.svg)](https://github.com/shotah/ai-gantry/actions/workflows/ci.yml)
+[![Coverage](https://github.com/shotah/ai-gantry/raw/gh-pages/badges/coverage.svg)](https://github.com/shotah/ai-gantry/actions/workflows/ci.yml)
+
 > **gantry** *(n.)* — the rigid frame in a CNC machine or crane that holds and
 > positions tools. The frame does nothing by itself; the tools do everything.
 
@@ -19,7 +22,7 @@ mounts. No dashboard, no config UI, no open ports — ever.
 - 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
   not an endpoint
 
-> **Status: building.** Milestone 6 (cron → Telegram push) is in; M7 streaming is next; §11 is the build order.
+> **Status: building.** Milestone 7 (streaming replies) is in; cutover items remain; §11 is the build order.
 
 ## Quick start (the target UX)
 
@@ -195,6 +198,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `CRON_TZ` | no | `UTC` (IANA, e.g. `America/Los_Angeles`) |
 | `CRON_MAX_JOBS` | no | `50` |
 | `CRON_TICK_SECONDS` | no | `15` |
+| `STREAM_REPLIES` | no | `false` (Telegram edit-in-place / stdio token stream) |
 | `LOG_LEVEL` | no | `info` |
 
 Boot is fail-fast: missing required env = clear error + exit 1. No partial
@@ -373,7 +377,8 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
   uid 65532, **no shell**). Healthchecks must use exec form
   (`["CMD","gantry","status"]`), never `CMD-SHELL`.
   MCP children must be static binaries too — there is no libc/shell to lean on.
-- CI: `go vet`, `golangci-lint`, `go test ./...`.
+- CI: `go vet`, `golangci-lint`, `go test ./internal/... ./cmd/...` with coverage; on `main`,
+  the badge is pushed to `gh-pages` as `badges/coverage.svg` (README uses the `raw/gh-pages` URL).
 - Release: `make release` (or `BUMP=minor|major` / `TAG=vX.Y.Z`) bumps
   `VERSION`, tags, and pushes; `.github/workflows/release.yml` runs GoReleaser
   on `v*` tags (same flow as the other shotah MCP repos).
@@ -456,18 +461,18 @@ Pure-MCP cron cannot deliver outbound chat by itself.
 - [x] Docs: examples (“remind me at 5pm…”, daily standup digest) + `sqlite3` inspect ([docs/cron.md](docs/cron.md))
 - [x] Milestone test: schedule → fire → Telegram/stdio receives agent reply; cancel works
 
-### Milestone 7 — streaming replies to Telegram *(not implemented yet)*
+### Milestone 7 — streaming replies to Telegram
 
 Streaming **to the user** is channel-layer work (edit the Telegram message as
 model tokens arrive). Distinct from MCP servers streaming tool results into the
-gantry. Deferred from v1; tracked here.
+gantry.
 
-- [ ] Provider: streaming `Complete` (OpenAI-compat SSE / chunk API)
-- [ ] Agent: stream final-text path (tool-call turns can stay buffered)
-- [ ] Telegram: send placeholder → `editMessageText` throttle (respect rate limits / 4096)
-- [ ] Stdio: optional token stream to stdout (keep JSON logs on stderr)
-- [ ] Config knob to disable (`STREAM_REPLIES=false` default until proven)
-- [ ] Milestone test: streamed reply visible as growing Telegram message; fallback to buffered send on edit failure
+- [x] Provider: streaming `CompleteStream` (OpenAI-compat SSE / chunk API)
+- [x] Agent: stream final-text path (tool-call chunks skip onText; tools still work)
+- [x] Telegram: send placeholder → `editMessageText` throttle (rate gap + 4096 clip)
+- [x] Stdio: optional token stream to stdout (keep JSON logs on stderr)
+- [x] Config knob (`STREAM_REPLIES=false` default until you opt in)
+- [x] Milestone test: stream deltas to ReplyWriter; Telegram finish falls back to send on edit failure
 
 ## 12. Decisions (was: open questions)
 
@@ -477,7 +482,7 @@ live in **[docs/choices.md](docs/choices.md)**.
 1. **Name: ai-gantry 🏗️** — frame that holds tools; binary `gantry`.
 2. **Token counting: estimates** (chars/4), labeled as estimates.
 3. **Memory: builtin SQLite, replaceable** via `MEMORY_BACKEND=mcp:<name>`.
-4. **Streaming replies: Milestone 7** (Telegram edit-in-place; channel-layer work).
+4. **Streaming replies: opt-in** (`STREAM_REPLIES=true`; Telegram edit-in-place).
 5. **Telegram auth: allowlist only** — empty allowlist fails boot.
 6. **Runtime image: distroless/static-debian12:nonroot** — MCP children static too.
 7. **Logs on stderr** — stdout stays clean for the stdio REPL.

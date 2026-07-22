@@ -56,4 +56,19 @@ func TestAdvanceNext(t *testing.T) {
 	if next.In(time.UTC).Day() != 23 {
 		t.Fatalf("next day=%d", next.Day())
 	}
+
+	loc, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	next, ok, err = cron.AdvanceNext(cron.KindDaily, "09:00", "America/Los_Angeles", from)
+	if err != nil || !ok {
+		t.Fatal(err)
+	}
+	if next.In(loc).Hour() != 9 {
+		t.Fatalf("hour=%d", next.In(loc).Hour())
+	}
+	if _, _, err := cron.AdvanceNext(cron.KindDaily, "09:00", "Not/AZone", from); err == nil {
+		t.Fatal("expected bad timezone error")
+	}
 }

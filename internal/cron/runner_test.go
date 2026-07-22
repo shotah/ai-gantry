@@ -97,3 +97,46 @@ func TestRunner_ScheduleFirePushCancel(t *testing.T) {
 		t.Fatal(out)
 	}
 }
+
+func TestRunner_StartAndNil(t *testing.T) {
+	(&cron.Runner{}).Start(context.Background()) // no-op
+
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 10, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := cron.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().UTC().Add(-time.Minute)
+	_, err = store.Schedule(ctx, "x", cron.Parsed{
+		Kind: cron.KindOnce, Expr: past.Format(time.RFC3339Nano), NextRun: past, Timezone: "UTC",
+	}, cron.Delivery{SessionID: "s", UserID: "u", ChatID: "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pusher := &memPusher{}
+	runCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		(&cron.Runner{
+			Store:    store,
+			Handle:   func(context.Context, channel.Message) (string, error) { return "ok", nil },
+			Pusher:   pusher,
+			Interval: 15 * time.Millisecond,
+		}).Start(runCtx)
+		close(done)
+	}()
+	time.Sleep(60 * time.Millisecond)
+	cancel()
+	<-done
+	pusher.mu.Lock()
+	n := len(pusher.msgs)
+	pusher.mu.Unlock()
+	if n < 1 {
+		t.Fatal("expected push from Start poll")
+	}
+}

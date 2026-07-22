@@ -45,6 +45,8 @@ type Config struct {
 	CronMaxJobs     int    `env:"CRON_MAX_JOBS" envDefault:"50"`
 	CronTickSeconds int    `env:"CRON_TICK_SECONDS" envDefault:"15"`
 
+	StreamReplies bool `env:"STREAM_REPLIES" envDefault:"false"`
+
 	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
 }
 

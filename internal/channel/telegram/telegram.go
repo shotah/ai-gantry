@@ -25,18 +25,20 @@ const (
 
 // Config configures the Telegram channel.
 type Config struct {
-	Token        string
-	AllowedUsers []int64
-	Logger       *slog.Logger
+	Token         string
+	AllowedUsers  []int64
+	Logger        *slog.Logger
+	StreamReplies bool // placeholder + editMessageText while the model streams
 }
 
 // Channel long-polls Telegram and fans messages into a channel.Handler.
 type Channel struct {
-	token    string
-	allowed  map[int64]struct{}
-	log      *slog.Logger
-	newBot   func(token string, opts ...bot.Option) (*bot.Bot, error)
-	chunkMax int
+	token         string
+	allowed       map[int64]struct{}
+	log           *slog.Logger
+	newBot        func(token string, opts ...bot.Option) (*bot.Bot, error)
+	chunkMax      int
+	streamReplies bool
 }
 
 // New builds a Telegram channel. Token and a non-empty allowlist are required.
@@ -56,11 +58,12 @@ func New(cfg Config) (*Channel, error) {
 		allowed[id] = struct{}{}
 	}
 	return &Channel{
-		token:    cfg.Token,
-		allowed:  allowed,
-		log:      log,
-		newBot:   bot.New,
-		chunkMax: telegramMaxMessageRunes,
+		token:         cfg.Token,
+		allowed:       allowed,
+		log:           log,
+		newBot:        bot.New,
+		chunkMax:      telegramMaxMessageRunes,
+		streamReplies: cfg.StreamReplies,
 	}, nil
 }
 
@@ -125,7 +128,14 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 		stopTyping := c.startTyping(ctx, b, msg.Chat.ID, msg.MessageThreadID)
 		defer stopTyping()
 
-		reply, err := handle(ctx, channel.Message{
+		var stream *editStream
+		handleCtx := ctx
+		if c.streamReplies {
+			stream = newEditStream(b, msg.Chat.ID, msg.MessageThreadID, c.chunkMax)
+			handleCtx = channel.WithReplyWriter(ctx, stream)
+		}
+
+		reply, err := handle(handleCtx, channel.Message{
 			SessionID: sessionID,
 			UserID:    strconv.FormatInt(userID, 10),
 			ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
@@ -139,6 +149,17 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 				MessageThreadID: msg.MessageThreadID,
 				Text:            "sorry — something went wrong handling that message",
 			})
+			return
+		}
+		if stream != nil && stream.Started() {
+			if err := stream.Finish(ctx, reply); err != nil {
+				c.log.Warn("telegram stream finish failed; falling back to send", "err", err)
+				if reply != "" {
+					if err := c.sendChunks(ctx, b, msg.Chat.ID, msg.MessageThreadID, reply); err != nil {
+						c.log.Error("telegram send failed", "err", err, "session_id", sessionID)
+					}
+				}
+			}
 			return
 		}
 		if reply == "" {

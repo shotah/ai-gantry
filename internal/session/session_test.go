@@ -69,6 +69,9 @@ func TestStore_OpenDefaultsAndEdges(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
+	if store.DB() == nil {
+		t.Fatal("DB() nil")
+	}
 
 	ctx := context.Background()
 	if err := store.Append(ctx, "s"); err != nil {

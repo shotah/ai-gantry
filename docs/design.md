@@ -43,7 +43,7 @@ does exactly that — nothing else.
 | Milestone | Feature |
 | --- | --- |
 | **6** | Cron / scheduled turns — shipped; see [cron.md](cron.md) |
-| **7** | Streaming replies — provider chunks → Telegram `editMessageText` (optional stdio stream) |
+| **7** | Streaming replies — shipped; set `STREAM_REPLIES=true` |
 
 See [root readme §11](../readme.md#11-todo--build-order) for checklists.
 
@@ -61,6 +61,7 @@ Everything is env or a mount. Boot is fail-fast: missing required env → exit 1
 | Bounds | `HISTORY_MAX_MESSAGES`, `HISTORY_MAX_TOKENS`, `TOOL_RESULT_MAX_CHARS`, `TOOL_MAX_ITERATIONS` |
 | Memory | `MEMORY_ENABLED`, `MEMORY_BACKEND` (`builtin`\|`mcp:<name>`), `MEMORY_CONSOLIDATE_MINUTES` |
 | Cron | `CRON_ENABLED`, `CRON_TZ`, `CRON_MAX_JOBS`, `CRON_TICK_SECONDS` |
+| Stream | `STREAM_REPLIES` (`false` default; Telegram edit / stdio tokens) |
 | Ops | `LOG_LEVEL` |
 
 Full table lives in the [root readme](../readme.md#51-environment-variables).

@@ -67,12 +67,11 @@ streams.
 
 ## Streaming replies to the user
 
-**Pick:** Milestone 7 (not in the first daily-drive cut).
+**Pick:** Milestone 7 — shipped, opt-in via `STREAM_REPLIES=true` (default off).
 
-Streaming *to Telegram* is channel-layer work (send placeholder, edit-in-place
-as tokens arrive). MCP streaming tool results into the gantry is a different
-problem. Cron/proactive turns (Milestone 6) can ship buffered first; streaming
-applies to the same outbound path when M7 lands.
+Streaming *to Telegram* is channel-layer work (send placeholder, throttled
+`editMessageText`). MCP streaming tool results into the gantry is a different
+problem. Cron pushes stay buffered (no ReplyWriter on that path).
 
 ## Scheduled / cron turns
 

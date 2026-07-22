@@ -45,6 +45,8 @@ func newAPIMock(t *testing.T) *apiMock {
 			_, _ = w.Write([]byte(`{"ok":true,"result":true}`))
 		case "sendMessage":
 			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":1,"date":1,"chat":{"id":1,"type":"private"}}}`))
+		case "editMessageText":
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":1,"date":1,"chat":{"id":1,"type":"private"},"text":"edited"}}`))
 		default:
 			t.Errorf("unexpected method %q", method)
 			_, _ = w.Write([]byte(`{"ok":false,"error_code":404,"description":"unknown"}`))

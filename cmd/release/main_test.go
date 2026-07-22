@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestNextVersion(t *testing.T) {
 	t.Parallel()
@@ -23,5 +27,18 @@ func TestNextVersion(t *testing.T) {
 		if got != tc.want {
 			t.Fatalf("%+v: got %s want %s", tc, got, tc.want)
 		}
+	}
+}
+
+func TestDisplayTagAndModuleRoot(t *testing.T) {
+	if displayTag("") != "(none)" || displayTag("v1.0.0") != "v1.0.0" {
+		t.Fatal("displayTag")
+	}
+	root, err := moduleRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+		t.Fatalf("moduleRoot=%s: %v", root, err)
 	}
 }

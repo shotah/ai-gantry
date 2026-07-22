@@ -34,28 +34,30 @@ type Tools interface {
 
 // Options configures the agent.
 type Options struct {
-	Persona      string
-	Completer    provider.Completer
-	Sessions     History
-	Tools        Tools         // optional
-	Memory       memory.Memory // optional; hydration + persona precedence note
-	Model        string
-	MaxToolIters int
-	Logger       *slog.Logger
-	StartedAt    time.Time
+	Persona       string
+	Completer     provider.Completer
+	Sessions      History
+	Tools         Tools         // optional
+	Memory        memory.Memory // optional; hydration + persona precedence note
+	Model         string
+	MaxToolIters  int
+	StreamReplies bool // stream final text via channel.ReplyWriter when Completer is a Streamer
+	Logger        *slog.Logger
+	StartedAt     time.Time
 }
 
 // Agent runs the prompt → model → (tools) → reply loop.
 type Agent struct {
-	persona      string
-	completer    provider.Completer
-	sessions     History
-	tools        Tools
-	memory       memory.Memory
-	model        string
-	maxToolIters int
-	log          *slog.Logger
-	startedAt    time.Time
+	persona       string
+	completer     provider.Completer
+	sessions      History
+	tools         Tools
+	memory        memory.Memory
+	model         string
+	maxToolIters  int
+	streamReplies bool
+	log           *slog.Logger
+	startedAt     time.Time
 }
 
 // New creates an Agent. Completer and Sessions are required.
@@ -83,15 +85,16 @@ func New(opts Options) (*Agent, error) {
 		personaText = strings.TrimRight(personaText, "\n") + "\n" + strings.TrimSpace(memory.PersonaPrecedenceNote)
 	}
 	return &Agent{
-		persona:      personaText,
-		completer:    opts.Completer,
-		sessions:     opts.Sessions,
-		tools:        opts.Tools,
-		memory:       opts.Memory,
-		model:        opts.Model,
-		maxToolIters: maxIters,
-		log:          log,
-		startedAt:    started,
+		persona:       personaText,
+		completer:     opts.Completer,
+		sessions:      opts.Sessions,
+		tools:         opts.Tools,
+		memory:        opts.Memory,
+		model:         opts.Model,
+		maxToolIters:  maxIters,
+		streamReplies: opts.StreamReplies,
+		log:           log,
+		startedAt:     started,
 	}, nil
 }
 
@@ -191,12 +194,27 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 }
 
 func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDefs []provider.ToolDef) (string, error) {
+	streamer, canStream := a.completer.(provider.Streamer)
+	writer, hasWriter := channel.ReplyWriterFrom(ctx)
+
 	for iter := 0; iter < a.maxToolIters; iter++ {
 		bounded := collapseOldToolResults(messages)
-		res, err := a.completer.Complete(ctx, provider.Request{
-			Messages: bounded,
-			Tools:    toolDefs,
-		})
+		req := provider.Request{Messages: bounded, Tools: toolDefs}
+
+		var (
+			res *provider.Result
+			err error
+		)
+		// Stream when enabled and a channel writer is present. Tool-call
+		// responses still come back on the same stream path; onText is skipped
+		// once tool deltas appear (see provider.CompleteStream).
+		if a.streamReplies && canStream && hasWriter {
+			res, err = streamer.CompleteStream(ctx, req, func(full string) error {
+				return writer.Update(ctx, full)
+			})
+		} else {
+			res, err = a.completer.Complete(ctx, req)
+		}
 		if err != nil {
 			return "", err
 		}

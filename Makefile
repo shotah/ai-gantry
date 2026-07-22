@@ -91,8 +91,8 @@ race: ## Run tests with the race detector (requires CGO)
 	CGO_ENABLED=1 go test -race ./...
 
 .PHONY: coverage
-coverage: ## Write coverage.out and print function totals
-	go test ./... -coverprofile=$(COVERAGE) -covermode=atomic
+coverage: ## Write coverage.out for ./internal/... ./cmd/... (matches CI badge) and print totals
+	go test ./internal/... ./cmd/... -coverprofile=$(COVERAGE) -covermode=atomic
 	go tool cover -func=$(COVERAGE)
 
 .PHONY: coverage-html

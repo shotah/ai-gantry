@@ -48,6 +48,7 @@ func run() int {
 		"memory_backend", cfg.MemoryBackend,
 		"cron_enabled", cfg.CronEnabled,
 		"cron_tz", cfg.CronTZ,
+		"stream_replies", cfg.StreamReplies,
 	)
 
 	personaText, err := persona.Load(cfg.PersonaDir)
@@ -167,14 +168,15 @@ func run() int {
 	}
 
 	ag, err := agent.New(agent.Options{
-		Persona:      personaText,
-		Completer:    completer,
-		Sessions:     sessions,
-		Tools:        tools,
-		Memory:       memBackend,
-		Model:        cfg.LLMModel,
-		MaxToolIters: cfg.ToolMaxIterations,
-		Logger:       logger,
+		Persona:       personaText,
+		Completer:     completer,
+		Sessions:      sessions,
+		Tools:         tools,
+		Memory:        memBackend,
+		Model:         cfg.LLMModel,
+		MaxToolIters:  cfg.ToolMaxIterations,
+		StreamReplies: cfg.StreamReplies,
+		Logger:        logger,
 	})
 	if err != nil {
 		logger.Error("agent init failed", "err", err)
@@ -222,12 +224,15 @@ func run() int {
 func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error) {
 	switch cfg.Channel {
 	case config.ChannelStdio:
-		return stdio.New(), nil
+		ch := stdio.New()
+		ch.StreamReplies = cfg.StreamReplies
+		return ch, nil
 	case config.ChannelTelegram:
 		return telegram.New(telegram.Config{
-			Token:        cfg.TelegramBotToken,
-			AllowedUsers: cfg.TelegramAllowedUsers,
-			Logger:       logger,
+			Token:         cfg.TelegramBotToken,
+			AllowedUsers:  cfg.TelegramAllowedUsers,
+			Logger:        logger,
+			StreamReplies: cfg.StreamReplies,
 		})
 	default:
 		return nil, fmt.Errorf("unknown channel %q", cfg.Channel)
