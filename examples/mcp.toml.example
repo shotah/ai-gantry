@@ -7,14 +7,18 @@
 #   tools   = ["get_sleep", "get_weight"]   # allowlist (omit = all)
 #   exclude = ["raw_*"]                     # denylist (shell-style * ?)
 #   tools_prefix = "garm"                   # override name used in {prefix}__{tool}
+#
+# Full Tim-shaped compose + commented servers:
+#   examples/personal-assistant/
+# Production image with binaries baked in:
+#   https://github.com/shotah/docker_open_claw
 
 # [[server]]
 # name    = "example"
 # command = "example-mcp"
 # args    = ["--flag", "value"]
 
-# Example shape used by a full personal-assistant image (binaries must exist
-# on PATH inside the container):
+# --- Shape used by Tim (binaries must exist on PATH) -------------------------
 #
 # [[server]]
 # name    = "google-workspace"
@@ -27,12 +31,22 @@
 # ]
 #
 # [[server]]
-# name    = "garmin"
-# command = "garmin"
-# args    = ["mcp"]
-# tools   = ["get_sleep", "get_weight", "get_hrv"]
-# # exclude = ["raw_*"]
-#
-# [[server]]
 # name    = "strava"
 # command = "strava-mcp"
+#
+# [[server]]
+# name    = "garmin"
+# command = "garmin"
+# args    = ["mcp", "--tool-tier", "core"]
+#
+# [[server]]
+# name    = "google-search"
+# command = "mcp-gemini-google-search"
+#
+# [[server]]
+# name    = "cast"
+# command = "mcp-beam"
+#
+# [[server]]
+# name    = "ytmusic"
+# command = "youtube-go-mcp"

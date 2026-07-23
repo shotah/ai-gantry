@@ -1,0 +1,53 @@
+# Tim-shaped personal assistant on the kernel-only gantry image.
+# Usage (from ai-gantry repo root):
+#   docker compose -f examples/personal-assistant/compose.yml up -d --build
+#
+# No ports. Healthcheck is an exit code. MCP binaries are NOT in this image —
+# uncomment servers in mcp.toml only after you bake/mount static tool binaries
+# (see README.md → docker_open_claw for the full Tim image).
+
+services:
+  gantry:
+    build:
+      context: ../..
+      args:
+        VERSION: local
+        COMMIT: local
+        DATE: local
+    image: gantry:local
+    container_name: gantry-pa
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOME: /data
+      TZ: ${TZ:-America/Los_Angeles}
+      CRON_TZ: ${TZ:-America/Los_Angeles}
+      # Familiar GEMINI_* keys map onto gantry LLM_* (override LLM_* to swap providers).
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      LLM_API_KEY: ${LLM_API_KEY:-${GEMINI_API_KEY:-}}
+      LLM_MODEL: ${LLM_MODEL:-${GEMINI_MODEL:-gemini-3.5-flash}}
+      CHANNEL: ${CHANNEL:-telegram}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ALLOWED_USERS: ${TELEGRAM_ALLOWED_USERS:-}
+      PERSONA_DIR: /persona
+      DATA_DIR: /data
+      MCP_MANIFEST: /etc/gantry/mcp.toml
+      STREAM_REPLIES: ${STREAM_REPLIES:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./persona:/persona:ro
+      - ./mcp.toml:/etc/gantry/mcp.toml:ro
+      - ./data:/data
+      # Optional tool secrets (create dirs as you add MCP servers):
+      # - ./secrets/google-mcp:/data/.config/google-mcp
+      # - ./secrets/strava:/data/.config/strava
+      # - ./secrets/garmin:/data/.config/garmin
+      # - ./secrets/ytmusic:/data/.config/ytmusic
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/gantry", "status"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

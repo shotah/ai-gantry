@@ -1,0 +1,47 @@
+# MCP server manifest — listed = granted (process may start).
+# Mounted at /etc/gantry/mcp.toml. Tool names reach the model as {name}__{tool}.
+#
+# Kernel-only image: leave everything commented until static binaries exist on PATH.
+# Full Tim image (binaries baked in): https://github.com/shotah/docker_open_claw
+#
+# Optional host-side filters (after tools/list):
+#   tools = ["…"]          # allowlist
+#   exclude = ["raw_*"]    # denylist
+#   tools_prefix = "garm"  # override {prefix}__{tool}
+
+# --- Google Workspace (magks/google-workspace-mcp-go) -----------------------
+# [[server]]
+# name = "google-workspace"
+# command = "google-workspace-mcp-go"
+# args = [
+#   "--tools",
+#   "gmail drive calendar docs sheets tasks contacts",
+#   "--tool-tier",
+#   "core",
+# ]
+
+# --- Strava workouts (Stealinglight/StravaMCP) -------------------------------
+# [[server]]
+# name = "strava"
+# command = "strava-mcp"
+
+# --- Garmin recovery (shotah/go-garmin) — prefer --tool-tier core ------------
+# [[server]]
+# name = "garmin"
+# command = "garmin"
+# args = ["mcp", "--tool-tier", "core"]
+
+# --- Web search via Gemini grounding (zchee/mcp-gemini-google-search) --------
+# [[server]]
+# name = "google-search"
+# command = "mcp-gemini-google-search"
+
+# --- Chromecast / Nest (shotah/mcp-beam) — often needs network_mode=host -----
+# [[server]]
+# name = "cast"
+# command = "mcp-beam"
+
+# --- YouTube Music (shotah/youtube-go-mcp) -----------------------------------
+# [[server]]
+# name = "ytmusic"
+# command = "youtube-go-mcp"

@@ -46,6 +46,7 @@ help: ## Show available targets
 	@echo   make build          Build gantry into ./bin
 	@echo   make run            Run with CHANNEL=stdio (override: CHANNEL= PERSONA_DIR=)
 	@echo   make init           Scaffold deploy/persona + deploy/mcp.toml via gantry init
+	@echo   make example-pa     Seed examples/personal-assistant (Tim-shaped compose)
 	@echo   make test           Run all tests
 	@echo   make test-verbose   Run tests with -v
 	@echo   make race           Race detector (needs CGO)
@@ -82,6 +83,18 @@ run: ## Run gantry (CHANNEL=stdio by default for local REPL)
 .PHONY: init
 init: ## Scaffold deploy/ mounts from embedded examples (gantry init)
 	go run $(CMD) init
+
+.PHONY: example-pa
+example-pa: ## Seed examples/personal-assistant persona + .env for compose
+ifeq ($(OS),Windows_NT)
+	set "PERSONA_DIR=examples/personal-assistant/persona"&& set "MCP_MANIFEST=examples/personal-assistant/mcp.toml"&& go run $(CMD) init
+	@if not exist "examples\personal-assistant\.env" copy /Y "examples\personal-assistant\.env.example" "examples\personal-assistant\.env"
+else
+	PERSONA_DIR=examples/personal-assistant/persona MCP_MANIFEST=examples/personal-assistant/mcp.toml go run $(CMD) init
+	@test -f examples/personal-assistant/.env || cp examples/personal-assistant/.env.example examples/personal-assistant/.env
+endif
+	@echo next: edit examples/personal-assistant/.env then
+	@echo   docker compose -f examples/personal-assistant/compose.yml up -d --build
 
 .PHONY: test
 test: ## Run all tests

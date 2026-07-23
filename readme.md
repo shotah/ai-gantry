@@ -49,44 +49,49 @@ memory, dashboards, pairing, shell shims. Gantry refuses that tax.
 Publish only the tools the persona needs. The frame stays out of the way; the
 model and MCP binaries do the work.
 
-## Quick start (the target UX)
+## Quick start
 
-This is the UX contract the milestones build toward:
+Three ways to run — pick one.
 
-```bash
-# .env — the only required config
-LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-LLM_API_KEY=...
-LLM_MODEL=gemini-3.5-flash
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_ALLOWED_USERS=123456789
-```
-
-```toml
-# mcp.toml — the tools you chose to mount
-[[server]]
-name    = "strava"
-command = "strava-mcp"
-```
+### A) Local REPL (dev)
 
 ```bash
-docker compose up -d     # persona/*.md + mcp.toml + data volume mounted
-docker logs -f gantry    # JSON logs (stderr) are the console
-# ...message your bot on Telegram
+make init                 # deploy/persona + deploy/mcp.toml + .env.example
+cp .env.example .env      # set LLM_API_KEY (and friends)
+make run                  # CHANNEL=stdio by default
 ```
 
-Local REPL instead of Telegram: `CHANNEL=stdio` and
-`docker compose run --rm -it gantry` (or `make run`).
+### B) Telegram bot (kernel image)
 
-That is the whole operator surface. Everything below is the design that keeps
-it that small. Scaffold mounts from templates:
+Tim-shaped compose under **[examples/personal-assistant/](examples/personal-assistant/)**:
 
 ```bash
-make init   # or: gantry init  → deploy/persona + deploy/mcp.toml + .env.example
+make example-pa           # seed persona + .env
+# edit examples/personal-assistant/.env
+#   GEMINI_API_KEY=...
+#   TELEGRAM_BOT_TOKEN=...
+#   TELEGRAM_ALLOWED_USERS=123456789
+
+docker compose -f examples/personal-assistant/compose.yml up -d --build
+docker compose -f examples/personal-assistant/compose.yml logs -f
 ```
 
-Canonical templates: **[examples/](examples/)**. Deeper docs: **[docs/](docs/)**.
-Open follow-ups: **[todo.md](todo.md)**.
+Kernel-only image: chat + memory + cron work immediately. MCP servers in
+`mcp.toml` stay commented until you bake static tool binaries into an image
+(or use path C).
+
+### C) Full Tim (tools baked in)
+
+Production personal assistant — Workspace, Strava, Garmin, Cast, YT Music,
+search, remote deploy:
+
+→ **[shotah/docker_open_claw](https://github.com/shotah/docker_open_claw)**  
+(`make init && make build && make up`)
+
+---
+
+Operator cookbook: **[examples/README.md](examples/README.md)**. Deeper docs:
+**[docs/](docs/)**. Open follow-ups: **[todo.md](todo.md)**.
 
 ## 1. Problem statement
 

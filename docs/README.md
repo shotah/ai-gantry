@@ -7,7 +7,8 @@ is the product contract and milestone checklist; these pages go deeper.
 | --- | --- |
 | [../todo.md](../todo.md) | Open follow-ups only |
 | [milestones.md](milestones.md) | Archived M0–M7 build checklist (shipped) |
-| [../examples/](../examples/) | Persona + `mcp.toml` templates (`make init` / `gantry init`) |
+| [../examples/](../examples/) | Cookbook + Tim-shaped [`personal-assistant/`](../examples/personal-assistant/) compose |
+| [docker_open_claw](https://github.com/shotah/docker_open_claw) | Full Tim appliance (tools + remote deploy) |
 | [architecture.md](architecture.md) | Process model, packages, mermaid diagrams + sequences |
 | [design.md](design.md) | Principles, agent loop, memory, config/ops contract |
 | [security.md](security.md) | Threat model, tradeoffs, residual risks |
