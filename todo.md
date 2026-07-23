@@ -137,3 +137,32 @@ Kernel = published distroless image; LOCAL_AGENT = in-tree appliance that bakes 
 - [x] Multimodal Telegram (inbound photo → vision request; outbound `SendPhoto`)
 - [ ] Optional `embedding BLOB` behind the same `memory_recall` interface if FTS
       ever proves too weak at this scale
+
+---
+
+## vFun — Telegram message reactions
+
+Reactions (❤️ 😢 👍 on a bot message) are invisible today: we only poll
+`message` updates. Treat them as messaging — pipe through, no switch, no
+emoji lists. Not reacting is the mute button; LLM/persona decide the reply.
+
+| Choice | Pick |
+| --- | --- |
+| Inbound | Synthetic user line → full `agent.Handle` |
+| Shape | `[reaction] 👍 on: <clip of target msg>` |
+| Auth | Same allowlist as messages |
+
+### Checklist
+
+- [x] `AllowedUpdates` += `message_reaction`; parse `MessageReactionUpdated`
+- [x] Cache recent outbound `message_id → text` for the clip
+- [x] Allowlist → synthetic inbound → `agent.Handle`
+- [x] Ignore bot/self; settle ~3s (overwrite latest emoji; clear cancels)
+- [x] Tests + docs (`local-agent/docs/telegram.md`)
+- [ ] (Later) Discord / Slack — same pipe-through
+
+### Non-goals
+
+- Feature flags / reply allowlists / emoji→category mapping
+- Group-chat vote tallies (`message_reaction_count`)
+- Pairing or open-inbox via reactions

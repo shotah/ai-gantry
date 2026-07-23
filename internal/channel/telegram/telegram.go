@@ -39,6 +39,9 @@ type Channel struct {
 	newBot        func(token string, opts ...bot.Option) (*bot.Bot, error)
 	chunkMax      int
 	streamReplies bool
+	botID         int64
+	outbound      *outboundCache
+	reactSettle   *reactionSettler
 }
 
 // New builds a Telegram channel. Token and a non-empty allowlist are required.
@@ -64,6 +67,8 @@ func New(cfg Config) (*Channel, error) {
 		newBot:        bot.New,
 		chunkMax:      telegramMaxMessageRunes,
 		streamReplies: cfg.StreamReplies,
+		outbound:      newOutboundCache(outboundCacheCap),
+		reactSettle:   newReactionSettler(),
 	}, nil
 }
 
@@ -72,7 +77,10 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 	b, err := c.newBot(c.token,
 		bot.WithDefaultHandler(c.makeHandler(handle)),
 		bot.WithWorkers(1), // one-at-a-time; keeps session writes simple
-		bot.WithAllowedUpdates(bot.AllowedUpdates{"message"}),
+		bot.WithAllowedUpdates(bot.AllowedUpdates{
+			models.AllowedUpdateMessage,
+			models.AllowedUpdateMessageReaction,
+		}),
 		bot.WithErrorsHandler(func(err error) {
 			c.log.Error("telegram bot error", "err", err)
 		}),
@@ -94,6 +102,7 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 	if err != nil {
 		return fmt.Errorf("telegram: getMe: %w", err)
 	}
+	c.botID = me.ID
 	c.log.Info("telegram connected",
 		"bot_id", me.ID,
 		"username", me.Username,
@@ -106,6 +115,10 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 
 func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		if update.MessageReaction != nil {
+			c.handleReaction(ctx, b, handle, update.MessageReaction)
+			return
+		}
 		if update.Message == nil || update.Message.From == nil {
 			return
 		}
@@ -137,62 +150,101 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 			return // ignore stickers / empty updates
 		}
 
-		sessionID := sessionKey(msg.Chat.ID, userID, msg.MessageThreadID)
-		stopTyping := c.startTyping(ctx, b, msg.Chat.ID, msg.MessageThreadID)
-		defer stopTyping()
-
-		var stream *editStream
-		handleCtx := ctx
-		if c.streamReplies {
-			stream = newEditStream(b, msg.Chat.ID, msg.MessageThreadID, c.chunkMax)
-			handleCtx = channel.WithReplyWriter(ctx, stream)
-		}
-
-		reply, err := handle(handleCtx, channel.Message{
-			SessionID: sessionID,
+		c.deliver(ctx, b, handle, channel.Message{
+			SessionID: sessionKey(msg.Chat.ID, userID, msg.MessageThreadID),
 			UserID:    strconv.FormatInt(userID, 10),
 			ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
 			ThreadID:  msg.MessageThreadID,
 			Text:      text,
 			Images:    images,
+		}, msg.Chat.ID, msg.MessageThreadID)
+	}
+}
+
+func (c *Channel) handleReaction(ctx context.Context, b *bot.Bot, handle channel.Handler, r *models.MessageReactionUpdated) {
+	if r == nil || r.User == nil {
+		return
+	}
+	user := r.User
+	if user.IsBot || (c.botID != 0 && user.ID == c.botID) {
+		return
+	}
+	if !c.isAllowed(user.ID) {
+		c.log.Info("telegram ignore unauthorized reaction",
+			"user_id", user.ID,
+			"username", user.Username,
+		)
+		return
+	}
+
+	emojis := currentReactionLabels(r.NewReaction)
+	key := settleKey{userID: user.ID, chatID: r.Chat.ID, msgID: r.MessageID}
+	target := ""
+	threadID := 0
+	if entry, ok := c.outbound.lookup(r.Chat.ID, r.MessageID); ok {
+		target = entry.text
+		threadID = entry.threadID
+	}
+	// Empty set cancels a pending settle (user cleared the reaction).
+	c.scheduleReaction(ctx, b, handle, key, emojis, target, threadID)
+}
+
+func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handler, msg channel.Message, chatID int64, threadID int) {
+	stopTyping := c.startTyping(ctx, b, chatID, threadID)
+	defer stopTyping()
+
+	var stream *editStream
+	handleCtx := ctx
+	if c.streamReplies {
+		stream = newEditStream(b, chatID, threadID, c.chunkMax)
+		stream.onSent = func(msgID int, text string) {
+			c.outbound.remember(chatID, msgID, threadID, text)
+		}
+		handleCtx = channel.WithReplyWriter(ctx, stream)
+	}
+
+	reply, err := handle(handleCtx, msg)
+	if err != nil {
+		c.log.Error("telegram handler error", "err", err, "session_id", msg.SessionID)
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:          chatID,
+			MessageThreadID: threadID,
+			Text:            "sorry — something went wrong handling that message",
 		})
-		if err != nil {
-			c.log.Error("telegram handler error", "err", err, "session_id", sessionID)
-			_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:          msg.Chat.ID,
-				MessageThreadID: msg.MessageThreadID,
-				Text:            "sorry — something went wrong handling that message",
+		return
+	}
+	if stream != nil && stream.Started() {
+		urls, rest := channel.ExtractImageURLs(reply)
+		if err := stream.Finish(ctx, rest); err != nil {
+			c.log.Warn("telegram stream finish failed; falling back to send", "err", err)
+			if reply != "" {
+				if err := c.sendReply(ctx, b, chatID, threadID, reply, ""); err != nil {
+					c.log.Error("telegram send failed", "err", err, "session_id", msg.SessionID)
+				}
+			}
+			return
+		}
+		for _, u := range urls {
+			sent, err := b.SendPhoto(ctx, &bot.SendPhotoParams{
+				ChatID:          chatID,
+				MessageThreadID: threadID,
+				Photo:           &models.InputFileString{Data: u},
 			})
-			return
-		}
-		if stream != nil && stream.Started() {
-			urls, rest := channel.ExtractImageURLs(reply)
-			if err := stream.Finish(ctx, rest); err != nil {
-				c.log.Warn("telegram stream finish failed; falling back to send", "err", err)
-				if reply != "" {
-					if err := c.sendReply(ctx, b, msg.Chat.ID, msg.MessageThreadID, reply, ""); err != nil {
-						c.log.Error("telegram send failed", "err", err, "session_id", sessionID)
-					}
-				}
-				return
+			if err != nil {
+				c.log.Error("telegram sendPhoto failed", "err", err, "session_id", msg.SessionID)
+				continue
 			}
-			for _, u := range urls {
-				if _, err := b.SendPhoto(ctx, &bot.SendPhotoParams{
-					ChatID:          msg.Chat.ID,
-					MessageThreadID: msg.MessageThreadID,
-					Photo:           &models.InputFileString{Data: u},
-				}); err != nil {
-					c.log.Error("telegram sendPhoto failed", "err", err, "session_id", sessionID)
-				}
+			if sent != nil {
+				c.outbound.remember(chatID, sent.ID, threadID, "[photo]")
 			}
-			return
 		}
-		if reply == "" {
-			return
-		}
-		if err := c.sendReply(ctx, b, msg.Chat.ID, msg.MessageThreadID, reply, ""); err != nil {
-			c.log.Error("telegram send failed", "err", err, "session_id", sessionID)
-		}
+		return
+	}
+	if reply == "" {
+		return
+	}
+	if err := c.sendReply(ctx, b, chatID, threadID, reply, ""); err != nil {
+		c.log.Error("telegram send failed", "err", err, "session_id", msg.SessionID)
 	}
 }
 
@@ -274,15 +326,23 @@ func (c *Channel) sendChunks(ctx context.Context, b *bot.Bot, chatID int64, thre
 			case <-time.After(chunkPause):
 			}
 		}
+		var sent *models.Message
 		if err := doWith429Retry(ctx, func() error {
-			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+			m, err := b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:          chatID,
 				MessageThreadID: threadID,
 				Text:            part,
 			})
-			return err
+			if err != nil {
+				return err
+			}
+			sent = m
+			return nil
 		}); err != nil {
 			return err
+		}
+		if sent != nil {
+			c.outbound.remember(chatID, sent.ID, threadID, part)
 		}
 	}
 	return nil

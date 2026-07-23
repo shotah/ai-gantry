@@ -101,13 +101,21 @@ func (c *Channel) sendReply(ctx context.Context, b *bot.Bot, chatID int64, threa
 			photoCaption = caption
 			caption = "" // only first photo gets the text caption
 		}
-		if _, err := b.SendPhoto(ctx, &bot.SendPhotoParams{
+		sent, err := b.SendPhoto(ctx, &bot.SendPhotoParams{
 			ChatID:          chatID,
 			MessageThreadID: threadID,
 			Photo:           &models.InputFileString{Data: u},
 			Caption:         photoCaption,
-		}); err != nil {
+		})
+		if err != nil {
 			return fmt.Errorf("telegram: sendPhoto: %w", err)
+		}
+		if sent != nil {
+			label := photoCaption
+			if label == "" {
+				label = "[photo]"
+			}
+			c.outbound.remember(chatID, sent.ID, threadID, label)
 		}
 	}
 	if caption != "" || (len(urls) == 0 && rest != "") {

@@ -80,6 +80,15 @@ answers worse without these caps. `/new` remains the hard **session** reset.
 
 Streaming replies (Telegram edit-in-place) are opt-in: `STREAM_REPLIES=true`.
 
+### Reactions
+
+Emoji reactions on bot messages (👍 ❤️ 😢 …) are treated as normal inbound
+messages. gantry waits ~3s after the last change (so heart → thumbs-up settles
+as one intent), then synthesizes a turn like
+`[reaction] 👍 on: <clip of the bot message>` and runs the full agent loop.
+No feature flag — if you don't want a reply, don't react. Clearing the reaction
+during the wait cancels it.
+
 ## Long-term memory
 
 gantry's memory is **structured SQLite** (typed rows + FTS5 keyword search —

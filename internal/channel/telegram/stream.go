@@ -22,6 +22,7 @@ type editStream struct {
 	chatID   int64
 	threadID int
 	chunkMax int
+	onSent   func(msgID int, text string) // optional; remember outbound for reactions
 
 	msgID    int
 	lastEdit time.Time
@@ -34,6 +35,12 @@ func newEditStream(b *bot.Bot, chatID int64, threadID, chunkMax int) *editStream
 		chunkMax = telegramMaxMessageRunes
 	}
 	return &editStream{bot: b, chatID: chatID, threadID: threadID, chunkMax: chunkMax}
+}
+
+func (s *editStream) remember(msgID int, text string) {
+	if s.onSent != nil && msgID != 0 {
+		s.onSent(msgID, text)
+	}
 }
 
 func (s *editStream) Started() bool { return s.started }
@@ -91,15 +98,23 @@ func (s *editStream) Finish(ctx context.Context, final string) error {
 			return ctx.Err()
 		case <-time.After(chunkPause):
 		}
+		var overflow *models.Message
 		if err := doWith429Retry(ctx, func() error {
-			_, err := s.bot.SendMessage(ctx, &bot.SendMessageParams{
+			m, err := s.bot.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:          s.chatID,
 				MessageThreadID: s.threadID,
 				Text:            parts[i],
 			})
-			return err
+			if err != nil {
+				return err
+			}
+			overflow = m
+			return nil
 		}); err != nil {
 			return err
+		}
+		if overflow != nil {
+			s.remember(overflow.ID, parts[i])
 		}
 	}
 	return nil
@@ -125,6 +140,7 @@ func (s *editStream) sendInitial(ctx context.Context, text string) error {
 	s.msgID = msg.ID
 	s.lastEdit = time.Now()
 	s.pending = text
+	s.remember(msg.ID, text)
 	return nil
 }
 
@@ -145,6 +161,7 @@ func (s *editStream) edit(ctx context.Context, text string) error {
 	}
 	s.lastEdit = time.Now()
 	s.pending = text
+	s.remember(s.msgID, text)
 	return nil
 }
 
