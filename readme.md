@@ -489,8 +489,8 @@ live in **[docs/choices.md](docs/choices.md)**.
 1. **Name: ai-gantry 🏗️** — frame that holds tools; binary `gantry`.
 2. **Token counting: estimates** (chars/4), labeled as estimates.
 3. **Memory: builtin SQLite, replaceable** via `MEMORY_BACKEND=mcp:<name>`.
-4. **Streaming replies: opt-in** (`STREAM_REPLIES=true`; Telegram edit-in-place).
-5. **Telegram auth: allowlist only** — empty allowlist fails boot.
+4. **Streaming replies: opt-in** (`STREAM_REPLIES=true`; edit-in-place where the channel supports it).
+5. **Channel auth: allowlist only** — empty allowlist fails boot (Telegram / Discord / Slack).
 6. **Runtime image: distroless/static-debian12:nonroot** — MCP children static too.
 7. **Logs on stderr** — stdout stays clean for the stdio REPL.
 

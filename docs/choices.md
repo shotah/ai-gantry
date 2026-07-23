@@ -64,9 +64,10 @@ schema can grow an `embedding` blob later behind the same recall interface.
 Auto-saved hallucinations (wrong emails, invented prefs) hurt more than
 missing recall. Model stores deliberately; consolidator promotes episodes.
 
-## Telegram auth
+## Channel auth
 
-**Pick:** allowlist only; empty allowlist fails boot.
+**Pick:** allowlist only on every chat channel; empty allowlist fails boot
+(`TELEGRAM_ALLOWED_USERS` / `DISCORD_ALLOWED_USERS` / `SLACK_ALLOWED_USERS`).
 
 No pairing codes / interactive bind. That flow was an operational pain
 elsewhere and fights “env is the config plane.”
