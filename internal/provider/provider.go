@@ -74,8 +74,9 @@ type Completer interface {
 
 // Client talks to one OpenAI-compatible chat completions endpoint.
 type Client struct {
-	client openai.Client
-	model  string
+	client    openai.Client
+	model     string
+	maxTokens int // 0 = omit (provider default)
 }
 
 // New builds a Client for the given base URL, API key, and model id.
@@ -90,20 +91,28 @@ func New(baseURL, apiKey, model string) *Client {
 	}
 }
 
-// Complete calls chat.completions and returns text and/or tool calls.
-func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
-	if len(req.Messages) == 0 {
-		return nil, fmt.Errorf("provider: messages must not be empty")
+// WithMaxTokens caps completion output tokens (including tool-call arguments).
+// 0 leaves the field unset so the provider default applies. Returns c.
+func (c *Client) WithMaxTokens(n int) *Client {
+	if n < 0 {
+		n = 0
 	}
+	c.maxTokens = n
+	return c
+}
 
+func (c *Client) buildParams(req Request) (openai.ChatCompletionNewParams, error) {
 	params := openai.ChatCompletionNewParams{
 		Model:    c.model,
 		Messages: make([]openai.ChatCompletionMessageParamUnion, 0, len(req.Messages)),
 	}
+	if c.maxTokens > 0 {
+		params.MaxTokens = openai.Int(int64(c.maxTokens))
+	}
 	for _, m := range req.Messages {
 		msg, err := toParam(m)
 		if err != nil {
-			return nil, err
+			return params, err
 		}
 		params.Messages = append(params.Messages, msg)
 	}
@@ -113,6 +122,19 @@ func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
 			Description: openai.String(t.Description),
 			Parameters:  shared.FunctionParameters(t.Parameters),
 		}))
+	}
+	return params, nil
+}
+
+// Complete calls chat.completions and returns text and/or tool calls.
+func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
+	if len(req.Messages) == 0 {
+		return nil, fmt.Errorf("provider: messages must not be empty")
+	}
+
+	params, err := c.buildParams(req)
+	if err != nil {
+		return nil, err
 	}
 
 	resp, err := c.client.Chat.Completions.New(ctx, params)

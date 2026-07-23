@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-
-	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/shared"
 )
 
 // Streamer is an optional Completer that can emit progressive text.
@@ -103,23 +100,9 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onText func(fu
 		return nil, fmt.Errorf("provider: messages must not be empty")
 	}
 
-	params := openai.ChatCompletionNewParams{
-		Model:    c.model,
-		Messages: make([]openai.ChatCompletionMessageParamUnion, 0, len(req.Messages)),
-	}
-	for _, m := range req.Messages {
-		msg, err := toParam(m)
-		if err != nil {
-			return nil, err
-		}
-		params.Messages = append(params.Messages, msg)
-	}
-	for _, t := range req.Tools {
-		params.Tools = append(params.Tools, openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
-			Name:        t.Name,
-			Description: openai.String(t.Description),
-			Parameters:  shared.FunctionParameters(t.Parameters),
-		}))
+	params, err := c.buildParams(req)
+	if err != nil {
+		return nil, err
 	}
 
 	stream := c.client.Chat.Completions.NewStreaming(ctx, params)

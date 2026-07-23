@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
 const (
@@ -45,12 +46,25 @@ func (s *editStream) Update(ctx context.Context, fullText string) error {
 	display = clipRunes(display, s.chunkMax)
 	s.pending = display
 	if s.msgID == 0 {
-		return s.sendInitial(ctx, display)
+		if err := s.sendInitial(ctx, display); err != nil {
+			// Don't abort the LLM stream on exhausted 429; next Update retries.
+			if isTooManyRequests(err) {
+				return nil
+			}
+			return err
+		}
+		return nil
 	}
 	if time.Since(s.lastEdit) < streamMinEditGap {
 		return nil
 	}
-	return s.edit(ctx, display)
+	if err := s.edit(ctx, display); err != nil {
+		if isTooManyRequests(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *editStream) Finish(ctx context.Context, final string) error {
@@ -79,10 +93,13 @@ func (s *editStream) Finish(ctx context.Context, final string) error {
 			return ctx.Err()
 		case <-time.After(chunkPause):
 		}
-		if _, err := s.bot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:          s.chatID,
-			MessageThreadID: s.threadID,
-			Text:            parts[i],
+		if err := doWith429Retry(ctx, func() error {
+			_, err := s.bot.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:          s.chatID,
+				MessageThreadID: s.threadID,
+				Text:            parts[i],
+			})
+			return err
 		}); err != nil {
 			return err
 		}
@@ -91,10 +108,18 @@ func (s *editStream) Finish(ctx context.Context, final string) error {
 }
 
 func (s *editStream) sendInitial(ctx context.Context, text string) error {
-	msg, err := s.bot.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:          s.chatID,
-		MessageThreadID: s.threadID,
-		Text:            text,
+	var msg *models.Message
+	err := doWith429Retry(ctx, func() error {
+		m, err := s.bot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:          s.chatID,
+			MessageThreadID: s.threadID,
+			Text:            text,
+		})
+		if err != nil {
+			return err
+		}
+		msg = m
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("telegram: stream send: %w", err)
@@ -109,10 +134,13 @@ func (s *editStream) edit(ctx context.Context, text string) error {
 	if text == s.pending && s.msgID != 0 && time.Since(s.lastEdit) < streamMinEditGap {
 		return nil
 	}
-	_, err := s.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
-		ChatID:    s.chatID,
-		MessageID: s.msgID,
-		Text:      text,
+	err := doWith429Retry(ctx, func() error {
+		_, err := s.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
+			ChatID:    s.chatID,
+			MessageID: s.msgID,
+			Text:      text,
+		})
+		return err
 	})
 	if err != nil {
 		return fmt.Errorf("telegram: stream edit: %w", err)

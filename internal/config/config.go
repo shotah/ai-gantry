@@ -24,6 +24,8 @@ type Config struct {
 	LLMBaseURL string `env:"LLM_BASE_URL,required"`
 	LLMAPIKey  string `env:"LLM_API_KEY,required"`
 	LLMModel   string `env:"LLM_MODEL,required"`
+	// LLMMaxTokens caps completion output (incl. tool-call args). 0 = provider default.
+	LLMMaxTokens int `env:"LLM_MAX_TOKENS" envDefault:"1024"`
 
 	TelegramBotToken     string  `env:"TELEGRAM_BOT_TOKEN"`
 	TelegramAllowedUsers []int64 `env:"TELEGRAM_ALLOWED_USERS" envSeparator:","`
@@ -139,6 +141,9 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("LOG_LEVEL: must be debug|info|warn|error, got %q", c.LogLevel)
 	}
 
+	if c.LLMMaxTokens < 0 {
+		return fmt.Errorf("LLM_MAX_TOKENS: must be >= 0, got %d", c.LLMMaxTokens)
+	}
 	if c.HistoryMaxMessages < 1 {
 		return fmt.Errorf("HISTORY_MAX_MESSAGES: must be >= 1, got %d", c.HistoryMaxMessages)
 	}

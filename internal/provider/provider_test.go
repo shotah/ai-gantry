@@ -27,6 +27,9 @@ func TestClient_Complete(t *testing.T) {
 		if body["model"] != "test-model" {
 			t.Errorf("model = %v, want test-model", body["model"])
 		}
+		if body["max_tokens"] != nil {
+			t.Errorf("max_tokens = %v, want omitted", body["max_tokens"])
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -51,6 +54,38 @@ func TestClient_Complete(t *testing.T) {
 	}
 	if got.Content != "hello there" {
 		t.Errorf("Content = %q, want %q", got.Content, "hello there")
+	}
+}
+
+func TestClient_Complete_MaxTokens(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		switch v := body["max_tokens"].(type) {
+		case float64:
+			if v != 256 {
+				t.Errorf("max_tokens = %v, want 256", v)
+			}
+		default:
+			t.Errorf("max_tokens = %v (%T), want 256", body["max_tokens"], body["max_tokens"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "chatcmpl-max",
+			"choices": []map[string]any{
+				{"index": 0, "message": map[string]any{"role": "assistant", "content": "ok"}},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m").WithMaxTokens(256)
+	if _, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 

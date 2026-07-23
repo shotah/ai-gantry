@@ -56,7 +56,7 @@ Everything is env or a mount. Boot is fail-fast: missing required env → exit 1
 
 | Area | Vars |
 | --- | --- |
-| LLM | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (required) |
+| LLM | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (required); `LLM_MAX_TOKENS` (`1024`, `0` = uncapped) |
 | Channel | `CHANNEL` (`telegram`\|`discord`\|`slack`\|`stdio`); tokens + allowlist per channel |
 | Mounts | `PERSONA_DIR`, `DATA_DIR`, `MCP_MANIFEST` |
 | Bounds | `HISTORY_MAX_MESSAGES`, `HISTORY_MAX_TOKENS`, `TOOL_RESULT_MAX_CHARS`, `TOOL_MAX_ITERATIONS` |

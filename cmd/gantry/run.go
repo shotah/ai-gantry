@@ -43,6 +43,7 @@ func run() int {
 		"version", version,
 		"channel", cfg.Channel,
 		"model", cfg.LLMModel,
+		"max_tokens", cfg.LLMMaxTokens,
 		"persona_dir", cfg.PersonaDir,
 		"data_dir", cfg.DataDir,
 		"mcp_manifest", cfg.MCPManifest,
@@ -60,7 +61,8 @@ func run() int {
 	}
 	logger.Info("persona loaded", "chars", len(personaText))
 
-	completer := provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel)
+	completer := provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel).
+		WithMaxTokens(cfg.LLMMaxTokens)
 
 	sessions, err := session.Open(cfg.DataDir, cfg.HistoryMaxMessages, cfg.HistoryMaxTokens)
 	if err != nil {

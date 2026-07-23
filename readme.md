@@ -259,6 +259,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `LLM_BASE_URL` | yes | `https://generativelanguage.googleapis.com/v1beta/openai` |
 | `LLM_API_KEY` | yes | — |
 | `LLM_MODEL` | yes | `gemini-3.5-flash` |
+| `LLM_MAX_TOKENS` | no | `1024` (completion output cap; `0` = provider default) |
 | `TELEGRAM_BOT_TOKEN` | yes (telegram) | — |
 | `TELEGRAM_ALLOWED_USERS` | yes (telegram) | `123456789,987654321` (numeric IDs; **allowlist only — no pairing**) |
 | `DISCORD_BOT_TOKEN` | yes (discord) | — |

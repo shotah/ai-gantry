@@ -274,10 +274,13 @@ func (c *Channel) sendChunks(ctx context.Context, b *bot.Bot, chatID int64, thre
 			case <-time.After(chunkPause):
 			}
 		}
-		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:          chatID,
-			MessageThreadID: threadID,
-			Text:            part,
+		if err := doWith429Retry(ctx, func() error {
+			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:          chatID,
+				MessageThreadID: threadID,
+				Text:            part,
+			})
+			return err
 		}); err != nil {
 			return err
 		}

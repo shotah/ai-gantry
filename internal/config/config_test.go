@@ -35,6 +35,9 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if cfg.MCPManifest != "/etc/gantry/mcp.toml" {
 		t.Errorf("MCPManifest = %q, want /etc/gantry/mcp.toml", cfg.MCPManifest)
 	}
+	if cfg.LLMMaxTokens != 1024 {
+		t.Errorf("LLMMaxTokens = %d, want 1024", cfg.LLMMaxTokens)
+	}
 	if cfg.HistoryMaxMessages != 200 {
 		t.Errorf("HistoryMaxMessages = %d, want 200", cfg.HistoryMaxMessages)
 	}
@@ -249,6 +252,7 @@ func TestLoad_MoreValidation(t *testing.T) {
 	cases := []struct {
 		key, val, want string
 	}{
+		{"LLM_MAX_TOKENS", "-1", "LLM_MAX_TOKENS"},
 		{"HISTORY_MAX_TOKENS", "0", "HISTORY_MAX_TOKENS"},
 		{"TOOL_RESULT_MAX_CHARS", "0", "TOOL_RESULT_MAX_CHARS"},
 		{"TOOL_MAX_ITERATIONS", "0", "TOOL_MAX_ITERATIONS"},
