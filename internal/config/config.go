@@ -25,7 +25,7 @@ type Config struct {
 	LLMAPIKey  string `env:"LLM_API_KEY,required"`
 	LLMModel   string `env:"LLM_MODEL,required"`
 	// LLMMaxTokens caps completion output (incl. tool-call args). 0 = provider default.
-	LLMMaxTokens int `env:"LLM_MAX_TOKENS" envDefault:"1024"`
+	LLMMaxTokens int `env:"LLM_MAX_TOKENS" envDefault:"4096"`
 
 	TelegramBotToken     string  `env:"TELEGRAM_BOT_TOKEN"`
 	TelegramAllowedUsers []int64 `env:"TELEGRAM_ALLOWED_USERS" envSeparator:","`
