@@ -46,7 +46,8 @@ help: ## Show available targets
 	@echo   make build          Build gantry into ./bin
 	@echo   make run            Run with CHANNEL=stdio (override: CHANNEL= PERSONA_DIR=)
 	@echo   make init           Scaffold deploy/persona + deploy/mcp.toml via gantry init
-	@echo   make example-pa     Seed examples/personal-assistant (Tim-shaped compose)
+	@echo   make example-pa           Seed examples/personal-assistant (kernel compose)
+	@echo   make local-agent-help     LOCAL_AGENT appliance help (make -C local-agent help)
 	@echo   make test           Run all tests
 	@echo   make test-verbose   Run tests with -v
 	@echo   make race           Race detector (needs CGO)
@@ -95,6 +96,10 @@ else
 endif
 	@echo next: edit examples/personal-assistant/.env then
 	@echo   docker compose -f examples/personal-assistant/compose.yml up -d --build
+
+.PHONY: local-agent-help
+local-agent-help: ## Show local-agent appliance Make targets (local-agent/)
+	$(MAKE) -C local-agent help
 
 .PHONY: test
 test: ## Run all tests

@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="local-agent - a lean, self-hosted assistant on ai-gantry (Gemini and Telegram, dockerized)">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#161b22"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="0.55" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="rust" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fb923c"/>
+      <stop offset="1" stop-color="#f43f5e"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1200" height="320" rx="24" fill="url(#bg)"/>
+  <rect x="2" y="2" width="1196" height="316" rx="23" fill="none" stroke="#30363d" stroke-width="2"/>
+
+  <!-- glow -->
+  <circle cx="232" cy="162" r="120" fill="url(#accent)" opacity="0.08" filter="url(#soft)"/>
+
+  <!-- ===== the crab: a terminal window is its shell ===== -->
+  <g stroke-linecap="round">
+    <!-- legs (behind body) -->
+    <g stroke="url(#rust)" stroke-width="6" fill="none" opacity="0.9">
+      <path d="M182,196 C150,206 132,214 118,232"/>
+      <path d="M186,210 C156,222 140,232 130,250"/>
+      <path d="M192,222 C170,238 158,250 152,264"/>
+      <path d="M282,196 C314,206 332,214 346,232"/>
+      <path d="M278,210 C308,222 324,232 334,250"/>
+      <path d="M272,222 C294,238 306,250 312,264"/>
+    </g>
+
+    <!-- eye stalks -->
+    <g stroke="url(#rust)" stroke-width="5" fill="none">
+      <path d="M210,120 C206,104 202,98 202,90"/>
+      <path d="M254,120 C258,104 262,98 262,90"/>
+    </g>
+    <g>
+      <circle cx="202" cy="84" r="10" fill="#f0f6fc"/>
+      <circle cx="262" cy="84" r="10" fill="#f0f6fc"/>
+      <circle cx="204" cy="85" r="4.5" fill="#0d1117"/>
+      <circle cx="260" cy="85" r="4.5" fill="#0d1117"/>
+    </g>
+
+    <!-- claws (pincers) -->
+    <g fill="url(#rust)">
+      <!-- connectors -->
+      <path d="M178,150 L150,150" stroke="url(#rust)" stroke-width="10"/>
+      <path d="M286,150 L314,150" stroke="url(#rust)" stroke-width="10"/>
+      <!-- left claw: circle with a pincer mouth opening left -->
+      <circle cx="130" cy="150" r="24"/>
+      <polygon points="130,150 104,140 104,160" fill="url(#bg)"/>
+      <!-- right claw -->
+      <circle cx="334" cy="150" r="24"/>
+      <polygon points="334,150 360,140 360,160" fill="url(#bg)"/>
+    </g>
+
+    <!-- body = terminal shell -->
+    <rect x="176" y="112" width="112" height="98" rx="16" fill="#0d1117" stroke="url(#accent)" stroke-width="3"/>
+    <rect x="176" y="112" width="112" height="26" rx="13" fill="#161b22"/>
+    <circle cx="192" cy="125" r="4" fill="#f43f5e"/>
+    <circle cx="206" cy="125" r="4" fill="#fbbf24"/>
+    <circle cx="220" cy="125" r="4" fill="#2ea043"/>
+    <!-- shell prompt -->
+    <text x="196" y="184" font-family="'Cascadia Code','Fira Code',Consolas,monospace"
+          font-size="40" font-weight="700" fill="url(#accent)">&gt;_</text>
+  </g>
+
+  <!-- ===== wordmark ===== -->
+  <g transform="translate(430,0)" font-family="'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+    <text x="0" y="128" font-size="64" font-weight="700" fill="#f0f6fc" letter-spacing="1">local_agent<tspan fill="url(#accent)">_</tspan></text>
+    <text x="4" y="170" font-size="24" font-weight="500" fill="#8b949e">a lean, self-hosted assistant on ai-gantry</text>
+
+    <!-- capability chips -->
+    <g font-size="20" font-weight="600">
+      <g transform="translate(0,204)">
+        <rect x="0" y="0" width="132" height="40" rx="20" fill="#1f6feb" opacity="0.16"/>
+        <rect x="0" y="0" width="132" height="40" rx="20" fill="none" stroke="#1f6feb" stroke-width="1.5"/>
+        <text x="66" y="26" text-anchor="middle" fill="#79c0ff">Telegram</text>
+      </g>
+      <g transform="translate(148,204)">
+        <rect x="0" y="0" width="120" height="40" rx="20" fill="#a371f7" opacity="0.16"/>
+        <rect x="0" y="0" width="120" height="40" rx="20" fill="none" stroke="#a371f7" stroke-width="1.5"/>
+        <text x="60" y="26" text-anchor="middle" fill="#d2a8ff">Gemini</text>
+      </g>
+      <g transform="translate(284,204)">
+        <rect x="0" y="0" width="238" height="40" rx="20" fill="#2ea043" opacity="0.16"/>
+        <rect x="0" y="0" width="238" height="40" rx="20" fill="none" stroke="#2ea043" stroke-width="1.5"/>
+        <text x="119" y="26" text-anchor="middle" fill="#7ee787">Google Workspace (gws)</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ===== container motif (dockerized) ===== -->
+  <g transform="translate(1010,74)" opacity="0.9">
+    <rect x="0" y="0" width="150" height="172" rx="14" fill="none" stroke="url(#accent)" stroke-width="2.5"/>
+    <g fill="url(#accent)" opacity="0.85">
+      <rect x="18" y="22" width="36" height="30" rx="4"/>
+      <rect x="60" y="22" width="36" height="30" rx="4"/>
+      <rect x="102" y="22" width="30" height="30" rx="4"/>
+      <rect x="18" y="60" width="36" height="30" rx="4"/>
+      <rect x="60" y="60" width="72" height="30" rx="4"/>
+      <rect x="18" y="98" width="114" height="30" rx="4"/>
+    </g>
+    <text x="75" y="156" text-anchor="middle" font-family="'Segoe UI',Roboto,Arial,sans-serif"
+          font-size="18" font-weight="600" fill="#8b949e">distroless</text>
+  </g>
+</svg>

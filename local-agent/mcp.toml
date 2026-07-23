@@ -1,0 +1,44 @@
+# MCP server manifest for local-agent (mounted read-only at /etc/gantry/mcp.toml).
+# Being listed here IS the grant — no bundles layer. Tools reach the model as
+# {server}__{tool}. Binaries are baked into the image by the Dockerfile; auth
+# material arrives via compose env + ./secrets mounts (see each doc).
+
+# Google Workspace (magks/google-workspace-mcp-go) — docs/google-workspace.md
+# core tier ≈ 45 tools; include services LOCAL_AGENT uses day-to-day.
+[[server]]
+name = "google-workspace"
+command = "google-workspace-mcp-go"
+args = [
+  "--tools",
+  "gmail drive calendar docs sheets tasks contacts",
+  "--tool-tier",
+  "core",
+]
+
+# Strava workouts (Stealinglight/StravaMCP) — docs/strava.md
+[[server]]
+name = "strava"
+command = "strava-mcp"
+
+# Garmin sleep / body battery / weight (shotah/go-garmin) — docs/garmin.md
+# --tool-tier core ≈ 10 recovery/coaching tools (not the full ~100).
+[[server]]
+name = "garmin"
+command = "garmin"
+args = ["mcp", "--tool-tier", "core"]
+
+# Web search via Gemini Grounding (zchee/mcp-gemini-google-search) — docs/web-search.md
+[[server]]
+name = "google-search"
+command = "mcp-gemini-google-search"
+
+# Chromecast / Nest / DLNA (shotah/mcp-beam) — docs/cast.md
+# mDNS discovery needs NETWORK_MODE=host on the Linux server.
+[[server]]
+name = "cast"
+command = "mcp-beam"
+
+# YouTube Music (shotah/youtube-go-mcp) — docs/ytmusic.md
+[[server]]
+name = "ytmusic"
+command = "youtube-go-mcp"

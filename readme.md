@@ -32,9 +32,9 @@ mounts. No dashboard, no config UI, no open ports — ever.
 - 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
   not an endpoint
 
-> **Status: in production.** Tim runs on gantry (Gemini 3.5 Flash + Telegram +
-> MCP). Templates: [examples/](examples/). Open follow-ups: [todo.md](todo.md).
-> Build history: [docs/milestones.md](docs/milestones.md).
+> **Status: in production.** The [`local-agent/`](local-agent/) appliance runs on
+> gantry (Gemini 3.5 Flash + Telegram + MCP). Templates: [examples/](examples/).
+> Open follow-ups: [todo.md](todo.md). Build history: [docs/milestones.md](docs/milestones.md).
 
 ### Why it feels fast
 
@@ -75,7 +75,7 @@ docker pull shotah/ai-gantry:latest   # or :edge / :0.x.y
 Also on GHCR: `ghcr.io/shotah/ai-gantry`. Tags: `latest` + semver on `v*` releases,
 `edge` on every `main` push.
 
-Tim-shaped compose under **[examples/personal-assistant/](examples/personal-assistant/)**:
+appliance-style compose under **[examples/personal-assistant/](examples/personal-assistant/)**:
 
 ```bash
 make example-pa           # seed persona + .env
@@ -93,13 +93,17 @@ that compose file. Kernel-only: chat + memory + cron work immediately. MCP
 servers in `mcp.toml` stay commented until you bake static tool binaries (or
 use path C).
 
-### C) Full Tim (tools baked in)
+### C) Full local-agent (tools baked in)
 
 Production personal assistant — Workspace, Strava, Garmin, Cast, YT Music,
-search, remote deploy:
+search, remote deploy. Lives in-tree:
 
-→ **[shotah/docker_open_claw](https://github.com/shotah/docker_open_claw)**  
-(`make init && make build && make up`)
+```bash
+cd local-agent
+make init && make build && make up
+```
+
+→ **[local-agent/](local-agent/)** (README + docs). Kernel-only path stays B / `shotah/ai-gantry`.
 
 ---
 
@@ -290,7 +294,7 @@ Tool names are always prefixed `{server}__{tool}` (OpenAI-safe; avoids collision
 ### 5.3 Container contract
 
 Sample layout matches `compose.yml` today; rename the service when you ship a
-persona-specific image (e.g. `tim` / `gantry-tim:local`):
+persona-specific image (e.g. `gantry-local-agent:local`):
 
 ```yaml
 services:

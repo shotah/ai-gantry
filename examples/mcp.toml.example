@@ -8,7 +8,7 @@
 #   exclude = ["raw_*"]                     # denylist (shell-style * ?)
 #   tools_prefix = "garm"                   # override name used in {prefix}__{tool}
 #
-# Full Tim-shaped compose + commented servers:
+# Full appliance-style compose + commented servers:
 #   examples/personal-assistant/
 # Production image with binaries baked in:
 #   https://github.com/shotah/docker_open_claw
@@ -18,7 +18,7 @@
 # command = "example-mcp"
 # args    = ["--flag", "value"]
 
-# --- Shape used by Tim (binaries must exist on PATH) -------------------------
+# --- Shape used by LOCAL_AGENT (binaries must exist on PATH) -------------------------
 #
 # [[server]]
 # name    = "google-workspace"

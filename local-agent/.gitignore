@@ -1,0 +1,72 @@
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Google OAuth / gws credentials (never commit)
+secrets/google/*
+!secrets/google/.gitkeep
+!secrets/google/.gitignore
+
+# Google Workspace MCP tokens (never commit)
+secrets/google-mcp/**
+!secrets/google-mcp/.gitkeep
+!secrets/google-mcp/.gitignore
+!secrets/google-mcp/credentials/
+!secrets/google-mcp/credentials/.gitkeep
+!secrets/google-mcp/credentials/.gitignore
+
+# Strava OAuth token (never commit)
+secrets/strava/*
+!secrets/strava/.gitkeep
+!secrets/strava/.gitignore
+
+# Garmin Connect session (never commit)
+secrets/garmin/*
+!secrets/garmin/.gitkeep
+!secrets/garmin/.gitignore
+
+# YouTube Music browser headers (never commit)
+secrets/ytmusic/*
+!secrets/ytmusic/.gitkeep
+!secrets/ytmusic/.gitignore
+
+# Scratch HOME used for local garmin CLI smoke tests (never commit)
+secrets/garmin_home_tmp/
+
+# Legacy ZeroClaw config tree (kept until cutover is confirmed; then delete)
+config/
+
+# Agent persona: commit only *.example.md templates. Live *.md are personal.
+persona/*
+!persona/*.example.md
+
+# MCP manifest is committed (mcp.toml) — no generated config anymore.
+
+# Data volume (gantry.db: sessions + memory + heartbeat)
+data/
+!data/.gitkeep
+
+# Docker
+.docker/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/*.local.*
+.idea/
+
+# Temp
+tmp/
+*.tmp
+*.swp
+*~

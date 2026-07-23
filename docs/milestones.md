@@ -1,7 +1,7 @@
 # Milestone archive (build order)
 
 Historical checklist for how ai-gantry was built (M0–M7). All shipped;
-Tim/ZeroClaw cutover is done. Open follow-ups live in [todo.md](../todo.md).
+LOCAL_AGENT/ZeroClaw cutover is done. Open follow-ups live in [todo.md](../todo.md).
 
 ---
 
@@ -53,8 +53,8 @@ Tim/ZeroClaw cutover is done. Open follow-ups live in [todo.md](../todo.md).
 - [x] Rolling session summary (context compression v2)
 - [x] Graceful shutdown (finish in-flight turn, kill MCP children)
 - [x] Load test: fat tool dumps don't blow context (assert bounded prompt size)
-- [x] Side-by-side deploy next to ZeroClaw Tim; cut over when trusted
-- [x] Retire ZeroClaw Tim service; pin gantry release tags
+- [x] Side-by-side deploy next to ZeroClaw LOCAL_AGENT; cut over when trusted
+- [x] Retire ZeroClaw LOCAL_AGENT service; pin gantry release tags
 
 ## Milestone 6 — cron / scheduled turns
 

@@ -1,17 +1,14 @@
-# Personal assistant example (Tim-shaped)
+# Personal assistant example (appliance-style)
 
-A **copy-paste deploy skeleton** modeled on the production Tim wrapper
-([docker_open_claw](https://github.com/shotah/docker_open_claw)): Gemini chat,
-Telegram allowlist, persona mounts, SQLite under `./data`, and an `mcp.toml`
-shaped like a real tool kit.
+A **kernel-only** deploy skeleton (same shape as production LOCAL_AGENT in
+[`local-agent/`](../../local-agent/)): Gemini chat, Telegram allowlist, persona mounts, SQLite
+under `./data`, and an `mcp.toml` shaped like a real tool kit — without baking
+MCP binaries into the image.
 
-This folder uses the **kernel-only** `gantry` image from this repo (no MCP
-binaries baked in). Chat + memory + cron work out of the box. To grant tools,
-either:
+Chat + memory + cron work out of the box. To grant tools, either:
 
-1. **Full Tim image** — clone/use [docker_open_claw](https://github.com/shotah/docker_open_claw)
-   (gantry + Workspace / Strava / Garmin / Cast / YT Music / search baked in), or
-2. **Your own image** — `FROM` distroless/static, `COPY` static MCP binaries onto
+1. **Full local-agent** — [`local-agent/`](../../local-agent/) (`make init && make up`; tools baked in), or
+2. **Your own image** — `FROM shotah/ai-gantry`, `COPY` static MCP binaries onto
    `PATH`, uncomment the matching `[[server]]` blocks in `mcp.toml`.
 
 ## Layout
@@ -20,7 +17,7 @@ either:
 personal-assistant/
   compose.yml      # one service, no ports, exec-form healthcheck
   .env.example     # GEMINI_* + TELEGRAM_* (mapped to LLM_* in compose)
-  mcp.toml         # Tim-shaped servers (commented until binaries exist)
+  mcp.toml         # appliance-style servers (commented until binaries exist)
   persona/         # seeded from ../persona/*.example.md (see setup)
   data/            # created at runtime → gantry.db
 ```
@@ -59,12 +56,11 @@ docker compose -f examples/personal-assistant/compose.yml run --rm -it gantry
 
 Or from repo root without Docker: `make init && make run` (uses `deploy/`).
 
-## Adding MCP tools (like Tim)
+## Adding MCP tools (like local-agent)
 
-1. Put static binaries on `PATH` inside the image (see Tim's
-   [Dockerfile](https://github.com/shotah/docker_open_claw/blob/main/Dockerfile)).
+1. Put static binaries on `PATH` inside the image (see [`local-agent/Dockerfile`](../../local-agent/Dockerfile)).
 2. Uncomment the matching `[[server]]` in `mcp.toml`.
-3. Mount secrets the child expects (OAuth tokens, Garmin session, etc.) — Tim's
+3. Mount secrets the child expects (OAuth tokens, Garmin session, etc.) — LOCAL_AGENT's
    compose shows the bind-mount pattern under `./secrets/…` → `/data/.config/…`.
 4. Prefer MCP-native filters (`--tool-tier core`) **and/or** gantry `tools = […]`
    so Flash is not fed 100+ schemas.
@@ -81,9 +77,8 @@ Boot log should show `tools_listed` / `tools_published` per server and a
 | `./mcp.toml` | Yes (your bind mount) |
 | Container image | Disposable — rebuild anytime |
 
-## Production Tim
+## Production local-agent
 
-For the full assistant (remote deploy, auth helpers, tool pins), use the wrapper
-repo — this example is the **kernel contract** made concrete:
+Full assistant (remote deploy, auth helpers, tool pins) is in-tree:
 
-→ **[shotah/docker_open_claw](https://github.com/shotah/docker_open_claw)** (`make init && make up`)
+→ **[local-agent/](../../local-agent/)** (`cd local-agent && make init && make up`)

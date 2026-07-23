@@ -24,20 +24,6 @@ In-tree behind that switch — **not MCP, not a plugin loader.**
 
 Signal has **no official Bot API**. Path is a **signal-cli** sidecar (JSON-RPC/REST) over localhost — multi-container by design, unlike Telegram.
 
-### Pros / cons
-
-**In-tree `CHANNEL=signal` (chosen)**
-- Pros: matches Telegram; cron/stream/photos stay in one process; allowlist at the edge; compose stays obvious.
-- Cons: Signal deps/docs/ops live in this repo; signal-cli must stay patched (~3 month Signal client expiry culture).
-
-**MCP “send/receive Signal” tools**
-- Pros: keeps kernel “pure.”
-- Cons: model would own I/O (wrong); inbound loop + allowlist + cron push don’t fit; latency/token waste.
-
-**Both channels active at once**
-- Pros: one bot, two messengers.
-- Cons: session ID collisions, which allowlist, dual stream state, harder shutdown; better as two containers sharing nothing (or carefully sharing `DATA_DIR` — usually don’t).
-
 ### Implementation checklist
 
 - [ ] **Spike** signal-cli JSON-RPC (or `signal-cli-rest-api`) receive + send from a throwaway Go client; document link/register flow (QR as secondary device preferred over registering a new number in CI).
@@ -49,7 +35,7 @@ Signal has **no official Bot API**. Path is a **signal-cli** sidecar (JSON-RPC/R
 - [ ] **Attachments (phase 2)** — inbound image → `channel.Image` / vision; outbound image if signal-cli attachment send is reliable.
 - [ ] **Streaming (phase 2)** — Signal has no Telegram-style edit-in-place; either buffer full reply or send progressive messages (decide + document; default off).
 - [ ] **Compose example** — sidecar service + volume for signal-cli data; kernel stays no inbound ports; document that Signal path is multi-container.
-- [ ] **Docs** — readme env table, design non-goals update (“Telegram + Signal + stdio”), security (linked device = full account power; allowlist still required), Tim/`personal-assistant` notes.
+- [ ] **Docs** — readme env table, design non-goals update (“Telegram + Signal + stdio”), security (linked device = full account power; allowlist still required), LOCAL_AGENT notes.
 - [ ] **Tests** — unit tests with fake JSON-RPC/SSE; no live Signal in CI.
 - [ ] **Ops runbook** — link device, rotate, what breaks when signal-cli lags Signal-server, backup of signal-cli datadir.
 
@@ -65,38 +51,55 @@ Signal has **no official Bot API**. Path is a **signal-cli** sidecar (JSON-RPC/R
 
 ## Publish distroless image → Docker Hub
 
-Kernel image already builds locally (`Dockerfile` → `gcr.io/distroless/static-debian12:nonroot`).
-GoReleaser ships **binaries** on `v*` tags; **nothing pushes the container** yet.
+| Choice | Pick |
+| --- | --- |
+| Image | **`shotah/ai-gantry`** (+ `ghcr.io/shotah/ai-gantry`) |
+| Workflows | [`docker.yml`](.github/workflows/docker.yml) + [`dockerhub-description.yml`](.github/workflows/dockerhub-description.yml) |
 
-Reference workflow that already deploys to your Hub account:
-[`hytale-server-container/.github/workflows/main.yml`](../hytale-server-container/.github/workflows/main.yml)
-→ `shotah/hytale-server` via `DOCKER_HUB_USERNAME` + `DOCKER_HUB_ACCESS_TOKEN`.
+### Checklist
 
-Hub namespace today: [hub.docker.com/repositories/shotah](https://hub.docker.com/repositories/shotah)
-(`hytale-server`, `nolfo`, … — **no gantry/ai-gantry repo yet**).
+- [x] **Workflows** + readme pull docs
+- [x] **Secrets** — `DOCKER_HUB_USERNAME`, `DOCKER_HUB_ACCESS_TOKEN` (Hub PAT needs **Read + Write + Delete** for README sync)
+- [x] **First image push** — `edge` + multi-arch
+- [x] **Hub README sync** — Delete scope on token fixed Forbidden
+- [x] **Verify** — [hub.docker.com/r/shotah/ai-gantry](https://hub.docker.com/r/shotah/ai-gantry)
+
+### Out of scope
+
+- Baking MCP tools into the kernel image (see `local-agent/`)
+- Replacing GoReleaser binary releases
+
+---
+
+## Fold local-agent appliance into this repo
+
+Stop needing a second repo (`docker_open_claw` / `zeroclaw_scripts`) to run **our** stack.
+Kernel = published distroless image; LOCAL_AGENT = in-tree appliance that bakes MCP tools.
 
 ### Decision
 
 | Choice | Pick |
 | --- | --- |
-| Image name | **`shotah/ai-gantry`** (+ `ghcr.io/shotah/ai-gantry`) |
-| Workflows | [`.github/workflows/docker.yml`](.github/workflows/docker.yml) + [`dockerhub-description.yml`](.github/workflows/dockerhub-description.yml) |
-| Triggers | `v*` → semver + `latest`; `main` → `edge` + `sha-…`; PRs smoke-build only |
-| Platforms | `linux/amd64` + `linux/arm64` |
-| Auth | `DOCKER_HUB_USERNAME`, `DOCKER_HUB_ACCESS_TOKEN` (same as hytale) |
+| Layout | **`local-agent/`** at repo root |
+| Kernel image | **`shotah/ai-gantry`** (no MCP binaries) |
+| local-agent image | **`gantry-local-agent:local`** (optional Hub later: `shotah/ai-gantry-local-agent`) |
+| Examples | Slim `examples/personal-assistant/` stays kernel-only |
 
 ### Checklist
 
-- [x] **Workflows** — `docker.yml` (build/smoke/push) + `dockerhub-description.yml` (sync `readme.md` → Hub)
-- [x] **Docs** — readme pull/badge + personal-assistant compose note
-- [ ] **Secrets** on `shotah/ai-gantry` GitHub repo: `DOCKER_HUB_USERNAME`, `DOCKER_HUB_ACCESS_TOKEN` (copy from hytale-server-container if still valid)
-- [ ] **First push** — merge to `main` (creates Hub repo + `edge`) or tag `v*`; then run **dockerhub-description** workflow if Hub README is empty
-- [ ] **Verify** — [hub.docker.com/r/shotah/ai-gantry](https://hub.docker.com/r/shotah/ai-gantry) shows tags + full README; `docker pull shotah/ai-gantry:edge`
+- [x] **Scaffold `local-agent/`** — Dockerfile, docker-compose, Makefile, mcp.toml, `.env.example`, scripts, docs, persona `*.example.md`, secrets stubs
+- [x] **Wire docs** — root / examples / docs Path C → `local-agent/`
+- [ ] **Smoke local** — `cd local-agent && make init && make build && make up` (needs your `.env` + Docker)
+- [ ] **Dockerfile polish** — optionally `FROM shotah/ai-gantry:…` instead of curling the GitHub release tarball
+- [ ] **Cutover live server** — point deploy path at in-repo `local-agent/`; smoke Telegram + one MCP tool
+- [ ] **Optional CI / Hub** — build/publish `shotah/ai-gantry-local-agent` on tag
+- [ ] **Archive secondary repo** — README “moved to ai-gantry/local-agent”; rename away from zeroclaw
 
-### Out of scope
+### Non-goals
 
-- Baking MCP tool binaries into this image (that’s Tim / a derived image)
-- Replacing GoReleaser binary releases
+- Putting private OAuth tokens or real `SOUL.md` in git
+- Making the default kernel image include Workspace/Strava/Garmin/…
+- Rewriting auth scripts in Go on day one
 
 ---
 

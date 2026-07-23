@@ -2,7 +2,7 @@
 # Mounted at /etc/gantry/mcp.toml. Tool names reach the model as {name}__{tool}.
 #
 # Kernel-only image: leave everything commented until static binaries exist on PATH.
-# Full Tim image (binaries baked in): https://github.com/shotah/docker_open_claw
+# Full local-agent image (binaries baked in): ../../local-agent/ (cd local-agent && make build)
 #
 # Optional host-side filters (after tools/list):
 #   tools = ["…"]          # allowlist

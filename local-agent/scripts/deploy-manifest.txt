@@ -1,0 +1,35 @@
+# Files synced to the server by scripts/remote.(ps1|sh) `sync` (make remote-sync /
+# remote-deploy). One repo-relative path per line. Blank lines and # comments ignored.
+# Missing files are skipped. Remote parent directories are created automatically.
+#
+# Credential / session files live in scripts/secrets-manifest.txt and are pushed
+# only via `make garmin-sync` / `strava-sync` / `ytmusic-sync` / `google-sync`
+# (auth targets do that automatically when DEPLOY_HOST is set).
+
+docker-compose.yml
+Makefile
+.env
+Dockerfile
+mcp.toml
+# Live persona (gitignored) — synced when present after `make persona`
+persona/SOUL.md
+persona/USER.md
+persona/IDENTITY.md
+persona/AGENTS.md
+persona/TOOLS.md
+persona/MEMORY.md
+persona/HEARTBEAT.md
+scripts/deploy-manifest.txt
+scripts/secrets-manifest.txt
+scripts/google-auth.ps1
+scripts/google-auth.sh
+scripts/google-auth-inner.py
+scripts/google-mcp-import.ps1
+scripts/google-mcp-import.sh
+# Secret *directories* only (empty stubs). Token/session files are NOT synced here.
+secrets/google/.gitkeep
+secrets/google-mcp/.gitkeep
+secrets/google-mcp/credentials/.gitkeep
+secrets/strava/.gitkeep
+secrets/garmin/.gitkeep
+secrets/ytmusic/.gitkeep

@@ -1,5 +1,12 @@
 # Sync GitHub readme.md → Docker Hub full description + short blurb.
-# Secrets: DOCKER_HUB_USERNAME, DOCKER_HUB_ACCESS_TOKEN
+#
+# Secrets:
+#   DOCKER_HUB_USERNAME      — Hub username (e.g. shotah), not email
+#   DOCKER_HUB_ACCESS_TOKEN  — Personal Access Token with Read, Write, AND Delete
+#
+# Image push only needs Write. Updating the Hub README uses a PATCH that Docker
+# treats as admin → Forbidden unless Delete is also granted on the token.
+# Create/rotate: https://hub.docker.com/settings/security → New Access Token
 name: dockerhub-description
 
 on:

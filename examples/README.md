@@ -6,11 +6,10 @@ Operator templates and a **usable** personal-assistant skeleton.
 | --- | --- |
 | [`persona/*.example.md`](persona/) | System-prompt templates (`gantry init` embeds these) |
 | [`mcp.toml.example`](mcp.toml.example) / [`env.example`](env.example) | Embedded by `gantry init` |
-| [`personal-assistant/`](personal-assistant/) | **Tim-shaped compose stack** — copy, fill `.env`, `docker compose up` |
+| [`personal-assistant/`](personal-assistant/) | **appliance-style compose stack** — copy, fill `.env`, `docker compose up` |
 
-Production Tim (tools baked into the image, remote deploy, auth helpers) lives in
-**[docker_open_claw](https://github.com/shotah/docker_open_claw)** — this repo is
-the kernel; that repo is the appliance.
+Production local-agent (tools baked in, remote deploy, auth helpers) lives in
+**[`../local-agent/`](../local-agent/)** — same repo, appliance folder next to the kernel.
 
 ---
 
@@ -44,18 +43,17 @@ Full walkthrough: **[personal-assistant/README.md](personal-assistant/README.md)
 
 ---
 
-## Path C — full Tim (recommended for real use)
-
-Clone the wrapper that bakes MCP binaries and ships `make remote-deploy`:
+## Path C — full local-agent (recommended for real use)
 
 ```bash
-git clone https://github.com/shotah/docker_open_claw.git
-cd docker_open_claw
-make init && # edit .env
+cd local-agent
+make init    # edit .env
 make build && make up
+# remote: set DEPLOY_* then make remote-deploy
 ```
 
-Same gantry contract (`PERSONA_DIR`, `MCP_MANIFEST`, `DATA_DIR`); richer image.
+Walkthrough: **[local-agent/README.md](../local-agent/README.md)**. Same gantry contract
+(`PERSONA_DIR`, `MCP_MANIFEST`, `DATA_DIR`); richer image.
 
 ---
 
