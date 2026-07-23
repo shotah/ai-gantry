@@ -16,8 +16,8 @@
 > positions tools. The frame does nothing by itself; the tools do everything.
 
 **A personal agent you can actually own** — one static Go binary, one persona,
-one model, MCP tools you choose, chat that only dials *out* (Telegram or
-Discord). No dashboard. No config UI. **No open ports. Ever.**
+one model, MCP tools you choose, chat that only dials *out* (Telegram, Discord,
+or Slack). No dashboard. No config UI. **No open ports. Ever.**
 
 ```text
 docker pull  →  mount persona + mcp.toml  →  message your bot
@@ -46,8 +46,15 @@ and **MCP as the only plugin surface** — not another multi-agent platform.
 when you need a web UI, team workspace, multi-agent routing, or pairing flows.
 We deliberately don't build those.
 
-**Chat:** Telegram (default) or Discord — both outbound-only + allowlist. See
-[docs/discord.md](docs/discord.md). Slack/Signal next ([todo.md](todo.md)).
+| Status | Channel | Notes |
+| --- | --- | --- |
+| **Shipped** | Telegram (default) | Fastest hello path; long-poll |
+| **Shipped** | Discord | DMs; Gateway WS — [docs/discord.md](docs/discord.md) |
+| **Shipped** | Slack | Socket Mode only — [docs/slack.md](docs/slack.md) |
+| **Planned** | Signal | Sidecar (`signal-cli`); not a Bot API — [todo.md](todo.md) |
+| **Won’t** | WhatsApp / Teams / Messenger webhooks | Need inbound ports — breaks the model |
+
+One `CHANNEL` per container. Allowlist only; no pairing.
 
 ### Why it stays fast
 
@@ -65,9 +72,10 @@ gateways, dashboards. Gantry refuses that tax.
 
 ## Hello in five minutes (no tools)
 
-You need: Docker, a [Gemini API key](https://aistudio.google.com/apikey), a
-Telegram bot token from [@BotFather](https://t.me/BotFather), and your numeric
-user id (e.g. [@userinfobot](https://t.me/userinfobot)).
+**Fastest path is Telegram.** You need: Docker, a
+[Gemini API key](https://aistudio.google.com/apikey), a bot token from
+[@BotFather](https://t.me/BotFather), and your numeric user id (e.g.
+[@userinfobot](https://t.me/userinfobot)).
 
 ```bash
 git clone https://github.com/shotah/ai-gantry.git && cd ai-gantry
@@ -85,6 +93,27 @@ servers stay commented until you want tools.
 Prefer the published image? Set `image: shotah/ai-gantry:latest` in that compose
 file and drop the `build:` block (`:edge` / `:0.x.y` also on Hub +
 `ghcr.io/shotah/ai-gantry`).
+
+### Discord variant (same compose)
+
+Same `examples/personal-assistant/` stack — swap the channel in `.env` after
+[docs/discord.md](docs/discord.md) (Message Content Intent + your snowflake):
+
+```bash
+# examples/personal-assistant/.env
+CHANNEL=discord
+DISCORD_BOT_TOKEN=...
+DISCORD_ALLOWED_USERS=123456789012345678
+# GEMINI_API_KEY=...   # same as Telegram path
+# leave TELEGRAM_* empty
+```
+
+```bash
+docker compose -f examples/personal-assistant/compose.yml up -d --build
+```
+
+DM the bot → `/status` → `/new`. Slack is the same pattern (`CHANNEL=slack` +
+tokens in [docs/slack.md](docs/slack.md)).
 
 ---
 
@@ -144,11 +173,12 @@ nothing else.
 
 - Web dashboard, gateway, REST/WS API, pairing
 - Multi-agent, multi-provider, model routing/fallback chains
-- WhatsApp/SMS (channel interface exists; Telegram + Discord + stdio ship)
+- Multi-channel in one process; inbound-port chat (WhatsApp Cloud, Teams,
+  Messenger webhooks) — see channel table under [Who this is for](#who-this-is-for)
 - Built-in web search, built-in workspace tools (those are MCP binaries)
 - Vector database service (see memory design — SQLite is the store)
 - Sandboxing/risk-profile machinery (the container IS the sandbox; we run
-  full-autonomy with a Telegram allowlist)
+  full-autonomy with an allowlist)
 
 ## 4. Architecture
 
@@ -233,7 +263,10 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `TELEGRAM_ALLOWED_USERS` | yes (telegram) | `123456789,987654321` (numeric IDs; **allowlist only — no pairing**) |
 | `DISCORD_BOT_TOKEN` | yes (discord) | — |
 | `DISCORD_ALLOWED_USERS` | yes (discord) | snowflake user IDs; **allowlist only** — see [docs/discord.md](docs/discord.md) |
-| `CHANNEL` | no | `telegram` (default), `discord`, or `stdio` |
+| `SLACK_BOT_TOKEN` | yes (slack) | `xoxb-…` bot token |
+| `SLACK_APP_TOKEN` | yes (slack) | `xapp-…` app-level token (`connections:write`) — [docs/slack.md](docs/slack.md) |
+| `SLACK_ALLOWED_USERS` | yes (slack) | Slack member IDs; **allowlist only** |
+| `CHANNEL` | no | `telegram` (default), `discord`, `slack`, or `stdio` |
 | `PERSONA_DIR` | no | `/persona` |
 | `DATA_DIR` | no | `/data` |
 | `MCP_MANIFEST` | no | `/etc/gantry/mcp.toml` |

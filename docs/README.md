@@ -7,6 +7,7 @@ is the product contract and milestone checklist; these pages go deeper.
 | --- | --- |
 | [../todo.md](../todo.md) | Open follow-ups only |
 | [discord.md](discord.md) | Discord Gateway channel (DMs, allowlist, no ports) |
+| [slack.md](slack.md) | Slack Socket Mode channel (DMs + @mention, no ports) |
 | [milestones.md](milestones.md) | Archived M0–M7 build checklist (shipped) |
 | [../examples/](../examples/) | Cookbook + appliance-style [`personal-assistant/`](../examples/personal-assistant/) compose |
 | [../local-agent/](../local-agent/) | Full local-agent appliance (MCP tools + remote deploy + auth helpers) |

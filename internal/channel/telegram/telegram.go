@@ -166,7 +166,7 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 			return
 		}
 		if stream != nil && stream.Started() {
-			urls, rest := extractImageURLs(reply)
+			urls, rest := channel.ExtractImageURLs(reply)
 			if err := stream.Finish(ctx, rest); err != nil {
 				c.log.Warn("telegram stream finish failed; falling back to send", "err", err)
 				if reply != "" {

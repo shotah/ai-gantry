@@ -46,6 +46,20 @@ Message the bot. First checks:
 | `/tools` | builtin memory/cron tools (MCP empty until you add servers) |
 | `/new` | `session reset` |
 
+### Discord (or Slack) instead of Telegram
+
+Same compose; set channel + tokens in `.env` (setup: [docs/discord.md](../../docs/discord.md),
+[docs/slack.md](../../docs/slack.md)):
+
+```bash
+CHANNEL=discord
+DISCORD_BOT_TOKEN=...
+DISCORD_ALLOWED_USERS=123456789012345678
+```
+
+Then `docker compose -f examples/personal-assistant/compose.yml up -d --build`
+and DM the bot.
+
 ### Local REPL instead of Telegram
 
 In `.env` set `CHANNEL=stdio`, then:

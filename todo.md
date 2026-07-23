@@ -16,8 +16,8 @@ same contract as today. Prefer platforms that fit that; don’t break “no port
 | Priority | Channel | Official bot? | Inbound ports? | Fit for gantry | Why |
 | --- | --- | --- | --- | --- | --- |
 | **Shipped** | **Telegram** | Yes (Bot API) | No (long-poll) | ★★★★★ | Default; simplest personal bot story |
-| **P0 — next** | **Discord** | Yes (Bot + Gateway WS) | No (outbound WSS) | ★★★★★ | Huge audience; DM + guild; Go libs mature (`discordgo` / `disgo`); same security story |
-| **P1** | **Slack** | Yes (Socket Mode) | No (outbound WS) | ★★★★ | Workplace unlock; needs app + bot + app-level tokens; slightly more ops |
+| **Shipped** | **Discord** | Yes (Bot + Gateway WS) | No (outbound WSS) | ★★★★★ | DMs; Message Content intent; same security story |
+| **Shipped** | **Slack** | Yes (Socket Mode) | No (outbound WS) | ★★★★ | DMs + `@mention`; bot + app-level tokens |
 | **P2** | **Signal** | **No** (signal-cli) | No* (sidecar) | ★★★ | Privacy crowd wants it; *not* a Bot API; multi-container; maintenance tax |
 | Later | Matrix | Yes (Client-Server) | No (outbound sync) | ★★★ | Self-host crowd; more protocol surface |
 | Avoid v1 | WhatsApp / Teams / Messenger | “Bot” via Cloud/Graph | **Usually yes** (webhooks) | ★ | Breaks no-ports; keep as documented non-goals |
@@ -27,25 +27,21 @@ same contract as today. Prefer platforms that fit that; don’t break “no port
 
 ### Decision (locked for all new channels)
 
-- One active channel per container: `CHANNEL=telegram|discord|slack|signal|stdio`
+- One active channel per container: `CHANNEL=telegram|discord|slack|signal|stdio` (signal not shipped yet)
 - Default stays **`telegram`**
 - In-tree `internal/channel/<name>` — **not MCP, not plugins**
 - Allowlist only (Discord user snowflakes / Slack user IDs / Signal UUIDs)
 - DMs first; guild/channel mentions are phase 2 where relevant
 
-### Next biggest selling point
+### Pitch (shipped)
 
-**Discord** — not Signal. Same architectural fit as Telegram (outbound realtime),
-but meets people where they already chat (friends, gaming, indie communities).
-Market as: *“Personal MCP agent on Discord or Telegram — still zero inbound ports.”*
-
-Slack is the workplace twin of that pitch. Signal is a **privacy** unlock, not
-the volume unlock — keep it, but after Discord (and probably Slack).
+*“Personal MCP agent on Discord, Telegram, or Slack — still zero inbound ports.”*
+Signal remains the privacy unlock ([P2](#p2--signal-checklist-after-discord)).
 
 ### Docs callouts (when implementing)
 
-- [ ] Readme “Who this is for” + non-goals: list **shipped / planned / won’t** channels with the matrix above (one short table)
-- [ ] Hello path: keep Telegram as fastest; add “Discord variant” compose snippet once P0 ships
+- [x] Readme “Who this is for” + non-goals: list **shipped / planned / won’t** channels with the matrix above (one short table)
+- [x] Hello path: keep Telegram as fastest; add “Discord variant” compose snippet once P0 ships
 
 ### P0 — Discord checklist
 
@@ -53,17 +49,17 @@ the volume unlock — keep it, but after Discord (and probably Slack).
 - [x] Config: `CHANNEL=discord`, `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS` (snowflakes)
 - [x] `internal/channel/discord` — `Channel` + `Pusher`; sessions `discord:<channel>:<user>`
 - [x] Text cmds: `/new` `/status` `/tools` parity (agent-parsed; DMs)
-- [ ] Attachments phase 2 (vision in / images out)
-- [ ] Streaming phase 2 (edit message or buffer — Discord edits exist)
+- [x] Attachments phase 2 (vision in / images out)
+- [x] Streaming phase 2 (edit message or buffer — Discord edits exist)
 - [x] Tests with fake gateway; docs + example `.env` ([docs/discord.md](docs/discord.md))
-- [ ] Readme “Who this is for” channel matrix callout (optional polish)
 
 ### P1 — Slack checklist (Socket Mode only)
 
-- [ ] Spike Socket Mode (no Request URL); bot token + app-level token
-- [ ] Config: `CHANNEL=slack`, `SLACK_*` tokens, `SLACK_ALLOWED_USERS`
-- [ ] DMs / app_mention; thread → session id; cron `Push`
-- [ ] Docs: Socket Mode required (HTTP Events API = non-goal — needs inbound URL)
+- [x] Spike Socket Mode (no Request URL); bot token + app-level token
+- [x] Config: `CHANNEL=slack`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_ALLOWED_USERS`
+- [x] DMs / `app_mention`; thread → session id; cron `Push`
+- [x] Docs: Socket Mode required (HTTP Events API = non-goal) — [docs/slack.md](docs/slack.md)
+- [x] Files / streaming phase 2
 
 ### P2 — Signal checklist (after Discord)
 

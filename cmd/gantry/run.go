@@ -14,6 +14,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/channel/discord"
+	"github.com/shotah/ai-gantry/internal/channel/slack"
 	"github.com/shotah/ai-gantry/internal/channel/stdio"
 	"github.com/shotah/ai-gantry/internal/channel/telegram"
 	"github.com/shotah/ai-gantry/internal/config"
@@ -254,6 +255,14 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 		return discord.New(discord.Config{
 			Token:         cfg.DiscordBotToken,
 			AllowedUsers:  cfg.DiscordAllowedUsers,
+			Logger:        logger,
+			StreamReplies: cfg.StreamReplies,
+		})
+	case config.ChannelSlack:
+		return slack.New(slack.Config{
+			BotToken:      cfg.SlackBotToken,
+			AppToken:      cfg.SlackAppToken,
+			AllowedUsers:  cfg.SlackAllowedUsers,
 			Logger:        logger,
 			StreamReplies: cfg.StreamReplies,
 		})

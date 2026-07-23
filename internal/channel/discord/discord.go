@@ -28,7 +28,7 @@ type Config struct {
 	Token         string
 	AllowedUsers  []string // Discord snowflake user IDs
 	Logger        *slog.Logger
-	StreamReplies bool // reserved; v1 buffers full replies (edits are phase 2)
+	StreamReplies bool // placeholder + ChannelMessageEdit while the model streams
 }
 
 // sessionFactory builds a discordgo session (overridable in tests).
@@ -40,6 +40,8 @@ type session interface {
 	Open() error
 	Close() error
 	ChannelMessageSend(channelID string, content string, options ...discordgo.RequestOption) (*discordgo.Message, error)
+	ChannelMessageSendComplex(channelID string, data *discordgo.MessageSend, options ...discordgo.RequestOption) (*discordgo.Message, error)
+	ChannelMessageEdit(channelID, messageID, content string, options ...discordgo.RequestOption) (*discordgo.Message, error)
 	ChannelTyping(channelID string, options ...discordgo.RequestOption) error
 	UserChannelCreate(recipientID string, options ...discordgo.RequestOption) (*discordgo.Channel, error)
 	BotUserID() string
@@ -159,9 +161,6 @@ func (c *Channel) makeMessageHandler(ctx context.Context, handle channel.Handler
 			return
 		}
 		text := strings.TrimSpace(m.Content)
-		if text == "" {
-			return // stickers / empty; attachments are phase 2
-		}
 
 		c.mu.Lock()
 		s := c.sess
@@ -173,28 +172,61 @@ func (c *Channel) makeMessageHandler(ctx context.Context, handle channel.Handler
 			return
 		}
 
+		images, err := inboundImages(ctx, m.Message)
+		if err != nil {
+			c.log.Error("discord attachment download failed", "err", err)
+			_, _ = s.ChannelMessageSend(m.ChannelID, "sorry — couldn't download that image")
+			return
+		}
+		if text == "" && len(images) == 0 {
+			return // stickers / empty
+		}
+
 		sessionID := sessionKey(m.ChannelID, userID)
 		stopTyping := c.startTyping(ctx, s, m.ChannelID)
 		defer stopTyping()
 
-		// StreamReplies reserved for phase 2 (message edits).
-		_ = c.streamReplies
+		var stream *editStream
+		handleCtx := ctx
+		if c.streamReplies {
+			stream = newEditStream(s, m.ChannelID, c.chunkMax)
+			handleCtx = channel.WithReplyWriter(ctx, stream)
+		}
 
-		reply, err := handle(ctx, channel.Message{
+		reply, err := handle(handleCtx, channel.Message{
 			SessionID: sessionID,
 			UserID:    userID,
 			ChatID:    m.ChannelID,
 			Text:      text,
+			Images:    images,
 		})
 		if err != nil {
 			c.log.Error("discord handler error", "err", err, "session_id", sessionID)
 			_, _ = s.ChannelMessageSend(m.ChannelID, "sorry — something went wrong handling that message")
 			return
 		}
+		if stream != nil && stream.Started() {
+			urls, rest := channel.ExtractImageURLs(reply)
+			if err := stream.Finish(ctx, rest); err != nil {
+				c.log.Warn("discord stream finish failed; falling back to send", "err", err)
+				if reply != "" {
+					if err := c.sendReply(ctx, s, m.ChannelID, reply, ""); err != nil {
+						c.log.Error("discord send failed", "err", err, "session_id", sessionID)
+					}
+				}
+				return
+			}
+			for _, u := range urls {
+				if err := sendImage(s, m.ChannelID, u); err != nil {
+					c.log.Error("discord send image failed", "err", err, "session_id", sessionID)
+				}
+			}
+			return
+		}
 		if reply == "" {
 			return
 		}
-		if err := c.sendReply(ctx, s, m.ChannelID, reply); err != nil {
+		if err := c.sendReply(ctx, s, m.ChannelID, reply, ""); err != nil {
 			c.log.Error("discord send failed", "err", err, "session_id", sessionID)
 		}
 	}
@@ -259,7 +291,7 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 	if err != nil {
 		return err
 	}
-	return c.sendReply(ctx, s, channelID, msg.Text)
+	return c.sendReply(ctx, s, channelID, msg.Text, msg.PhotoURL)
 }
 
 func resolveChannelID(s session, msg channel.Outbound) (string, error) {
@@ -279,21 +311,4 @@ func resolveChannelID(s session, msg channel.Outbound) (string, error) {
 		return ch.ID, nil
 	}
 	return "", fmt.Errorf("discord: missing chat/user id for push")
-}
-
-func (c *Channel) sendReply(ctx context.Context, s session, channelID, text string) error {
-	parts := splitMessage(text, c.chunkMax)
-	for i, part := range parts {
-		if i > 0 {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(chunkPause):
-			}
-		}
-		if _, err := s.ChannelMessageSend(channelID, part); err != nil {
-			return err
-		}
-	}
-	return nil
 }

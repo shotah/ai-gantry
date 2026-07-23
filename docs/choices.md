@@ -140,11 +140,11 @@ Consistency beats inventing a second release culture.
 
 ## Channels
 
-**Pick:** Telegram (default) + Discord + stdio in-tree.
+**Pick:** Telegram (default) + Discord + Slack + stdio in-tree.
 
-`CHANNEL=discord` is the same contract as Telegram (outbound realtime, allowlist,
-no ports). DMs only for Discord v1. Slack/Signal are next — see [todo.md](../todo.md).
-Setup: [discord.md](discord.md).
+All three messengers are outbound-only + allowlist (no inbound ports). Slack uses
+**Socket Mode only** (HTTP Events API is a non-goal). Signal is next — see
+[todo.md](../todo.md). Setup: [discord.md](discord.md), [slack.md](slack.md).
 
 ## Related
 

@@ -2,6 +2,7 @@ package discord
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -63,9 +64,13 @@ func TestSplitMessage(t *testing.T) {
 type mockSession struct {
 	mu       sync.Mutex
 	msgs     []string
+	edits    []string
+	embeds   int
+	files    int
 	channels []string
 	typing   int
 	botID    string
+	nextID   int
 	openErr  error
 	handlers []interface{}
 }
@@ -86,9 +91,33 @@ func (m *mockSession) BotUserID() string {
 func (m *mockSession) ChannelMessageSend(channelID, content string, _ ...discordgo.RequestOption) (*discordgo.Message, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.nextID++
 	m.channels = append(m.channels, channelID)
 	m.msgs = append(m.msgs, content)
-	return &discordgo.Message{Content: content}, nil
+	return &discordgo.Message{ID: fmt.Sprintf("m%d", m.nextID), Content: content}, nil
+}
+
+func (m *mockSession) ChannelMessageSendComplex(channelID string, data *discordgo.MessageSend, _ ...discordgo.RequestOption) (*discordgo.Message, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.nextID++
+	m.channels = append(m.channels, channelID)
+	if data != nil {
+		if data.Content != "" {
+			m.msgs = append(m.msgs, data.Content)
+		}
+		m.embeds += len(data.Embeds)
+		m.files += len(data.Files)
+	}
+	return &discordgo.Message{ID: fmt.Sprintf("m%d", m.nextID)}, nil
+}
+
+func (m *mockSession) ChannelMessageEdit(channelID, messageID, content string, _ ...discordgo.RequestOption) (*discordgo.Message, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.channels = append(m.channels, channelID)
+	m.edits = append(m.edits, messageID+":"+content)
+	return &discordgo.Message{ID: messageID, Content: content}, nil
 }
 
 func (m *mockSession) ChannelTyping(string, ...discordgo.RequestOption) error {

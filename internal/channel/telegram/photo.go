@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -19,11 +18,6 @@ import (
 const (
 	maxPhotoBytes      = 8 << 20 // 8 MiB — keep vision payloads bounded
 	telegramCaptionMax = 1024
-)
-
-var (
-	mdImageRe = regexp.MustCompile(`!\[[^\]]*]\((https?://[^)\s]+)\)`)
-	bareURLRe = regexp.MustCompile(`https?://[^\s<>"']+`)
 )
 
 // downloadPhotoAsDataURL fetches the largest Telegram photo as a data: URL for vision APIs.
@@ -73,69 +67,6 @@ func downloadPhotoAsDataURL(ctx context.Context, b *bot.Bot, photos []models.Pho
 	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data), nil
 }
 
-// extractImageURLs pulls markdown images and bare http(s) image URLs out of text.
-// Remaining text is returned with those URLs removed.
-func extractImageURLs(text string) (urls []string, rest string) {
-	seen := map[string]struct{}{}
-	add := func(u string) {
-		u = strings.TrimRight(u, ".,);]")
-		if u == "" {
-			return
-		}
-		if _, ok := seen[u]; ok {
-			return
-		}
-		if !looksLikeImageURL(u) {
-			return
-		}
-		seen[u] = struct{}{}
-		urls = append(urls, u)
-	}
-
-	rest = mdImageRe.ReplaceAllStringFunc(text, func(m string) string {
-		sub := mdImageRe.FindStringSubmatch(m)
-		if len(sub) == 2 {
-			u := strings.TrimRight(sub[1], ".,);]")
-			if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
-				if _, ok := seen[u]; !ok {
-					seen[u] = struct{}{}
-					urls = append(urls, u)
-				}
-			}
-		}
-		return ""
-	})
-	rest = bareURLRe.ReplaceAllStringFunc(rest, func(u string) string {
-		if looksLikeImageURL(u) {
-			add(u)
-			return ""
-		}
-		return u
-	})
-	rest = strings.TrimSpace(rest)
-	return urls, rest
-}
-
-func looksLikeImageURL(u string) bool {
-	lower := strings.ToLower(strings.TrimRight(u, ".,);]"))
-	if strings.HasPrefix(lower, "data:image/") {
-		return true
-	}
-	if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
-		return false
-	}
-	path := lower
-	if i := strings.IndexAny(path, "?#"); i >= 0 {
-		path = path[:i]
-	}
-	for _, ext := range []string{".jpg", ".jpeg", ".png", ".gif", ".webp"} {
-		if strings.HasSuffix(path, ext) {
-			return true
-		}
-	}
-	return false
-}
-
 func clipCaption(s string) string {
 	s = strings.TrimSpace(s)
 	if utf8.RuneCountInString(s) <= telegramCaptionMax {
@@ -147,7 +78,7 @@ func clipCaption(s string) string {
 
 // sendReply sends text and any image URLs found in it (or explicit PhotoURL).
 func (c *Channel) sendReply(ctx context.Context, b *bot.Bot, chatID int64, threadID int, text string, extraPhoto string) error {
-	urls, rest := extractImageURLs(text)
+	urls, rest := channel.ExtractImageURLs(text)
 	if extra := strings.TrimSpace(extraPhoto); extra != "" {
 		urls = append([]string{extra}, urls...)
 	}

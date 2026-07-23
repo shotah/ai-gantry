@@ -36,7 +36,7 @@ does exactly that — nothing else.
 
 - Web dashboard, gateway, REST/WS API, pairing flows
 - Multi-agent / multi-provider / model fallback chains
-- Channels beyond Telegram + Discord + stdio (Signal/Slack planned; see todo.md)
+- Channels beyond Telegram + Discord + Slack + stdio (Signal planned; see todo.md)
 - Built-in search/workspace tools (those are MCP binaries)
 - Vector DB / embedding service
 - In-process sandboxing / risk profiles (the container is the sandbox;
@@ -57,7 +57,7 @@ Everything is env or a mount. Boot is fail-fast: missing required env → exit 1
 | Area | Vars |
 | --- | --- |
 | LLM | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (required) |
-| Channel | `CHANNEL` (`telegram`\|`discord`\|`stdio`); token + allowlist when telegram/discord |
+| Channel | `CHANNEL` (`telegram`\|`discord`\|`slack`\|`stdio`); tokens + allowlist per channel |
 | Mounts | `PERSONA_DIR`, `DATA_DIR`, `MCP_MANIFEST` |
 | Bounds | `HISTORY_MAX_MESSAGES`, `HISTORY_MAX_TOKENS`, `TOOL_RESULT_MAX_CHARS`, `TOOL_MAX_ITERATIONS` |
 | Memory | `MEMORY_ENABLED`, `MEMORY_BACKEND` (`builtin`\|`mcp:<name>`), `MEMORY_CONSOLIDATE_MINUTES` |

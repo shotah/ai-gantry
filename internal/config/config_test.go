@@ -130,6 +130,37 @@ func TestLoad_InvalidChannel(t *testing.T) {
 	}
 }
 
+func TestLoad_SlackRequiresTokensAndAllowlist(t *testing.T) {
+	setRequiredLLM(t)
+	t.Setenv("CHANNEL", "slack")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "SLACK_BOT_TOKEN") {
+		t.Fatalf("%v", err)
+	}
+	t.Setenv("SLACK_BOT_TOKEN", "xoxb-1")
+	_, err = config.Load()
+	if err == nil || !strings.Contains(err.Error(), "SLACK_APP_TOKEN") {
+		t.Fatalf("%v", err)
+	}
+	t.Setenv("SLACK_APP_TOKEN", "xapp-1")
+	_, err = config.Load()
+	if err == nil || !strings.Contains(err.Error(), "SLACK_ALLOWED_USERS") {
+		t.Fatalf("%v", err)
+	}
+	t.Setenv("SLACK_ALLOWED_USERS", "U1, U2")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Channel != config.ChannelSlack || cfg.SlackAllowedUsers[1] != "U2" {
+		t.Fatalf("%+v", cfg)
+	}
+}
+
 func TestLoad_DiscordRequiresTokenAndAllowlist(t *testing.T) {
 	setRequiredLLM(t)
 	t.Setenv("CHANNEL", "discord")

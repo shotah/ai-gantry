@@ -14,6 +14,7 @@ import (
 const (
 	ChannelTelegram = "telegram"
 	ChannelDiscord  = "discord"
+	ChannelSlack    = "slack"
 	ChannelStdio    = "stdio"
 )
 
@@ -29,6 +30,10 @@ type Config struct {
 
 	DiscordBotToken     string   `env:"DISCORD_BOT_TOKEN"`
 	DiscordAllowedUsers []string `env:"DISCORD_ALLOWED_USERS" envSeparator:","`
+
+	SlackBotToken     string   `env:"SLACK_BOT_TOKEN"` // xoxb-
+	SlackAppToken     string   `env:"SLACK_APP_TOKEN"` // xapp- (Socket Mode)
+	SlackAllowedUsers []string `env:"SLACK_ALLOWED_USERS" envSeparator:","`
 
 	Channel     string `env:"CHANNEL" envDefault:"telegram"`
 	PersonaDir  string `env:"PERSONA_DIR" envDefault:"/persona"`
@@ -77,9 +82,9 @@ func (c *Config) Validate() error {
 	c.MemoryBackend = strings.TrimSpace(c.MemoryBackend)
 
 	switch c.Channel {
-	case ChannelTelegram, ChannelDiscord, ChannelStdio:
+	case ChannelTelegram, ChannelDiscord, ChannelSlack, ChannelStdio:
 	default:
-		return fmt.Errorf("CHANNEL: must be %q, %q, or %q, got %q", ChannelTelegram, ChannelDiscord, ChannelStdio, c.Channel)
+		return fmt.Errorf("CHANNEL: must be telegram|discord|slack|stdio, got %q", c.Channel)
 	}
 
 	if c.Channel == ChannelTelegram {
@@ -105,6 +110,26 @@ func (c *Config) Validate() error {
 		}
 		if n == 0 {
 			return fmt.Errorf("DISCORD_ALLOWED_USERS: required when CHANNEL=discord (comma-separated snowflake user ids)")
+		}
+	}
+
+	if c.Channel == ChannelSlack {
+		if strings.TrimSpace(c.SlackBotToken) == "" {
+			return fmt.Errorf("SLACK_BOT_TOKEN: required when CHANNEL=slack (xoxb-…)")
+		}
+		if strings.TrimSpace(c.SlackAppToken) == "" {
+			return fmt.Errorf("SLACK_APP_TOKEN: required when CHANNEL=slack (xapp-… Socket Mode)")
+		}
+		n := 0
+		for i, id := range c.SlackAllowedUsers {
+			id = strings.TrimSpace(id)
+			c.SlackAllowedUsers[i] = id
+			if id != "" {
+				n++
+			}
+		}
+		if n == 0 {
+			return fmt.Errorf("SLACK_ALLOWED_USERS: required when CHANNEL=slack (comma-separated user ids)")
 		}
 	}
 

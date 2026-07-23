@@ -25,7 +25,7 @@ DISCORD_ALLOWED_USERS=123456789012345678   # comma-separated snowflakes
 6. `gantry run` (or compose). Message the bot in DM: `hi`, `/status`, `/new`,
    `/tools`.
 
-## Behaviour (v1)
+## Behaviour
 
 | | |
 | --- | --- |
@@ -33,8 +33,8 @@ DISCORD_ALLOWED_USERS=123456789012345678   # comma-separated snowflakes
 | Auth | Allowlist by user snowflake — others are logged and dropped |
 | Commands | Same text commands as Telegram (`/new`, `/status`, `/tools`) |
 | Cron push | DMs allowlisted users via stored DM channel id |
-| Streaming | Not yet (full reply per message; edits are phase 2) |
-| Attachments | Not yet (phase 2) |
+| Streaming | Opt-in `STREAM_REPLIES=true` — send placeholder, then edit in place |
+| Attachments | Image attachments → vision; reply markdown/`https` images as embeds; `data:` as file upload |
 
 ## Notes
 
