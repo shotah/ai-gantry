@@ -28,6 +28,7 @@ const (
 type Message struct {
 	Role       Role
 	Content    string
+	ImageURLs  []string   // RoleUser vision parts (https or data:image…;base64,…)
 	ToolCallID string     // RoleTool
 	ToolCalls  []ToolCall // RoleAssistant (model-requested calls)
 }
@@ -149,7 +150,25 @@ func toParam(m Message) (openai.ChatCompletionMessageParamUnion, error) {
 	case RoleSystem:
 		return openai.SystemMessage(m.Content), nil
 	case RoleUser:
-		return openai.UserMessage(m.Content), nil
+		if len(m.ImageURLs) == 0 {
+			return openai.UserMessage(m.Content), nil
+		}
+		parts := make([]openai.ChatCompletionContentPartUnionParam, 0, 1+len(m.ImageURLs))
+		text := m.Content
+		if text == "" {
+			text = "[photo]"
+		}
+		parts = append(parts, openai.TextContentPart(text))
+		for _, u := range m.ImageURLs {
+			u = strings.TrimSpace(u)
+			if u == "" {
+				continue
+			}
+			parts = append(parts, openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
+				URL: u,
+			}))
+		}
+		return openai.UserMessage(parts), nil
 	case RoleAssistant:
 		if len(m.ToolCalls) == 0 {
 			return openai.AssistantMessage(m.Content), nil

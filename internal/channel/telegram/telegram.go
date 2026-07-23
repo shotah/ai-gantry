@@ -121,7 +121,20 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 
 		text := strings.TrimSpace(msg.Text)
 		if text == "" {
-			return // ignore non-text (stickers, etc.) for now
+			text = strings.TrimSpace(msg.Caption)
+		}
+		images, err := inboundImages(ctx, b, msg)
+		if err != nil {
+			c.log.Error("telegram photo download failed", "err", err)
+			_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:          msg.Chat.ID,
+				MessageThreadID: msg.MessageThreadID,
+				Text:            "sorry — couldn't download that photo",
+			})
+			return
+		}
+		if text == "" && len(images) == 0 {
+			return // ignore stickers / empty updates
 		}
 
 		sessionID := sessionKey(msg.Chat.ID, userID, msg.MessageThreadID)
@@ -141,6 +154,7 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 			ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
 			ThreadID:  msg.MessageThreadID,
 			Text:      text,
+			Images:    images,
 		})
 		if err != nil {
 			c.log.Error("telegram handler error", "err", err, "session_id", sessionID)
@@ -152,12 +166,23 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 			return
 		}
 		if stream != nil && stream.Started() {
-			if err := stream.Finish(ctx, reply); err != nil {
+			urls, rest := extractImageURLs(reply)
+			if err := stream.Finish(ctx, rest); err != nil {
 				c.log.Warn("telegram stream finish failed; falling back to send", "err", err)
 				if reply != "" {
-					if err := c.sendChunks(ctx, b, msg.Chat.ID, msg.MessageThreadID, reply); err != nil {
+					if err := c.sendReply(ctx, b, msg.Chat.ID, msg.MessageThreadID, reply, ""); err != nil {
 						c.log.Error("telegram send failed", "err", err, "session_id", sessionID)
 					}
+				}
+				return
+			}
+			for _, u := range urls {
+				if _, err := b.SendPhoto(ctx, &bot.SendPhotoParams{
+					ChatID:          msg.Chat.ID,
+					MessageThreadID: msg.MessageThreadID,
+					Photo:           &models.InputFileString{Data: u},
+				}); err != nil {
+					c.log.Error("telegram sendPhoto failed", "err", err, "session_id", sessionID)
 				}
 			}
 			return
@@ -165,7 +190,7 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 		if reply == "" {
 			return
 		}
-		if err := c.sendChunks(ctx, b, msg.Chat.ID, msg.MessageThreadID, reply); err != nil {
+		if err := c.sendReply(ctx, b, msg.Chat.ID, msg.MessageThreadID, reply, ""); err != nil {
 			c.log.Error("telegram send failed", "err", err, "session_id", sessionID)
 		}
 	}
@@ -224,7 +249,7 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 	if err != nil {
 		return fmt.Errorf("telegram: push bot: %w", err)
 	}
-	return c.sendChunks(ctx, b, chatID, msg.ThreadID, msg.Text)
+	return c.sendReply(ctx, b, chatID, msg.ThreadID, msg.Text, msg.PhotoURL)
 }
 
 func resolveChatID(msg channel.Outbound) (int64, error) {

@@ -30,6 +30,15 @@ func newAPIMock(t *testing.T) *apiMock {
 	t.Helper()
 	m := &apiMock{token: testBotToken, calls: map[string]int{}}
 	m.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// File downloads use /file/bot<token>/<path>
+		if strings.HasPrefix(r.URL.Path, "/file/bot"+testBotToken+"/") {
+			m.mu.Lock()
+			m.calls["fileDownload"]++
+			m.mu.Unlock()
+			w.Header().Set("Content-Type", "image/jpeg")
+			_, _ = w.Write([]byte{0xff, 0xd8, 0xff, 0xd9}) // minimal JPEG
+			return
+		}
 		method := strings.TrimPrefix(r.URL.Path, "/bot"+testBotToken+"/")
 		m.mu.Lock()
 		m.calls[method]++
@@ -47,6 +56,10 @@ func newAPIMock(t *testing.T) *apiMock {
 			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":1,"date":1,"chat":{"id":1,"type":"private"}}}`))
 		case "editMessageText":
 			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":1,"date":1,"chat":{"id":1,"type":"private"},"text":"edited"}}`))
+		case "sendPhoto":
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":2,"date":1,"chat":{"id":1,"type":"private"}}}`))
+		case "getFile":
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"file_id":"pic","file_unique_id":"u","file_path":"photos/pic.jpg"}}`))
 		default:
 			t.Errorf("unexpected method %q", method)
 			_, _ = w.Write([]byte(`{"ok":false,"error_code":404,"description":"unknown"}`))
@@ -248,5 +261,56 @@ func TestNew_MissingToken(t *testing.T) {
 	_, err := New(Config{AllowedUsers: []int64{1}})
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestMakeHandler_PhotoInboundAndSendPhotoReply(t *testing.T) {
+	api := newAPIMock(t)
+	ch := testChannel(t)
+	b := testBot(t, api.srv.URL)
+
+	var got channel.Message
+	handler := ch.makeHandler(func(_ context.Context, msg channel.Message) (string, error) {
+		got = msg
+		return `nice ![x](https://cdn.example.com/out.png)`, nil
+	})
+
+	handler(context.Background(), b, &models.Update{
+		Message: &models.Message{
+			ID:      9,
+			Caption: "what is this?",
+			Photo: []models.PhotoSize{
+				{FileID: "small", Width: 10, Height: 10, FileSize: 10},
+				{FileID: "pic", Width: 100, Height: 100, FileSize: 100},
+			},
+			Chat: models.Chat{ID: 99, Type: "private"},
+			From: &models.User{ID: 42, Username: "chris"},
+		},
+	})
+
+	if got.Text != "what is this?" || len(got.Images) != 1 {
+		t.Fatalf("got %+v", got)
+	}
+	if !strings.HasPrefix(got.Images[0].URL, "data:image/jpeg;base64,") {
+		t.Fatalf("image url=%q", got.Images[0].URL)
+	}
+	if api.count("getFile") < 1 || api.count("fileDownload") < 1 {
+		t.Fatal("expected photo download")
+	}
+	if api.count("sendPhoto") < 1 {
+		t.Fatal("expected sendPhoto for reply image")
+	}
+}
+
+func TestSendReply_PhotoURL(t *testing.T) {
+	api := newAPIMock(t)
+	ch := testChannel(t)
+	b := testBot(t, api.srv.URL)
+	err := ch.sendReply(context.Background(), b, 1, 0, "caption text", "https://cdn.example.com/x.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if api.count("sendPhoto") < 1 {
+		t.Fatal("sendPhoto")
 	}
 }

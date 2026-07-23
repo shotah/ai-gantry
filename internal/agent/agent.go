@@ -118,8 +118,12 @@ func (a *Agent) personaText() string {
 // Handle is a channel.Handler: assemble prompt, call model (with tools), return reply.
 func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error) {
 	text := strings.TrimSpace(msg.Text)
-	if text == "" {
+	if text == "" && len(msg.Images) == 0 {
 		return "", nil
+	}
+	storeText := text
+	if storeText == "" {
+		storeText = "[photo]"
 	}
 
 	// Bind cron_* tools to this chat/session for scheduling.
@@ -156,8 +160,12 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			Content: p,
 		})
 	}
+	hydrateQuery := text
+	if hydrateQuery == "" {
+		hydrateQuery = storeText
+	}
 	if a.memory != nil {
-		entries, err := a.memory.Hydrate(ctx, text, 30)
+		entries, err := a.memory.Hydrate(ctx, hydrateQuery, 30)
 		if err != nil {
 			a.log.Warn("memory hydrate failed", "err", err)
 		} else if block := memory.FormatHydration(entries); block != "" {
@@ -181,10 +189,16 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			Content: h.Content,
 		})
 	}
-	messages = append(messages, provider.Message{
+	userMsg := provider.Message{
 		Role:    provider.RoleUser,
-		Content: text,
-	})
+		Content: storeText,
+	}
+	for _, img := range msg.Images {
+		if u := strings.TrimSpace(img.URL); u != "" {
+			userMsg.ImageURLs = append(userMsg.ImageURLs, u)
+		}
+	}
+	messages = append(messages, userMsg)
 
 	var toolDefs []provider.ToolDef
 	if a.tools != nil {
@@ -204,7 +218,7 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 	}
 
 	if err := a.sessions.Append(ctx, msg.SessionID,
-		session.Message{Role: session.RoleUser, Content: text},
+		session.Message{Role: session.RoleUser, Content: storeText},
 		session.Message{Role: session.RoleAssistant, Content: reply},
 	); err != nil {
 		return "", err

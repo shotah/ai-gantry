@@ -42,14 +42,11 @@ does exactly that — nothing else.
 - In-process sandboxing / risk profiles (the container is the sandbox;
   Telegram allowlist is the gate)
 
-## Planned (post daily-drive)
+## Shipped milestones
 
-| Milestone | Feature |
-| --- | --- |
-| **6** | Cron / scheduled turns — shipped; see [cron.md](cron.md) |
-| **7** | Streaming replies — shipped; set `STREAM_REPLIES=true` |
-
-See [root readme §11](../readme.md#11-todo--build-order) for checklists.
+M0–M7 are done (scaffold → talk → Telegram → MCP → memory → hardening → cron →
+stream). Full checklist: [milestones.md](milestones.md). Cron details:
+[cron.md](cron.md). Streaming: set `STREAM_REPLIES=true`.
 
 ## Configuration contract
 
@@ -141,6 +138,7 @@ recalled rows. Contradictions should be surfaced to the user, not obeyed.
 | SIGTERM / Interrupt | Stop channel → drain in-flight turn → close MCP → close DB |
 | Logs | JSON `slog` on stderr (`docker logs`) |
 | Chat cmds | `/new`, `/status`, `/tools` (SIGHUP reloads persona on unix) |
+| Photos | Telegram inbound → multimodal user turn; outbound `SendPhoto` for image URLs in reply |
 
 No port is opened by the gantry, ever.
 

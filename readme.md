@@ -30,9 +30,9 @@ mounts. No dashboard, no config UI, no open ports — ever.
 - 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
   not an endpoint
 
-> **Status: daily-drivable.** Milestones 0–7 shipped; Tim cutover validated on
-> Gemini 3.5 Flash + Telegram. Open polish: [todo.md](todo.md). Templates:
-> [examples/](examples/).
+> **Status: in production.** Tim runs on gantry (Gemini 3.5 Flash + Telegram +
+> MCP). Templates: [examples/](examples/). Open follow-ups: [todo.md](todo.md).
+> Build history: [docs/milestones.md](docs/milestones.md).
 
 ### Why it feels fast
 
@@ -85,23 +85,21 @@ it that small. Scaffold mounts from templates:
 make init   # or: gantry init  → deploy/persona + deploy/mcp.toml + .env.example
 ```
 
-Canonical templates: **[examples/](examples/)**. Remaining cutover notes:
-**[todo.md](todo.md)**. Deeper docs: **[docs/](docs/)**.
+Canonical templates: **[examples/](examples/)**. Deeper docs: **[docs/](docs/)**.
+Open follow-ups: **[todo.md](todo.md)**.
 
 ## 1. Problem statement
 
-ZeroClaw gives us a good runtime kernel (Telegram loop, tool host, memory,
-context management) but it is drifting toward a multi-agent platform: multiple
-providers, multiple agents, dashboards, console features, config UI. Our
-deployment model is the opposite:
+Platform agent stacks drift toward multi-agent products: multiple providers,
+dashboards, console features, config UI. Our deployment model is the opposite:
 
 ```text
 container = persona + model + MCP set + memory volume
 ```
 
 Want another LLM or persona? Spin up another container. No in-process routing,
-no dashboard, no manual config surface. This project replaces the ZeroClaw
-binary with a kernel we own that does exactly that and nothing else.
+no dashboard, no manual config surface — a kernel that does exactly that and
+nothing else.
 
 ## 2. Design principles
 
@@ -224,7 +222,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `TOOL_MAX_ITERATIONS` | no | `20` |
 | `TOOL_SCHEMA_MAX_TOKENS` | no | `0` (log estimate only; `>0` = hard fail if over) |
 | `MEMORY_ENABLED` | no | `true` |
-| `MEMORY_BACKEND` | no | `builtin` (or `mcp:<server-name>`, see §12.3) |
+| `MEMORY_BACKEND` | no | `builtin` (or `mcp:<server-name>`, see §7 / §10) |
 | `MEMORY_CONSOLIDATE_MINUTES` | no | `30` (`0` = off; builtin backend only) |
 | `CRON_ENABLED` | no | `true` |
 | `CRON_TZ` | no | `UTC` (IANA, e.g. `America/Los_Angeles`) |
@@ -309,7 +307,7 @@ Bounding rules:
 
 - Hard cap `HISTORY_MAX_MESSAGES`; drop oldest turns past `HISTORY_MAX_TOKENS`.
   Token counts are chars/4 **estimates** and are labeled as such everywhere
-  they surface (logs, `/status`) — see §12.2. Persona + last N turns are
+  they surface (logs, `/status`) — see §10. Persona + last N turns are
   always protected.
 - When history is trimmed, dropped turns fold into a persistent per-session
   `summary` paragraph via the same LLM (one string — not a framework). The
@@ -357,9 +355,8 @@ The model gets three built-in tools (the only non-MCP tools in the gantry):
 - `memory_recall(query)` — FTS5 + recency-ranked
 - `memory_forget(id | query)` — hard requirement; memory must be correctable
 
-Auto-save is **off by default**. ZeroClaw taught us auto-saved hallucinations
-(wrong emails) are worse than no memory. The model stores deliberately; the
-consolidator promotes.
+Auto-save is **off by default**. Auto-saved hallucinations (wrong emails) are
+worse than no memory. The model stores deliberately; the consolidator promotes.
 
 ### 7.3 Consolidation (the Google idea)
 
@@ -408,6 +405,8 @@ contradictions get surfaced, not obeyed.
 - `gantry version` — build info
 - Logs: JSON `slog` to stderr; `docker logs` is the console.
 - Telegram/stdio `/new` — session reset; `/status` — uptime/model/history/tools; `/tools` — prefixed catalog; unix `SIGHUP` reloads persona.
+- Telegram photos: inbound → vision (Gemini/OpenAI-compat); outbound `SendPhoto` when the
+  reply includes a markdown image or `*.png`/`*.jpg`/… URL (caption = remaining text).
 - Dev: `make build|test|lint|run|ci|check`; `make install-hooks` for pre-commit
   (autofix + lint + test; same shape as go-garmin).
 
@@ -428,107 +427,7 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
   `VERSION`, tags, and pushes; `.github/workflows/release.yml` runs GoReleaser
   on `v*` tags (same flow as the other shotah MCP repos).
 
-## 10. Migration path from tim/ZeroClaw
-
-Operator wrapper notes live in the Tim compose repo (`docker_open_claw` /
-`DEPLOY_PATH` layout). Kernel-side checklist:
-
-1. **Persona** — copy workspace markdown → `PERSONA_DIR` (`/persona`). Prefer
-   `gantry init` then merge your SOUL/USER/… over the examples.
-2. **MCP binaries** — keep as stdio processes in `mcp.toml`. Prefer MCP-native
-   filters (`--tools` / `--tool-tier` on Workspace & go-garmin) **plus** gantry
-   `tools` / `exclude` allowlists so Flash is not fed ~150 schemas.
-3. **Env** — `.env` keys map ~1:1 (`GEMINI_API_KEY`→`LLM_API_KEY`, etc.). Point
-   `DEPLOY_PATH` / compose mounts at the new persona + manifest + data volume.
-4. **Memory does not migrate** — ZeroClaw hybrid memory stays behind. Start
-   clean; persona files carry identity; the consolidator rebuilds the rest.
-5. **Side-by-side** — second Telegram bot token (and allowlist) while Tim still
-   runs on the old service; cut DNS/users over when trusted, then retire ZeroClaw.
-6. **Gone on purpose** — no `gws` shell helper, no busybox toolbox in the image,
-   no gateway/dashboard/pairing. Capabilities are MCP binaries or they are out.
-
-## 11. TODO — build order
-
-### Milestone 0 — scaffold
-
-- [x] New repo `ai-gantry`, Go module, `cmd/gantry` + `internal/` skeleton
-- [x] `golangci-lint` config, CI (vet/lint/test), MIT/Apache license
-- [x] `Dockerfile` (multi-stage, distroless/static final, CGO off), `compose.yml` sample
-- [x] `internal/config`: env struct, fail-fast validation, unit tests
-
-### Milestone 1 — talk (no tools)
-
-- [x] `internal/provider`: OpenAI-compat chat client (base URL/key/model), streaming optional
-- [x] `internal/persona`: load + concat `/persona/*.md` (fixed order, missing-file tolerant)
-- [x] `internal/channel/stdio`: dev REPL channel
-- [x] `internal/agent`: minimal loop (prompt → model → reply), no tools yet
-- [x] Milestone test: chat with persona via `docker run -it`
-
-### Milestone 2 — Telegram
-
-- [x] `internal/channel/telegram`: long-poll, allowlist, typing indicator, message splitting (4096 chars)
-- [x] `/new` and `/status` commands
-- [x] `internal/session`: SQLite-backed bounded history, token estimate, trim rules
-- [x] Milestone test: daily-drivable chat bot in a container
-
-### Milestone 3 — MCP host (the point of the project)
-
-- [x] `internal/mcp`: manifest parse, spawn via official go-sdk, eager tool listing
-- [x] Tool call execution + per-result truncation + iteration cap
-- [x] Supervisor: restart with backoff, stderr → slog, boot-time hard fail if a manifest server can't start
-- [x] Tool-name collision handling (prefix with server name as `{server}__{tool}`)
-- [ ] Milestone test: google-workspace-mcp-go + strava-mcp end-to-end from Telegram
-  (unit/in-memory SDK covered; live tool binaries are a deploy-time check)
-
-### Milestone 4 — memory
-
-- [x] `Memory` interface (store/recall/forget + hydrate) so backends are swappable (§12.3)
-- [x] `internal/memory`: builtin backend — schema, WAL, FTS5, migrations (embedded SQL)
-- [x] `MEMORY_BACKEND=mcp:<name>` adapter: route the three tools + hydration to a manifest server
-- [x] Built-in tools: `memory_store` / `memory_recall` / `memory_forget`
-- [x] Hydration block in prompt assembly (cap ~30 rows, persona precedence rule in system prompt)
-- [x] Consolidation timer job (cheap pass, bounded batch, `0` disables)
-- [x] `sqlite3`-friendly docs: how to inspect/fix memory by hand ([docs/memory.md](docs/memory.md))
-- [x] Milestone test: store→recall across `/new`; consolidation dedupes; `memory_forget` works
-
-### Milestone 5 — hardening & cutover
-
-- [x] `gantry status` healthcheck + heartbeat row
-- [x] Rolling session summary (context compression v2)
-- [x] Graceful shutdown (finish in-flight turn, kill MCP children)
-- [x] Load test: fat tool dumps don't blow context (assert bounded prompt size)
-- [ ] Side-by-side deploy next to ZeroClaw tim; compare a week of use
-- [ ] Retire ZeroClaw service; pin gantry release tags
-
-### Milestone 6 — cron / scheduled turns
-
-Proactive jobs are **kernel work**: fire time → run the normal agent loop
-(tools/MCP allowed) → **push the reply on Telegram** (no inbound user message).
-Pure-MCP cron cannot deliver outbound chat by itself.
-
-- [x] `internal/cron`: SQLite `job` rows (one-shot + simple schedules), timezone via env (`CRON_TZ`)
-- [x] Builtin tools: `cron_schedule` / `cron_list` / `cron_cancel` (same shape as memory tools)
-- [x] Ticker/wake loop: due jobs → synthetic user prompt → `agent.Handle` → channel **push**
-- [x] Channel outbound: Telegram `SendMessage` to the job's chat/user (allowlisted); stdio prints
-- [x] Job delivery metadata: bind to session/chat from the scheduling turn (or explicit target)
-- [x] Caps: max active jobs, skip/overlap policy if a run is still in flight
-- [x] Docs: examples (“remind me at 5pm…”, daily standup digest) + `sqlite3` inspect ([docs/cron.md](docs/cron.md))
-- [x] Milestone test: schedule → fire → Telegram/stdio receives agent reply; cancel works
-
-### Milestone 7 — streaming replies to Telegram
-
-Streaming **to the user** is channel-layer work (edit the Telegram message as
-model tokens arrive). Distinct from MCP servers streaming tool results into the
-gantry.
-
-- [x] Provider: streaming `CompleteStream` (OpenAI-compat SSE / chunk API)
-- [x] Agent: stream final-text path (tool-call chunks skip onText; tools still work)
-- [x] Telegram: send placeholder → `editMessageText` throttle (rate gap + 4096 clip)
-- [x] Stdio: optional token stream to stdout (keep JSON logs on stderr)
-- [x] Config knob (`STREAM_REPLIES=false` default until you opt in)
-- [x] Milestone test: stream deltas to ReplyWriter; Telegram finish falls back to send on edit failure
-
-## 12. Decisions (was: open questions)
+## 10. Decisions
 
 Locked choices are summarized here; full rationale and rejected alternatives
 live in **[docs/choices.md](docs/choices.md)**.

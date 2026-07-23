@@ -8,9 +8,17 @@ type Message struct {
 	SessionID string
 	UserID    string
 	Text      string
+	// Images are vision inputs for this turn (data: URLs or https).
+	// Not persisted in session history — only the Text (or "[photo]") is stored.
+	Images []Image
 	// Optional delivery hints (set by telegram; used when scheduling cron jobs).
 	ChatID   string
 	ThreadID int
+}
+
+// Image is one picture attached to an inbound message.
+type Image struct {
+	URL string // https://… or data:image/…;base64,…
 }
 
 // Outbound is a proactive push (cron) not tied to an inbound update.
@@ -20,6 +28,8 @@ type Outbound struct {
 	ChatID    string
 	ThreadID  int
 	Text      string
+	// PhotoURL, when set, is sent via SendPhoto (Telegram) in addition to Text.
+	PhotoURL string
 }
 
 // Handler processes one inbound message and returns reply text.
