@@ -16,8 +16,8 @@
 > positions tools. The frame does nothing by itself; the tools do everything.
 
 **A personal agent you can actually own** — one static Go binary, one persona,
-one model, MCP tools you choose, Telegram that only dials *out*. No dashboard.
-No config UI. **No open ports. Ever.**
+one model, MCP tools you choose, chat that only dials *out* (Telegram or
+Discord). No dashboard. No config UI. **No open ports. Ever.**
 
 ```text
 docker pull  →  mount persona + mcp.toml  →  message your bot
@@ -45,6 +45,9 @@ and **MCP as the only plugin surface** — not another multi-agent platform.
 **Pick something else** (OpenClaw-style stacks, LangGraph apps, SaaS agents)
 when you need a web UI, team workspace, multi-agent routing, or pairing flows.
 We deliberately don't build those.
+
+**Chat:** Telegram (default) or Discord — both outbound-only + allowlist. See
+[docs/discord.md](docs/discord.md). Slack/Signal next ([todo.md](todo.md)).
 
 ### Why it stays fast
 
@@ -141,7 +144,7 @@ nothing else.
 
 - Web dashboard, gateway, REST/WS API, pairing
 - Multi-agent, multi-provider, model routing/fallback chains
-- WhatsApp/SMS/Discord (channel interface exists; only Telegram + stdio ship)
+- WhatsApp/SMS (channel interface exists; Telegram + Discord + stdio ship)
 - Built-in web search, built-in workspace tools (those are MCP binaries)
 - Vector database service (see memory design — SQLite is the store)
 - Sandboxing/risk-profile machinery (the container IS the sandbox; we run
@@ -228,7 +231,9 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `LLM_MODEL` | yes | `gemini-3.5-flash` |
 | `TELEGRAM_BOT_TOKEN` | yes (telegram) | — |
 | `TELEGRAM_ALLOWED_USERS` | yes (telegram) | `123456789,987654321` (numeric IDs; **allowlist only — no pairing**) |
-| `CHANNEL` | no | `telegram` (or `stdio` for dev) |
+| `DISCORD_BOT_TOKEN` | yes (discord) | — |
+| `DISCORD_ALLOWED_USERS` | yes (discord) | snowflake user IDs; **allowlist only** — see [docs/discord.md](docs/discord.md) |
+| `CHANNEL` | no | `telegram` (default), `discord`, or `stdio` |
 | `PERSONA_DIR` | no | `/persona` |
 | `DATA_DIR` | no | `/data` |
 | `MCP_MANIFEST` | no | `/etc/gantry/mcp.toml` |

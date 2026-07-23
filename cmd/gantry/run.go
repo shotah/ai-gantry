@@ -13,6 +13,7 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/channel/discord"
 	"github.com/shotah/ai-gantry/internal/channel/stdio"
 	"github.com/shotah/ai-gantry/internal/channel/telegram"
 	"github.com/shotah/ai-gantry/internal/config"
@@ -246,6 +247,13 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 		return telegram.New(telegram.Config{
 			Token:         cfg.TelegramBotToken,
 			AllowedUsers:  cfg.TelegramAllowedUsers,
+			Logger:        logger,
+			StreamReplies: cfg.StreamReplies,
+		})
+	case config.ChannelDiscord:
+		return discord.New(discord.Config{
+			Token:         cfg.DiscordBotToken,
+			AllowedUsers:  cfg.DiscordAllowedUsers,
 			Logger:        logger,
 			StreamReplies: cfg.StreamReplies,
 		})

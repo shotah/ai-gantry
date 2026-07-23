@@ -119,7 +119,7 @@ func TestLoad_MissingRequiredLLM(t *testing.T) {
 
 func TestLoad_InvalidChannel(t *testing.T) {
 	setRequiredLLM(t)
-	t.Setenv("CHANNEL", "discord")
+	t.Setenv("CHANNEL", "irc")
 
 	_, err := config.Load()
 	if err == nil {
@@ -127,6 +127,40 @@ func TestLoad_InvalidChannel(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "CHANNEL") {
 		t.Errorf("error = %q, want CHANNEL mention", err)
+	}
+}
+
+func TestLoad_DiscordRequiresTokenAndAllowlist(t *testing.T) {
+	setRequiredLLM(t)
+	t.Setenv("CHANNEL", "discord")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("Load: expected error for missing discord fields")
+	}
+	if !strings.Contains(err.Error(), "DISCORD_BOT_TOKEN") {
+		t.Errorf("error = %q, want DISCORD_BOT_TOKEN mention", err)
+	}
+
+	t.Setenv("DISCORD_BOT_TOKEN", "tok")
+	_, err = config.Load()
+	if err == nil {
+		t.Fatal("Load: expected error for missing allowlist")
+	}
+	if !strings.Contains(err.Error(), "DISCORD_ALLOWED_USERS") {
+		t.Errorf("error = %q, want DISCORD_ALLOWED_USERS mention", err)
+	}
+
+	t.Setenv("DISCORD_ALLOWED_USERS", "111, 222")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Channel != config.ChannelDiscord {
+		t.Fatalf("Channel = %q", cfg.Channel)
+	}
+	if len(cfg.DiscordAllowedUsers) != 2 || cfg.DiscordAllowedUsers[0] != "111" || cfg.DiscordAllowedUsers[1] != "222" {
+		t.Fatalf("DiscordAllowedUsers = %v", cfg.DiscordAllowedUsers)
 	}
 }
 

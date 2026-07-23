@@ -13,6 +13,7 @@ import (
 // Channel names accepted by CHANNEL.
 const (
 	ChannelTelegram = "telegram"
+	ChannelDiscord  = "discord"
 	ChannelStdio    = "stdio"
 )
 
@@ -25,6 +26,9 @@ type Config struct {
 
 	TelegramBotToken     string  `env:"TELEGRAM_BOT_TOKEN"`
 	TelegramAllowedUsers []int64 `env:"TELEGRAM_ALLOWED_USERS" envSeparator:","`
+
+	DiscordBotToken     string   `env:"DISCORD_BOT_TOKEN"`
+	DiscordAllowedUsers []string `env:"DISCORD_ALLOWED_USERS" envSeparator:","`
 
 	Channel     string `env:"CHANNEL" envDefault:"telegram"`
 	PersonaDir  string `env:"PERSONA_DIR" envDefault:"/persona"`
@@ -73,9 +77,9 @@ func (c *Config) Validate() error {
 	c.MemoryBackend = strings.TrimSpace(c.MemoryBackend)
 
 	switch c.Channel {
-	case ChannelTelegram, ChannelStdio:
+	case ChannelTelegram, ChannelDiscord, ChannelStdio:
 	default:
-		return fmt.Errorf("CHANNEL: must be %q or %q, got %q", ChannelTelegram, ChannelStdio, c.Channel)
+		return fmt.Errorf("CHANNEL: must be %q, %q, or %q, got %q", ChannelTelegram, ChannelDiscord, ChannelStdio, c.Channel)
 	}
 
 	if c.Channel == ChannelTelegram {
@@ -84,6 +88,23 @@ func (c *Config) Validate() error {
 		}
 		if len(c.TelegramAllowedUsers) == 0 {
 			return fmt.Errorf("TELEGRAM_ALLOWED_USERS: required when CHANNEL=telegram (comma-separated user ids)")
+		}
+	}
+
+	if c.Channel == ChannelDiscord {
+		if strings.TrimSpace(c.DiscordBotToken) == "" {
+			return fmt.Errorf("DISCORD_BOT_TOKEN: required when CHANNEL=discord")
+		}
+		n := 0
+		for i, id := range c.DiscordAllowedUsers {
+			id = strings.TrimSpace(id)
+			c.DiscordAllowedUsers[i] = id
+			if id != "" {
+				n++
+			}
+		}
+		if n == 0 {
+			return fmt.Errorf("DISCORD_ALLOWED_USERS: required when CHANNEL=discord (comma-separated snowflake user ids)")
 		}
 	}
 

@@ -140,10 +140,11 @@ Consistency beats inventing a second release culture.
 
 ## Channels
 
-**Pick:** Telegram + stdio only in-tree.
+**Pick:** Telegram (default) + Discord + stdio in-tree.
 
-`channel.Channel` exists so Discord/etc. could appear later without rewriting
-the agent — but shipping them is a non-goal until someone needs them.
+`CHANNEL=discord` is the same contract as Telegram (outbound realtime, allowlist,
+no ports). DMs only for Discord v1. Slack/Signal are next — see [todo.md](../todo.md).
+Setup: [discord.md](discord.md).
 
 ## Related
 

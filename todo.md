@@ -4,48 +4,81 @@ Open follow-ups only. Shipped build order: [docs/milestones.md](docs/milestones.
 
 ---
 
-## Channel: Signal (alongside Telegram)
+## Channels — what unlocks adoption next
 
-### Decision (locked)
+Telegram is a **real limiter** for many people (friends/work don’t live there), but
+it’s also one of the *best* bot APIs for our model. The selling point isn’t
+“more chat apps” — it’s **official bot identity + outbound-only + allowlist**,
+same contract as today. Prefer platforms that fit that; don’t break “no ports.”
 
-**One channel per container, chosen explicitly via `CHANNEL=`.**
-Default stays **`telegram`** (real Bot API, single-process, already shipped).
-Signal is **opt-in only**: `CHANNEL=signal` + Signal env — never auto-selected.
+### Fit matrix (bot-friendly first)
 
-In-tree behind that switch — **not MCP, not a plugin loader.**
+| Priority | Channel | Official bot? | Inbound ports? | Fit for gantry | Why |
+| --- | --- | --- | --- | --- | --- |
+| **Shipped** | **Telegram** | Yes (Bot API) | No (long-poll) | ★★★★★ | Default; simplest personal bot story |
+| **P0 — next** | **Discord** | Yes (Bot + Gateway WS) | No (outbound WSS) | ★★★★★ | Huge audience; DM + guild; Go libs mature (`discordgo` / `disgo`); same security story |
+| **P1** | **Slack** | Yes (Socket Mode) | No (outbound WS) | ★★★★ | Workplace unlock; needs app + bot + app-level tokens; slightly more ops |
+| **P2** | **Signal** | **No** (signal-cli) | No* (sidecar) | ★★★ | Privacy crowd wants it; *not* a Bot API; multi-container; maintenance tax |
+| Later | Matrix | Yes (Client-Server) | No (outbound sync) | ★★★ | Self-host crowd; more protocol surface |
+| Avoid v1 | WhatsApp / Teams / Messenger | “Bot” via Cloud/Graph | **Usually yes** (webhooks) | ★ | Breaks no-ports; keep as documented non-goals |
+| Avoid | iMessage / SMS as primary | No clean bot | Mixed | ★ | Carrier/webhook hell (see legacy `local-agent/docs`) |
 
-| Option | Verdict |
-| --- | --- |
-| **Default = telegram** | **Yes.** Explicit bot identity, long-poll, no sidecar. Unset/`CHANNEL=telegram` keeps today’s behavior. |
-| **Opt-in = signal** | **Yes.** Operator must set `CHANNEL=signal` and Signal-required env (fail-fast). |
-| **MCP channel** | **No.** MCP is model-invoked tools. The channel *drives* the agent loop, owns allowlist auth, session IDs, streaming `ReplyWriter`, and cron `Push`. |
-| **Plugin / dynamic load** | **No.** `newChannel` already constructs only the selected transport. |
-| **Both in one container** | **No.** One channel loop. Want both messengers → two containers. |
+\*Signal path needs a **signal-cli sidecar**; kernel stays closed, but deploy is no longer one process.
 
-Signal has **no official Bot API**. Path is a **signal-cli** sidecar (JSON-RPC/REST) over localhost — multi-container by design, unlike Telegram.
+### Decision (locked for all new channels)
 
-### Implementation checklist
+- One active channel per container: `CHANNEL=telegram|discord|slack|signal|stdio`
+- Default stays **`telegram`**
+- In-tree `internal/channel/<name>` — **not MCP, not plugins**
+- Allowlist only (Discord user snowflakes / Slack user IDs / Signal UUIDs)
+- DMs first; guild/channel mentions are phase 2 where relevant
 
-- [ ] **Spike** signal-cli JSON-RPC (or `signal-cli-rest-api`) receive + send from a throwaway Go client; document link/register flow (QR as secondary device preferred over registering a new number in CI).
-- [ ] **Config** — add `signal` to allowed `CHANNEL` values; **default remains `telegram`**. When `CHANNEL=signal`, require e.g. `SIGNAL_CLI_URL` (or socket), `SIGNAL_ACCOUNT` (+E.164 / UUID), `SIGNAL_ALLOWED_USERS` (UUID and/or phone; allowlist only). Telegram env ignored unless `CHANNEL=telegram`.
-- [ ] **`internal/channel/signal`** — implement `Channel` + `Pusher`; map sessions `signal:<account>:<peer>`; ignore non-allowlisted senders (log + drop).
-- [ ] **Wire-up** — `newChannel` case + config validation (mirror Telegram fail-fast; no Signal code path unless chosen).
-- [ ] **Text path** — inbound DM → `agent.Handle` → reply; outbound cron `Push` to allowlisted peer.
-- [ ] **Commands** — `/new`, `/status`, `/tools` parity with Telegram/stdio.
-- [ ] **Attachments (phase 2)** — inbound image → `channel.Image` / vision; outbound image if signal-cli attachment send is reliable.
-- [ ] **Streaming (phase 2)** — Signal has no Telegram-style edit-in-place; either buffer full reply or send progressive messages (decide + document; default off).
-- [ ] **Compose example** — sidecar service + volume for signal-cli data; kernel stays no inbound ports; document that Signal path is multi-container.
-- [ ] **Docs** — readme env table, design non-goals update (“Telegram + Signal + stdio”), security (linked device = full account power; allowlist still required), LOCAL_AGENT notes.
-- [ ] **Tests** — unit tests with fake JSON-RPC/SSE; no live Signal in CI.
-- [ ] **Ops runbook** — link device, rotate, what breaks when signal-cli lags Signal-server, backup of signal-cli datadir.
+### Next biggest selling point
 
-### Explicit non-goals (Signal v1)
+**Discord** — not Signal. Same architectural fit as Telegram (outbound realtime),
+but meets people where they already chat (friends, gaming, indie communities).
+Market as: *“Personal MCP agent on Discord or Telegram — still zero inbound ports.”*
 
-- Changing the default away from Telegram
-- Running Telegram + Signal in one process
-- Pairing / open inbox (allowlist only)
-- Groups as primary UX (DMs first; groups later if needed)
-- Auto-detecting Signal from env when `CHANNEL` is unset
+Slack is the workplace twin of that pitch. Signal is a **privacy** unlock, not
+the volume unlock — keep it, but after Discord (and probably Slack).
+
+### Docs callouts (when implementing)
+
+- [ ] Readme “Who this is for” + non-goals: list **shipped / planned / won’t** channels with the matrix above (one short table)
+- [ ] Hello path: keep Telegram as fastest; add “Discord variant” compose snippet once P0 ships
+
+### P0 — Discord checklist
+
+- [x] Spike Gateway + DM receive/send in Go; Message Content intent; allowlist by user ID
+- [x] Config: `CHANNEL=discord`, `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS` (snowflakes)
+- [x] `internal/channel/discord` — `Channel` + `Pusher`; sessions `discord:<channel>:<user>`
+- [x] Text cmds: `/new` `/status` `/tools` parity (agent-parsed; DMs)
+- [ ] Attachments phase 2 (vision in / images out)
+- [ ] Streaming phase 2 (edit message or buffer — Discord edits exist)
+- [x] Tests with fake gateway; docs + example `.env` ([docs/discord.md](docs/discord.md))
+- [ ] Readme “Who this is for” channel matrix callout (optional polish)
+
+### P1 — Slack checklist (Socket Mode only)
+
+- [ ] Spike Socket Mode (no Request URL); bot token + app-level token
+- [ ] Config: `CHANNEL=slack`, `SLACK_*` tokens, `SLACK_ALLOWED_USERS`
+- [ ] DMs / app_mention; thread → session id; cron `Push`
+- [ ] Docs: Socket Mode required (HTTP Events API = non-goal — needs inbound URL)
+
+### P2 — Signal checklist (after Discord)
+
+- [ ] Spike signal-cli JSON-RPC receive/send; prefer link-as-secondary-device
+- [ ] Config: `CHANNEL=signal`, `SIGNAL_CLI_URL`, `SIGNAL_ACCOUNT`, `SIGNAL_ALLOWED_USERS`
+- [ ] `internal/channel/signal` + sidecar compose example
+- [ ] Commands parity; attachments/streaming phase 2; ops runbook (cli expiry culture)
+- [ ] Explicit: not a Bot API — document trust model (linked device ≈ full account)
+
+### Explicit non-goals (channels)
+
+- Opening inbound ports for WhatsApp Cloud / Teams webhooks
+- Multi-channel in one process
+- Pairing / open inbox
+- Replacing Telegram as default
 
 ---
 
