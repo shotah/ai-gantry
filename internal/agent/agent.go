@@ -251,6 +251,13 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 		if err != nil {
 			return "", err
 		}
+		if res.FinishReason == "length" {
+			a.log.Warn("model hit max_tokens (reply may be truncated)",
+				"finish_reason", res.FinishReason,
+				"chars", len(res.Content),
+				"iteration", iter+1,
+			)
+		}
 		if len(res.ToolCalls) == 0 {
 			if res.Content == "" {
 				return "", fmt.Errorf("agent: empty model reply")

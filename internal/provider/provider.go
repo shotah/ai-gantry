@@ -63,8 +63,9 @@ type Request struct {
 
 // Result is the model response (text and/or tool calls).
 type Result struct {
-	Content   string
-	ToolCalls []ToolCall
+	Content      string
+	ToolCalls    []ToolCall
+	FinishReason string // stop|length|tool_calls|… when the provider reports it
 }
 
 // Completer generates a chat completion result.
@@ -145,8 +146,12 @@ func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
 		return nil, fmt.Errorf("provider: empty choices in response")
 	}
 
-	msg := resp.Choices[0].Message
-	out := &Result{Content: strings.TrimSpace(msg.Content)}
+	choice := resp.Choices[0]
+	msg := choice.Message
+	out := &Result{
+		Content:      strings.TrimSpace(msg.Content),
+		FinishReason: choice.FinishReason,
+	}
 	for _, tc := range msg.ToolCalls {
 		switch v := tc.AsAny().(type) {
 		case openai.ChatCompletionMessageFunctionToolCall:

@@ -109,13 +109,18 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onText func(fu
 	sawTool := false
 	var full strings.Builder
 	var tools streamToolBuf
+	var finishReason string
 
 	for stream.Next() {
 		chunk := stream.Current()
 		if len(chunk.Choices) == 0 {
 			continue
 		}
-		delta := chunk.Choices[0].Delta
+		choice := chunk.Choices[0]
+		if choice.FinishReason != "" {
+			finishReason = choice.FinishReason
+		}
+		delta := choice.Delta
 		if len(delta.ToolCalls) > 0 {
 			sawTool = true
 			for _, tc := range delta.ToolCalls {
@@ -138,7 +143,7 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onText func(fu
 		return nil, fmt.Errorf("provider: chat stream: %w", err)
 	}
 
-	out := &Result{Content: strings.TrimSpace(full.String())}
+	out := &Result{Content: strings.TrimSpace(full.String()), FinishReason: finishReason}
 	for _, acc := range tools.order {
 		if acc == nil || (acc.name == "" && acc.id == "") {
 			continue

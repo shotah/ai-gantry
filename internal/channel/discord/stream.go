@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 	"unicode/utf8"
 )
@@ -42,12 +43,20 @@ func (s *editStream) Update(_ context.Context, fullText string) error {
 	display = clipRunes(display, s.chunkMax)
 	s.pending = display
 	if s.msgID == "" {
-		return s.sendInitial(display)
+		if err := s.sendInitial(display); err != nil {
+			slog.Warn("discord stream update skipped", "err", err)
+			return nil
+		}
+		return nil
 	}
 	if time.Since(s.lastEdit) < streamMinEditGap {
 		return nil
 	}
-	return s.edit(display)
+	if err := s.edit(display); err != nil {
+		slog.Warn("discord stream update skipped", "err", err)
+		return nil
+	}
+	return nil
 }
 
 func (s *editStream) Finish(ctx context.Context, final string) error {

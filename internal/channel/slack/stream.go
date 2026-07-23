@@ -3,6 +3,7 @@ package slack
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 	"unicode/utf8"
 
@@ -45,12 +46,20 @@ func (s *editStream) Update(ctx context.Context, fullText string) error {
 	display = clipRunes(display, s.chunkMax)
 	s.pending = display
 	if s.ts == "" {
-		return s.sendInitial(ctx, display)
+		if err := s.sendInitial(ctx, display); err != nil {
+			slog.Warn("slack stream update skipped", "err", err)
+			return nil
+		}
+		return nil
 	}
 	if time.Since(s.lastEdit) < streamMinEditGap {
 		return nil
 	}
-	return s.edit(ctx, display)
+	if err := s.edit(ctx, display); err != nil {
+		slog.Warn("slack stream update skipped", "err", err)
+		return nil
+	}
+	return nil
 }
 
 func (s *editStream) Finish(ctx context.Context, final string) error {

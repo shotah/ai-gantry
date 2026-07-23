@@ -97,7 +97,7 @@ func TestEditStream_Retries429OnEdit(t *testing.T) {
 	}
 }
 
-func TestEditStream_UpdateSoftSkipsExhausted429(t *testing.T) {
+func TestEditStream_UpdateSoftSkipsEditErrors(t *testing.T) {
 	prevBase, prevAttempts := retryBase, retryAttempts
 	retryBase = time.Millisecond
 	retryAttempts = 1
@@ -112,8 +112,8 @@ func TestEditStream_UpdateSoftSkipsExhausted429(t *testing.T) {
 		case "sendMessage":
 			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":7,"date":1,"chat":{"id":1,"type":"private"}}}`))
 		case "editMessageText":
-			w.WriteHeader(http.StatusTooManyRequests)
-			_, _ = w.Write([]byte(`{"ok":false,"error_code":429,"description":"Too Many Requests","parameters":{"retry_after":0}}`))
+			// Non-429 failure (timeouts / bad request / etc.) must not abort the LLM.
+			_, _ = w.Write([]byte(`{"ok":false,"error_code":400,"description":"Bad Request: message is not modified"}`))
 		default:
 			t.Errorf("unexpected method %q", method)
 		}
@@ -130,7 +130,6 @@ func TestEditStream_UpdateSoftSkipsExhausted429(t *testing.T) {
 		t.Fatalf("initial: %v", err)
 	}
 	stream.lastEdit = time.Now().Add(-streamMinEditGap)
-	// Exhausted 429 must not abort the stream (nil keeps the LLM going).
 	if err := stream.Update(ctx, "hello world"); err != nil {
 		t.Fatalf("expected soft-skip, got %v", err)
 	}

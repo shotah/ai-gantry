@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 	"unicode/utf8"
 
@@ -47,11 +48,10 @@ func (s *editStream) Update(ctx context.Context, fullText string) error {
 	s.pending = display
 	if s.msgID == 0 {
 		if err := s.sendInitial(ctx, display); err != nil {
-			// Don't abort the LLM stream on exhausted 429; next Update retries.
-			if isTooManyRequests(err) {
-				return nil
-			}
-			return err
+			// Never abort the LLM mid-stream for channel send/edit failures;
+			// Finish (or a later Update) retries the final text.
+			slog.Warn("telegram stream update skipped", "err", err)
+			return nil
 		}
 		return nil
 	}
@@ -59,10 +59,8 @@ func (s *editStream) Update(ctx context.Context, fullText string) error {
 		return nil
 	}
 	if err := s.edit(ctx, display); err != nil {
-		if isTooManyRequests(err) {
-			return nil
-		}
-		return err
+		slog.Warn("telegram stream update skipped", "err", err)
+		return nil
 	}
 	return nil
 }

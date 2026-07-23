@@ -45,6 +45,9 @@ func TestClient_CompleteStream(t *testing.T) {
 	if got.Content != "Hello" {
 		t.Fatalf("Content=%q", got.Content)
 	}
+	if got.FinishReason != "stop" {
+		t.Fatalf("FinishReason=%q, want stop", got.FinishReason)
+	}
 	if len(seen) < 2 || seen[len(seen)-1] != "Hello" {
 		t.Fatalf("seen=%v", seen)
 	}
