@@ -6,7 +6,9 @@
 
 <p align="center">
   <a href="https://github.com/shotah/ai-gantry/actions/workflows/ci.yml"><img src="https://github.com/shotah/ai-gantry/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/shotah/ai-gantry/actions/workflows/docker.yml"><img src="https://github.com/shotah/ai-gantry/actions/workflows/docker.yml/badge.svg" alt="Docker"></a>
   <a href="https://github.com/shotah/ai-gantry/actions/workflows/ci.yml"><img src="https://github.com/shotah/ai-gantry/raw/gh-pages/badges/coverage.svg" alt="Coverage"></a>
+  <a href="https://hub.docker.com/r/shotah/ai-gantry"><img src="https://img.shields.io/docker/v/shotah/ai-gantry?logo=docker&label=docker%20hub" alt="Docker Hub"></a>
 </p>
 
 > **gantry** *(n.)* — the rigid frame in a CNC machine or crane that holds and
@@ -63,6 +65,16 @@ make run                  # CHANNEL=stdio by default
 
 ### B) Telegram bot (kernel image)
 
+Published distroless image (no local build):
+
+```bash
+docker pull shotah/ai-gantry:latest   # or :edge / :0.x.y
+# mounts: persona/, mcp.toml, data/ — see examples/personal-assistant/
+```
+
+Also on GHCR: `ghcr.io/shotah/ai-gantry`. Tags: `latest` + semver on `v*` releases,
+`edge` on every `main` push.
+
 Tim-shaped compose under **[examples/personal-assistant/](examples/personal-assistant/)**:
 
 ```bash
@@ -76,9 +88,10 @@ docker compose -f examples/personal-assistant/compose.yml up -d --build
 docker compose -f examples/personal-assistant/compose.yml logs -f
 ```
 
-Kernel-only image: chat + memory + cron work immediately. MCP servers in
-`mcp.toml` stay commented until you bake static tool binaries into an image
-(or use path C).
+Or skip the build: set `image: shotah/ai-gantry:latest` (and drop `build:`) in
+that compose file. Kernel-only: chat + memory + cron work immediately. MCP
+servers in `mcp.toml` stay commented until you bake static tool binaries (or
+use path C).
 
 ### C) Full Tim (tools baked in)
 

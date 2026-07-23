@@ -1,0 +1,44 @@
+# Sync GitHub readme.md → Docker Hub full description + short blurb.
+# Secrets: DOCKER_HUB_USERNAME, DOCKER_HUB_ACCESS_TOKEN
+name: dockerhub-description
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - readme.md
+      - README.md
+      - .github/workflows/dockerhub-description.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dockerhub:
+    name: Publish Hub README
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve readme path
+        id: readme
+        run: |
+          if [[ -f readme.md ]]; then
+            echo "path=./readme.md" >> "$GITHUB_OUTPUT"
+          elif [[ -f README.md ]]; then
+            echo "path=./README.md" >> "$GITHUB_OUTPUT"
+          else
+            echo "No readme.md / README.md found" >&2
+            exit 1
+          fi
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          repository: shotah/ai-gantry
+          readme-filepath: ${{ steps.readme.outputs.path }}
+          short-description: Distroless Go agent runtime — one persona, one model, MCP tools. Telegram default.
+          enable-url-completion: true

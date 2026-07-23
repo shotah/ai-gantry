@@ -58,7 +58,7 @@ help: ## Show available targets
 	@echo   make tidy           go mod tidy
 	@echo   make check          Autofix, lint, and test (matches pre-commit)
 	@echo   make ci             tidy fmt vet lint test build
-	@echo   make docker-build   Build image gantry:local
+	@echo   make docker-build   Build image gantry:local (Hub: shotah/ai-gantry)
 	@echo   make docker-stdio   Interactive stdio via compose
 	@echo   make version        Show VERSION file + next tag (dry-run)
 	@echo   make release        Bump tag, update VERSION, push (BUMP=patch^|minor^|major)

@@ -8,6 +8,9 @@
 
 services:
   gantry:
+    # Default: build from this repo. To use the published kernel instead:
+    #   image: shotah/ai-gantry:latest   # or :edge / :0.x.y
+    # and comment out the build: block.
     build:
       context: ../..
       args:
