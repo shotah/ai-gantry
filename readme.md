@@ -9,106 +9,100 @@
   <a href="https://github.com/shotah/ai-gantry/actions/workflows/docker.yml"><img src="https://github.com/shotah/ai-gantry/actions/workflows/docker.yml/badge.svg" alt="Docker"></a>
   <a href="https://github.com/shotah/ai-gantry/actions/workflows/ci.yml"><img src="https://github.com/shotah/ai-gantry/raw/gh-pages/badges/coverage.svg" alt="Coverage"></a>
   <a href="https://hub.docker.com/r/shotah/ai-gantry"><img src="https://img.shields.io/docker/v/shotah/ai-gantry?logo=docker&label=docker%20hub" alt="Docker Hub"></a>
+  <a href="https://hub.docker.com/r/shotah/ai-gantry"><img src="https://img.shields.io/docker/pulls/shotah/ai-gantry?logo=docker" alt="Docker pulls"></a>
 </p>
 
 > **gantry** *(n.)* — the rigid frame in a CNC machine or crane that holds and
 > positions tools. The frame does nothing by itself; the tools do everything.
 
-**ai-gantry** is a stupid-simple agent runtime: one static Go binary that runs
-**one persona** with **one model** and whatever **MCP tool binaries** you mount
-next to it. Built for distroless/static containers, configured entirely by env +
-mounts. No dashboard, no config UI, no open ports — ever.
+**A personal agent you can actually own** — one static Go binary, one persona,
+one model, MCP tools you choose, Telegram that only dials *out*. No dashboard.
+No config UI. **No open ports. Ever.**
 
-- 🧱 **MCP-first** — capabilities are external binaries over stdio; the frame
-  hosts tools, it does not implement them
-- 1️⃣ **1:1 by design** — one container = one persona + one model + one memory
-  volume; want another brain, run another container
-- ⚙️ **Env/compose is the config plane** — secrets via env, structure via two
-  read-only mounts (persona markdown + MCP manifest); boot is fail-fast
-- 🧠 **Inspectable memory** — typed SQLite rows you can read and delete with
-  `sqlite3`, consolidated on a timer; no embeddings, no vector service
-- ⚡ **Built for speed** — tiny Go binary, curated tool schemas, no embedding
-  round-trips; Gemini 3 tool loops work (thought signatures preserved)
-- 📴 **Outbound only** — Telegram long-polls out; healthcheck is an exit code,
-  not an endpoint
+```text
+docker pull  →  mount persona + mcp.toml  →  message your bot
+```
 
-> **Status: in production.** The [`local-agent/`](local-agent/) appliance runs on
-> gantry (Gemini 3.5 Flash + Telegram + MCP). Templates: [examples/](examples/).
-> Open follow-ups: [todo.md](todo.md). Build history: [docs/milestones.md](docs/milestones.md).
+Chat, memory, and cron work with **zero MCP servers**. Tools are optional
+binaries you bake or mount later — the frame stays out of the way.
 
-### Why it feels fast
+| | **Kernel** (`shotah/ai-gantry`) | **Appliance** ([`local-agent/`](local-agent/)) |
+| --- | --- | --- |
+| What | Distroless runtime only | Kernel + Workspace / Strava / Garmin / Cast / YT Music / search |
+| Image | [Docker Hub](https://hub.docker.com/r/shotah/ai-gantry) / GHCR | Build locally (`gantry-local-agent:local`) |
+| Start here if | You want a tiny host you control | You want a full life-stack assistant |
 
-Platform agent stacks pay a tax every turn: huge tool catalogs, embedding
-memory, dashboards, pairing, shell shims. Gantry refuses that tax.
+> **In production** on the appliance path (Gemini + Telegram + MCP). Not a
+> demo scaffold — a kernel with a real deploy story.
+
+### Who this is for
+
+You want a **self-hosted assistant** with a clear security story (outbound-only,
+allowlist, distroless), **inspectable memory** (`sqlite3` on a file you own),
+and **MCP as the only plugin surface** — not another multi-agent platform.
+
+**Pick gantry** when you want small, boring, and shippable.  
+**Pick something else** (OpenClaw-style stacks, LangGraph apps, SaaS agents)
+when you need a web UI, team workspace, multi-agent routing, or pairing flows.
+We deliberately don't build those.
+
+### Why it stays fast
+
+Platform stacks tax every turn: huge tool catalogs, embedding round-trips,
+gateways, dashboards. Gantry refuses that tax.
 
 | Lever | What we do | Why it matters |
 | --- | --- | --- |
-| Tool surface | `mcp.toml` filters + MCP `--tool-tier core` (e.g. Garmin ~10, not ~100) | Smaller schemas → lower TTFT, better tool picks on Flash |
-| Memory | SQLite + FTS5 in-process | No embedding API call before every reply |
-| Runtime | One static Go binary on distroless/static | No Node/Bun/gateway process sitting in the path |
-| Gemini 3 | Echo `thought_signature` on tool rounds (v0.0.3+) | Tool loops complete instead of 400’ing mid-turn |
+| Tool surface | Manifest filters + MCP `--tool-tier` | Smaller schemas → snappier Flash tool picks |
+| Memory | SQLite + FTS5 in-process | No embedding API before every reply |
+| Runtime | One static binary on distroless/static | No Node/Bun/gateway in the path |
+| Gemini 3 | Preserves `thought_signature` on tool rounds | Multi-step turns finish instead of 400’ing |
 
-Publish only the tools the persona needs. The frame stays out of the way; the
-model and MCP binaries do the work.
+---
 
-## Quick start
+## Hello in five minutes (no tools)
 
-Three ways to run — pick one.
-
-### A) Local REPL (dev)
-
-```bash
-make init                 # deploy/persona + deploy/mcp.toml + .env.example
-cp .env.example .env      # set LLM_API_KEY (and friends)
-make run                  # CHANNEL=stdio by default
-```
-
-### B) Telegram bot (kernel image)
-
-Published distroless image (no local build):
+You need: Docker, a [Gemini API key](https://aistudio.google.com/apikey), a
+Telegram bot token from [@BotFather](https://t.me/BotFather), and your numeric
+user id (e.g. [@userinfobot](https://t.me/userinfobot)).
 
 ```bash
-docker pull shotah/ai-gantry:latest   # or :edge / :0.x.y
-# mounts: persona/, mcp.toml, data/ — see examples/personal-assistant/
-```
-
-Also on GHCR: `ghcr.io/shotah/ai-gantry`. Tags: `latest` + semver on `v*` releases,
-`edge` on every `main` push.
-
-appliance-style compose under **[examples/personal-assistant/](examples/personal-assistant/)**:
-
-```bash
-make example-pa           # seed persona + .env
-# edit examples/personal-assistant/.env
-#   GEMINI_API_KEY=...
-#   TELEGRAM_BOT_TOKEN=...
-#   TELEGRAM_ALLOWED_USERS=123456789
+git clone https://github.com/shotah/ai-gantry.git && cd ai-gantry
+make example-pa
+# edit examples/personal-assistant/.env — GEMINI_API_KEY, TELEGRAM_BOT_TOKEN,
+# TELEGRAM_ALLOWED_USERS (numeric id)
 
 docker compose -f examples/personal-assistant/compose.yml up -d --build
 docker compose -f examples/personal-assistant/compose.yml logs -f
 ```
 
-Or skip the build: set `image: shotah/ai-gantry:latest` (and drop `build:`) in
-that compose file. Kernel-only: chat + memory + cron work immediately. MCP
-servers in `mcp.toml` stay commented until you bake static tool binaries (or
-use path C).
+Message the bot → `/status` → `/new`. Memory and cron work immediately; MCP
+servers stay commented until you want tools.
 
-### C) Full local-agent (tools baked in)
-
-Production personal assistant — Workspace, Strava, Garmin, Cast, YT Music,
-search, remote deploy. Lives in-tree:
-
-```bash
-cd local-agent
-make init && make build && make up
-```
-
-→ **[local-agent/](local-agent/)** (README + docs). Kernel-only path stays B / `shotah/ai-gantry`.
+Prefer the published image? Set `image: shotah/ai-gantry:latest` in that compose
+file and drop the `build:` block (`:edge` / `:0.x.y` also on Hub +
+`ghcr.io/shotah/ai-gantry`).
 
 ---
 
-Operator cookbook: **[examples/README.md](examples/README.md)**. Deeper docs:
-**[docs/](docs/)**. Open follow-ups: **[todo.md](todo.md)**.
+## Go further
+
+| Path | When | Command |
+| --- | --- | --- |
+| **A — REPL** | Hack on the binary locally | `make init && make run` (`CHANNEL=stdio`) |
+| **B — Kernel bot** | Telegram + Hub image, add MCP yourself | [Hello above](#hello-in-five-minutes-no-tools) · [examples/personal-assistant/](examples/personal-assistant/) |
+| **C — Appliance** | Full life stack + `make remote-deploy` | `cd local-agent && make init && make up` → [local-agent/](local-agent/) |
+
+Cookbook: **[examples/README.md](examples/README.md)**. Design / security /
+architecture: **[docs/](docs/)**. Follow-ups: **[todo.md](todo.md)**.
+
+---
+
+## Reference
+
+Deep contract below — principles, env table, memory, packaging. Skim if you
+already have a bot running; read before you grant MCP tools or expose an
+allowlist to friends.
 
 ## 1. Problem statement
 
@@ -402,7 +396,7 @@ current message, rendered as a compact block:
 ```text
 [memory]
 - (person) mom: prefers calls over texts
-- (preference) chris: coaching tone, no fluff
+- (preference) user: coaching tone, no fluff
 ```
 
 **Persona precedence is law**: anything in `/persona/USER.md` outranks memory;
