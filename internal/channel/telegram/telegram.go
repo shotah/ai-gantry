@@ -201,6 +201,7 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 			c.outbound.remember(chatID, msgID, threadID, text)
 		}
 		handleCtx = channel.WithReplyWriter(ctx, stream)
+		defer stream.stopFlusher()
 	}
 
 	reply, err := handle(handleCtx, msg)

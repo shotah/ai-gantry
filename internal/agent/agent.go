@@ -46,6 +46,9 @@ type Options struct {
 	StreamReplies bool // stream final text via channel.ReplyWriter when Completer is a Streamer
 	Logger        *slog.Logger
 	StartedAt     time.Time
+	// Location is the operator timezone for the per-turn temporal anchor (CRON_TZ).
+	Location *time.Location
+	TZName   string // IANA name for display (e.g. America/Los_Angeles)
 }
 
 // Agent runs the prompt → model → (tools) → reply loop.
@@ -61,6 +64,8 @@ type Agent struct {
 	streamReplies bool
 	log           *slog.Logger
 	startedAt     time.Time
+	loc           *time.Location
+	tzName        string
 }
 
 // New creates an Agent. Completer and Sessions are required.
@@ -83,6 +88,14 @@ func New(opts Options) (*Agent, error) {
 	if maxIters < 1 {
 		maxIters = 20
 	}
+	loc := opts.Location
+	if loc == nil {
+		loc = time.Local
+	}
+	tzName := strings.TrimSpace(opts.TZName)
+	if tzName == "" {
+		tzName = loc.String()
+	}
 	a := &Agent{
 		completer:     opts.Completer,
 		sessions:      opts.Sessions,
@@ -93,6 +106,8 @@ func New(opts Options) (*Agent, error) {
 		streamReplies: opts.StreamReplies,
 		log:           log,
 		startedAt:     started,
+		loc:           loc,
+		tzName:        tzName,
 	}
 	a.SetPersona(opts.Persona)
 	return a, nil
@@ -189,6 +204,11 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			Content: h.Content,
 		})
 	}
+	// Fresh each turn (not stored in history) so "what time is it?" tracks reality.
+	messages = append(messages, provider.Message{
+		Role:    provider.RoleSystem,
+		Content: temporalAnchor(time.Now().In(a.loc), a.tzName),
+	})
 	userMsg := provider.Message{
 		Role:    provider.RoleUser,
 		Content: storeText,

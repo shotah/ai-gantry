@@ -10,14 +10,19 @@ import (
 
 // Overridable for tests.
 var (
-	retryBase     = 500 * time.Millisecond
-	retryMaxWait  = 10 * time.Second
-	retryAttempts = 4 // total tries = 1 + retryAttempts
+	retryBase          = 500 * time.Millisecond
+	retryMaxWait       = 10 * time.Second
+	finishRetryMaxWait = 3 * time.Minute // Finish may wait out flood-control benches
+	retryAttempts      = 4               // total tries = 1 + retryAttempts
 )
 
 // doWith429Retry runs op, backing off on Telegram 429 (TooManyRequests).
 // Honors retry_after when present; otherwise uses exponential backoff.
 func doWith429Retry(ctx context.Context, op func() error) error {
+	return doWith429RetryMax(ctx, op, retryMaxWait)
+}
+
+func doWith429RetryMax(ctx context.Context, op func() error, maxWait time.Duration) error {
 	backoff := retryBase
 	var last error
 	for attempt := 0; attempt <= retryAttempts; attempt++ {
@@ -29,37 +34,54 @@ func doWith429Retry(ctx context.Context, op func() error) error {
 			return nil
 		}
 		last = err
-		wait, ok := retryWait(err, backoff)
-		if !ok || attempt == retryAttempts {
+		wait, ok := retryAfterDuration(err)
+		if !ok {
+			return err
+		}
+		if wait < backoff {
+			wait = backoff
+		}
+		if maxWait > 0 && wait > maxWait {
+			wait = maxWait
+		}
+		if attempt == retryAttempts {
 			return err
 		}
 		if err := sleepCtx(ctx, wait); err != nil {
 			return err
 		}
 		backoff *= 2
-		if backoff > retryMaxWait {
-			backoff = retryMaxWait
+		if maxWait > 0 && backoff > maxWait {
+			backoff = maxWait
 		}
 	}
 	return last
 }
 
 func retryWait(err error, backoff time.Duration) (time.Duration, bool) {
-	var tm *bot.TooManyRequestsError
-	if !errors.As(err, &tm) {
+	wait, ok := retryAfterDuration(err)
+	if !ok {
 		return 0, false
 	}
-	wait := backoff
-	if tm.RetryAfter > 0 {
-		wait = time.Duration(tm.RetryAfter) * time.Second
+	if wait < backoff {
+		wait = backoff
 	}
 	if wait > retryMaxWait {
 		wait = retryMaxWait
 	}
-	if wait < time.Millisecond {
-		wait = time.Millisecond
-	}
 	return wait, true
+}
+
+// retryAfterDuration returns Telegram's retry_after with no artificial cap.
+func retryAfterDuration(err error) (time.Duration, bool) {
+	var tm *bot.TooManyRequestsError
+	if !errors.As(err, &tm) {
+		return 0, false
+	}
+	if tm.RetryAfter > 0 {
+		return time.Duration(tm.RetryAfter) * time.Second, true
+	}
+	return retryBase, true
 }
 
 func isTooManyRequests(err error) bool {

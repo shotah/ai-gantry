@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/go-telegram/bot"
 
@@ -55,6 +56,10 @@ func TestChannel_Push(t *testing.T) {
 }
 
 func TestEditStream_UpdateFinish(t *testing.T) {
+	prev := streamFlushEvery
+	streamFlushEvery = 15 * time.Millisecond
+	t.Cleanup(func() { streamFlushEvery = prev })
+
 	m := newAPIMock(t)
 	b := testBot(t, m.srv.URL)
 	s := newEditStream(b, 1, 0, 100)
@@ -65,6 +70,7 @@ func TestEditStream_UpdateFinish(t *testing.T) {
 	if !s.Started() {
 		t.Fatal("started")
 	}
+	waitMsgID(t, s)
 	if err := s.Finish(ctx, "Hi there final"); err != nil {
 		t.Fatal(err)
 	}
@@ -82,11 +88,30 @@ func TestEditStream_UpdateFinish(t *testing.T) {
 	if err := s2.Update(ctx, "start"); err != nil {
 		t.Fatal(err)
 	}
+	waitMsgID(t, s2)
 	long := "abcdefghijklmnopqr" // > 8 runes → edit + extra SendMessage
 	if err := s2.Finish(ctx, long); err != nil {
 		t.Fatal(err)
 	}
 	if m2.count("sendMessage") < 2 {
 		t.Fatalf("expected overflow send, sendMessage=%d", m2.count("sendMessage"))
+	}
+}
+
+func waitMsgID(t *testing.T, s *editStream) {
+	t.Helper()
+	deadline := time.After(500 * time.Millisecond)
+	for {
+		s.mu.Lock()
+		id := s.msgID
+		s.mu.Unlock()
+		if id != 0 {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for stream message id")
+		case <-time.After(5 * time.Millisecond):
+		}
 	}
 }

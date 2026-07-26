@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
@@ -135,6 +136,8 @@ func TestAgent_Handle_MemoryHydration(t *testing.T) {
 }
 
 func TestAgent_Handle_PersonaAndHistory(t *testing.T) {
+	loc := time.FixedZone("test", -8*3600)
+	hist := newMemHistory()
 	var last provider.Request
 	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
 		last = req
@@ -143,8 +146,10 @@ func TestAgent_Handle_PersonaAndHistory(t *testing.T) {
 	a, err := agent.New(agent.Options{
 		Persona:   "you are tim",
 		Completer: fc,
-		Sessions:  newMemHistory(),
+		Sessions:  hist,
 		Model:     "test-model",
+		Location:  loc,
+		TZName:    "America/Los_Angeles",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -157,8 +162,25 @@ func TestAgent_Handle_PersonaAndHistory(t *testing.T) {
 	if reply != "hi back" {
 		t.Fatalf("reply = %q", reply)
 	}
-	if len(last.Messages) != 2 {
-		t.Fatalf("messages = %d, want 2", len(last.Messages))
+	// persona + temporal anchor + user
+	if len(last.Messages) != 3 {
+		t.Fatalf("messages = %d, want 3", len(last.Messages))
+	}
+	if !strings.Contains(last.Messages[1].Content, "[current time]") {
+		t.Fatalf("missing temporal anchor: %q", last.Messages[1].Content)
+	}
+	if !strings.Contains(last.Messages[1].Content, "America/Los_Angeles") {
+		t.Fatalf("temporal missing tz: %q", last.Messages[1].Content)
+	}
+	// Anchor must not be persisted into session history.
+	stored, err := hist.Messages(context.Background(), "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range stored {
+		if strings.Contains(m.Content, "[current time]") {
+			t.Fatalf("temporal anchor leaked into history: %+v", m)
+		}
 	}
 }
 

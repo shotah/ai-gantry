@@ -79,6 +79,9 @@ Gemini 3.5's ~1M window leaves headroom, but fat tool results still make
 answers worse without these caps. `/new` remains the hard **session** reset.
 
 Streaming replies (Telegram edit-in-place) are opt-in: `STREAM_REPLIES=true`.
+When enabled, gantry caches the model text and flushes to Telegram about once
+per second (so 429 flood-control does not stall the LLM or leave you with a
+silent half-message). The final reply is always written on finish.
 
 ### Reactions
 

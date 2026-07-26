@@ -185,6 +185,12 @@ func run() int {
 		return 1
 	}
 
+	tzLoc := time.UTC
+	if loc, err := time.LoadLocation(cfg.CronTZ); err == nil {
+		tzLoc = loc
+	} else {
+		logger.Warn("cron tz load failed; temporal anchor uses UTC", "tz", cfg.CronTZ, "err", err)
+	}
 	ag, err := agent.New(agent.Options{
 		Persona:       personaText,
 		Completer:     completer,
@@ -195,6 +201,8 @@ func run() int {
 		MaxToolIters:  cfg.ToolMaxIterations,
 		StreamReplies: cfg.StreamReplies,
 		Logger:        logger,
+		Location:      tzLoc,
+		TZName:        cfg.CronTZ,
 	})
 	if err != nil {
 		logger.Error("agent init failed", "err", err)
