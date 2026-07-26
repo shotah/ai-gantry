@@ -92,6 +92,23 @@ as one intent), then synthesizes a turn like
 No feature flag — if you don't want a reply, don't react. Clearing the reaction
 during the wait cancels it.
 
+### Rich inbound (tagged for the model)
+
+Beyond text/photos, Telegram extras are turned into tagged lines (not separate
+APIs):
+
+| User sends | Agent sees |
+| --- | --- |
+| Location / venue | `[location] lat=… lon=…` / `[venue] Name — address (…)` |
+| Contact | `[contact] Name, +phone` |
+| Document | `[document] file.pdf (mime) N bytes` (metadata only) |
+| Sticker | `[sticker] 🧗` (emoji when present) |
+| Forward | `[forwarded from @user]` + body |
+| Reply | `[reply to] <clip>` + body |
+| Reaction | `[reaction] 👍 on: <clip>` (see above) |
+
+Video, GIFs, and voice notes are ignored for now (no STT / no vision-video).
+
 ## Long-term memory
 
 gantry's memory is **structured SQLite** (typed rows + FTS5 keyword search —

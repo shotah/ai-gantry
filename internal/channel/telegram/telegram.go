@@ -132,10 +132,7 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 			return
 		}
 
-		text := strings.TrimSpace(msg.Text)
-		if text == "" {
-			text = strings.TrimSpace(msg.Caption)
-		}
+		text := composeInboundText(msg)
 		images, err := inboundImages(ctx, b, msg)
 		if err != nil {
 			c.log.Error("telegram photo download failed", "err", err)
@@ -147,7 +144,7 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 			return
 		}
 		if text == "" && len(images) == 0 {
-			return // ignore stickers / empty updates
+			return // ignore video/GIF/voice/empty
 		}
 
 		c.deliver(ctx, b, handle, channel.Message{

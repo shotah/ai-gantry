@@ -166,3 +166,18 @@ emoji lists. Not reacting is the mute button; LLM/persona decide the reply.
 - Feature flags / reply allowlists / emoji→category mapping
 - Group-chat vote tallies (`message_reaction_count`)
 - Pairing or open-inbox via reactions
+
+---
+
+## vFun — Telegram rich inbound (tagged)
+
+Pipe low-friction Telegram payloads into the agent as tagged text (same path as
+messages). Skip video/GIF/voice-without-STT.
+
+- [x] Location / venue → `[location]` / `[venue]`
+- [x] Contact → `[contact]`
+- [x] Document metadata → `[document]` (no PDF extract yet)
+- [x] Sticker emoji → `[sticker]`
+- [x] Forward + reply-to → `[forwarded from …]` / `[reply to] …`
+- [x] Tests + docs
+- [ ] (Later) voice → STT; live-location `edited_message`; text/* document body
