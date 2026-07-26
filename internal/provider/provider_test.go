@@ -89,6 +89,33 @@ func TestClient_Complete_MaxTokens(t *testing.T) {
 	}
 }
 
+func TestClient_Complete_ReasoningEffort(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if body["reasoning_effort"] != "none" {
+			t.Errorf("reasoning_effort = %v, want none", body["reasoning_effort"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "chatcmpl-re",
+			"choices": []map[string]any{
+				{"index": 0, "message": map[string]any{"role": "assistant", "content": "ok"}},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m").WithReasoningEffort("none")
+	if _, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestClient_Complete_ToolCall(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any

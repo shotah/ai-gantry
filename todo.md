@@ -181,3 +181,131 @@ messages). Skip video/GIF/voice-without-STT.
 - [x] Forward + reply-to → `[forwarded from …]` / `[reply to] …`
 - [x] Tests + docs
 - [ ] (Later) voice → STT; live-location `edited_message`; text/* document body
+
+---
+
+## Local Ubuntu + local model (binary / systemd)
+
+**Two install paths — pick one at setup** (net-new; no migration tooling):
+
+| Path | How it runs |
+| --- | --- |
+| **Docker** (existing) | compose / `make remote-deploy` |
+| **Local** (this section) | binary + systemd + local LLM |
+
+Same gantry binary and env contract either way. Docs describe both; choose one.
+
+### Library: almost nothing to change
+
+gantry already talks to **any OpenAI-compatible** endpoint via `LLM_BASE_URL` /
+`LLM_API_KEY` / `LLM_MODEL` (Ollama = `http://127.0.0.1:11434/v1`). Memory is
+SQLite + FTS5 — **no embeddings**, no vector service.
+
+| Piece | Local work |
+| --- | --- |
+| Provider / agent loop | None — point `LLM_*` at Ollama |
+| Embeddings | None — not used |
+| MCP tools / Telegram | None — same as Docker |
+| Repo deliverables | Docs + `gantry.service` + env example (packaging only) |
+
+Optional later (quality, not blockers): trim `mcp.toml` if 35B struggles with
+the full tool set; confirm Ollama/Qwen tool-calling quirks in practice.
+
+**Hardware (personal):** [SER10 MAX](https://www.bee-link.com/products/beelink-ser10-max-amd-pro-ryzen-ai-9-hx-470-openclaw)
+96GB — clean Ubuntu Server (wipe OEM/OpenClaw). **Model:**
+[Qwen3.5-35B-A3B](https://huggingface.co/collections/Qwen/qwen35) Q4/Q5 via Ollama.
+
+### Host prep (clean Ubuntu — before copying gantry)
+
+Do this on the box **before** scp’ing the binary / env / persona:
+
+```bash
+# 1) Refresh apt sources + bring the system current (do this first)
+sudo apt update
+sudo apt upgrade -y
+
+# 2) Basics for HTTPS / curl installers / clocks
+sudo apt install -y ca-certificates curl tzdata
+
+# 3) Install Ollama first (creates ollama.service), then enable + pull
+# https://ollama.com/download/linux
+curl -fsSL https://ollama.com/install.sh | sh
+sudo systemctl enable --now ollama
+# Ollama library uses name:tag — NOT HuggingFace "Qwen/Qwen3.5-35B-A3B"
+# https://ollama.com/library/qwen3.5
+ollama pull qwen3.5:35b
+# same weights family as HF Qwen3.5-35B-A3B (~24GB). Also: qwen3.5:35b-a3b
+
+# 4) Runtime user + empty tree
+sudo useradd --system --home /opt/gantry --shell /usr/sbin/nologin gantry
+sudo mkdir -p /opt/gantry/{data,persona}
+sudo chown -R gantry:gantry /opt/gantry
+```
+
+**Acceleration is the point of this box** — get the **Radeon 890M iGPU** into
+Ollama’s path (ROCm and/or Vulkan). That is *not* the same as dumping
+[Beelink’s SER10 Driver folder](https://dr.bee-link.cn/?dir=uploads%2FSER%2FSER10%2FDriver)
+onto Ubuntu. That portal is mostly **Windows** chipset/WiFi/audio packs; on a
+clean Ubuntu Server install, prefer kernel `amdgpu` + current Ollama AMD docs.
+Use Beelink ZIPs only if something basic is missing (e.g. WiFi) *and* they
+actually ship a Linux package — don’t install Windows `.exe`/`.inf` on Linux.
+
+**Linux GPU path (document what works on HX 470 / 890M):**
+
+1. Fresh kernel after `apt upgrade` (reboot). Prefer a recent Ubuntu/HWE kernel;
+   Strix-class iGPU + dynamic VRAM has bitten people on older kernels.
+2. BIOS: if Ollama won’t see the iGPU / tiny VRAM, try **fixed UMA frame buffer**
+   (e.g. large fixed size) instead of Auto — common fix on Ryzen AI 300 / 890M.
+3. Install latest Ollama; enable iGPU if logs say it was dropped, e.g.
+   `Environment=OLLAMA_IGPU_ENABLE=1` on `ollama.service` (see Ollama issues for
+   890M / gfx1150).
+4. Confirm GPU in `ollama ps` / logs (`library=ROCm` or `Vulkan`, not 100% CPU).
+5. **NPU (XDNA / “86 TOPS”)** is a separate stack — nice for other AI apps;
+   Ollama chat today is iGPU/CPU. Don’t block on NPU drivers for gantry.
+
+CPU+96GB remains a valid fallback while GPU accel is being sorted.
+
+**Not required for gantry itself:** Docker, Go, Python, sqlite apt, embeddings.
+
+**MCP tools (optional, later):** same static Go binaries as the Docker image
+(`google-workspace-mcp-go`, `strava-mcp`, `garmin`, `mcp-gemini-google-search`,
+`mcp-beam`, `youtube-go-mcp`) on `PATH` + secrets. Search MCP still needs a
+Gemini key. Fine to start with an empty / minimal `mcp.toml`.
+
+### Local layout (one tree)
+
+```text
+/opt/gantry/
+  gantry            # binary
+  gantry.env        # LLM_* → :11434/v1, Telegram, DATA_DIR=…
+  mcp.toml
+  persona/
+  data/             # gantry.db
+```
+
+systemd unit in repo → `/etc/systemd/system/gantry.service`
+(`WorkingDirectory=/opt/gantry`, `EnvironmentFile=…/gantry.env`,
+`Restart=always`, `After=`/`Requires=` `ollama.service`).
+
+### Checklist
+
+- [x] Clean Ubuntu Server (wipe OEM/OpenClaw)
+- [x] Host prep: `apt update` + `apt upgrade`, ca-certs/curl/tzdata, user + `/opt/gantry`
+- [x] **iGPU accel (tim / 192.168.1.39):** `OLLAMA_IGPU_ENABLE=1` → logs
+      `inference compute ... library=ROCm ... gfx1150 ... type=iGPU`; `ollama ps` →
+      `100% GPU`. Dedicated agent box (outbound OK; his to use).
+- [x] Pull Qwen3.5-35B via Ollama; iGPU confirmed (`100% GPU`)
+- [x] Docs: Docker vs local install — pick one (`local-agent/deploy/README.md`)
+- [x] Ship unit + `gantry.env` example under `local-agent/deploy/`
+- [x] `make remote-native-deploy` (fetch/sync/install/systemd) — like compose remote
+- [x] Memory/persona/secrets staged on `/opt/gantry` (scp migrate)
+- [ ] Cutover: stop Docker TIM → `make remote-native-deploy` → smoke chat + tools
+
+### Non-goals
+
+- Library provider rewrite / embeddings for local
+- Docker↔local migration tooling
+- Beelink/OpenClaw preinstalled OS
+- Treating Beelink’s Windows Driver ZIP as the Linux ROCm install
+- apt-installing MCP stacks (use static binaries like the image)
+- Blocking on NPU/XDNA for gantry chat

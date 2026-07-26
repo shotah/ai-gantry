@@ -24,6 +24,7 @@ ifeq ($(OS),Windows_NT)
   PERSONA_COPY := powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '$(PERSONA_DIR)' | Out-Null; Get-ChildItem '$(PERSONA_DIR)\*.example.md' | ForEach-Object { $$dest = Join-Path $$_.DirectoryName ($$_.Name.Replace('.example.md','.md')); if (-not (Test-Path $$dest)) { Copy-Item $$_.FullName $$dest; Write-Host ('Created ' + $$dest + ' — edit personal details (gitignored)') } else { Write-Host ($$dest + ' already exists (use make persona-force to overwrite)') } }"
   PERSONA_FORCE := powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '$(PERSONA_DIR)' | Out-Null; Get-ChildItem '$(PERSONA_DIR)\*.example.md' | ForEach-Object { $$dest = Join-Path $$_.DirectoryName ($$_.Name.Replace('.example.md','.md')); Copy-Item $$_.FullName $$dest -Force; Write-Host ('Overwrote ' + $$dest) }"
   REMOTE := powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remote.ps1
+  REMOTE_NATIVE := powershell -NoProfile -ExecutionPolicy Bypass -File scripts/remote-native.ps1
 else
   ENV_COPY := @if [ -f $(ENV_FILE) ]; then \
                 echo "$(ENV_FILE) already exists (use 'make env-force' to overwrite)"; \
@@ -49,13 +50,17 @@ else
 	  cp "$$f" "$$dest" && echo "Overwrote $$dest"; \
 	done
   REMOTE := bash scripts/remote.sh
+  REMOTE_NATIVE := bash scripts/remote-native.sh
 endif
 
 .PHONY: help env env-force dirs init persona persona-force build up down restart logs ps status shell clean \
         strava-auth garmin-auth google-auth google-mcp-import ytmusic-auth \
         garmin-sync strava-sync ytmusic-sync google-sync secrets-sync \
         remote-check remote-sync remote-up remote-down remote-restart remote-logs remote-ps remote-status \
-        remote-ssh remote-deploy
+        remote-ssh remote-deploy \
+        remote-native-env remote-native-check remote-native-fetch remote-native-sync remote-native-install \
+        remote-native-up remote-native-down remote-native-restart remote-native-logs remote-native-status \
+        remote-native-deploy
 
 help: ## Show available commands
 	@echo.
@@ -128,6 +133,22 @@ help: ## Show available commands
 	@echo     remote-ssh             Interactive SSH in DEPLOY_PATH
 	@echo     remote-ssh CMD='...'   Run one remote command in DEPLOY_PATH
 	@echo     remote-deploy          remote-sync + remote-up
+	@echo.
+	@echo   Native remote (binary + systemd + Ollama — no Docker)
+	@echo   ----------------------------------------------------
+	@echo     # DEPLOY_HOST=/opt/gantry box; optional NATIVE_DOCKER_HOST=old TIM
+	@echo     remote-native-env      Write deploy/gantry.env from .env (Ollama)
+	@echo     remote-native-check    SSH + ollama + gantry user
+	@echo     remote-native-fetch    Download gantry release (+ docker-cp tools)
+	@echo     remote-native-sync     Stage under /tmp/gantry-native on host
+	@echo     remote-native-install  sudo install.sh + enable unit
+	@echo     remote-native-up       systemctl start gantry
+	@echo     remote-native-down     systemctl stop gantry
+	@echo     remote-native-restart  systemctl restart gantry
+	@echo     remote-native-logs     journalctl -u gantry -f
+	@echo     remote-native-status   gantry status on host
+	@echo     remote-native-deploy   env + fetch + sync + install + start
+	@echo     deploy/README.md       Native layout + cutover notes
 	@echo.
 	@echo   Docs
 	@echo   ----
@@ -302,4 +323,41 @@ remote-ssh: ## SSH into server (cd DEPLOY_PATH). Extra args: make remote-ssh CMD
 remote-deploy: remote-sync remote-up ## Sync files then start on server
 	@echo.
 	@echo Deployed. Message your Telegram bot — allowlist is TELEGRAM_ALLOWED_USERS.
+
+# --- Native Ubuntu host (binary + systemd + Ollama; see deploy/README.md) ----
+
+remote-native-env: ## Write deploy/gantry.env from .env (Ollama LLM_*)
+	$(REMOTE_NATIVE) env
+
+remote-native-check: ## SSH + ollama + /opt/gantry probe
+	$(REMOTE_NATIVE) check
+
+remote-native-fetch: ## Download gantry release; optional docker-cp MCP tools
+	$(REMOTE_NATIVE) fetch
+
+remote-native-sync: ## Stage binary/env/unit under /tmp/gantry-native
+	$(REMOTE_NATIVE) sync
+
+remote-native-install: ## sudo install.sh + enable systemd unit
+	$(REMOTE_NATIVE) install
+
+remote-native-up: ## systemctl start gantry
+	$(REMOTE_NATIVE) up
+
+remote-native-down: ## systemctl stop gantry
+	$(REMOTE_NATIVE) down
+
+remote-native-restart: ## systemctl restart gantry
+	$(REMOTE_NATIVE) restart
+
+remote-native-logs: ## journalctl -u gantry -f
+	$(REMOTE_NATIVE) logs
+
+remote-native-status: ## gantry status on native host
+	$(REMOTE_NATIVE) status
+
+remote-native-deploy: ## env + fetch + sync + install + start
+	$(REMOTE_NATIVE) deploy
+	@echo.
+	@echo Native deploy done. Stop the old Docker TIM so only one bot polls Telegram.
 	@echo.

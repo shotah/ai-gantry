@@ -1,0 +1,31 @@
+[Unit]
+Description=ai-gantry personal agent (TIM)
+Documentation=https://github.com/shotah/ai-gantry
+After=network-online.target ollama.service
+Wants=network-online.target
+Requires=ollama.service
+
+[Service]
+Type=simple
+User=gantry
+Group=gantry
+WorkingDirectory=/opt/gantry
+EnvironmentFile=/opt/gantry/gantry.env
+# MCP tool binaries live next to the daemon (same names as mcp.toml commands).
+Environment=PATH=/opt/gantry/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/opt/gantry/gantry run
+Restart=always
+RestartSec=3
+# Fail closed if the env file is missing.
+ExecStartPre=/usr/bin/test -x /opt/gantry/gantry
+ExecStartPre=/usr/bin/test -f /opt/gantry/gantry.env
+
+# Hardening (keep localhost Ollama + outbound HTTPS working)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/gantry/data
+
+[Install]
+WantedBy=multi-user.target

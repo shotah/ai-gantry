@@ -75,9 +75,10 @@ type Completer interface {
 
 // Client talks to one OpenAI-compatible chat completions endpoint.
 type Client struct {
-	client    openai.Client
-	model     string
-	maxTokens int // 0 = omit (provider default)
+	client          openai.Client
+	model           string
+	maxTokens       int    // 0 = omit (provider default)
+	reasoningEffort string // empty = omit; e.g. "none" for Ollama/Qwen no-think
 }
 
 // New builds a Client for the given base URL, API key, and model id.
@@ -102,6 +103,13 @@ func (c *Client) WithMaxTokens(n int) *Client {
 	return c
 }
 
+// WithReasoningEffort sets OpenAI-compat reasoning_effort (e.g. "none" to
+// disable Qwen3.5/Ollama thinking). Empty leaves the field unset. Returns c.
+func (c *Client) WithReasoningEffort(effort string) *Client {
+	c.reasoningEffort = strings.TrimSpace(effort)
+	return c
+}
+
 func (c *Client) buildParams(req Request) (openai.ChatCompletionNewParams, error) {
 	params := openai.ChatCompletionNewParams{
 		Model:    c.model,
@@ -109,6 +117,9 @@ func (c *Client) buildParams(req Request) (openai.ChatCompletionNewParams, error
 	}
 	if c.maxTokens > 0 {
 		params.MaxTokens = openai.Int(int64(c.maxTokens))
+	}
+	if c.reasoningEffort != "" {
+		params.ReasoningEffort = shared.ReasoningEffort(c.reasoningEffort)
 	}
 	for _, m := range req.Messages {
 		msg, err := toParam(m)

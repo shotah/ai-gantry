@@ -26,6 +26,9 @@ type Config struct {
 	LLMModel   string `env:"LLM_MODEL,required"`
 	// LLMMaxTokens caps completion output (incl. tool-call args). 0 = provider default.
 	LLMMaxTokens int `env:"LLM_MAX_TOKENS" envDefault:"4096"`
+	// LLMReasoningEffort is sent as reasoning_effort when non-empty (Ollama/Qwen:
+	// "none" disables thinking so max_tokens is not eaten by hidden chain-of-thought).
+	LLMReasoningEffort string `env:"LLM_REASONING_EFFORT"`
 
 	TelegramBotToken     string  `env:"TELEGRAM_BOT_TOKEN"`
 	TelegramAllowedUsers []int64 `env:"TELEGRAM_ALLOWED_USERS" envSeparator:","`
@@ -143,6 +146,14 @@ func (c *Config) Validate() error {
 
 	if c.LLMMaxTokens < 0 {
 		return fmt.Errorf("LLM_MAX_TOKENS: must be >= 0, got %d", c.LLMMaxTokens)
+	}
+	c.LLMReasoningEffort = strings.TrimSpace(c.LLMReasoningEffort)
+	if c.LLMReasoningEffort != "" {
+		switch c.LLMReasoningEffort {
+		case "none", "minimal", "low", "medium", "high", "xhigh", "max":
+		default:
+			return fmt.Errorf("LLM_REASONING_EFFORT: must be none|minimal|low|medium|high|xhigh|max, got %q", c.LLMReasoningEffort)
+		}
 	}
 	if c.HistoryMaxMessages < 1 {
 		return fmt.Errorf("HISTORY_MAX_MESSAGES: must be >= 1, got %d", c.HistoryMaxMessages)
