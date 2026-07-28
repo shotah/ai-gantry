@@ -44,10 +44,9 @@ to the user reply (Jul 28 Garmin sleep: data OK, Qwen wrote the summary only
 in thinking → ERROR). Remaining gaps:
 
 - [x] Promote thinking → reply when `sawTools` and Content empty (no second nudge)
+- [x] Nudge when prose promises a tool (“let me pull…”, `server__tool`) with no
+      `tool_calls` (once, before tools)
 - [ ] Nudge on `finish_reason=length` with no usable output (today: warn only)
-- [ ] Nudge when the model emits prose *about* calling a tool but no tool call
-      for N consecutive iterations (detect tool names in text?) — cheap heuristic,
-      measure before building
 - [ ] `TOOL_MAX_ITERATIONS` exhaustion currently returns an error → user sees
       "something went wrong"; better: final forced completion with "answer with
       what you have, no more tools"

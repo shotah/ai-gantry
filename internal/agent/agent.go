@@ -323,6 +323,27 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 				}
 				return "", fmt.Errorf("agent: empty model reply")
 			}
+			// Prose that promises a tool ("I'll pull…", mentions server__tool)
+			// without actually emitting tool_calls — common Qwen failure. Nudge
+			// once before tools; after tools, accept the text as the answer.
+			if !sawTools && !nudged && promisesToolCall(res.Content, res.Thinking) {
+				a.log.Warn("model promised tool call in prose without calling",
+					"chars", len(res.Content),
+					"iteration", iter+1,
+				)
+				nudged = true
+				messages = append(messages, provider.Message{
+					Role:    provider.RoleAssistant,
+					Content: res.Content,
+				})
+				messages = append(messages, provider.Message{
+					Role: provider.RoleSystem,
+					Content: "[system] You described calling a tool but did not emit a tool call. " +
+						"Do it now: invoke the exact tool name from the tools list (e.g. garmin__get_sleep for overnight sleep). " +
+						"Do not narrate — call the function. For 'last night' sleep, omit date or pass today.",
+				})
+				continue
+			}
 			return res.Content, nil
 		}
 		if a.tools == nil {
@@ -433,6 +454,31 @@ func clipChars(s string, n int) string {
 		return s
 	}
 	return string(r[:n]) + "…"
+}
+
+// promisesToolCall reports whether text talks about invoking a tool without
+// having emitted tool_calls. Conservative cues only — real final answers that
+// merely mention a past tool result should not match after sawTools.
+func promisesToolCall(content, thinking string) bool {
+	text := strings.ToLower(content + "\n" + thinking)
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	if strings.Contains(text, "__") {
+		return true
+	}
+	cues := []string{
+		"let me pull", "let me call", "let me query", "let me fetch", "let me check",
+		"i'll pull", "i'll call", "i'll query", "i'll fetch", "i'll check", "i'll use",
+		"i will call", "i will pull", "i will query", "going to call", "about to call",
+		"query body battery", "call this function", "calling the",
+	}
+	for _, cue := range cues {
+		if strings.Contains(text, cue) {
+			return true
+		}
+	}
+	return false
 }
 
 func estTokens(messages []provider.Message) int {

@@ -203,6 +203,59 @@ func TestAgent_Handle_ThinkingOnlyAfterNudgeErrors(t *testing.T) {
 	}
 }
 
+// Prose that promises a tool ("I'll pull…") without tool_calls must be nudged
+// once so the model actually invokes the function.
+func TestAgent_Handle_ProseToolPromiseGetsNudged(t *testing.T) {
+	ctx := context.Background()
+	var reqs int
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		reqs++
+		switch reqs {
+		case 1:
+			return &provider.Result{
+				Content: "You got it! Let me pull your Garmin sleep data for last night.",
+			}, nil
+		case 2:
+			last := req.Messages[len(req.Messages)-1]
+			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "did not emit a tool call") {
+				t.Fatalf("missing tool-promise nudge: %+v", last)
+			}
+			return &provider.Result{ToolCalls: []provider.ToolCall{
+				{ID: "c1", Name: "garmin__get_sleep", Arguments: `{}`},
+			}}, nil
+		default:
+			return &provider.Result{Content: "Sleep score 80 — solid night."}, nil
+		}
+	}}
+	tools := &fakeTools{
+		defs: []provider.ToolDef{{Name: "garmin__get_sleep", Parameters: map[string]any{"type": "object"}}},
+		out:  `{"sleepScore":80}`,
+	}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "how was my sleep last night?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(reply, "Sleep score 80") {
+		t.Fatalf("reply = %q", reply)
+	}
+	if len(tools.calls) != 1 || tools.calls[0] != "garmin__get_sleep" {
+		t.Fatalf("tools = %v", tools.calls)
+	}
+	if reqs != 3 {
+		t.Fatalf("completions = %d, want 3", reqs)
+	}
+}
+
 // After a successful tool call, Qwen often puts the user-facing answer only in
 // Thinking. Promote that CoT instead of nudging into another stall/ERROR.
 func TestAgent_Handle_ThinkingOnlyAfterToolsPromotes(t *testing.T) {

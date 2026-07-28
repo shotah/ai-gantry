@@ -263,19 +263,33 @@ mounted read-only. TOML, minimal:
 name    = "google-workspace"
 command = "google-workspace-mcp-go"
 args    = ["--tools", "gmail drive calendar docs sheets tasks contacts", "--tool-tier", "core"]
+download_tag = "latest"   # or pin "v0.1.0"; "latest" resolves via GitHub API at plan time
+download_url = "https://github.com/shotah/google-workspace-mcp-go/releases/download/{tag}/google-workspace-mcp-go_{version}_{os}_{arch}.tar.gz"
 
 [[server]]
 name    = "garmin"
 command = "garmin"
 args    = ["mcp"]
+auth_args = ["login"]     # optional; `gantry auth garmin`
 tools   = ["get_sleep", "get_weight", "get_hrv"]  # optional allowlist
 # exclude = ["raw_*"]                               # optional denylist
 # tools_prefix = "garm"                             # optional; default name
+download_tag = "latest"
+download_url = "https://github.com/shotah/go-garmin/releases/download/{tag}/garmin_{version}_{os}_{arch}.tar.gz"
 
 [[server]]
 name    = "strava"
 command = "strava-mcp"
+auth_args = ["auth"]
+download_tag = "v1.2.0"
+download_url = "https://github.com/Stealinglight/StravaMCP/releases/download/{tag}/StravaMCP_{version}_{os}_{arch}.tar.gz"
 ```
+
+`download_url` + `download_tag` are for native deploy (`gantry tools-plan` /
+`make remote-native-fetch`): placeholders `{os}` `{arch}` `{tag}` `{version}`
+(`version` = tag without leading `v`). Omit them when binaries are already on
+`PATH` (e.g. Docker bake). Optional `auth_command` / `auth_args` drive
+`gantry auth <name>`.
 
 Listed servers still **start**; `tools` / `exclude` only filter what is
 **published** to the model (boot logs `tools_listed` vs `tools_published`).

@@ -34,7 +34,7 @@ download_url = "https://github.com/shotah/google-workspace-mcp-go/releases/downl
 name = "strava"
 command = "strava-mcp"
 auth_args = ["auth"]
-download_tag = "v1.2.0"
+download_tag = "latest"
 download_url = "https://github.com/Stealinglight/StravaMCP/releases/download/{tag}/StravaMCP_{version}_{os}_{arch}.tar.gz"
 
 # Garmin sleep / body battery / weight (shotah/go-garmin) — docs/garmin.md
@@ -44,7 +44,7 @@ name = "garmin"
 command = "garmin"
 args = ["mcp", "--tool-tier", "core"]
 auth_args = ["login"]
-download_tag = "v0.1.2"
+download_tag = "latest"
 download_url = "https://github.com/shotah/go-garmin/releases/download/{tag}/garmin_{version}_{os}_{arch}.tar.gz"
 
 # Web search via Gemini Grounding (shotah/mcp-gemini-search) — docs/web-search.md
@@ -60,7 +60,7 @@ download_url = "https://github.com/shotah/mcp-gemini-search/releases/download/{t
 [[server]]
 name = "cast"
 command = "mcp-beam"
-download_tag = "v0.0.3"
+download_tag = "latest"
 download_url = "https://github.com/shotah/mcp-beam/releases/download/{tag}/mcp-beam_{version}_{os}_{arch}.tar.gz"
 
 # YouTube Music (shotah/youtube-go-mcp) — docs/ytmusic.md
@@ -68,7 +68,7 @@ download_url = "https://github.com/shotah/mcp-beam/releases/download/{tag}/mcp-b
 name = "ytmusic"
 command = "youtube-go-mcp"
 auth_args = ["auth", "--out", "${YTMUSIC_HEADERS_PATH}"]
-download_tag = "v0.0.4"
+download_tag = "latest"
 download_url = "https://github.com/shotah/youtube-go-mcp/releases/download/{tag}/youtube-go-mcp_{version}_{os}_{arch}.tar.gz"
 
 # Calculator (shotah/mcp-go-math) — docs/math.md

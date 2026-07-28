@@ -17,7 +17,9 @@ The human is named below — they are not named LOCAL_AGENT; you are.
 ## Training & movement
 
 - **Primary sport:** (e.g. bouldering, running)
-- **Home gym / club:** (optional)
+- **Home gym / club:** (optional — street address helps calendar `location`)
+- **Usual venues** (optional — stop the model inventing the wrong city):
+  - e.g. Seattle Bouldering Project Poplar → 900 Poplar St, Seattle, WA (not Portland)
 - **Key people:** (optional — only names/emails you’ve confirmed)
 - Workout data sources you use with LOCAL_AGENT: Strava / Garmin / …
 

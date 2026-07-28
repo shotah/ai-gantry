@@ -20,18 +20,23 @@ flowchart LR
 
 ## What LOCAL_AGENT can do (core tier)
 
-Config loads `--tools gmail drive calendar docs sheets tasks contacts` with
-`--tool-tier core` (~45 tools). Useful examples:
+Default `mcp.toml` loads `--tools gmail calendar tasks` with `--tool-tier core`
+(keeps Qwen’s tool surface small). Useful examples:
 
-| Ask | Tool (approx.) |
+| Ask | Tool |
 |---|---|
-| “What’s unread?” | `search_gmail_messages` / `get_gmail_message_content` |
+| “What’s unread?” | `search_gmail_messages` → `get_gmail_message_content` |
 | “What’s on my calendar Friday?” | `get_events` |
-| “Update the Seattle itinerary doc” | `modify_doc_text` / `find_and_replace_doc` |
-| “Create a sheet of …” | `create_spreadsheet` / `modify_sheet_values` |
+| “Add climbing tomorrow at 3pm” | **`create_event`** (not `modify_event`) |
+| “Change the location on my 3pm” | `get_events` → **`modify_event`** |
+| “Add a task …” | `list_task_lists` → `create_task` |
 
-Bump to `--tool-tier extended` or `complete` in `mcp.toml` if you need
-rarer ops (then recreate the container).
+Tool descriptions are LLM-oriented (Use for / Prefer / Not) in
+[shotah/google-workspace-mcp-go](https://github.com/shotah/google-workspace-mcp-go).
+Bump `download_tag` / refetch after a release to pick them up.
+
+Add `drive` / `docs` / `sheets` / `contacts` back to `--tools` or raise
+`--tool-tier` if TIM needs them (then redeploy).
 
 ---
 
