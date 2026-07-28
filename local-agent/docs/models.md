@@ -128,6 +128,20 @@ Retired slugs often **redirect** and bill at the new model's rate — pin a curr
 The same three-var swap works for **Ollama** or any local OpenAI-compatible
 server (`LLM_BASE_URL=http://host:11434/v1`).
 
+### Local models + tool names
+
+Small local chat models are more likely to mangle MCP names — especially
+hyphenated server prefixes (`google-search__…` → `google_search__…`) or
+invented suffixes (`…__web_search`). gantry:
+
+1. **Aliases** underscore→hyphen on the server prefix when the catalog has an
+   exact match after rewrite
+2. **Suggests** the real tool list in the tool-error string so the next
+   iteration can self-correct
+
+Put exact names in `persona/TOOLS.md` anyway (see `TOOLS.example.md`). Kernel
+details and a local REPL workflow: [../../docs/mcp.md](../../docs/mcp.md).
+
 ### Switch back to Gemini chat
 
 1. Comment out / remove the `LLM_*` overrides in `.env`

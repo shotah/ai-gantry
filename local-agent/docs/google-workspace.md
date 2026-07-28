@@ -101,7 +101,9 @@ revokes the refresh token (or Testing-mode expiry hits), re-run
 
 ## 3. Config already wired
 
-`mcp.toml` (listed = granted; tools land as `google-workspace__<tool>`):
+`mcp.toml` (listed = granted; tools land as `google-workspace__<tool>`).
+Exact names matter for local models; underscored prefixes are aliased — see
+[../../docs/mcp.md](../../docs/mcp.md).
 
 ```toml
 [[server]]
@@ -150,6 +152,10 @@ Prefer **`make google-auth`** for new setups (no local gws dependency).
   `make google-auth` again (`prompt=consent` is already set).
 - **LOCAL_AGENT ignores Workspace MCP** — check the `[[server]]` entry in `mcp.toml`
   and rebuild; a failing server fails the boot loudly (`make logs`).
+- **Wrong calendar tool name / 404 on `event_id`** — use
+  `google-workspace__get_events` with `time_min`/`time_max` (not a hallucinated
+  `get_calendar_event`); never put a date range in `event_id`. See
+  `persona/TOOLS.md` and [../../docs/mcp.md](../../docs/mcp.md).
 - **Too many tools / context bloat** — keep `--tool-tier core`; drop unused
   services from `--tools`.
 - **Permission denied on data/.config/** — readable/writable by `GANTRY_UID` (Docker) or `gantry` (native).

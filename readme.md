@@ -126,7 +126,8 @@ tokens in [docs/slack.md](docs/slack.md)).
 | **C — Appliance** | Full life stack + `make remote-deploy` | `cd local-agent && make init && make up` → [local-agent/](local-agent/) |
 
 Cookbook: **[examples/README.md](examples/README.md)**. Design / security /
-architecture: **[docs/](docs/)**. Follow-ups: **[todo.md](todo.md)**.
+architecture / MCP naming: **[docs/](docs/)** (start with
+[docs/mcp.md](docs/mcp.md) for tools). Follow-ups: **[todo.md](todo.md)**.
 
 ---
 
@@ -323,7 +324,12 @@ No bundles/grants layer: if a server is in the manifest, the agent gets it.
 The container composition IS the grant (1:1 model — you built this image/mount
 for this persona on purpose).
 
-Tool names are always prefixed `{server}__{tool}` (OpenAI-safe; avoids collisions).
+Tool names are always prefixed `{server}__{tool}` (OpenAI-safe; avoids
+collisions). Local models often turn the hyphenated *prefix* into underscores
+(`google_search__google_search`); the host aliases that back to the catalog
+name and, on hard misses, returns a model-facing suggestion with the exact
+tools for that server. Full contract, `/tools` REPL workflow, and why:
+**[docs/mcp.md](docs/mcp.md)**.
 
 ### 5.3 Container contract
 
@@ -355,7 +361,8 @@ This is the part that earns its keep. Keep it boring and bounded:
    hydration block (§7.4) + session history (bounded) + user message.
 2. **Call model** with MCP tool schemas (loaded eagerly at boot; refreshed on
    server restart).
-3. **Tool iteration**: execute calls via MCP host, truncate each result to
+3. **Tool iteration**: execute calls via MCP host (alias underscore prefixes,
+   suggest catalog on unknown names), truncate each result to
    `TOOL_RESULT_MAX_CHARS`, loop until final text or `TOOL_MAX_ITERATIONS`.
 4. **Reply** on the channel; append turn to session.
 

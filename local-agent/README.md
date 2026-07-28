@@ -205,7 +205,8 @@ Everything lives in [`./docs`](docs). Start with Telegram, add the rest as neede
 | Guide | What it covers | When you need it |
 | --- | --- | --- |
 | 📨 **[docs/telegram.md](docs/telegram.md)** | BotFather token, numeric user id, `TELEGRAM_ALLOWED_USERS` allowlist, `/new` session reset, `/status`, history bounds, SQLite memory | **Always** — this is the only chat channel |
-| 🧠 **[docs/models.md](docs/models.md)** | One OpenAI-compatible chat provider (`LLM_*`); Gemini defaults; swapping chat to xAI/Grok/Ollama | Changing brain / cost tuning |
+| 🧠 **[docs/models.md](docs/models.md)** | One OpenAI-compatible chat provider (`LLM_*`); Gemini defaults; swapping chat to xAI/Grok/Ollama; local models + tool-name aliasing | Changing brain / cost tuning |
+| 🔌 **[../docs/mcp.md](../docs/mcp.md)** | Kernel MCP host: `{server}__{tool}` naming, underscore-prefix alias, unknown-tool hints, local `/tools` REPL | Debugging tool calls / wiring a new MCP |
 | 🎭 **[docs/persona.md](docs/persona.md)** | `persona/SOUL.md` / `USER.md` system prompt — coach mode, identity lock, vs SQLite memory | Shaping LOCAL_AGENT's behavior |
 | 🚀 **[docs/deploy.md](docs/deploy.md)** | Ubuntu server prep, UID/GID ownership, OpenSSH on Windows, the `make remote-*` workflow | Running on a real server |
 | 🗂️ **[docs/google-workspace.md](docs/google-workspace.md)** | Go MCP (`google-workspace-mcp-go`), `make google-auth`, Docs/Gmail/Calendar tools | Gmail / Docs / Calendar / Drive |
@@ -334,7 +335,8 @@ Full guide: **[docs/ytmusic.md](docs/ytmusic.md)**.
 LOCAL_AGENT searches the web through
 [shotah/mcp-gemini-search](https://github.com/shotah/mcp-gemini-search)
 — Gemini Grounding with Google Search, same `GEMINI_API_KEY` as chat, exposed as
-the `google-search__google_search` tool. No scraping, no extra keys.
+the `google-search__google_search` tool. No scraping, no extra keys. (Local
+models that underscore the prefix are aliased — [docs/mcp.md](../docs/mcp.md).)
 
 ```bash
 make up   # or: make remote-deploy

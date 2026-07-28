@@ -6,6 +6,7 @@ is the product contract and milestone checklist; these pages go deeper.
 | Doc | What it covers |
 | --- | --- |
 | [../todo.md](../todo.md) | Open follow-ups only |
+| [mcp.md](mcp.md) | MCP host: `{server}__{tool}` naming, underscore alias, suggestions, local REPL |
 | [discord.md](discord.md) | Discord Gateway channel (DMs, allowlist, no ports) |
 | [slack.md](slack.md) | Slack Socket Mode channel (DMs + @mention, no ports) |
 | [milestones.md](milestones.md) | Archived M0–M7 build checklist (shipped) |
@@ -18,5 +19,6 @@ is the product contract and milestone checklist; these pages go deeper.
 | [memory.md](memory.md) | Hand-inspect / fix builtin SQLite memory with `sqlite3` |
 | [cron.md](cron.md) | Schedule tools, timezone, inspect jobs, overlap policy |
 
-Start with **architecture** if you're new to the code; **security** before
-exposing a bot to a Telegram allowlist with real tool credentials.
+Start with **architecture** if you're new to the code; **mcp** before wiring
+tools; **security** before exposing a bot to a Telegram allowlist with real
+tool credentials.

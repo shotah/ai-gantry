@@ -110,6 +110,21 @@ valid interim escape hatch but is not the product surface.
 OpenAI-safe characters, no collisions across servers, obvious provenance in
 logs and collapse markers.
 
+## Underscore-prefix alias + unknown-tool hints
+
+**Pick:** on miss, rewrite `_`→`-` in the *server prefix only*, then call; if
+still unknown, return a model-facing catalog hint (exact tools for that
+server, or “did you mean” when the prefix was only hyphen-mangled).
+
+Local models (Qwen/Ollama, etc.) routinely emit `google_search__google_search`
+when the catalog has `google-search__google_search`. Failing closed forced
+multi-iteration guessing and think-stalls. Aliasing the prefix is a one-line
+runtime fix; inventing tool *suffixes* (`web_search`) still needs suggestions
++ persona `TOOLS.md`. Full write-up: [mcp.md](mcp.md).
+
+**Rejected:** rewrite hyphens inside tool suffixes (would break real names like
+`google_search`); silent fuzzy match across unrelated servers.
+
 ## Config plane
 
 **Pick:** env + three mounts (persona, manifest, data). No config UI / `config set`.
@@ -151,4 +166,5 @@ All three messengers are outbound-only + allowlist (no inbound ports). Slack use
 
 - [design.md](design.md)
 - [architecture.md](architecture.md)
+- [mcp.md](mcp.md)
 - [security.md](security.md)

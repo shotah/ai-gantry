@@ -146,7 +146,7 @@ sequenceDiagram
   Ch-->>U: outbound reply
 ```
 
-## MCP tool call (with restart)
+## MCP tool call (resolve → call → restart)
 
 ```mermaid
 sequenceDiagram
@@ -155,21 +155,28 @@ sequenceDiagram
   participant C as child Conn
 
   A->>H: Call("server__tool", args)
-  H->>C: CallTool(originalName, args)
-  alt success
-    C-->>H: text
-    H-->>A: Truncate(text, TOOL_RESULT_MAX_CHARS)
-  else failure
-    H->>H: restartServer (backoff ≤ 4 attempts)
-    H->>C: CallTool again
-    C-->>H: text or error
-    H-->>A: result / error string
+  H->>H: resolve exact name, else hyphenate prefix (_→-)
+  alt unknown after resolve
+    H-->>A: error + catalog suggestion (model-facing)
+  else known
+    H->>C: CallTool(originalName, args)
+    alt success
+      C-->>H: text
+      H-->>A: Truncate(text, TOOL_RESULT_MAX_CHARS)
+    else failure
+      H->>H: restartServer (backoff ≤ 4 attempts)
+      H->>C: CallTool again
+      C-->>H: text or error
+      H-->>A: result / error string
+    end
   end
 ```
 
 Children are **not** bound to the signal context. On SIGTERM the channel
 stops accepting work, `drain.Gate` waits for the in-flight turn (default 2m),
 then deferred `mcp.Host.Close()` tears down stdio sessions (killing children).
+
+Operator details (naming, local REPL, why alias exists): [mcp.md](mcp.md).
 
 ## Data on disk
 

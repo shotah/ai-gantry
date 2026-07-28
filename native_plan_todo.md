@@ -3,7 +3,9 @@
 Follow-ups for the native deployment (Tim: Ubuntu + Ollama + Qwen3.5-35B-A3B).
 Shipped so far: prompt-cache-friendly message order, keep-alive override, tool
 trim (79→62), ISO dates in temporal anchor, unknown-tool suggestions,
-think-stall nudge, thinking accumulation in Telegram. This file is what's next.
+underscore→hyphen prefix alias on MCP `Call`, think-stall nudge, thinking
+accumulation in Telegram. Operator write-up: [docs/mcp.md](docs/mcp.md).
+This file is what's next.
 
 ---
 

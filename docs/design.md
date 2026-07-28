@@ -71,7 +71,9 @@ Full table lives in the [root readme](../readme.md#51-environment-variables).
 
 The one structured file (lists of processes don't fit env). Mounted read-only.
 If a server is listed, the agent gets its tools — the container composition
-**is** the grant. Tool names are always `{server}__{tool}`.
+**is** the grant. Tool names are always `{server}__{tool}`. The host aliases a
+common local-model typo (underscores in the server prefix) and returns
+catalog suggestions on unknown names — see [mcp.md](mcp.md).
 
 ### Persona
 
