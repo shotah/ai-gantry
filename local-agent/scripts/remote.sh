@@ -83,7 +83,7 @@ case "$ACTION" in
       copy_to_remote "$f" || true
     done
     echo "Synced to $TARGET:$DEPLOY_PATH"
-    echo "Note: token/session secrets are NOT in remote-deploy. Use make garmin-sync / strava-sync / ytmusic-sync / google-sync"
+    echo "Note: data/.config secrets are NOT in remote-deploy. Use make garmin-sync / strava-sync / ytmusic-sync / google-sync"
     ;;
   sync-secret)
     name="$(echo "${1:-}" | tr '[:upper:]' '[:lower:]')"
@@ -97,28 +97,57 @@ case "$ACTION" in
       group="$(echo "$group" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
       path="$(echo "$path" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
       if [[ "$name" == "all" || "$group" == "$name" ]]; then
-        paths+=("$path")
+        # Only local paths that exist (skip optional legacy secrets/google/*).
+        [[ -e "$path" ]] && paths+=("$path")
       fi
     done < <(read_manifest_lines scripts/secrets-manifest.txt)
 
     if [[ ${#paths[@]} -eq 0 ]]; then
-      echo "Unknown secret group '$name'. See scripts/secrets-manifest.txt"
+      echo "No local files for '$name' — run the matching *-auth first (see scripts/secrets-manifest.txt)"
       exit 1
     fi
 
-    ensure_remote_parents "${paths[@]}"
-    copied=0
+    # Stage under /tmp, then sudo install (native /opt/gantry is owned by gantry).
+    STAGE=/tmp/gantry-secret-stage
+    echo "Staging secrets under $TARGET:$STAGE then sudo install -> $DEPLOY_PATH"
+    echo "(sudo may prompt for your password)"
+    remote "rm -rf '$STAGE' && mkdir -p '$STAGE'"
     for p in "${paths[@]}"; do
-      if copy_to_remote "$p"; then
-        copied=$((copied + 1))
+      if [[ -d "$p" ]]; then
+        remote "mkdir -p '$STAGE/${p%/*}'"
+        echo "scp -r $p/ -> stage"
+        scp "${SCP_OPTS[@]}" -r "$p" "$TARGET:$STAGE/${p%/*}/"
+      else
+        remote "mkdir -p '$STAGE/$(dirname "$p")'"
+        echo "scp $p -> stage"
+        scp "${SCP_OPTS[@]}" "$p" "$TARGET:$STAGE/$p"
       fi
     done
-    [[ "$copied" -gt 0 ]] || { echo "No local files found for secret group '$name' — run the matching *-auth first"; exit 1; }
-
-    if [[ "$name" == "google" || "$name" == "all" ]]; then
-      remote "rm -f '$DEPLOY_PATH/secrets/google/token_cache.json'; rm -rf '$DEPLOY_PATH/secrets/google/cache'"
-    fi
-    echo "Secret group '$name' synced to $TARGET:$DEPLOY_PATH ($copied path(s))"
+    {
+      echo '#!/bin/bash'
+      echo 'set -euo pipefail'
+      echo "STAGE='$STAGE'"
+      echo "DEST='$DEPLOY_PATH'"
+      echo 'OWNER="$(stat -c %U "$DEST/data" 2>/dev/null || true)"'
+      echo 'if [ -z "${OWNER:-}" ]; then'
+      echo '  if id gantry >/dev/null 2>&1; then OWNER=gantry; else OWNER="$(logname 2>/dev/null || echo root)"; fi'
+      echo 'fi'
+      echo "for rel in ${paths[*]}; do"
+      echo '  mkdir -p "$DEST/$(dirname "$rel")"'
+      echo '  if [ -d "$STAGE/$rel" ]; then'
+      echo '    mkdir -p "$DEST/$rel"'
+      echo '    cp -a "$STAGE/$rel/." "$DEST/$rel/"'
+      echo '  else'
+      echo '    cp -a "$STAGE/$rel" "$DEST/$rel"'
+      echo '  fi'
+      echo '  chown -R "$OWNER:$OWNER" "$DEST/$rel"'
+      echo '  echo "installed $rel (owner=$OWNER)"'
+      echo 'done'
+      echo 'rm -rf "$STAGE"'
+    } > /tmp/gantry-install-secrets.sh
+    scp "${SCP_OPTS[@]}" /tmp/gantry-install-secrets.sh "$TARGET:/tmp/gantry-install-secrets.sh"
+    ssh "${SSH_OPTS[@]}" -t "$TARGET" 'sudo bash /tmp/gantry-install-secrets.sh'
+    echo "Secret group '$name' synced to $TARGET:$DEPLOY_PATH (${#paths[@]} path(s))"
     ;;
   up)
     bust=$(date +%s)

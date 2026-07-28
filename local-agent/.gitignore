@@ -11,12 +11,15 @@ deploy/gantry.env
 # Downloaded gantry + MCP tool binaries for native deploy
 .cache/
 
-# Google OAuth / gws credentials (never commit)
+# Runtime MCP creds live under data/.config/* (gitignored via data/ below).
+# Legacy secrets/* trees kept ignored for one-time `make secrets-migrate`.
+
+# Google OAuth / gws export inputs (optional import source; never commit)
 secrets/google/*
 !secrets/google/.gitkeep
 !secrets/google/.gitignore
 
-# Google Workspace MCP tokens (never commit)
+# Legacy MCP credential dirs (prefer data/.config/*)
 secrets/google-mcp/**
 !secrets/google-mcp/.gitkeep
 !secrets/google-mcp/.gitignore
@@ -24,17 +27,14 @@ secrets/google-mcp/**
 !secrets/google-mcp/credentials/.gitkeep
 !secrets/google-mcp/credentials/.gitignore
 
-# Strava OAuth token (never commit)
 secrets/strava/*
 !secrets/strava/.gitkeep
 !secrets/strava/.gitignore
 
-# Garmin Connect session (never commit)
 secrets/garmin/*
 !secrets/garmin/.gitkeep
 !secrets/garmin/.gitignore
 
-# YouTube Music browser headers (never commit)
 secrets/ytmusic/*
 !secrets/ytmusic/.gitkeep
 !secrets/ytmusic/.gitignore

@@ -83,6 +83,28 @@ When enabled, gantry caches the model text and flushes to Telegram about once
 per second (so 429 flood-control does not stall the LLM or leave you with a
 silent half-message). The final reply is always written on finish.
 
+If the chat model emits chain-of-thought (Ollama/Qwen `reasoning` / `thinking`
+fields), streaming shows it as **italics** above the answer (live edits would
+reset Telegram’s expandable UI). The **final** message uses an expandable
+italic blockquote. Set `LLM_REASONING_EFFORT=none` to disable thinking entirely.
+
+### Error reporting (ops alerts)
+
+When you're remote and can't watch `journalctl`, tee slog failures into the
+same Tim chat as a collapsed HTML box:
+
+```env
+TELEGRAM_ERROR_REPORTING=error   # off | error | warn
+```
+
+- Same DM you already talk in (`TELEGRAM_ALLOWED_USERS`)
+- Shape: `🔴 gantry ERROR · <msg>` + expandable `<blockquote>` with attrs
+- Dedupe: same message ≤ once per 5 minutes (suppressed count shown next time)
+- Loop-safe: failures while sending the alert are dropped (never re-forwarded)
+- Secrets in attr keys (`token`, `secret`, …) are redacted
+
+Native deploy defaults this to `error`. Library / Docker default stays `off`.
+
 ### Reactions
 
 Emoji reactions on bot messages (👍 ❤️ 😢 …) are treated as normal inbound

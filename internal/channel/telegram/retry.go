@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/go-telegram/bot"
@@ -87,6 +88,15 @@ func retryAfterDuration(err error) (time.Duration, bool) {
 func isTooManyRequests(err error) bool {
 	var tm *bot.TooManyRequestsError
 	return errors.As(err, &tm)
+}
+
+// isMessageNotModified is Telegram's "edit noop" — content already matches.
+// Treat as success so Finish does not fall back to a duplicate SendMessage.
+func isMessageNotModified(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "message is not modified")
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) error {

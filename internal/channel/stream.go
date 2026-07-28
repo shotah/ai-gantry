@@ -14,6 +14,14 @@ type ReplyWriter interface {
 	Finish(ctx context.Context, final string) error
 }
 
+// ThinkingWriter is an optional ReplyWriter that can show model chain-of-thought
+// separately from the answer (e.g. Telegram expandable italics).
+type ThinkingWriter interface {
+	ReplyWriter
+	// UpdateThinking replaces the visible reply using accumulated thinking + content.
+	UpdateThinking(ctx context.Context, thinking, content string) error
+}
+
 // WithReplyWriter attaches a ReplyWriter for streaming replies.
 func WithReplyWriter(ctx context.Context, w ReplyWriter) context.Context {
 	return context.WithValue(ctx, replyWriterKey{}, w)

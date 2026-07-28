@@ -61,10 +61,17 @@ func TestPrintHelp(t *testing.T) {
 
 func TestNewLogger_Levels(t *testing.T) {
 	for _, level := range []string{"debug", "info", "warn", "error", "other"} {
-		l := newLogger(level)
+		l, fwd := newLogger(level, "off")
 		if l == nil {
 			t.Fatalf("newLogger(%q) nil", level)
 		}
+		if fwd != nil {
+			t.Fatalf("newLogger(%q, off) unexpected forwarder", level)
+		}
+	}
+	l, fwd := newLogger("info", "error")
+	if l == nil || fwd == nil {
+		t.Fatal("want logfwd handler when TELEGRAM_ERROR_REPORTING=error")
 	}
 }
 

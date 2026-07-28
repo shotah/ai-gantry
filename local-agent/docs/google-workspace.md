@@ -1,8 +1,9 @@
 # Google Workspace (Gmail / Calendar / Docs / Drive)
 
-LOCAL_AGENT talks to Google through a **compiled Go MCP binary**:
-[`magks/google-workspace-mcp-go`](https://github.com/magks/google-workspace-mcp-go)
-(stdio, static build, baked into the image like Strava/Garmin).
+LOCAL_AGENT talks to Google through a **compiled Go MCP binary** we maintain:
+[`shotah/google-workspace-mcp-go`](https://github.com/shotah/google-workspace-mcp-go)
+(fork of magks; releases fetched like the other shotah MCPs — Docker bake +
+native `download_url`).
 
 gantry has no built-in Google tooling — this MCP **is** the Workspace
 integration. (The old `gws` CLI is gone from the image: it needs glibc and the
@@ -12,7 +13,7 @@ runtime is now distroless/static.)
 flowchart LR
   GN[gantry daemon] -->|MCP stdio| GW[google-workspace-mcp-go]
   GW -->|OAuth2 HTTPS| API[Google APIs]
-  GW --- TOK[("secrets/google-mcp/credentials")]
+  GW --- TOK[("data/.config/google-mcp/credentials")]
 ```
 
 ---
@@ -59,13 +60,16 @@ USER_GOOGLE_EMAIL=you@gmail.com
 
 ## 2. Authorize (`make google-auth`)
 
-Same pattern as Strava/Garmin — **no local `gws`**. Docker runs a throwaway
+`google-workspace-mcp-go` has **no** `auth` subcommand yet, so this is not
+wired through `gantry auth` (unlike Strava/Garmin/YT Music in `mcp.toml`).
+Same pattern as before — **no local `gws`**. Docker runs a throwaway
 Python container that:
 
-1. Clears any stale `secrets/google-mcp/credentials/<email>.json`
+1. Clears any stale `data/.config/google-mcp/credentials/<email>.json`
 2. Prints a Google consent URL
 3. Listens on `localhost:4100` for the callback
-4. Writes the MCP credential file LOCAL_AGENT mounts at runtime
+4. Writes the MCP credential file used at runtime (Docker `./data` and native
+   `/opt/gantry/data` share this relative layout)
 
 ```bash
 make google-auth
@@ -73,16 +77,19 @@ make google-auth
 
 1. Open the printed URL, approve access.
 2. Browser hits `http://localhost:4100/oauth2callback` → container captures the code.
-3. On success: `secrets/google-mcp/credentials/<you@email>.json`
+3. On success: `data/.config/google-mcp/credentials/<you@email>.json`
 
 Then deploy. `make google-auth` auto-runs **`make google-sync`** when
-`DEPLOY_HOST` is set (`remote-deploy` does not copy Workspace secrets):
+`DEPLOY_HOST` is set (`remote-deploy` / `remote-native-deploy` do not copy
+Workspace secrets):
 
 ```bash
-make remote-deploy   # config/image only
-make google-sync     # push credentials when you mean to
-# or: make build && make up   # local
+make google-sync              # push data/.config/google-mcp → DEPLOY_PATH (Docker or native)
+# or: make build && make up   # local Docker
 ```
+
+If you still have credentials under legacy `secrets/google-mcp/`, run
+`make secrets-migrate` once.
 
 Send **`/new`** in Telegram so LOCAL_AGENT drops any stale auth habit.
 
@@ -102,14 +109,17 @@ name    = "google-workspace"
 command = "google-workspace-mcp-go"
 args    = [
   "--tools",
-  "gmail drive calendar docs sheets tasks contacts",
+  "gmail calendar tasks",
   "--tool-tier",
   "core",
 ]
+download_tag = "latest"
+download_url = "https://github.com/shotah/google-workspace-mcp-go/releases/download/{tag}/google-workspace-mcp-go_{version}_{os}_{arch}.tar.gz"
 ```
 
-Compose mounts `./secrets/google-mcp` → `/data/.config/google-mcp` and
-sets `WORKSPACE_MCP_CREDENTIALS_DIR`, `GOOGLE_OAUTH_*`, `USER_GOOGLE_EMAIL`.
+Compose mounts `./data` → `/data` (so `data/.config/google-mcp` is
+`/data/.config/google-mcp`). Native uses `/opt/gantry/data/.config/google-mcp`.
+Both set `WORKSPACE_MCP_CREDENTIALS_DIR`, `GOOGLE_OAUTH_*`, `USER_GOOGLE_EMAIL`.
 
 ---
 
@@ -142,4 +152,4 @@ Prefer **`make google-auth`** for new setups (no local gws dependency).
   and rebuild; a failing server fails the boot loudly (`make logs`).
 - **Too many tools / context bloat** — keep `--tool-tier core`; drop unused
   services from `--tools`.
-- **Permission denied on secrets/** — readable by `GANTRY_UID` on the server.
+- **Permission denied on data/.config/** — readable/writable by `GANTRY_UID` (Docker) or `gantry` (native).

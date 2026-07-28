@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-shot Google Workspace OAuth via a throwaway Python container.
-# Writes secrets/google-mcp/credentials/<email>.json (MCP format).
+# Writes data/.config/google-mcp/credentials/<email>.json (MCP format).
 # No local gws / Python required — only Docker + .env.
 # Usage (repo root):  make google-auth
 set -euo pipefail
@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PORT="${GOOGLE_AUTH_PORT:-4100}"
 DOTENV="$ROOT/.env"
-CRED_DIR="$ROOT/secrets/google-mcp/credentials"
+CRED_DIR="$ROOT/data/.config/google-mcp/credentials"
 SCRIPT="$ROOT/scripts/google-auth-inner.py"
 
 dotenv_get() {

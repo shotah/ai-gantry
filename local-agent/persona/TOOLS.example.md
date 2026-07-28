@@ -7,6 +7,24 @@
 - Always pass `user_google_email` from `USER.md` (canonical address)
 - If auth fails for that address, say so and point at `make google-auth` — do not try another email
 - Never invent message bodies, calendar events, or inbox contents without a successful tool result
+- **Exact calendar tool name:** `google-workspace__get_events` (not `get_calendar_event`, not `list_events`)
+- **Day / “what's on my calendar” queries — omit `event_id`.** Pass only:
+  - `user_google_email` (from USER.md)
+  - `calendar_id`: `"primary"`
+  - **Both** `time_min` + `time_max` in RFC3339 using ISO dates from `[current time]`  
+    e.g. today PT: `time_min="2026-07-28T00:00:00-07:00"`, `time_max="2026-07-29T00:00:00-07:00"`
+  - Never omit `time_max` on purpose — unbounded lists drown you in future birthdays
+  - Never put `"primary"`, a date, or a time range into `event_id` — that becomes Events.Get and 404s
+  - Only set `event_id` when you already have a real Google event id from a prior tool result
+- An empty result for a bounded day means the day is free — say so and stop; don't re-derive the date
+- **Update an event they named:** (1) `google-workspace__get_events` for that day now — copy `ID:`, (2) `google-search__google_search` for any missing place/address, (3) **must** `google-workspace__modify_event` with that `event_id` + `location`, (4) only then say what changed. Stopping after search is wrong.
+- Do not narrate "I will…" / "want me to…?" — emit the tool calls
+
+## Math
+
+- **Math MCP (`mcp-go-math`)** — `evaluate` for arithmetic; `convert` for units
+- Use the math tool for **any arithmetic beyond trivial** — do not invent results in reasoning
+- Prefer `evaluate` over mental math for percentages, multi-step formulas, and roots/powers
 
 ## Fitness
 
@@ -16,7 +34,8 @@
 
 ## Web search
 
-- Use the `google-search` MCP (Gemini grounding), not broken DuckDuckGo scraping
+- **Exact tool name:** `google-search__google_search` (not `web_search*`)
+- When they ask to put a place on the calendar, **search first**, then **`modify_event`** — don't stop after search
 
 ## YouTube Music
 

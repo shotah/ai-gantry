@@ -18,6 +18,9 @@ func TestTemporalAnchor(t *testing.T) {
 		"2026",
 		"8:03 AM",
 		"America/Los_Angeles",
+		"yesterday=2026-07-25 (Saturday)",
+		"today=2026-07-26",
+		"tomorrow=2026-07-27 (Monday)",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("got %q, want substring %q", got, want)

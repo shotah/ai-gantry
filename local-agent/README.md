@@ -28,22 +28,25 @@ Design goals: **tiny footprint, no inbound ports, one command to deploy.**
 
 ## Table of contents
 
-- [Architecture](#architecture)
-- [Quick start (local)](#quick-start-local)
-- [Deploy to a server](#deploy-to-an-ubuntu-server)
-- [How setup works](#how-setup-works)
-- [Documentation](#documentation)
-- [Environment variables](#environment-variables)
-- [Workout coaching (Strava)](#workout-coaching-strava)
-- [Garmin recovery (sleep / weight)](#garmin-recovery-sleep--weight)
-- [House Cast (speakers / displays)](#house-cast-speakers--displays)
-- [YouTube Music](#youtube-music)
-- [Make targets](#make-targets)
-- [Design & efficiency notes](#design--efficiency-notes)
-- [Project layout](#project-layout)
-- [Migration from ZeroClaw](#migration-from-zeroclaw)
-- [Roadmap](#roadmap)
-- [License](#license)
+- [local-agent](#local-agent)
+  - [Table of contents](#table-of-contents)
+  - [Architecture](#architecture)
+  - [Quick start (local)](#quick-start-local)
+  - [Deploy to an Ubuntu server](#deploy-to-an-ubuntu-server)
+  - [How setup works](#how-setup-works)
+  - [Documentation](#documentation)
+  - [Environment variables](#environment-variables)
+  - [Workout coaching (Strava)](#workout-coaching-strava)
+  - [Garmin recovery (sleep / weight)](#garmin-recovery-sleep--weight)
+  - [House Cast (speakers / displays)](#house-cast-speakers--displays)
+  - [YouTube Music](#youtube-music)
+  - [Web search (Google via Gemini)](#web-search-google-via-gemini)
+  - [Make targets](#make-targets)
+  - [Design \& efficiency notes](#design--efficiency-notes)
+  - [Project layout](#project-layout)
+  - [Migration from ZeroClaw](#migration-from-zeroclaw)
+  - [Roadmap](#roadmap)
+  - [License](#license)
 
 ---
 
@@ -64,12 +67,14 @@ flowchart LR
     GS[mcp-gemini-google-search]
     CM[mcp-beam]
     YM[youtube-go-mcp]
+    MM[mcp-go-math]
     GN -->|MCP stdio| GW
     GN -->|MCP stdio| SM
     GN -->|MCP stdio| GM
     GN -->|MCP stdio| GS
     GN -->|MCP stdio| CM
     GN -->|MCP stdio| YM
+    GN -->|MCP stdio| MM
   end
 
   GN -->|HTTPS| GEM[Gemini API]
@@ -208,6 +213,7 @@ Everything lives in [`./docs`](docs). Start with Telegram, add the rest as neede
 | ⌚ **[docs/garmin.md](docs/garmin.md)** | go-garmin MCP, `make garmin-auth`, sleep / weight / readiness | Physiological recovery + scale weight |
 | 📺 **[docs/cast.md](docs/cast.md)** | mcp-beam (Go) release, host networking, `beam_youtube_video` / pause / volume | House Chromecast / Nest / DLNA |
 | 🎵 **[docs/ytmusic.md](docs/ytmusic.md)** | youtube-go-mcp (Go), browser headers, search / library / liked | YouTube Music → `videoId` → Cast |
+| 🧮 **[docs/math.md](docs/math.md)** | mcp-go-math (Go), `evaluate` + `convert` | Non-trivial arithmetic / unit conversion |
 | 🔎 **[docs/web-search.md](docs/web-search.md)** | Google Search via Gemini grounding MCP (same API key) | Web answers |
 
 Legacy proposals from the ZeroClaw era ([docs/whatsapp.md](docs/whatsapp.md), [docs/sms.md](docs/sms.md)) are kept for reference; extra channels are an explicit ai-gantry non-goal — one persona, one channel, one container.
@@ -234,8 +240,9 @@ Set in `.env` (copy from [`.env.example`](.env.example)). Secrets are never comm
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `USER_GOOGLE_EMAIL` | — | Google Workspace MCP OAuth (see [docs/google-workspace.md](docs/google-workspace.md)) |
 | `GANTRY_VERSION` | — | shotah/ai-gantry release baked into the image (default pinned in `Dockerfile`) |
 | `GANTRY_IMAGE` | — | Local tag after build (default `gantry-local-agent:local`) |
-| `STRAVA_MCP_VERSION` / `GARMIN_MCP_VERSION` / `GEMINI_SEARCH_MCP_REF` / `GOOGLE_WORKSPACE_MCP_REF` | — | Tool build pins (defaults in `Dockerfile`) |
+| `STRAVA_MCP_VERSION` / `GARMIN_MCP_VERSION` / `GEMINI_SEARCH_MCP_VERSION` / `GOOGLE_WORKSPACE_MCP_VERSION` | — | Tool build pins (defaults in `Dockerfile`) |
 | `MCP_BEAM_VERSION` / `YOUTUBE_GO_MCP_VERSION` | — | shotah tool releases (`latest` default; pin `vX.Y.Z` to freeze) |
+| `MCP_GO_MATH_VERSION` | — | mcp-go-math release (Dockerfile default `v0.0.2`) |
 | `NETWORK_MODE` | Cast | `host` for Cast mDNS on Linux (default `bridge`) |
 | `GANTRY_UID` / `GANTRY_GID` | server | Match the server login user (`id -u` / `id -g`) |
 | `DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_PATH` / `DEPLOY_SSH_PORT` / `DEPLOY_SSH_KEY` | remote | SSH deploy target (see [docs/deploy.md](docs/deploy.md)) |
@@ -325,7 +332,7 @@ Full guide: **[docs/ytmusic.md](docs/ytmusic.md)**.
 ## Web search (Google via Gemini)
 
 LOCAL_AGENT searches the web through
-[zchee/mcp-gemini-google-search](https://github.com/zchee/mcp-gemini-google-search)
+[shotah/mcp-gemini-search](https://github.com/shotah/mcp-gemini-search)
 — Gemini Grounding with Google Search, same `GEMINI_API_KEY` as chat, exposed as
 the `google-search__google_search` tool. No scraping, no extra keys.
 

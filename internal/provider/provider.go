@@ -64,6 +64,7 @@ type Request struct {
 // Result is the model response (text and/or tool calls).
 type Result struct {
 	Content      string
+	Thinking     string // chain-of-thought when the provider emits it (Ollama reasoning/thinking)
 	ToolCalls    []ToolCall
 	FinishReason string // stop|length|tool_calls|… when the provider reports it
 }
@@ -161,6 +162,7 @@ func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
 	msg := choice.Message
 	out := &Result{
 		Content:      strings.TrimSpace(msg.Content),
+		Thinking:     strings.TrimSpace(extractThinkingJSON(msg.RawJSON())),
 		FinishReason: choice.FinishReason,
 	}
 	for _, tc := range msg.ToolCalls {
@@ -177,7 +179,7 @@ func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
 			out.ToolCalls = append(out.ToolCalls, call)
 		}
 	}
-	if out.Content == "" && len(out.ToolCalls) == 0 {
+	if out.Content == "" && len(out.ToolCalls) == 0 && out.Thinking == "" {
 		return nil, fmt.Errorf("provider: empty assistant content")
 	}
 	return out, nil
@@ -247,6 +249,25 @@ func toolCallParam(tc ToolCall) (openai.ChatCompletionMessageFunctionToolCallPar
 		}
 	}
 	return param.Override[openai.ChatCompletionMessageFunctionToolCallParam](raw), nil
+}
+
+// extractThinkingJSON pulls Ollama/DeepSeek-style reasoning from a message or
+// delta JSON object (fields are not on the typed openai-go delta).
+func extractThinkingJSON(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return ""
+	}
+	for _, key := range []string{"reasoning", "reasoning_content", "thinking"} {
+		if v, ok := m[key].(string); ok && v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func synthesizeToolCallRaw(tc ToolCall) (json.RawMessage, error) {

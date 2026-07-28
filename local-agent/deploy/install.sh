@@ -46,6 +46,24 @@ chown -R gantry:gantry "$DEST"
 chmod 0755 "$DEST/gantry"
 chmod 0755 "$DEST/bin"/* 2>/dev/null || true
 
+# Dedicated agent box: keep the model resident. Default keep-alive (5m) means
+# every idle gap pays a ~23GB model reload + full cold prompt eval (minutes).
+# Idempotent; delete the override file and restart ollama to revert.
+if systemctl cat ollama.service > /dev/null 2>&1; then
+  OLLAMA_OVERRIDE=/etc/systemd/system/ollama.service.d/gantry.conf
+  if [ ! -f "$OLLAMA_OVERRIDE" ]; then
+    mkdir -p /etc/systemd/system/ollama.service.d
+    cat > "$OLLAMA_OVERRIDE" <<'EOF'
+# Installed by gantry deploy (deploy/install.sh) — never unload the model.
+[Service]
+Environment=OLLAMA_KEEP_ALIVE=-1
+EOF
+    systemctl daemon-reload
+    systemctl restart ollama
+    echo "Installed ollama keep-alive override: $OLLAMA_OVERRIDE"
+  fi
+fi
+
 systemctl daemon-reload
 systemctl enable gantry.service
 

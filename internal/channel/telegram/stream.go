@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -32,6 +33,10 @@ type editStream struct {
 	latest           string
 	lastFlushed      string
 	pending          string
+	thinking         string // raw CoT of the current model call (not HTML)
+	thinkingLog      string // archived CoT from earlier calls this turn (tool loops)
+	answer           string // raw answer text
+	useHTML          bool
 	started          bool
 	rateLimitedUntil time.Time
 	flushStop        chan struct{}
@@ -62,19 +67,59 @@ func (s *editStream) Started() bool {
 // Update caches the latest full text and ensures the flush loop is running.
 // It does not wait on Telegram rate limits — that would stall the LLM.
 func (s *editStream) Update(ctx context.Context, fullText string) error {
+	s.mu.Lock()
+	s.thinking = ""
+	s.answer = fullText
+	s.useHTML = false
 	display := fullText
 	if display == "" {
 		display = streamPlaceholder
 	}
 	display = clipRunes(display, s.chunkMax)
-
-	s.mu.Lock()
 	s.started = true
 	s.latest = display
 	s.pending = display
 	s.ensureFlusherLocked(ctx)
 	s.mu.Unlock()
 	return nil
+}
+
+// UpdateThinking caches thinking + answer and flushes live italics (not
+// expandable — edits would keep collapsing a blockquote).
+//
+// thinking accumulates within one model call; a tool loop starts a fresh call
+// whose stream restarts from empty. Archive the previous call's CoT instead of
+// overwriting it, so earlier reasoning never vanishes from the bubble.
+func (s *editStream) UpdateThinking(ctx context.Context, thinking, content string) error {
+	s.mu.Lock()
+	if s.thinking != "" && !strings.HasPrefix(thinking, s.thinking) {
+		if s.thinkingLog != "" {
+			s.thinkingLog += "\n\n"
+		}
+		s.thinkingLog += s.thinking
+	}
+	s.thinking = thinking
+	combined := s.combinedThinkingLocked()
+	s.answer = content
+	display, useHTML := buildStreamDisplay(combined, content, s.chunkMax, false)
+	s.useHTML = useHTML
+	s.started = true
+	s.latest = display
+	s.pending = display
+	s.ensureFlusherLocked(ctx)
+	s.mu.Unlock()
+	return nil
+}
+
+// combinedThinkingLocked joins archived + current CoT. Callers hold s.mu.
+func (s *editStream) combinedThinkingLocked() string {
+	if s.thinkingLog == "" {
+		return s.thinking
+	}
+	if s.thinking == "" {
+		return s.thinkingLog
+	}
+	return s.thinkingLog + "\n\n" + s.thinking
 }
 
 func (s *editStream) ensureFlusherLocked(ctx context.Context) {
@@ -179,30 +224,37 @@ func (s *editStream) noteRateLimit(err error) {
 }
 
 func (s *editStream) Finish(ctx context.Context, final string) error {
-	if final == "" {
-		s.mu.Lock()
-		final = s.pending
-		if final == "" {
-			final = s.latest
-		}
-		s.mu.Unlock()
-	}
-	if final == "" {
-		final = streamPlaceholder
-	}
-
 	s.mu.Lock()
+	thinking := s.combinedThinkingLocked()
+	if final == "" {
+		// Raw answer only. pending/latest hold the *formatted display* string
+		// (may contain HTML); re-composing with those as content double-renders
+		// the thinking with escaped tags visible.
+		final = s.answer
+	}
+	s.answer = final
+	// Final edit may use expandable — stream flushes are done, so it won't keep collapsing.
+	display, useHTML := buildStreamDisplay(thinking, final, s.chunkMax, true)
+	s.useHTML = useHTML
 	s.started = true
-	// Keep latest as the first chunk preview during settle; Finish sends full split text.
-	s.latest = clipRunes(final, s.chunkMax)
-	s.pending = s.latest
+	s.latest = display
+	s.pending = display
 	s.mu.Unlock()
 
 	s.stopFlusher()
 
+	// HTML thinking must stay one message (splitting would break tags).
+	if useHTML {
+		return s.pushFinal(ctx, display)
+	}
+
 	parts := splitMessage(final, s.chunkMax)
 	if len(parts) == 0 {
-		return nil
+		if final == "" {
+			parts = []string{streamPlaceholder}
+		} else {
+			return nil
+		}
 	}
 	if err := s.pushFinal(ctx, parts[0]); err != nil {
 		return err
@@ -214,11 +266,12 @@ func (s *editStream) Finish(ctx context.Context, final string) error {
 		case <-time.After(chunkPause):
 		}
 		var overflow *models.Message
+		chunk := parts[i]
 		if err := doWith429RetryMax(ctx, func() error {
 			m, err := s.bot.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:          s.chatID,
 				MessageThreadID: s.threadID,
-				Text:            parts[i],
+				Text:            chunk,
 			})
 			if err != nil {
 				return err
@@ -229,7 +282,7 @@ func (s *editStream) Finish(ctx context.Context, final string) error {
 			return err
 		}
 		if overflow != nil {
-			s.remember(overflow.ID, parts[i])
+			s.remember(overflow.ID, chunk)
 		}
 	}
 	return nil
@@ -238,19 +291,29 @@ func (s *editStream) Finish(ctx context.Context, final string) error {
 func (s *editStream) pushFinal(ctx context.Context, text string) error {
 	s.mu.Lock()
 	msgID := s.msgID
+	same := msgID != 0 && text == s.lastFlushed
 	s.mu.Unlock()
 	if msgID == 0 {
 		return s.sendInitialRetry(ctx, text)
+	}
+	if same {
+		return nil
 	}
 	return s.editRetry(ctx, text)
 }
 
 func (s *editStream) sendInitial(ctx context.Context, text string) error {
-	msg, err := s.bot.SendMessage(ctx, &bot.SendMessageParams{
+	p := &bot.SendMessageParams{
 		ChatID:          s.chatID,
 		MessageThreadID: s.threadID,
 		Text:            text,
-	})
+	}
+	s.mu.Lock()
+	if s.useHTML {
+		p.ParseMode = models.ParseModeHTML
+	}
+	s.mu.Unlock()
+	msg, err := s.bot.SendMessage(ctx, p)
 	if err != nil {
 		return fmt.Errorf("telegram: stream send: %w", err)
 	}
@@ -266,11 +329,17 @@ func (s *editStream) sendInitial(ctx context.Context, text string) error {
 func (s *editStream) sendInitialRetry(ctx context.Context, text string) error {
 	var msg *models.Message
 	err := doWith429RetryMax(ctx, func() error {
-		m, err := s.bot.SendMessage(ctx, &bot.SendMessageParams{
+		p := &bot.SendMessageParams{
 			ChatID:          s.chatID,
 			MessageThreadID: s.threadID,
 			Text:            text,
-		})
+		}
+		s.mu.Lock()
+		if s.useHTML {
+			p.ParseMode = models.ParseModeHTML
+		}
+		s.mu.Unlock()
+		m, err := s.bot.SendMessage(ctx, p)
 		if err != nil {
 			return err
 		}
@@ -296,12 +365,26 @@ func (s *editStream) editOnce(ctx context.Context, text string) error {
 	if msgID == 0 {
 		return fmt.Errorf("telegram: stream edit: missing message id")
 	}
-	_, err := s.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
+	p := &bot.EditMessageTextParams{
 		ChatID:    s.chatID,
 		MessageID: msgID,
 		Text:      text,
-	})
+	}
+	s.mu.Lock()
+	if s.useHTML {
+		p.ParseMode = models.ParseModeHTML
+	}
+	s.mu.Unlock()
+	_, err := s.bot.EditMessageText(ctx, p)
 	if err != nil {
+		if isMessageNotModified(err) {
+			s.mu.Lock()
+			s.lastFlushed = text
+			s.pending = text
+			s.mu.Unlock()
+			s.remember(msgID, text)
+			return nil
+		}
 		return fmt.Errorf("telegram: stream edit: %w", err)
 	}
 	s.mu.Lock()
@@ -320,11 +403,20 @@ func (s *editStream) editRetry(ctx context.Context, text string) error {
 		return fmt.Errorf("telegram: stream edit: missing message id")
 	}
 	err := doWith429RetryMax(ctx, func() error {
-		_, err := s.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
+		p := &bot.EditMessageTextParams{
 			ChatID:    s.chatID,
 			MessageID: msgID,
 			Text:      text,
-		})
+		}
+		s.mu.Lock()
+		if s.useHTML {
+			p.ParseMode = models.ParseModeHTML
+		}
+		s.mu.Unlock()
+		_, err := s.bot.EditMessageText(ctx, p)
+		if isMessageNotModified(err) {
+			return nil
+		}
 		return err
 	}, finishRetryMaxWait)
 	if err != nil {

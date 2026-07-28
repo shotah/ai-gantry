@@ -1,24 +1,41 @@
 # MCP server manifest for local-agent (mounted read-only at /etc/gantry/mcp.toml).
 # Being listed here IS the grant — no bundles layer. Tools reach the model as
 # {server}__{tool}. Binaries are baked into the image by the Dockerfile; auth
-# material arrives via compose env + ./secrets mounts (see each doc).
+# material lives under data/.config/* (Docker + native).
+#
+# Optional auth_* : `gantry auth <name>` runs auth_command (default: command)
+# with auth_args. Omit when the package has no auth entrypoint.
+#
+# Optional download_url + download_tag : native deploy (`make remote-native-fetch`)
+# GETs the archive into /opt/gantry/bin. Placeholders: {os} {arch} {tag} {version}
+# (version = tag without leading "v"). Set download_tag once — or "latest" to
+# resolve the current GitHub release at `gantry tools-plan` time (handy while
+# testing; pin a tag for reproducible deploys). `gantry tools-plan` lists these.
 
-# Google Workspace (magks/google-workspace-mcp-go) — docs/google-workspace.md
-# core tier ≈ 45 tools; include services LOCAL_AGENT uses day-to-day.
+# Google Workspace (maintained fork: google-workspace-mcp-go) — docs/google-workspace.md
+# Trimmed to day-to-day services: a small local model (Qwen3.5 A3B) hallucinates
+# tool names past ~15 tools per server, and every schema eats context tokens.
+# Add drive/docs/sheets/contacts back here if TIM actually needs them.
+# No auth subcommand yet — use `make google-auth` (Python OAuth helper).
 [[server]]
 name = "google-workspace"
 command = "google-workspace-mcp-go"
 args = [
   "--tools",
-  "gmail drive calendar docs sheets tasks contacts",
+  "gmail calendar tasks",
   "--tool-tier",
   "core",
 ]
+download_tag = "latest"
+download_url = "https://github.com/shotah/google-workspace-mcp-go/releases/download/{tag}/google-workspace-mcp-go_{version}_{os}_{arch}.tar.gz"
 
 # Strava workouts (Stealinglight/StravaMCP) — docs/strava.md
 [[server]]
 name = "strava"
 command = "strava-mcp"
+auth_args = ["auth"]
+download_tag = "v1.2.0"
+download_url = "https://github.com/Stealinglight/StravaMCP/releases/download/{tag}/StravaMCP_{version}_{os}_{arch}.tar.gz"
 
 # Garmin sleep / body battery / weight (shotah/go-garmin) — docs/garmin.md
 # --tool-tier core ≈ 10 recovery/coaching tools (not the full ~100).
@@ -26,19 +43,38 @@ command = "strava-mcp"
 name = "garmin"
 command = "garmin"
 args = ["mcp", "--tool-tier", "core"]
+auth_args = ["login"]
+download_tag = "v0.1.2"
+download_url = "https://github.com/shotah/go-garmin/releases/download/{tag}/garmin_{version}_{os}_{arch}.tar.gz"
 
-# Web search via Gemini Grounding (zchee/mcp-gemini-google-search) — docs/web-search.md
+# Web search via Gemini Grounding (shotah/mcp-gemini-search) — docs/web-search.md
+# Binary name stays mcp-gemini-google-search (goreleaser project_name).
 [[server]]
 name = "google-search"
 command = "mcp-gemini-google-search"
+download_tag = "latest"
+download_url = "https://github.com/shotah/mcp-gemini-search/releases/download/{tag}/mcp-gemini-google-search_{version}_{os}_{arch}.tar.gz"
 
 # Chromecast / Nest / DLNA (shotah/mcp-beam) — docs/cast.md
 # mDNS discovery needs NETWORK_MODE=host on the Linux server.
 [[server]]
 name = "cast"
 command = "mcp-beam"
+download_tag = "v0.0.3"
+download_url = "https://github.com/shotah/mcp-beam/releases/download/{tag}/mcp-beam_{version}_{os}_{arch}.tar.gz"
 
 # YouTube Music (shotah/youtube-go-mcp) — docs/ytmusic.md
 [[server]]
 name = "ytmusic"
 command = "youtube-go-mcp"
+auth_args = ["auth", "--out", "${YTMUSIC_HEADERS_PATH}"]
+download_tag = "v0.0.4"
+download_url = "https://github.com/shotah/youtube-go-mcp/releases/download/{tag}/youtube-go-mcp_{version}_{os}_{arch}.tar.gz"
+
+# Calculator (shotah/mcp-go-math) — docs/math.md
+# Tiny surface on purpose: evaluate + convert. Use for any non-trivial arithmetic.
+[[server]]
+name = "math"
+command = "mcp-go-math"
+download_tag = "latest"
+download_url = "https://github.com/shotah/mcp-go-math/releases/download/{tag}/mcp-go-math_{version}_{os}_{arch}.tar.gz"

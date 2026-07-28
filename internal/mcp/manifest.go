@@ -22,6 +22,43 @@ type ServerSpec struct {
 	Tools       []string `toml:"tools"`        // optional allowlist of original tool names
 	Exclude     []string `toml:"exclude"`      // optional denylist (shell-style * ? patterns)
 	ToolsPrefix string   `toml:"tools_prefix"` // optional prefix override (default: name)
+	// AuthCommand / AuthArgs declare how to (re)authorize this server.
+	// Used by `gantry auth <name>`. If AuthArgs is set and AuthCommand is
+	// empty, Command is used. Omit both when the server has no auth flow.
+	AuthCommand string   `toml:"auth_command"`
+	AuthArgs    []string `toml:"auth_args"`
+
+	// DownloadURL is an optional HTTP(S) URL of a binary archive for native
+	// deploy (`make remote-native-fetch`). Ignored by the runtime host.
+	// Source-agnostic (GitHub, GitLab, S3, …).
+	// Placeholders: {os} {arch}; with DownloadTag: {tag} {version}.
+	DownloadURL string `toml:"download_url"`
+	// DownloadTag pins a release tag once (e.g. "v0.0.2") for {tag}/{version}
+	// in DownloadURL. Use "latest" to resolve the current GitHub release at
+	// `gantry tools-plan` / native-fetch time (testing convenience).
+	DownloadTag string `toml:"download_tag"`
+}
+
+// AuthConfigured reports whether this server declares an auth subprocess.
+func (s ServerSpec) AuthConfigured() bool {
+	return strings.TrimSpace(s.AuthCommand) != "" || len(s.AuthArgs) > 0
+}
+
+// AuthCmd returns the executable and args for `gantry auth`.
+// AuthCommand defaults to Command when only AuthArgs is set.
+func (s ServerSpec) AuthCmd() (command string, args []string, ok bool) {
+	if !s.AuthConfigured() {
+		return "", nil, false
+	}
+	command = strings.TrimSpace(s.AuthCommand)
+	if command == "" {
+		command = strings.TrimSpace(s.Command)
+	}
+	if command == "" {
+		return "", nil, false
+	}
+	args = append([]string(nil), s.AuthArgs...)
+	return command, args, true
 }
 
 // LoadManifest reads and validates a TOML MCP manifest.

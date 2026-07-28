@@ -35,8 +35,8 @@ func TestClient_CompleteStream(t *testing.T) {
 	var seen []string
 	got, err := c.CompleteStream(context.Background(), provider.Request{
 		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
-	}, func(full string) error {
-		seen = append(seen, full)
+	}, func(content, _ string) error {
+		seen = append(seen, content)
 		return nil
 	})
 	if err != nil {
@@ -50,6 +50,48 @@ func TestClient_CompleteStream(t *testing.T) {
 	}
 	if len(seen) < 2 || seen[len(seen)-1] != "Hello" {
 		t.Fatalf("seen=%v", seen)
+	}
+}
+
+func TestClient_CompleteStream_Thinking(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, _ := w.(http.Flusher)
+		chunks := []string{
+			`{"id":"1","choices":[{"index":0,"delta":{"role":"assistant","reasoning":"Let me "}}]}`,
+			`{"id":"1","choices":[{"index":0,"delta":{"reasoning":"think."}}]}`,
+			`{"id":"1","choices":[{"index":0,"delta":{"content":"Hi"}}]}`,
+			`{"id":"1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+		}
+		for _, c := range chunks {
+			_, _ = w.Write([]byte("data: " + c + "\n\n"))
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m")
+	var lastContent, lastThinking string
+	got, err := c.CompleteStream(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	}, func(content, thinking string) error {
+		lastContent, lastThinking = content, thinking
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Thinking != "Let me think." {
+		t.Fatalf("Thinking=%q", got.Thinking)
+	}
+	if got.Content != "Hi" {
+		t.Fatalf("Content=%q", got.Content)
+	}
+	if lastThinking != "Let me think." || lastContent != "Hi" {
+		t.Fatalf("progress content=%q thinking=%q", lastContent, lastThinking)
 	}
 }
 
@@ -73,7 +115,7 @@ func TestClient_CompleteStream_ToolCallsSkipText(t *testing.T) {
 	got, err := c.CompleteStream(context.Background(), provider.Request{
 		Messages: []provider.Message{{Role: provider.RoleUser, Content: "go"}},
 		Tools:    []provider.ToolDef{{Name: "demo__echo", Parameters: map[string]any{"type": "object"}}},
-	}, func(string) error {
+	}, func(string, string) error {
 		called++
 		return nil
 	})
@@ -81,7 +123,7 @@ func TestClient_CompleteStream_ToolCallsSkipText(t *testing.T) {
 		t.Fatal(err)
 	}
 	if called != 0 {
-		t.Fatalf("onText called %d times for tool-only stream", called)
+		t.Fatalf("onProgress called %d times for tool-only stream", called)
 	}
 	if len(got.ToolCalls) != 1 || got.ToolCalls[0].Name != "demo__echo" {
 		t.Fatalf("toolcalls=%+v", got.ToolCalls)

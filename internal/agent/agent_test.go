@@ -124,14 +124,82 @@ func TestAgent_Handle_MemoryHydration(t *testing.T) {
 	if _, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "hello chris"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(last.Messages) < 3 {
-		t.Fatalf("want persona + memory + user, got %d", len(last.Messages))
+	if len(last.Messages) < 4 {
+		t.Fatalf("want persona + memory + anchor + user, got %d", len(last.Messages))
 	}
 	if !strings.Contains(last.Messages[0].Content, "Persona files") {
 		t.Fatalf("persona missing precedence note: %q", last.Messages[0].Content)
 	}
-	if !strings.Contains(last.Messages[1].Content, "[memory]") {
-		t.Fatalf("missing hydration: %q", last.Messages[1].Content)
+	// Hydration is volatile per-turn content: it must sit AFTER history (here,
+	// directly before the temporal anchor + user message) so the stable prompt
+	// prefix is cacheable across turns.
+	n := len(last.Messages)
+	if !strings.Contains(last.Messages[n-3].Content, "[memory]") {
+		t.Fatalf("missing hydration before anchor: %q", last.Messages[n-3].Content)
+	}
+	if !strings.Contains(last.Messages[n-2].Content, "[current time]") {
+		t.Fatalf("missing temporal anchor: %q", last.Messages[n-2].Content)
+	}
+}
+
+// Qwen-style stall: thinking present, no answer, no tool call. The agent must
+// nudge the model to act (once) instead of returning an empty reply.
+func TestAgent_Handle_ThinkingOnlyGetsNudged(t *testing.T) {
+	ctx := context.Background()
+	var reqs []provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		reqs = append(reqs, req)
+		if len(reqs) == 1 {
+			return &provider.Result{Thinking: "plan: call get_events for Monday"}, nil
+		}
+		return &provider.Result{Content: "your Monday is clear"}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Persona:   "you are tim",
+		Completer: fc,
+		Sessions:  newMemHistory(),
+		Model:     "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "what's tomorrow?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != "your Monday is clear" {
+		t.Fatalf("reply = %q", reply)
+	}
+	if len(reqs) != 2 {
+		t.Fatalf("completions = %d, want 2 (original + nudged)", len(reqs))
+	}
+	last := reqs[1].Messages[len(reqs[1].Messages)-1]
+	if last.Role != provider.RoleSystem ||
+		!strings.Contains(last.Content, "only internal reasoning") ||
+		!strings.Contains(last.Content, "plan: call get_events for Monday") {
+		t.Fatalf("missing nudge message: %+v", last)
+	}
+}
+
+// After one nudge, a second thinking-only stall must ERROR (so Telegram
+// error reporting fires) instead of silently returning an empty reply.
+func TestAgent_Handle_ThinkingOnlyAfterNudgeErrors(t *testing.T) {
+	ctx := context.Background()
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		return &provider.Result{Thinking: "still planning…"}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Persona:   "you are tim",
+		Completer: fc,
+		Sessions:  newMemHistory(),
+		Model:     "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = a.Handle(ctx, channel.Message{SessionID: "s", Text: "calendar?"})
+	if err == nil || !strings.Contains(err.Error(), "stalled after thinking") {
+		t.Fatalf("err = %v, want stalled after thinking", err)
 	}
 }
 

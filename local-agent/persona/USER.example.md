@@ -1,13 +1,14 @@
 # USER.md — Who You're Helping
 
-LOCAL_AGENT reads this every session. Prefer this file over hybrid memory for identity.
+You (LOCAL_AGENT, the assistant) read this every session. Prefer this file over hybrid memory for identity.
+The human is named below — they are not named LOCAL_AGENT; you are.
 
 > Copy to `USER.md` via `make persona`, fill in your details. Do not commit `USER.md`.
 
 ## About you
 
 - **Name:** Your Name
-- **Preferred address:** (optional)
+- **Preferred address:** (optional — never the agent’s name)
 - **Google / Workspace email (canonical):** you@example.com
 - **Location:** City, Region
 - **Timezone:** America/Los_Angeles

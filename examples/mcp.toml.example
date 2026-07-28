@@ -8,6 +8,14 @@
 #   exclude = ["raw_*"]                     # denylist (shell-style * ?)
 #   tools_prefix = "garm"                   # override name used in {prefix}__{tool}
 #
+# Optional auth (gantry auth <name>):
+#   auth_command = "…"   # default: command
+#   auth_args    = ["login"]  # ${ENV} expanded
+#
+# Optional native bake (gantry tools-plan / remote-native-fetch):
+#   download_tag = "v0.0.2"   # or "latest" (GitHub API at plan time)
+#   download_url = "https://github.com/org/repo/releases/download/{tag}/tool_{version}_{os}_{arch}.tar.gz"
+#
 # Full appliance-style compose + commented servers:
 #   examples/personal-assistant/
 # Production image with binaries baked in:
@@ -17,6 +25,7 @@
 # name    = "example"
 # command = "example-mcp"
 # args    = ["--flag", "value"]
+# auth_args = ["auth"]
 
 # --- Shape used by LOCAL_AGENT (binaries must exist on PATH) -------------------------
 #
@@ -29,19 +38,27 @@
 #   "--tool-tier",
 #   "core",
 # ]
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/google-workspace-mcp-go/releases/download/{tag}/google-workspace-mcp-go_{version}_{os}_{arch}.tar.gz"
 #
 # [[server]]
 # name    = "strava"
 # command = "strava-mcp"
+# auth_args = ["auth"]
+# download_tag = "v1.2.0"
+# download_url = "https://github.com/Stealinglight/StravaMCP/releases/download/{tag}/StravaMCP_{version}_{os}_{arch}.tar.gz"
 #
 # [[server]]
 # name    = "garmin"
 # command = "garmin"
 # args    = ["mcp", "--tool-tier", "core"]
+# auth_args = ["login"]
 #
 # [[server]]
 # name    = "google-search"
 # command = "mcp-gemini-google-search"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/mcp-gemini-search/releases/download/{tag}/mcp-gemini-google-search_{version}_{os}_{arch}.tar.gz"
 #
 # [[server]]
 # name    = "cast"
@@ -50,3 +67,10 @@
 # [[server]]
 # name    = "ytmusic"
 # command = "youtube-go-mcp"
+# auth_args = ["auth", "--out", "${YTMUSIC_HEADERS_PATH}"]
+#
+# [[server]]
+# name    = "math"
+# command = "mcp-go-math"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/mcp-go-math/releases/download/{tag}/mcp-go-math_{version}_{os}_{arch}.tar.gz"

@@ -4,7 +4,7 @@
 #
 # Build (from this directory):  docker compose build   # or: make build
 # Auth:   docs/google-workspace.md · docs/strava.md · docs/garmin.md ·
-#         docs/web-search.md · docs/cast.md · docs/ytmusic.md
+#         docs/web-search.md · docs/cast.md · docs/ytmusic.md · docs/math.md
 
 # shotah/ai-gantry GitHub release (the runtime). Override via GANTRY_VERSION.
 # Also published as shotah/ai-gantry on Docker Hub / GHCR.
@@ -12,14 +12,13 @@ ARG GANTRY_VERSION=v0.0.5
 ARG STRAVA_MCP_VERSION=v1.2.0
 # shotah/go-garmin release (DI auth + MCP). Override via GARMIN_MCP_VERSION.
 ARG GARMIN_MCP_VERSION=v0.1.2
-# Gemini Grounding with Google Search MCP (override via GEMINI_SEARCH_MCP_REF).
-ARG GEMINI_SEARCH_MCP_REF=1fe676adcdaa79ed0798fd32be0695ffee15c644
-# Google Workspace MCP (Go; magks) — pin commit (override via GOOGLE_WORKSPACE_MCP_REF).
-ARG GOOGLE_WORKSPACE_MCP_REF=e421e4cea028e93575bb4e7b5ec1b3dc4a7084b6
 # Our packages: default `latest` (resolved at build). Pin e.g. v0.0.2 to freeze.
 # TOOLS_CACHEBUST (from make/remote) busts Docker cache so latest re-resolves.
+ARG GOOGLE_WORKSPACE_MCP_VERSION=latest
+ARG GEMINI_SEARCH_MCP_VERSION=latest
 ARG MCP_BEAM_VERSION=latest
 ARG YOUTUBE_GO_MCP_VERSION=latest
+ARG MCP_GO_MATH_VERSION=latest
 ARG TOOLS_CACHEBUST=0
 
 # --- fetch gantry (static Go; shotah/ai-gantry release) -----------------------
@@ -42,16 +41,33 @@ RUN apt-get update \
     && install -m 0755 /tmp/gantry /gantry \
     && /gantry version
 
-# --- build Google Workspace MCP (static Go; magks) ---------------------------
-FROM golang:1.25-bookworm AS google-workspace-mcp
-ARG GOOGLE_WORKSPACE_MCP_REF
+# --- fetch Google Workspace MCP (static Go; shotah/google-workspace-mcp-go) --
+FROM debian:trixie-slim AS google-workspace-mcp
+ARG GOOGLE_WORKSPACE_MCP_VERSION
 ARG TARGETARCH
+ARG TOOLS_CACHEBUST=0
 
-ENV CGO_ENABLED=0
-WORKDIR /src
-RUN git clone https://github.com/magks/google-workspace-mcp-go.git . \
-    && git checkout --detach "${GOOGLE_WORKSPACE_MCP_REF}" \
-    && GOOS=linux GOARCH="${TARGETARCH}" go build -trimpath -ldflags="-s -w" -o /google-workspace-mcp-go . \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && case "${TARGETARCH}" in \
+    amd64|arm64) GWS_ARCH="linux_${TARGETARCH}" ;; \
+    *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && : "TOOLS_CACHEBUST=${TOOLS_CACHEBUST}" \
+    && VER="${GOOGLE_WORKSPACE_MCP_VERSION}" \
+    && if [ "${VER}" = "latest" ]; then \
+    VER=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+    "https://github.com/shotah/google-workspace-mcp-go/releases/latest" \
+    | sed 's|.*/||'); \
+    echo "resolved google-workspace-mcp-go latest -> ${VER}"; \
+    fi \
+    && V="${VER#v}" \
+    && curl -fsSL \
+    "https://github.com/shotah/google-workspace-mcp-go/releases/download/${VER}/google-workspace-mcp-go_${V}_${GWS_ARCH}.tar.gz" \
+    -o /tmp/google-workspace-mcp-go.tar.gz \
+    && tar -xzf /tmp/google-workspace-mcp-go.tar.gz -C /tmp \
+    && install -m 0755 /tmp/google-workspace-mcp-go /google-workspace-mcp-go \
     && test -x /google-workspace-mcp-go
 
 # --- fetch strava-mcp (static Go binary; MCP server for Strava) ---------------
@@ -94,17 +110,34 @@ RUN apt-get update \
     && install -m 0755 /tmp/garmin /garmin \
     && /garmin --version
 
-# --- build Gemini Google Search MCP (static Go; zchee) -----------------------
-FROM golang:1.26-bookworm AS gemini-search
-ARG GEMINI_SEARCH_MCP_REF
+# --- fetch Gemini Google Search MCP (static Go; shotah/mcp-gemini-search) ----
+FROM debian:trixie-slim AS gemini-search
+ARG GEMINI_SEARCH_MCP_VERSION
 ARG TARGETARCH
+ARG TOOLS_CACHEBUST=0
 
-ENV CGO_ENABLED=0
-WORKDIR /src
-RUN git clone https://github.com/zchee/mcp-gemini-google-search.git . \
-    && git checkout --detach "${GEMINI_SEARCH_MCP_REF}" \
-    && GOOS=linux GOARCH="${TARGETARCH}" go build -trimpath -ldflags="-s -w" -o /mcp-gemini-google-search . \
-    && test -x /mcp-gemini-google-search
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && case "${TARGETARCH}" in \
+    amd64|arm64) SEARCH_ARCH="linux_${TARGETARCH}" ;; \
+    *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && : "TOOLS_CACHEBUST=${TOOLS_CACHEBUST}" \
+    && VER="${GEMINI_SEARCH_MCP_VERSION}" \
+    && if [ "${VER}" = "latest" ]; then \
+    VER=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+    "https://github.com/shotah/mcp-gemini-search/releases/latest" \
+    | sed 's|.*/||'); \
+    echo "resolved mcp-gemini-search latest -> ${VER}"; \
+    fi \
+    && V="${VER#v}" \
+    && curl -fsSL \
+    "https://github.com/shotah/mcp-gemini-search/releases/download/${VER}/mcp-gemini-google-search_${V}_${SEARCH_ARCH}.tar.gz" \
+    -o /tmp/mcp-gemini-google-search.tar.gz \
+    && tar -xzf /tmp/mcp-gemini-google-search.tar.gz -C /tmp \
+    && install -m 0755 /tmp/mcp-gemini-google-search /mcp-gemini-google-search \
+    && /mcp-gemini-google-search -version
 
 # --- fetch mcp-beam (static Go; Chromecast + DLNA + YouTube Cast MCP) ---------
 # mDNS discovery needs host networking at runtime (docs/cast.md).
@@ -166,6 +199,35 @@ RUN apt-get update \
     && install -m 0755 /tmp/youtube-go-mcp /youtube-go-mcp \
     && /youtube-go-mcp --version
 
+# --- fetch mcp-go-math (static Go; calculator evaluate + unit convert) --------
+FROM debian:trixie-slim AS mcp-go-math
+ARG MCP_GO_MATH_VERSION
+ARG TARGETARCH
+ARG TOOLS_CACHEBUST=0
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && case "${TARGETARCH}" in \
+    amd64|arm64) MATH_ARCH="linux_${TARGETARCH}" ;; \
+    *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && : "TOOLS_CACHEBUST=${TOOLS_CACHEBUST}" \
+    && VER="${MCP_GO_MATH_VERSION}" \
+    && if [ "${VER}" = "latest" ]; then \
+    VER=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+    "https://github.com/shotah/mcp-go-math/releases/latest" \
+    | sed 's|.*/||'); \
+    echo "resolved mcp-go-math latest -> ${VER}"; \
+    fi \
+    && V="${VER#v}" \
+    && curl -fsSL \
+    "https://github.com/shotah/mcp-go-math/releases/download/${VER}/mcp-go-math_${V}_${MATH_ARCH}.tar.gz" \
+    -o /tmp/mcp-go-math.tar.gz \
+    && tar -xzf /tmp/mcp-go-math.tar.gz -C /tmp \
+    && install -m 0755 /tmp/mcp-go-math /mcp-go-math \
+    && /mcp-go-math --version
+
 # --- runtime: distroless/static + gantry + tool binaries ----------------------
 # ca-certs + tzdata included; no shell, no libc. Healthchecks must be exec form.
 FROM gcr.io/distroless/static-debian12:nonroot
@@ -177,6 +239,7 @@ COPY --from=garmin /garmin /usr/local/bin/garmin
 COPY --from=gemini-search /mcp-gemini-google-search /usr/local/bin/mcp-gemini-google-search
 COPY --from=mcp-beam /mcp-beam /usr/local/bin/mcp-beam
 COPY --from=youtube-go-mcp /youtube-go-mcp /usr/local/bin/youtube-go-mcp
+COPY --from=mcp-go-math /mcp-go-math /usr/local/bin/mcp-go-math
 
 WORKDIR /data
 ENTRYPOINT ["/usr/local/bin/gantry"]

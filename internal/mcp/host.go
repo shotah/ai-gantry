@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -135,7 +136,7 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 	tool, ok := h.tools[toolName]
 	h.mu.RUnlock()
 	if !ok {
-		return "", fmt.Errorf("mcp: unknown tool %q", toolName)
+		return "", fmt.Errorf("mcp: unknown tool %q — %s", toolName, h.suggest(toolName))
 	}
 
 	args := map[string]any{}
@@ -144,7 +145,6 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 			return "", fmt.Errorf("mcp: invalid arguments for %q: %w", toolName, err)
 		}
 	}
-
 	text, err := h.callOnce(ctx, tool, args)
 	if err != nil {
 		h.log.Warn("mcp tool call failed; attempting restart", "tool", toolName, "server", tool.Server, "err", err)
@@ -164,6 +164,38 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 		}
 	}
 	return Truncate(text, h.resultMaxChars), nil
+}
+
+// suggest builds a model-facing hint for an unknown tool name. Small local
+// models hallucinate tool names; echoing the real catalog for the requested
+// server prefix lets them self-correct on the next iteration instead of
+// concluding the whole integration is broken.
+func (h *Host) suggest(toolName string) string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	prefix, _, hasPrefix := strings.Cut(toolName, "__")
+	var names []string
+	if hasPrefix {
+		for name := range h.tools {
+			if strings.HasPrefix(name, prefix+"__") {
+				names = append(names, name)
+			}
+		}
+	}
+	if len(names) > 0 {
+		sort.Strings(names)
+		return fmt.Sprintf("no such tool; valid %s tools are: %s — retry with one of these exact names", prefix, strings.Join(names, ", "))
+	}
+	seen := make(map[string]bool)
+	for name := range h.tools {
+		p, _, _ := strings.Cut(name, "__")
+		if !seen[p] {
+			seen[p] = true
+			names = append(names, p)
+		}
+	}
+	sort.Strings(names)
+	return "no such tool or server prefix; available server prefixes are: " + strings.Join(names, ", ")
 }
 
 func (h *Host) callOnce(ctx context.Context, tool *Tool, args map[string]any) (string, error) {

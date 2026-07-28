@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Convert secrets/google/credentials.json (gws export) into the magks MCP
-# credential file format under secrets/google-mcp/credentials/<email>.json.
+# credential file format under data/.config/google-mcp/credentials/<email>.json.
 # Usage (repo root):  make google-mcp-import
 # Requires: USER_GOOGLE_EMAIL, and either GOOGLE_OAUTH_* in .env or client_secret.json
 set -euo pipefail
@@ -9,7 +9,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOTENV="$ROOT/.env"
 GWS_CRED="$ROOT/secrets/google/credentials.json"
 CLIENT_SECRET="$ROOT/secrets/google/client_secret.json"
-OUT_DIR="$ROOT/secrets/google-mcp/credentials"
+OUT_DIR="$ROOT/data/.config/google-mcp/credentials"
 
 dotenv_get() {
   local key="$1"

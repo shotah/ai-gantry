@@ -20,15 +20,15 @@ func (s *streamCompleter) Complete(ctx context.Context, req provider.Request) (*
 	return s.CompleteStream(ctx, req, nil)
 }
 
-func (s *streamCompleter) CompleteStream(_ context.Context, _ provider.Request, onText func(full string) error) (*provider.Result, error) {
+func (s *streamCompleter) CompleteStream(_ context.Context, _ provider.Request, onProgress func(content, thinking string) error) (*provider.Result, error) {
 	s.mu.Lock()
 	parts := append([]string(nil), s.parts...)
 	s.mu.Unlock()
 	var full strings.Builder
 	for _, p := range parts {
 		full.WriteString(p)
-		if onText != nil {
-			if err := onText(full.String()); err != nil {
+		if onProgress != nil {
+			if err := onProgress(full.String(), ""); err != nil {
 				return nil, err
 			}
 		}

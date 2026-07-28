@@ -1,9 +1,11 @@
 // Command gantry is the ai-gantry agent runtime binary.
 //
-//	gantry run      — start the daemon (default)
-//	gantry init     — scaffold persona + mcp.toml from examples/
-//	gantry status   — exit-code healthcheck (Docker healthcheck)
-//	gantry version  — build info
+//	gantry run         — start the daemon (default)
+//	gantry init        — scaffold persona + mcp.toml from examples/
+//	gantry auth        — run an MCP server's declared auth flow (mcp.toml)
+//	gantry tools-plan  — JSON release/command inventory from mcp.toml (deploy)
+//	gantry status      — exit-code healthcheck (Docker healthcheck)
+//	gantry version     — build info
 package main
 
 import (
@@ -29,6 +31,10 @@ func main() {
 		os.Exit(run())
 	case "init":
 		os.Exit(initCmd())
+	case "auth":
+		os.Exit(authCmd())
+	case "tools-plan":
+		os.Exit(toolsPlanCmd())
 	case "status":
 		os.Exit(status())
 	case "version":
@@ -46,14 +52,16 @@ func printHelp() {
 	fmt.Fprintf(os.Stderr, `gantry — stupid-simple agent runtime
 
 Usage:
-  gantry [run]     Start the daemon (default)
-  gantry init      Scaffold persona + mcp.toml (+ .env.example) from embedded templates
-  gantry status    Exit 0 if healthy (Docker healthcheck)
-  gantry version   Print build info
-  gantry help      Show this help
+  gantry [run]        Start the daemon (default)
+  gantry init         Scaffold persona + mcp.toml (+ .env.example) from embedded templates
+  gantry auth         Run MCP auth flows declared in mcp.toml (gantry auth [server])
+  gantry tools-plan   JSON MCP binary inventory from mcp.toml (native/docker bake)
+  gantry status       Exit 0 if healthy (Docker healthcheck)
+  gantry version      Print build info
+  gantry help         Show this help
 
-init env (optional):
+init / auth / tools-plan env (optional):
   PERSONA_DIR    default deploy/persona
-  MCP_MANIFEST   default deploy/mcp.toml
+  MCP_MANIFEST   default deploy/mcp.toml (auth/tools-plan default: mcp.toml)
 `)
 }

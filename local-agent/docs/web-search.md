@@ -1,11 +1,11 @@
 # Web search (Gemini Google Search grounding)
 
 gantry has no built-in web search (by design — capabilities are MCP binaries).
-We bake
-[zchee/mcp-gemini-google-search](https://github.com/zchee/mcp-gemini-google-search)
-— a static Go MCP that calls **Gemini Grounding with Google Search** using the
-same `GEMINI_API_KEY` already in `.env`. (The old ZeroClaw built-in scraped
-DuckDuckGo and hit bot walls from Docker; this is the fix that stuck.)
+We ship
+[`shotah/mcp-gemini-search`](https://github.com/shotah/mcp-gemini-search)
+— a maintained **Go** fork (typed/compiled only; upstream `zchee` HEAD went
+Python). Static binary `mcp-gemini-google-search` calls **Gemini Grounding with
+Google Search** using the same `GEMINI_API_KEY` already in `.env`.
 
 ```mermaid
 flowchart LR
@@ -25,17 +25,17 @@ Nothing extra beyond the Gemini key you already use for chat:
 2. `GEMINI_MODEL` defaults to `gemini-3.5-flash` — chat **and** the search MCP
    both use it (the MCP reads `GEMINI_MODEL` / `GEMINI_API_KEY` from the
    container env).
-3. Rebuild and restart:
+3. Rebuild / native-fetch and restart:
 
 ```bash
 make build && make up
-# or: make remote-deploy
+# or native: make remote-native-fetch / remote-native-deploy-dev
 ```
 
-Optional pin override:
+Optional pin (Docker bake):
 
 ```bash
-# GEMINI_SEARCH_MCP_REF=1fe676adcdaa79ed0798fd32be0695ffee15c644
+# GEMINI_SEARCH_MCP_VERSION=v0.0.1
 ```
 
 ---
@@ -46,8 +46,10 @@ Optional pin override:
 
 ```toml
 [[server]]
-name    = "google-search"
+name = "google-search"
 command = "mcp-gemini-google-search"
+download_tag = "latest"
+download_url = "https://github.com/shotah/mcp-gemini-search/releases/download/{tag}/mcp-gemini-google-search_{version}_{os}_{arch}.tar.gz"
 ```
 
 Tool LOCAL_AGENT should use: `google-search__google_search` (query string).
@@ -67,7 +69,7 @@ grounding.
 
 ```bash
 make build
-docker compose run --rm --entrypoint mcp-gemini-google-search gantry -h || true
+docker compose run --rm --entrypoint mcp-gemini-google-search gantry -version
 # Binary is stdio-only; real check is Telegram:
 ```
 
@@ -81,6 +83,6 @@ He should call `google-search__google_search`.
 
 | Symptom | Likely fix |
 |---|---|
-| LOCAL_AGENT doesn’t see `google_search` | Check the `[[server]]` entry in `mcp.toml`; rebuild so the binary is present |
+| LOCAL_AGENT doesn’t see `google_search` | Check the `[[server]]` entry in `mcp.toml`; rebuild / re-fetch so the binary is present |
 | `GEMINI_API_KEY` / grounding errors | Billing enabled on the Google AI project; key has access to search grounding |
 | Expensive search model | Keep `GEMINI_MODEL=gemini-3.5-flash` (MCP defaults to a Pro preview if unset) |

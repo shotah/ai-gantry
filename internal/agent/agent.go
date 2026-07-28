@@ -175,6 +175,24 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			Content: p,
 		})
 	}
+	if summary, err := a.sessions.Summary(ctx, msg.SessionID); err != nil {
+		a.log.Warn("session summary load failed", "err", err)
+	} else if s := strings.TrimSpace(summary); s != "" {
+		messages = append(messages, provider.Message{
+			Role:    provider.RoleSystem,
+			Content: "[session summary]\n" + s,
+		})
+	}
+	for _, h := range history {
+		messages = append(messages, provider.Message{
+			Role:    provider.Role(h.Role),
+			Content: h.Content,
+		})
+	}
+	// Volatile per-turn blocks (hydration, clock) go AFTER history so the
+	// stable prefix (persona + summary + history) stays byte-identical across
+	// turns and llama.cpp/Ollama can reuse its prompt cache instead of
+	// re-evaluating the whole context every message.
 	hydrateQuery := text
 	if hydrateQuery == "" {
 		hydrateQuery = storeText
@@ -189,20 +207,6 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 				Content: block,
 			})
 		}
-	}
-	if summary, err := a.sessions.Summary(ctx, msg.SessionID); err != nil {
-		a.log.Warn("session summary load failed", "err", err)
-	} else if s := strings.TrimSpace(summary); s != "" {
-		messages = append(messages, provider.Message{
-			Role:    provider.RoleSystem,
-			Content: "[session summary]\n" + s,
-		})
-	}
-	for _, h := range history {
-		messages = append(messages, provider.Message{
-			Role:    provider.Role(h.Role),
-			Content: h.Content,
-		})
 	}
 	// Fresh each turn (not stored in history) so "what time is it?" tracks reality.
 	messages = append(messages, provider.Message{
@@ -249,6 +253,7 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDefs []provider.ToolDef) (string, error) {
 	streamer, canStream := a.completer.(provider.Streamer)
 	writer, hasWriter := channel.ReplyWriterFrom(ctx)
+	nudged := false
 
 	for iter := 0; iter < a.maxToolIters; iter++ {
 		bounded := collapseOldToolResults(messages)
@@ -259,11 +264,15 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 			err error
 		)
 		// Stream when enabled and a channel writer is present. Tool-call
-		// responses still come back on the same stream path; onText is skipped
-		// once tool deltas appear (see provider.CompleteStream).
+		// responses still come back on the same stream path; onProgress is
+		// skipped once tool deltas appear (see provider.CompleteStream).
 		if a.streamReplies && canStream && hasWriter {
-			res, err = streamer.CompleteStream(ctx, req, func(full string) error {
-				return writer.Update(ctx, full)
+			tw, hasThinking := writer.(channel.ThinkingWriter)
+			res, err = streamer.CompleteStream(ctx, req, func(content, thinking string) error {
+				if hasThinking {
+					return tw.UpdateThinking(ctx, thinking, content)
+				}
+				return writer.Update(ctx, content)
 			})
 		} else {
 			res, err = a.completer.Complete(ctx, req)
@@ -280,6 +289,28 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 		}
 		if len(res.ToolCalls) == 0 {
 			if res.Content == "" {
+				if strings.TrimSpace(res.Thinking) != "" {
+					// CoT streamed already; empty answer must not become a
+					// silent no-op (common with Qwen think). Nudge once, then
+					// ERROR so Telegram error reporting surfaces it.
+					a.log.Warn("model returned thinking with empty answer",
+						"thinking_chars", len(res.Thinking),
+						"finish_reason", res.FinishReason,
+						"iteration", iter+1,
+					)
+					if !nudged {
+						nudged = true
+						messages = append(messages, provider.Message{
+							Role: provider.RoleSystem,
+							Content: "[system] Your previous response contained only internal reasoning — no visible reply and no tool call. " +
+								"Act now: call the tool you decided on (use the exact tool name from the tools list), " +
+								"or write your final answer as plain text. Your reasoning was:\n" +
+								clipChars(res.Thinking, 600),
+						})
+						continue
+					}
+					return "", fmt.Errorf("agent: model stalled after thinking (no reply, no tool call; thinking_chars=%d)", len(res.Thinking))
+				}
 				return "", fmt.Errorf("agent: empty model reply")
 			}
 			return res.Content, nil
@@ -382,6 +413,15 @@ func parseCommand(text string) (string, bool) {
 		cmd = cmd[:i]
 	}
 	return strings.ToLower(cmd), true
+}
+
+// clipChars truncates s to at most n runes (with ellipsis when clipped).
+func clipChars(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
 }
 
 func estTokens(messages []provider.Message) int {

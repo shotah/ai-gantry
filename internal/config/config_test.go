@@ -234,6 +234,44 @@ func TestLoad_InvalidLogLevel(t *testing.T) {
 	}
 }
 
+func TestLoad_TelegramErrorReporting(t *testing.T) {
+	setRequiredLLM(t)
+	t.Setenv("CHANNEL", "telegram")
+	t.Setenv("TELEGRAM_BOT_TOKEN", "tok")
+	t.Setenv("TELEGRAM_ALLOWED_USERS", "123")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TelegramErrorReporting != "off" {
+		t.Fatalf("default = %q, want off", cfg.TelegramErrorReporting)
+	}
+
+	t.Setenv("TELEGRAM_ERROR_REPORTING", "error")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TelegramErrorReporting != "error" {
+		t.Fatalf("got %q", cfg.TelegramErrorReporting)
+	}
+
+	t.Setenv("CHANNEL", "stdio")
+	t.Setenv("TELEGRAM_ERROR_REPORTING", "error")
+	_, err = config.Load()
+	if err == nil || !strings.Contains(err.Error(), "TELEGRAM_ERROR_REPORTING") {
+		t.Fatalf("want channel mismatch error, got %v", err)
+	}
+
+	t.Setenv("CHANNEL", "telegram")
+	t.Setenv("TELEGRAM_ERROR_REPORTING", "trace")
+	_, err = config.Load()
+	if err == nil || !strings.Contains(err.Error(), "TELEGRAM_ERROR_REPORTING") {
+		t.Fatalf("want invalid value error, got %v", err)
+	}
+}
+
 func TestLoad_Bounds(t *testing.T) {
 	setRequiredLLM(t)
 	t.Setenv("CHANNEL", "stdio")

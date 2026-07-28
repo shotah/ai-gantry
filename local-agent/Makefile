@@ -6,7 +6,7 @@ ENV_FILE := .env
 ENV_EXAMPLE := .env.example
 PERSONA_DIR := persona
 
-# Bust mcp-beam / youtube-go-mcp fetch stages so `latest` re-resolves each build.
+# Bust mcp-beam / youtube-go-mcp / mcp-go-math fetch stages so `latest` re-resolves each build.
 ifeq ($(OS),Windows_NT)
   TOOLS_CACHEBUST ?= $(shell powershell -NoProfile -Command "[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()")
 else
@@ -16,8 +16,8 @@ endif
 ifeq ($(OS),Windows_NT)
   ENV_COPY := powershell -NoProfile -Command "if (-not (Test-Path '$(ENV_FILE)')) { Copy-Item '$(ENV_EXAMPLE)' '$(ENV_FILE)'; Write-Host 'Created $(ENV_FILE) — edit GEMINI_API_KEY and Telegram vars' } else { Write-Host '$(ENV_FILE) already exists (use make env-force to overwrite)' }"
   ENV_FORCE := powershell -NoProfile -Command "Copy-Item '$(ENV_EXAMPLE)' '$(ENV_FILE)' -Force; Write-Host 'Overwrote $(ENV_FILE)'"
-  MKDIR_DATA := powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path data | Out-Null"
-  RM_GARMIN_SESSION := powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue 'secrets/garmin/session.json'"
+  MKDIR_DATA := powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path data, 'data/.config/google-mcp/credentials', 'data/.config/strava', 'data/.config/garmin', 'data/.config/ytmusic' | Out-Null"
+  RM_GARMIN_SESSION := powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue 'data/.config/garmin/session.json'"
   # Non-empty DEPLOY_HOST in .env → push secrets after *-auth
   HAS_DEPLOY_HOST := $(shell powershell -NoProfile -Command "$$l = Get-Content .env -ErrorAction SilentlyContinue | Where-Object { $$_ -match '^DEPLOY_HOST=' } | Select-Object -First 1; if ($$l -and (($$l -split '=',2)[1].Trim())) { '1' }")
   # SOUL.example.md → SOUL.md  ($$ → $ for Make; $$_ → $_ in PowerShell)
@@ -32,8 +32,8 @@ else
                 cp $(ENV_EXAMPLE) $(ENV_FILE) && echo "Created $(ENV_FILE) — edit GEMINI_API_KEY and Telegram vars"; \
               fi
   ENV_FORCE := cp $(ENV_EXAMPLE) $(ENV_FILE) && echo "Overwrote $(ENV_FILE)"
-  MKDIR_DATA := mkdir -p data
-  RM_GARMIN_SESSION := rm -f secrets/garmin/session.json
+  MKDIR_DATA := mkdir -p data data/.config/google-mcp/credentials data/.config/strava data/.config/garmin data/.config/ytmusic
+  RM_GARMIN_SESSION := rm -f data/.config/garmin/session.json
   HAS_DEPLOY_HOST := $(shell awk -F= '/^[[:space:]]*DEPLOY_HOST=/{v=$$2; gsub(/^[[:space:]]+|[[:space:]]+$$/,"",v); gsub(/^["'\'']|["'\'']$$/,"",v); if (v!="") print "1"}' .env 2>/dev/null)
   PERSONA_COPY := @mkdir -p $(PERSONA_DIR); \
 	for f in $(PERSONA_DIR)/*.example.md; do \
@@ -55,12 +55,12 @@ endif
 
 .PHONY: help env env-force dirs init persona persona-force build up down restart logs ps status shell clean \
         strava-auth garmin-auth google-auth google-mcp-import ytmusic-auth \
-        garmin-sync strava-sync ytmusic-sync google-sync secrets-sync \
+        garmin-sync strava-sync ytmusic-sync google-sync secrets-sync secrets-migrate \
         remote-check remote-sync remote-up remote-down remote-restart remote-logs remote-ps remote-status \
         remote-ssh remote-deploy \
         remote-native-env remote-native-check remote-native-fetch remote-native-sync remote-native-install \
         remote-native-up remote-native-down remote-native-restart remote-native-logs remote-native-status \
-        remote-native-deploy
+        remote-native-deploy remote-native-deploy-dev remote-native-build-dev
 
 help: ## Show available commands
 	@echo.
@@ -109,16 +109,17 @@ help: ## Show available commands
 	@echo     status                 gantry health check inside container
 	@echo     shell                  Alpine shell with ./data mounted (sqlite inspection)
 	@echo     clean                  Same as down (keeps ./data)
-	@echo     strava-auth            One-time Strava OAuth; writes secrets/strava/tokens.json
-	@echo     garmin-auth            One-time Garmin login; writes secrets/garmin/session.json
-	@echo     google-auth            One-time Google OAuth via container; writes google-mcp creds
+	@echo     strava-auth            One-time Strava OAuth; writes data/.config/strava/tokens.json
+	@echo     garmin-auth            One-time Garmin login; writes data/.config/garmin/session.json
+	@echo     google-auth            One-time Google OAuth; writes data/.config/google-mcp/credentials
 	@echo     google-mcp-import      Legacy: import gws export into google-mcp (prefer google-auth)
-	@echo     ytmusic-auth           YouTube Music headers -^> secrets/ytmusic/headers.json
-	@echo     garmin-sync            Push secrets/garmin to DEPLOY_HOST (not part of remote-deploy)
-	@echo     strava-sync            Push secrets/strava to DEPLOY_HOST
-	@echo     ytmusic-sync           Push secrets/ytmusic to DEPLOY_HOST
-	@echo     google-sync            Push Google Workspace secrets to DEPLOY_HOST
+	@echo     ytmusic-auth           YouTube Music headers -^> data/.config/ytmusic/headers.json
+	@echo     garmin-sync            Push data/.config/garmin to DEPLOY_HOST (not part of remote-deploy)
+	@echo     strava-sync            Push data/.config/strava to DEPLOY_HOST
+	@echo     ytmusic-sync           Push data/.config/ytmusic to DEPLOY_HOST
+	@echo     google-sync            Push Google Workspace creds to DEPLOY_HOST
 	@echo     secrets-sync           Push all secret groups to DEPLOY_HOST
+	@echo     secrets-migrate        Copy legacy secrets/* into data/.config/* (once)
 	@echo.
 	@echo   Remote deploy  (needs OpenSSH; see docs/deploy.md)
 	@echo   --------------------------------------------------
@@ -147,7 +148,9 @@ help: ## Show available commands
 	@echo     remote-native-restart  systemctl restart gantry
 	@echo     remote-native-logs     journalctl -u gantry -f
 	@echo     remote-native-status   gantry status on host
-	@echo     remote-native-deploy   env + fetch + sync + install + start
+	@echo     remote-native-deploy   env + fetch release + sync + install + start
+	@echo     remote-native-deploy-dev  cross-build tree + sync + install + start (no GH release)
+	@echo     remote-native-build-dev   linux/amd64 -^> .cache/native/gantry only
 	@echo     deploy/README.md       Native layout + cutover notes
 	@echo.
 	@echo   Docs
@@ -161,6 +164,7 @@ help: ## Show available commands
 	@echo     docs/garmin.md         Garmin sleep/weight via go-garmin MCP (optional)
 	@echo     docs/cast.md           Google Cast/DLNA via mcp-beam Go MCP (optional)
 	@echo     docs/ytmusic.md        YouTube Music via youtube-go-mcp (optional)
+	@echo     docs/math.md           Calculator via mcp-go-math (optional)
 	@echo     docs/deploy.md         Windows -^> Ubuntu remote deploy
 	@echo     README.md              Overview and architecture
 	@echo.
@@ -225,20 +229,28 @@ clean: ## Stop local containers (keeps ./data)
 
 # Push local secret files to DEPLOY_HOST. Not part of remote-deploy (avoids
 # clobbering a fresh server session with a stale laptop copy).
-garmin-sync: ## Push secrets/garmin/session.json to DEPLOY_HOST
+# Paths: data/.config/* (same on Docker and native hosts).
+garmin-sync: ## Push data/.config/garmin/session.json to DEPLOY_HOST
 	$(REMOTE) sync-secret garmin
 
-strava-sync: ## Push secrets/strava/tokens.json to DEPLOY_HOST
+strava-sync: ## Push data/.config/strava/tokens.json to DEPLOY_HOST
 	$(REMOTE) sync-secret strava
 
-ytmusic-sync: ## Push secrets/ytmusic/headers.json to DEPLOY_HOST
+ytmusic-sync: ## Push data/.config/ytmusic/headers.json to DEPLOY_HOST
 	$(REMOTE) sync-secret ytmusic
 
-google-sync: ## Push Google Workspace credential files to DEPLOY_HOST
+google-sync: ## Push data/.config/google-mcp/credentials to DEPLOY_HOST
 	$(REMOTE) sync-secret google
 
 secrets-sync: ## Push all secret groups to DEPLOY_HOST
 	$(REMOTE) sync-secret all
+
+secrets-migrate: ## Copy legacy secrets/* into data/.config/* (idempotent)
+ifeq ($(OS),Windows_NT)
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/secrets-migrate.ps1
+else
+	bash scripts/secrets-migrate.sh
+endif
 
 # After *-auth: if DEPLOY_HOST is set, push that secret group automatically.
 ifeq ($(OS),Windows_NT)
@@ -256,26 +268,25 @@ define PUSH_SECRET_IF_REMOTE
 endef
 endif
 
-strava-auth: ## One-time Strava OAuth in a throwaway container (see docs/strava.md)
+strava-auth: ## One-time Strava OAuth via gantry auth (see docs/strava.md)
 	@echo Opening Strava OAuth. A URL will be printed below — open it in your browser and approve.
-	$(COMPOSE) run --rm --build -p 19876:19876 --entrypoint strava-mcp $(SERVICE) auth
+	$(COMPOSE) run --rm --build -p 19876:19876 --entrypoint /usr/local/bin/gantry $(SERVICE) auth strava
 	$(call PUSH_SECRET_IF_REMOTE,strava)
 
-garmin-auth: ## Garmin login; clears stale session.json then writes a fresh one (see docs/garmin.md)
-	@echo Clearing stale secrets/garmin/session.json if present...
+garmin-auth: ## Garmin login via gantry auth; clears stale session first (see docs/garmin.md)
+	@echo Clearing stale data/.config/garmin/session.json if present...
 	-$(RM_GARMIN_SESSION)
-	@echo Garmin interactive login (email / password / MFA). Session lands in secrets/garmin/.
-	$(COMPOSE) run --rm --build -it --entrypoint garmin $(SERVICE) login
+	@echo Garmin interactive login (email / password / MFA). Session lands in data/.config/garmin/.
+	$(COMPOSE) run --rm --build -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth garmin
 	$(call PUSH_SECRET_IF_REMOTE,garmin)
 
-ytmusic-auth: ## YouTube Music browser headers → secrets/ytmusic/headers.json (see docs/ytmusic.md)
+ytmusic-auth: ## YouTube Music headers via gantry auth (see docs/ytmusic.md)
 	@echo DevTools → Network → browse → Request Headers: copy cookie, then x-goog-authuser.
 	@echo The CLI prompts for each value. See docs/ytmusic.md.
-	$(COMPOSE) run --rm --build -it --entrypoint youtube-go-mcp $(SERVICE) \
-	  auth --out /data/.config/ytmusic/headers.json
+	$(COMPOSE) run --rm --build -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth ytmusic
 	$(call PUSH_SECRET_IF_REMOTE,ytmusic)
 
-google-auth: ## Google Workspace OAuth via container; writes secrets/google-mcp (see docs/google-workspace.md)
+google-auth: ## Google Workspace OAuth; writes data/.config/google-mcp (see docs/google-workspace.md)
 ifeq ($(OS),Windows_NT)
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/google-auth.ps1
 else
@@ -283,7 +294,7 @@ else
 endif
 	$(call PUSH_SECRET_IF_REMOTE,google)
 
-google-mcp-import: ## Legacy: import gws export into secrets/google-mcp (prefer make google-auth)
+google-mcp-import: ## Legacy: import gws export into data/.config/google-mcp (prefer make google-auth)
 ifeq ($(OS),Windows_NT)
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/google-mcp-import.ps1
 else
@@ -360,4 +371,13 @@ remote-native-deploy: ## env + fetch + sync + install + start
 	$(REMOTE_NATIVE) deploy
 	@echo.
 	@echo Native deploy done. Stop the old Docker TIM so only one bot polls Telegram.
+	@echo.
+
+remote-native-build-dev: ## Cross-build linux/amd64 gantry into .cache/native/gantry
+	$(REMOTE_NATIVE) build-dev
+
+remote-native-deploy-dev: ## env + local linux build + sync + install + start (skip GH release)
+	$(REMOTE_NATIVE) deploy-dev
+	@echo.
+	@echo Dev native deploy done (working-tree binary). logs: make remote-native-logs
 	@echo.

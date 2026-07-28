@@ -64,6 +64,8 @@ approve, and the callback is forwarded back into the container.
 
 ```bash
 make strava-auth
+# equivalent: docker compose run --rm -p 19876:19876 --entrypoint gantry gantry auth strava
+# native:     gantry auth strava
 ```
 
 That wraps the throwaway container (builds the image if needed, publishes the
@@ -71,7 +73,7 @@ callback port, runs `strava-mcp auth`). The raw equivalent, if you're not using
 `make`:
 
 ```bash
-docker compose run --rm --build -p 19876:19876 --entrypoint strava-mcp gantry auth
+docker compose run --rm --build -p 19876:19876 --entrypoint gantry gantry auth strava
 ```
 
 1. It prints `Open this URL in your browser: https://www.strava.com/oauth/authorize?...`

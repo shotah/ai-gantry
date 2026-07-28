@@ -21,6 +21,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/drain"
 	"github.com/shotah/ai-gantry/internal/heartbeat"
+	"github.com/shotah/ai-gantry/internal/logfwd"
 	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/persona"
@@ -36,7 +37,7 @@ func run() int {
 		return 1
 	}
 
-	logger := newLogger(cfg.LogLevel)
+	logger, errFwd := newLogger(cfg.LogLevel, cfg.TelegramErrorReporting)
 	slog.SetDefault(logger)
 
 	logger.Info("gantry starting",
@@ -53,6 +54,7 @@ func run() int {
 		"cron_enabled", cfg.CronEnabled,
 		"cron_tz", cfg.CronTZ,
 		"stream_replies", cfg.StreamReplies,
+		"telegram_error_reporting", cfg.TelegramErrorReporting,
 	)
 
 	personaText, err := persona.Load(cfg.PersonaDir)
@@ -217,6 +219,12 @@ func run() int {
 		logger.Error("channel init failed", "err", err)
 		return 1
 	}
+	if errFwd != nil {
+		if tg, ok := ch.(*telegram.Channel); ok {
+			errFwd.SetSender(logfwd.SenderFunc(tg.NotifyHTML))
+			logger.Info("telegram error reporting enabled", "level", cfg.TelegramErrorReporting)
+		}
+	}
 
 	gate := &drain.Gate{}
 	handle := gate.Handler(ag.Handle)
@@ -283,7 +291,10 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 	}
 }
 
-func newLogger(level string) *slog.Logger {
+// newLogger builds the process logger. When TELEGRAM_ERROR_REPORTING is
+// error|warn, the returned *logfwd.Handler tees those records once SetSender
+// is attached (after the Telegram channel is constructed).
+func newLogger(level, errorReporting string) (*slog.Logger, *logfwd.Handler) {
 	var lv slog.Level
 	switch level {
 	case "debug":
@@ -296,5 +307,11 @@ func newLogger(level string) *slog.Logger {
 		lv = slog.LevelInfo
 	}
 	// stderr keeps the stdio REPL on stdout readable; docker logs still captures both.
-	return slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: lv}))
+	base := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: lv})
+	minLevel, enabled, err := logfwd.ParseLevel(errorReporting)
+	if err != nil || !enabled {
+		return slog.New(base), nil
+	}
+	fwd := logfwd.New(base, logfwd.Options{MinLevel: minLevel})
+	return slog.New(fwd), fwd
 }

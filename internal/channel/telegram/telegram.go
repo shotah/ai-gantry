@@ -214,6 +214,11 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 	if stream != nil && stream.Started() {
 		urls, rest := channel.ExtractImageURLs(reply)
 		if err := stream.Finish(ctx, rest); err != nil {
+			// Already-flushed final text: Telegram rejects a no-op edit; do not
+			// SendMessage again or the user sees a duplicate bubble.
+			if isMessageNotModified(err) {
+				return
+			}
 			c.log.Warn("telegram stream finish failed; falling back to send", "err", err)
 			if reply != "" {
 				if err := c.sendReply(ctx, b, chatID, threadID, reply, ""); err != nil {
@@ -300,6 +305,37 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 		return fmt.Errorf("telegram: push bot: %w", err)
 	}
 	return c.sendReply(ctx, b, chatID, msg.ThreadID, msg.Text, msg.PhotoURL)
+}
+
+// NotifyHTML drops a pre-formatted HTML alert into the Tim DM (private chat id
+// == allowlisted user id). Used by logfwd — callers must not log failures from
+// this path (loop guard).
+func (c *Channel) NotifyHTML(ctx context.Context, htmlBody string) error {
+	chatID, ok := c.anyAllowed()
+	if !ok {
+		return fmt.Errorf("telegram: allowlist empty")
+	}
+	b, err := c.newBot(c.token)
+	if err != nil {
+		return fmt.Errorf("telegram: notify bot: %w", err)
+	}
+	text := clipRunes(htmlBody, telegramMaxMessageRunes)
+	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: models.ParseModeHTML,
+	})
+	if err != nil {
+		return fmt.Errorf("telegram: notify send: %w", err)
+	}
+	return nil
+}
+
+func (c *Channel) anyAllowed() (int64, bool) {
+	for id := range c.allowed {
+		return id, true
+	}
+	return 0, false
 }
 
 func resolveChatID(msg channel.Outbound) (int64, error) {

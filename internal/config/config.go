@@ -32,6 +32,9 @@ type Config struct {
 
 	TelegramBotToken     string  `env:"TELEGRAM_BOT_TOKEN"`
 	TelegramAllowedUsers []int64 `env:"TELEGRAM_ALLOWED_USERS" envSeparator:","`
+	// TelegramErrorReporting tees slog ERROR (or WARN+) into the Tim Telegram
+	// chat as an expandable HTML alert. off|error|warn. Only when CHANNEL=telegram.
+	TelegramErrorReporting string `env:"TELEGRAM_ERROR_REPORTING" envDefault:"off"`
 
 	DiscordBotToken     string   `env:"DISCORD_BOT_TOKEN"`
 	DiscordAllowedUsers []string `env:"DISCORD_ALLOWED_USERS" envSeparator:","`
@@ -142,6 +145,19 @@ func (c *Config) Validate() error {
 	case "debug", "info", "warn", "error":
 	default:
 		return fmt.Errorf("LOG_LEVEL: must be debug|info|warn|error, got %q", c.LogLevel)
+	}
+
+	c.TelegramErrorReporting = strings.ToLower(strings.TrimSpace(c.TelegramErrorReporting))
+	switch c.TelegramErrorReporting {
+	case "", "off", "error", "warn":
+		if c.TelegramErrorReporting == "" {
+			c.TelegramErrorReporting = "off"
+		}
+	default:
+		return fmt.Errorf("TELEGRAM_ERROR_REPORTING: must be off|error|warn, got %q", c.TelegramErrorReporting)
+	}
+	if c.TelegramErrorReporting != "off" && c.Channel != ChannelTelegram {
+		return fmt.Errorf("TELEGRAM_ERROR_REPORTING: only supported when CHANNEL=telegram")
 	}
 
 	if c.LLMMaxTokens < 0 {

@@ -7,11 +7,11 @@ import (
 )
 
 // Streamer is an optional Completer that can emit progressive text.
-// onText receives the accumulated assistant text so far (not a raw delta).
-// If the model returns tool calls, onText is skipped after the first
-// tool-call chunk; the returned Result still includes ToolCalls.
+// onProgress receives accumulated assistant content and thinking so far
+// (not raw deltas). If the model returns tool calls, onProgress is skipped
+// after the first tool-call chunk; the returned Result still includes ToolCalls.
 type Streamer interface {
-	CompleteStream(ctx context.Context, req Request, onText func(full string) error) (*Result, error)
+	CompleteStream(ctx context.Context, req Request, onProgress func(content, thinking string) error) (*Result, error)
 }
 
 type toolAcc struct {
@@ -95,7 +95,7 @@ func mergeName(acc *toolAcc, delta string) {
 }
 
 // CompleteStream streams chat.completions and accumulates text / tool calls.
-func (c *Client) CompleteStream(ctx context.Context, req Request, onText func(full string) error) (*Result, error) {
+func (c *Client) CompleteStream(ctx context.Context, req Request, onProgress func(content, thinking string) error) (*Result, error) {
 	if len(req.Messages) == 0 {
 		return nil, fmt.Errorf("provider: messages must not be empty")
 	}
@@ -108,8 +108,16 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onText func(fu
 	stream := c.client.Chat.Completions.NewStreaming(ctx, params)
 	sawTool := false
 	var full strings.Builder
+	var thinking strings.Builder
 	var tools streamToolBuf
 	var finishReason string
+
+	emit := func() error {
+		if sawTool || onProgress == nil {
+			return nil
+		}
+		return onProgress(full.String(), thinking.String())
+	}
 
 	for stream.Next() {
 		chunk := stream.Current()
@@ -129,13 +137,19 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onText func(fu
 				acc.args += tc.Function.Arguments
 			}
 		}
+		changed := false
+		if d := extractThinkingJSON(delta.RawJSON()); d != "" {
+			thinking.WriteString(d)
+			changed = true
+		}
 		if d := delta.Content; d != "" {
 			full.WriteString(d)
-			if !sawTool && onText != nil {
-				if err := onText(full.String()); err != nil {
-					_ = stream.Close()
-					return nil, err
-				}
+			changed = true
+		}
+		if changed {
+			if err := emit(); err != nil {
+				_ = stream.Close()
+				return nil, err
 			}
 		}
 	}
@@ -143,7 +157,11 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onText func(fu
 		return nil, fmt.Errorf("provider: chat stream: %w", err)
 	}
 
-	out := &Result{Content: strings.TrimSpace(full.String()), FinishReason: finishReason}
+	out := &Result{
+		Content:      strings.TrimSpace(full.String()),
+		Thinking:     strings.TrimSpace(thinking.String()),
+		FinishReason: finishReason,
+	}
 	for _, acc := range tools.order {
 		if acc == nil || (acc.name == "" && acc.id == "") {
 			continue
@@ -156,7 +174,9 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onText func(fu
 		}
 		out.ToolCalls = append(out.ToolCalls, call)
 	}
-	if out.Content == "" && len(out.ToolCalls) == 0 {
+	// Thinking-only is valid for Qwen/Ollama when max_tokens is spent on CoT;
+	// callers (agent + Telegram stream) can finish without a hard error.
+	if out.Content == "" && len(out.ToolCalls) == 0 && out.Thinking == "" {
 		return nil, fmt.Errorf("provider: empty assistant content")
 	}
 	return out, nil

@@ -1,7 +1,7 @@
 # local-agent on ai-gantry — Gemini + Telegram (Telegram polls outbound).
 # No ports, no gateway, no dashboard: the healthcheck is an exit code.
-# Image: distroless/static + gantry + google-workspace-mcp-go + strava + garmin + gemini-search + mcp-beam + youtube-go-mcp.
-# Docs: docs/telegram.md, docs/google-workspace.md, docs/strava.md, docs/garmin.md, docs/web-search.md, docs/cast.md, docs/ytmusic.md
+# Image: distroless/static + gantry + google-workspace-mcp-go + strava + garmin + gemini-search + mcp-beam + youtube-go-mcp + mcp-go-math.
+# Docs: docs/telegram.md, docs/google-workspace.md, docs/strava.md, docs/garmin.md, docs/web-search.md, docs/cast.md, docs/ytmusic.md, docs/math.md
 # Cast mDNS: set NETWORK_MODE=host in .env on the Linux home server (docs/cast.md).
 
 services:
@@ -15,10 +15,11 @@ services:
         - GANTRY_VERSION
         - STRAVA_MCP_VERSION
         - GARMIN_MCP_VERSION
-        - GEMINI_SEARCH_MCP_REF
-        - GOOGLE_WORKSPACE_MCP_REF
+        - GEMINI_SEARCH_MCP_VERSION
+        - GOOGLE_WORKSPACE_MCP_VERSION
         - MCP_BEAM_VERSION
         - YOUTUBE_GO_MCP_VERSION
+        - MCP_GO_MATH_VERSION
         - TOOLS_CACHEBUST
     image: ${GANTRY_IMAGE:-gantry-local-agent:local}
     container_name: gantry
@@ -56,7 +57,7 @@ services:
       STREAM_REPLIES: ${STREAM_REPLIES:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # --- MCP child processes inherit everything below ----------------------
-      # Gemini Google Search MCP (zchee) — same key as chat.
+      # Gemini Google Search MCP (shotah/mcp-gemini-search) — same key as chat.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
       # Google Workspace MCP (magks) — OAuth client + token dir (docs/google-workspace.md).
@@ -78,16 +79,9 @@ services:
       - ./persona:/persona:ro
       # MCP server manifest — the one structured config file
       - ./mcp.toml:/etc/gantry/mcp.toml:ro
-      # gantry.db (sessions + memory + heartbeat) and MCP tool state
+      # gantry.db + MCP tool state under data/.config/* (same layout as native /opt/gantry/data).
+      # Auth writes: make google-auth | strava-auth | garmin-auth | ytmusic-auth
       - ./data:/data
-      # Google Workspace MCP OAuth tokens (gitignored). Create via make google-auth.
-      - ./secrets/google-mcp:/data/.config/google-mcp
-      # Strava OAuth token (gitignored). Create via docs/strava.md
-      - ./secrets/strava:/data/.config/strava
-      # Garmin Connect session (gitignored). Create via docs/garmin.md / make garmin-auth
-      - ./secrets/garmin:/data/.config/garmin
-      # YouTube Music browser headers (gitignored). Create via docs/ytmusic.md / make ytmusic-auth
-      - ./secrets/ytmusic:/data/.config/ytmusic
     mem_limit: 1g
     cpus: 4.0
     mem_reservation: 128m

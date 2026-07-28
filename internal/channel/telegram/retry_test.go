@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -69,6 +70,16 @@ func TestDoWith429Retry_GivesUp(t *testing.T) {
 	})
 	if !isTooManyRequests(err) {
 		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestIsMessageNotModified(t *testing.T) {
+	err := fmt.Errorf(`telegram: stream edit: bad request, Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message`)
+	if !isMessageNotModified(err) {
+		t.Fatal("expected not-modified detect")
+	}
+	if isMessageNotModified(nil) || isMessageNotModified(errors.New("other")) {
+		t.Fatal("false positive not-modified")
 	}
 }
 

@@ -1,5 +1,5 @@
 # Convert secrets/google/credentials.json (gws export) into the magks MCP
-# credential file format under secrets/google-mcp/credentials/<email>.json.
+# credential file format under data/.config/google-mcp/credentials/<email>.json.
 # Usage (repo root):  make google-mcp-import
 # Requires: USER_GOOGLE_EMAIL, and either GOOGLE_OAUTH_* in .env or client_secret.json
 
@@ -93,7 +93,7 @@ $scopes = @(
   'https://www.googleapis.com/auth/contacts'
 )
 
-$outDir = Join-Path $Root 'secrets/google-mcp/credentials'
+$outDir = Join-Path $Root 'data/.config/google-mcp/credentials'
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $outPath = Join-Path $outDir ($email + '.json')
 

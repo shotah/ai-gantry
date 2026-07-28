@@ -49,6 +49,49 @@ func writeManifest(t *testing.T, servers string) string {
 	return path
 }
 
+func TestHost_UnknownToolSuggestsCatalog(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "google-workspace"
+command = "unused"
+`)
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
+			return &fakeConn{tools: []mcp.Tool{
+				{OriginalName: "get_events"},
+				{OriginalName: "list_calendars"},
+			}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	// Hallucinated tool on a real server: list that server's real tools.
+	_, err = host.Call(context.Background(), "google-workspace__get_calendar_event", nil)
+	if err == nil {
+		t.Fatal("want error for unknown tool")
+	}
+	for _, want := range []string{
+		`unknown tool "google-workspace__get_calendar_event"`,
+		"valid google-workspace tools are",
+		"google-workspace__get_events",
+		"google-workspace__list_calendars",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("err = %v, want substring %q", err, want)
+		}
+	}
+
+	// Unknown server prefix: list available prefixes.
+	_, err = host.Call(context.Background(), "bogus__thing", nil)
+	if err == nil || !strings.Contains(err.Error(), "available server prefixes are: google-workspace") {
+		t.Fatalf("err = %v, want prefix list", err)
+	}
+}
+
 func TestHost_StartCallRestart(t *testing.T) {
 	path := writeManifest(t, `
 [[server]]

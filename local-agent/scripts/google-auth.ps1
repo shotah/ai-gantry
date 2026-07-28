@@ -1,5 +1,5 @@
 # One-shot Google Workspace OAuth via a throwaway Python container.
-# Writes secrets/google-mcp/credentials/<email>.json (MCP format).
+# Writes data/.config/google-mcp/credentials/<email>.json (MCP format).
 # No local gws / Python required — only Docker + .env.
 # Usage (repo root):  make google-auth
 
@@ -37,7 +37,7 @@ if (-not $clientId -or -not $clientSecret) {
   throw 'Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in .env'
 }
 
-$credDir = Join-Path $Root 'secrets/google-mcp/credentials'
+$credDir = Join-Path $Root 'data/.config/google-mcp/credentials'
 New-Item -ItemType Directory -Force -Path $credDir | Out-Null
 $stale = Join-Path $credDir ($email + '.json')
 if (Test-Path -LiteralPath $stale) {

@@ -217,7 +217,7 @@ No goroutine talks to the network inbound. Healthcheck is `gantry status`
 ### 4.2 Package layout (single module)
 
 ```text
-cmd/gantry/          main: run | status | version
+cmd/gantry/          main: run | init | auth | status | version
 internal/config/     env parsing + validation, fail-fast at boot
 internal/channel/    Channel interface; telegram/, stdio/ (test/dev)
 internal/provider/   ONE implementation: OpenAI-compatible chat client
@@ -262,6 +262,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `LLM_MAX_TOKENS` | no | `4096` (completion output cap; `0` = provider default) |
 | `TELEGRAM_BOT_TOKEN` | yes (telegram) | — |
 | `TELEGRAM_ALLOWED_USERS` | yes (telegram) | `123456789,987654321` (numeric IDs; **allowlist only — no pairing**) |
+| `TELEGRAM_ERROR_REPORTING` | no | `off` (`off`\|`error`\|`warn` — tee slog into the Tim chat as expandable HTML) |
 | `DISCORD_BOT_TOKEN` | yes (discord) | — |
 | `DISCORD_ALLOWED_USERS` | yes (discord) | snowflake user IDs; **allowlist only** — see [docs/discord.md](docs/discord.md) |
 | `SLACK_BOT_TOKEN` | yes (slack) | `xoxb-…` bot token |

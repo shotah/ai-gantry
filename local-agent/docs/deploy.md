@@ -78,6 +78,7 @@ Or step by step:
 | --- | --- |
 | `make remote-sync` | scp compose, Makefile, `.env`, `mcp.toml`, persona, scripts (not token/session secrets) |
 | `make garmin-sync` / `strava-sync` / `ytmusic-sync` / `google-sync` | Push one secret group (also auto after `*-auth` when `DEPLOY_HOST` is set) |
+| `gantry auth <server>` | Native/Docker: run auth flow from `mcp.toml` `auth_*` (strava / garmin / ytmusic) |
 | `make secrets-sync` | Push all secret groups |
 | `make remote-up` | `docker compose build --pull && up -d` on server |
 | `make remote-down` | stop stack on server |
@@ -100,9 +101,9 @@ Synced (full list: `scripts/deploy-manifest.txt`):
 **Not** synced by `remote-deploy`:
 
 - local `data/` runtime state (`gantry.db`) — server keeps its own
-- token/session files under `secrets/*` (Garmin / Strava / YT Music / Google) —
+- token/session files under `data/.config/*` (Garmin / Strava / YT Music / Google) —
   push deliberately with `make garmin-sync` etc. so a stale laptop file can't
-  overwrite a good server session
+  overwrite a good server session. Same relative paths on Docker and native hosts.
 
 To wipe server state intentionally (sessions + memory + heartbeat):
 

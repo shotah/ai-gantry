@@ -24,6 +24,25 @@ func TestResolveChatID(t *testing.T) {
 	}
 }
 
+func TestChannel_NotifyHTML(t *testing.T) {
+	m := newAPIMock(t)
+	ch, err := New(Config{Token: testBotToken, AllowedUsers: []int64{42}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch.newBot = func(token string, opts ...bot.Option) (*bot.Bot, error) {
+		opts = append(opts, bot.WithServerURL(m.srv.URL), bot.WithSkipGetMe())
+		return bot.New(token, opts...)
+	}
+	html := `🔴 <b>gantry ERROR</b> · boom` + "\n" + `<blockquote expandable>details</blockquote>`
+	if err := ch.NotifyHTML(context.Background(), html); err != nil {
+		t.Fatal(err)
+	}
+	if m.count("sendMessage") < 1 {
+		t.Fatal("expected sendMessage")
+	}
+}
+
 func TestChannel_Push(t *testing.T) {
 	m := newAPIMock(t)
 	ch, err := New(Config{Token: testBotToken, AllowedUsers: []int64{42}})

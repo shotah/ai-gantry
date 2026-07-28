@@ -106,6 +106,12 @@ function Invoke-Remote([string]$RemoteCmd) {
   if ($LASTEXITCODE -ne 0) { throw "Remote command failed ($LASTEXITCODE): $RemoteCmd" }
 }
 
+function Invoke-RemoteTTY([string]$RemoteCmd) {
+  # -t so sudo can prompt for a password on native hosts.
+  & $SshExe @sshArgs -t $target $RemoteCmd
+  if ($LASTEXITCODE -ne 0) { throw "Remote command failed ($LASTEXITCODE): $RemoteCmd" }
+}
+
 function Get-ManifestPaths([string]$ManifestPath) {
   if (-not (Test-Path -LiteralPath $ManifestPath)) {
     throw "Missing manifest: $ManifestPath"
@@ -185,18 +191,70 @@ switch ($Action) {
       $known = ($entries.Name | Sort-Object -Unique) -join ', '
       throw "Unknown secret group '$name'. Known: $known, all"
     }
-    Ensure-RemoteParents @($wanted.Path)
-    $copied = 0
-    foreach ($e in $wanted) {
-      if (Copy-ToRemote $e.Path) { $copied++ }
-    }
-    if ($copied -eq 0) {
+
+    # Only paths that exist locally (skip optional legacy secrets/google/*).
+    $present = @($wanted | Where-Object { Test-Path -LiteralPath (Join-Path $Root $_.Path) })
+    if ($present.Count -eq 0) {
       throw "No local files found for secret group '$name' - run the matching *-auth first"
     }
-    if ($name -eq 'google' -or $name -eq 'all') {
-      Invoke-Remote "rm -f '${deployPath}/secrets/google/token_cache.json'; rm -rf '${deployPath}/secrets/google/cache'"
+
+    # Stage under /tmp (writable by DEPLOY_USER), then sudo install into DEPLOY_PATH.
+    # Native /opt/gantry is owned by gantry — plain mkdir/scp as DEPLOY_USER fails.
+    $stage = '/tmp/gantry-secret-stage'
+    Write-Host "Staging secrets under ${target}:${stage} then sudo install -> ${deployPath}"
+    Write-Host "(sudo may prompt for your password)"
+    Invoke-Remote "rm -rf $stage && mkdir -p $stage"
+
+    $relPaths = @()
+    foreach ($e in $present) {
+      $local = Join-Path $Root $e.Path
+      $norm = ($e.Path -replace '\\', '/')
+      $relPaths += $norm
+      $item = Get-Item -LiteralPath $local
+      if ($item.PSIsContainer) {
+        $parent = $norm.Substring(0, $norm.LastIndexOf('/'))
+        Invoke-Remote "mkdir -p '${stage}/${parent}'"
+        Write-Host "scp -r $norm/ -> stage"
+        & $ScpExe @scpArgs -r $local "${target}:${stage}/${parent}/"
+      } else {
+        $parent = if ($norm.Contains('/')) { $norm.Substring(0, $norm.LastIndexOf('/')) } else { '' }
+        if ($parent) { Invoke-Remote "mkdir -p '${stage}/${parent}'" }
+        Write-Host "scp $norm -> stage"
+        & $ScpExe @scpArgs $local "${target}:${stage}/${norm}"
+      }
+      if ($LASTEXITCODE -ne 0) { throw "scp failed: $($e.Path)" }
     }
-    Write-Host ("Secret group '{0}' synced to {1}:{2} ({3} paths)" -f $name, $target, $deployPath, $copied)
+
+    # Install script on the remote (UTF-8 no BOM) — sudo -t can prompt.
+    $installLines = @(
+      '#!/bin/bash',
+      'set -euo pipefail',
+      "STAGE='$stage'",
+      "DEST='$deployPath'",
+      'OWNER="$(stat -c %U "$DEST/data" 2>/dev/null || true)"',
+      'if [ -z "${OWNER:-}" ]; then',
+      '  if id gantry >/dev/null 2>&1; then OWNER=gantry; else OWNER="$(logname 2>/dev/null || echo root)"; fi',
+      'fi',
+      "for rel in $($relPaths -join ' '); do",
+      '  mkdir -p "$DEST/$(dirname "$rel")"',
+      '  if [ -d "$STAGE/$rel" ]; then',
+      '    mkdir -p "$DEST/$rel"',
+      '    cp -a "$STAGE/$rel/." "$DEST/$rel/"',
+      '  else',
+      '    cp -a "$STAGE/$rel" "$DEST/$rel"',
+      '  fi',
+      '  chown -R "$OWNER:$OWNER" "$DEST/$rel"',
+      '  echo "installed $rel (owner=$OWNER)"',
+      'done',
+      'rm -rf "$STAGE"'
+    )
+    $installLocal = Join-Path $env:TEMP 'gantry-install-secrets.sh'
+    [System.IO.File]::WriteAllText($installLocal, (($installLines -join "`n") + "`n"))
+    & $ScpExe @scpArgs $installLocal "${target}:/tmp/gantry-install-secrets.sh"
+    if ($LASTEXITCODE -ne 0) { throw 'scp install-secrets.sh failed' }
+    Invoke-RemoteTTY 'sudo bash /tmp/gantry-install-secrets.sh'
+
+    Write-Host ("Secret group '{0}' synced to {1}:{2} ({3} path(s))" -f $name, $target, $deployPath, $present.Count)
   }
   'up' {
     $bust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()

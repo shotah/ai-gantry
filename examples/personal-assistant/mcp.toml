@@ -9,7 +9,7 @@
 #   exclude = ["raw_*"]    # denylist
 #   tools_prefix = "garm"  # override {prefix}__{tool}
 
-# --- Google Workspace (magks/google-workspace-mcp-go) -----------------------
+# --- Google Workspace (shotah/google-workspace-mcp-go) ----------------------
 # [[server]]
 # name = "google-workspace"
 # command = "google-workspace-mcp-go"
@@ -31,10 +31,12 @@
 # command = "garmin"
 # args = ["mcp", "--tool-tier", "core"]
 
-# --- Web search via Gemini grounding (zchee/mcp-gemini-google-search) --------
+# --- Web search via Gemini grounding (shotah/mcp-gemini-search) --------------
 # [[server]]
 # name = "google-search"
 # command = "mcp-gemini-google-search"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/mcp-gemini-search/releases/download/{tag}/mcp-gemini-google-search_{version}_{os}_{arch}.tar.gz"
 
 # --- Chromecast / Nest (shotah/mcp-beam) — often needs network_mode=host -----
 # [[server]]
@@ -45,3 +47,8 @@
 # [[server]]
 # name = "ytmusic"
 # command = "youtube-go-mcp"
+#
+# --- Calculator (shotah/mcp-go-math) -----------------------------------------
+# [[server]]
+# name = "math"
+# command = "mcp-go-math"
