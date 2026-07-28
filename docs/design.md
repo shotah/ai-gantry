@@ -140,7 +140,7 @@ recalled rows. Contradictions should be surfaced to the user, not obeyed.
 | `gantry version` | Build ldflags |
 | SIGTERM / Interrupt | Stop channel → drain in-flight turn → close MCP → close DB |
 | Logs | JSON `slog` on stderr (`docker logs`) |
-| Chat cmds | `/new`, `/status`, `/tools` (SIGHUP reloads persona on unix) |
+| Chat cmds | `/new`, `/cancel`, `/status`, `/tools` (SIGHUP reloads persona on unix) |
 | Photos | Telegram inbound → multimodal user turn; outbound `SendPhoto` for image URLs in reply |
 
 No port is opened by the gantry, ever.

@@ -76,7 +76,9 @@ func New(cfg Config) (*Channel, error) {
 func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 	b, err := c.newBot(c.token,
 		bot.WithDefaultHandler(c.makeHandler(handle)),
-		bot.WithWorkers(1), // one-at-a-time; keeps session writes simple
+		// Two workers so /cancel can run while a turn is in flight. The agent
+		// serializes normal turns per session; /cancel does not take that lock.
+		bot.WithWorkers(2),
 		bot.WithAllowedUpdates(bot.AllowedUpdates{
 			models.AllowedUpdateMessage,
 			models.AllowedUpdateMessageReaction,
@@ -92,6 +94,7 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 	if _, err := b.SetMyCommands(ctx, &bot.SetMyCommandsParams{
 		Commands: []models.BotCommand{
 			{Command: "new", Description: "Reset conversation session"},
+			{Command: "cancel", Description: "Stop the in-flight reply / tool loop"},
 			{Command: "status", Description: "Show uptime, model, history"},
 		},
 	}); err != nil {

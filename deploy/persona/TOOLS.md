@@ -11,6 +11,9 @@
 - **Get vs List:** both retrieve data. Before claiming a capability is missing,
   scan the tools list for `get_*` **and** `list_*` (and `*_get_*`). Names are
   not synonyms — use the exact one listed.
+- **Timezone:** use `USER.md` / `[current time]` (`CRON_TZ`) for date and
+  RFC3339 tool args. Prefer that zone’s calendar day or offset — **do not
+  default to UTC/Z** unless the human asked for UTC or the schema requires it.
 
 ## Google Workspace (if mounted)
 
@@ -22,8 +25,9 @@
 - Activity history vs recovery metrics may live on different servers — pick the
   right one for the question ("what did I do?" vs "should I train?")
 - **"What did I do?" / a day's ride or session:** call a list tool first
-  (`…__list_activities` and/or `…__strava_get_activities` if present), then
-  by-id detail if needed. Do not ask the human to paste stats when a list tool
+  (`…__list_activities` and/or `…__strava_get_activities` if present), bound
+  the day in the human's timezone from `[current time]` (not UTC), then by-id
+  detail if needed. Do not ask the human to paste stats when a list tool
   exists; do not invent "no daily activity tool" because you only looked for
   `get_activities`.
 

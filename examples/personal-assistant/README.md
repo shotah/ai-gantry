@@ -45,6 +45,7 @@ Message the bot. First checks:
 | `/status` | uptime, model, history, tool count |
 | `/tools` | builtin memory/cron tools (MCP empty until you add servers) |
 | `/new` | `session reset` |
+| `/cancel` | stop the in-flight reply / tool loop |
 
 ### Discord (or Slack) instead of Telegram
 

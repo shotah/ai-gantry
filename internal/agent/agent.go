@@ -4,6 +4,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -66,6 +67,12 @@ type Agent struct {
 	startedAt     time.Time
 	loc           *time.Location
 	tzName        string
+
+	turnMu       sync.Mutex
+	turnSeq      uint64
+	turns        map[string]*turnSlot // sessionID → in-flight turn
+	sessionMu    sync.Mutex
+	sessionLocks map[string]*sessionGate
 }
 
 // New creates an Agent. Completer and Sessions are required.
@@ -109,6 +116,7 @@ func New(opts Options) (*Agent, error) {
 		loc:           loc,
 		tzName:        tzName,
 	}
+	a.initTurns()
 	a.SetPersona(opts.Persona)
 	return a, nil
 }
@@ -149,6 +157,18 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		ThreadID:  msg.ThreadID,
 	})
 
+	// /cancel must not take the session lock — it runs on a parallel Telegram
+	// worker while the in-flight turn still holds that lock.
+	if cmd, ok := parseCommand(text); ok && cmd == "/cancel" {
+		if a.Cancel(msg.SessionID) {
+			return "cancelled — stopped the in-flight turn (tools that already finished are not undone)", nil
+		}
+		return "nothing in progress to cancel", nil
+	}
+
+	unlock := a.lockSession(msg.SessionID)
+	defer unlock()
+
 	if cmd, ok := parseCommand(text); ok {
 		switch cmd {
 		case "/new", "/clear":
@@ -163,7 +183,14 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		}
 	}
 
-	history, err := a.sessions.Messages(ctx, msg.SessionID)
+	turnCtx, finish := a.beginTurn(ctx, msg.SessionID)
+	defer func() {
+		if finish() {
+			a.log.Info("agent turn cancelled", "session_id", msg.SessionID)
+		}
+	}()
+
+	history, err := a.sessions.Messages(turnCtx, msg.SessionID)
 	if err != nil {
 		return "", err
 	}
@@ -198,7 +225,7 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		hydrateQuery = storeText
 	}
 	if a.memory != nil {
-		entries, err := a.memory.Hydrate(ctx, hydrateQuery, 30)
+		entries, err := a.memory.Hydrate(turnCtx, hydrateQuery, 30)
 		if err != nil {
 			a.log.Warn("memory hydrate failed", "err", err)
 		} else if block := memory.FormatHydration(entries); block != "" {
@@ -236,15 +263,21 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		"est_tokens", estTokens(messages),
 	)
 
-	reply, err := a.runLoop(ctx, messages, toolDefs)
+	reply, err := a.runLoop(turnCtx, messages, toolDefs)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return "", nil
+		}
 		return "", err
 	}
 
-	if err := a.sessions.Append(ctx, msg.SessionID,
+	if err := a.sessions.Append(turnCtx, msg.SessionID,
 		session.Message{Role: session.RoleUser, Content: storeText},
 		session.Message{Role: session.RoleAssistant, Content: reply},
 	); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return "", nil
+		}
 		return "", err
 	}
 	return reply, nil
@@ -257,6 +290,9 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 	sawTools := false
 
 	for iter := 0; iter < a.maxToolIters; iter++ {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		bounded := collapseOldToolResults(messages)
 		req := provider.Request{Messages: bounded, Tools: toolDefs}
 
@@ -368,6 +404,9 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 			}
 			out, err := a.tools.Call(ctx, call.Name, args)
 			if err != nil {
+				if errors.Is(err, context.Canceled) || ctx.Err() != nil {
+					return "", context.Canceled
+				}
 				out = fmt.Sprintf("tool error: %v", err)
 				a.log.Warn("tool call failed", "name", call.Name, "err", err)
 			}

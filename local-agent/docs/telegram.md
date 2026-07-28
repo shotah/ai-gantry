@@ -56,11 +56,13 @@ No approval step — if the allowlist is right, it just replies.
 | Command | What it does |
 | --- | --- |
 | `/new` | Clear **this sender's** conversation history and start a fresh session |
+| `/cancel` | Stop the **in-flight** reply / tool loop for this chat (does not undo tools that already finished) |
 | `/status` | Uptime, model, history size (estimated tokens), tool count |
 
-Use **`/new`** when LOCAL_AGENT dumps huge JSON/transcripts, loops on the same tool error, or
-ignores a clear ask. That is usually a poisoned session, not a broken deploy —
-reset and ask one concrete thing again.
+Use **`/cancel`** when a turn is stuck on tools or you want to abort mid-reply, then send
+the corrected ask. Use **`/new`** when LOCAL_AGENT dumps huge JSON/transcripts, loops on
+the same tool error, or ignores a clear ask — that is usually a poisoned session, not a
+broken deploy — reset and ask one concrete thing again.
 
 ---
 

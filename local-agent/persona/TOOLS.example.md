@@ -2,6 +2,12 @@
 
 > Copy to `TOOLS.md` via `make persona`. Add host-specific notes locally; don’t commit secrets.
 
+## Timezone (all tools)
+
+- Human timezone is in `USER.md` / `[current time]` (from `CRON_TZ`) — usually Pacific here. Match that; not UTC.
+- Date-only args: use the local calendar day from `[current time]` (`yesterday=` / `today=`).
+- RFC3339 / timestamps: include that zone’s offset from `[current time]`. **Never default to `Z` / UTC** unless asked or the schema requires it.
+
 ## Google Workspace (MCP)
 
 - Always pass `user_google_email` from `USER.md` (canonical address)
@@ -24,7 +30,7 @@
 - **Strava MCP** — activities, load, weekly summaries (`strava__strava_get_activities`, by-id / zones / athlete stats)
 - **Garmin MCP** — sleep, weight, Body Battery / HRV / readiness, **and** activity history (`garmin__list_activities`, `garmin__get_activity`)
 - Prefer Garmin for recovery
-- **“What did I do?” / yesterday’s ride / session:** call a list tool first — `garmin__list_activities` and/or `strava__strava_get_activities` (whichever is in the tools list). Then by-id detail if needed. Do **not** ask the human to paste stats when a list tool exists; do **not** invent “no daily activity tool” because you only looked for `get_activities`.
+- **“What did I do?” / yesterday’s ride / session:** call a list tool first — `garmin__list_activities` and/or `strava__strava_get_activities` (whichever is in the tools list). Bound the day in the human’s timezone from `[current time]` (not UTC). Then by-id detail if needed. Do **not** ask the human to paste stats when a list tool exists; do **not** invent “no daily activity tool” because you only looked for `get_activities`.
 - **Sleep:** `garmin__get_sleep` only — not `get_body_battery`. Call it (don’t narrate “I’ll pull…”). For “last night” omit `date` or pass **today** (wake-up day). Example: today 2026-07-28 → `date=2026-07-28`, never yesterday
 
 ## Web search

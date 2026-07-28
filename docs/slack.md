@@ -48,7 +48,7 @@ SLACK_ALLOWED_USERS=U01234567
 | Transport | Socket Mode only (outbound WS) |
 | Scope | DMs (`message.im`) + `@mention` in channels |
 | Auth | Allowlist by Slack user id — others logged and dropped |
-| Commands | Text `/new` `/status` `/tools` (same as Telegram) |
+| Commands | Text `/new` `/cancel` `/status` `/tools` (same as Telegram) |
 | Threads | Channel `@mention` replies land in a thread; DMs stay flat |
 | Cron push | Posts to stored channel / opens DM for allowlisted user |
 | Streaming | Opt-in `STREAM_REPLIES=true` — post placeholder, then `chat.update` |

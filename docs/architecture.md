@@ -52,7 +52,7 @@ One OS process. Concurrent work:
 | Goroutine | Job |
 | --- | --- |
 | channel poller | Telegram `getUpdates` (or stdio REPL); allowlist filter |
-| agent handler | per message: assemble → model → tools → reply (Telegram: workers=1) |
+| agent handler | per message: assemble → model → tools → reply (Telegram: workers=2 so `/cancel` can interrupt) |
 | MCP children | one OS process per manifest server (stdio), supervised by host |
 | heartbeat ticker | upsert `heartbeat` every ~15s |
 | memory consolidator | optional timer (`MEMORY_CONSOLIDATE_MINUTES`; `0` = off) |

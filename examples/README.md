@@ -23,7 +23,7 @@ cp .env.example .env
 make run           # CHANNEL=stdio PERSONA_DIR=./deploy/persona
 ```
 
-Slash commands: `/new` `/status` `/tools` `/quit`.
+Slash commands: `/new` `/cancel` `/status` `/tools` `/quit`.
 
 ---
 
@@ -68,5 +68,5 @@ Walkthrough: **[local-agent/README.md](../local-agent/README.md)**. Same gantry 
 - Data: `$DATA_DIR/gantry.db` holds sessions, memory, cron, heartbeat — survives
   image rebuilds if the volume mount stays.
 
-Slash commands: `/new`, `/status`, `/tools`. Unix: `kill -HUP <pid>` reloads persona.
+Slash commands: `/new`, `/cancel`, `/status`, `/tools`. Unix: `kill -HUP <pid>` reloads persona.
 Telegram photos: inbound → vision; outbound `SendPhoto` for image URLs in replies.

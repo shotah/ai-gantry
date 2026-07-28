@@ -435,7 +435,7 @@ contradictions get surfaced, not obeyed.
 - `gantry status` — exit-code healthcheck (reads `heartbeat` row in `$DATA_DIR/gantry.db`)
 - `gantry version` — build info
 - Logs: JSON `slog` to stderr (`journalctl` native, `docker logs` in compose).
-- Telegram/stdio `/new` — session reset; `/status` — uptime/model/history/tools; `/tools` — prefixed catalog; unix `SIGHUP` reloads persona.
+- Telegram/stdio `/new` — session reset; `/cancel` — stop in-flight turn; `/status` — uptime/model/history/tools; `/tools` — prefixed catalog; unix `SIGHUP` reloads persona.
 - Telegram photos: inbound → vision (Gemini/OpenAI-compat); outbound `SendPhoto` when the
   reply includes a markdown image or `*.png`/`*.jpg`/… URL (caption = remaining text).
 - Dev: `make build|test|lint|run|ci|check`; `make install-hooks` for pre-commit
