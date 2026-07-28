@@ -381,8 +381,14 @@ function Sync-Stage {
 }
 
 function Install-Remote {
+  param([switch]$Restart)
   Write-Host "Installing via sudo (password prompt if needed)..."
-  Invoke-RemoteTTY "sudo bash $StageRemote/install.sh"
+  # One SSH + one sudo so deploy doesn't prompt twice (install, then restart).
+  if ($Restart) {
+    Invoke-RemoteTTY "sudo bash -c 'bash $StageRemote/install.sh && systemctl restart gantry && systemctl --no-pager --full status gantry | head -n 25'"
+  } else {
+    Invoke-RemoteTTY "sudo bash $StageRemote/install.sh"
+  }
 }
 
 switch ($Action) {
@@ -410,8 +416,7 @@ switch ($Action) {
     Fetch-McpDownloadTools
     Fetch-ToolsFromDocker
     Sync-Stage
-    Install-Remote
-    Invoke-RemoteTTY "sudo systemctl restart gantry && systemctl --no-pager --full status gantry | head -n 25"
+    Install-Remote -Restart
     Write-Host "Deployed. Message TIM on Telegram; logs: make remote-native-logs"
   }
   'deploy-dev' {
@@ -419,8 +424,7 @@ switch ($Action) {
     Build-GantryDev
     Fetch-McpDownloadTools
     Sync-Stage
-    Install-Remote
-    Invoke-RemoteTTY "sudo systemctl restart gantry && systemctl --no-pager --full status gantry | head -n 25"
+    Install-Remote -Restart
     Write-Host "Dev deploy done (local linux/amd64 build). logs: make remote-native-logs"
   }
 }

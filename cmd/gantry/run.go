@@ -196,17 +196,18 @@ func run() int {
 		logger.Warn("cron tz load failed; temporal anchor uses UTC", "tz", cfg.CronTZ, "err", err)
 	}
 	ag, err := agent.New(agent.Options{
-		Persona:       personaText,
-		Completer:     completer,
-		Sessions:      sessions,
-		Tools:         tools,
-		Memory:        memBackend,
-		Model:         cfg.LLMModel,
-		MaxToolIters:  cfg.ToolMaxIterations,
-		StreamReplies: cfg.StreamReplies,
-		Logger:        logger,
-		Location:      tzLoc,
-		TZName:        cfg.CronTZ,
+		Persona:        personaText,
+		Completer:      completer,
+		Sessions:       sessions,
+		Tools:          tools,
+		Memory:         memBackend,
+		Model:          cfg.LLMModel,
+		MaxToolIters:   cfg.ToolMaxIterations,
+		StreamReplies:  cfg.StreamReplies,
+		Logger:         logger,
+		Location:       tzLoc,
+		TZName:         cfg.CronTZ,
+		CoalesceSettle: time.Duration(cfg.CoalesceSettleMS) * time.Millisecond,
 	})
 	if err != nil {
 		logger.Error("agent init failed", "err", err)

@@ -67,6 +67,10 @@ type Config struct {
 
 	StreamReplies bool `env:"STREAM_REPLIES" envDefault:"false"`
 
+	// CoalesceSettleMS is quiet time after the last chat bubble before running
+	// one joined turn (interrupt + coalesce). 0 disables. Default 2000ms.
+	CoalesceSettleMS int `env:"COALESCE_SETTLE_MS" envDefault:"2000"`
+
 	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
 }
 
@@ -185,6 +189,9 @@ func (c *Config) Validate() error {
 	}
 	if c.ToolSchemaMaxTokens < 0 {
 		return fmt.Errorf("TOOL_SCHEMA_MAX_TOKENS: must be >= 0, got %d", c.ToolSchemaMaxTokens)
+	}
+	if c.CoalesceSettleMS < 0 {
+		return fmt.Errorf("COALESCE_SETTLE_MS: must be >= 0, got %d", c.CoalesceSettleMS)
 	}
 	if c.MemoryConsolidateMinutes < 0 {
 		return fmt.Errorf("MEMORY_CONSOLIDATE_MINUTES: must be >= 0, got %d", c.MemoryConsolidateMinutes)

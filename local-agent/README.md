@@ -204,7 +204,7 @@ Everything lives in [`./docs`](docs). Start with Telegram, add the rest as neede
 
 | Guide | What it covers | When you need it |
 | --- | --- | --- |
-| 📨 **[docs/telegram.md](docs/telegram.md)** | BotFather token, numeric user id, `TELEGRAM_ALLOWED_USERS` allowlist, `/new` session reset, `/cancel` abort in-flight turn, `/status`, history bounds, SQLite memory | **Always** — this is the only chat channel |
+| 📨 **[docs/telegram.md](docs/telegram.md)** | BotFather token, allowlist, `/new` / `/cancel`, multi-bubble interrupt+coalesce+settle, `/status`, history bounds, SQLite memory | **Always** — this is the only chat channel |
 | 🧠 **[docs/models.md](docs/models.md)** | One OpenAI-compatible chat provider (`LLM_*`); Gemini defaults; swapping chat to xAI/Grok/Ollama; local models + tool-name aliasing | Changing brain / cost tuning |
 | 🔌 **[../docs/mcp.md](../docs/mcp.md)** | Kernel MCP host: `{server}__{tool}` naming, underscore-prefix alias, unknown-tool hints, local `/tools` REPL | Debugging tool calls / wiring a new MCP |
 | 🎭 **[docs/persona.md](docs/persona.md)** | `persona/SOUL.md` / `USER.md` system prompt — coach mode, identity lock, vs SQLite memory | Shaping LOCAL_AGENT's behavior |

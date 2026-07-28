@@ -68,6 +68,7 @@ gateways, dashboards. Gantry refuses that tax — and hardens the loop for
 | Tool surface | Manifest filters + MCP `--tool-tier` | Smaller schemas → better tool picks (Flash *or* Qwen) |
 | Name repair | Prefix alias + catalog hints on unknown tools | `google_search__…` still hits `google-search__…` |
 | Think stalls | Promote CoT → reply after tools | Multi-step turns finish instead of ERROR |
+| Multi-bubble | Interrupt + coalesce + settle (`COALESCE_SETTLE_MS`) | “Strava… wait Garmin… nvm calendar” → one joined turn |
 | Memory | SQLite + FTS5 in-process | No embedding API before every reply |
 | Runtime | One static binary (systemd *or* Distroless) | No Node/Bun/gateway in the path |
 | Gemini 3 | Preserves `thought_signature` on tool rounds | Cloud multi-step turns don't 400 |
@@ -248,6 +249,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `CRON_MAX_JOBS` | no | `50` |
 | `CRON_TICK_SECONDS` | no | `15` |
 | `STREAM_REPLIES` | no | `false` (Telegram edit-in-place / stdio token stream) |
+| `COALESCE_SETTLE_MS` | no | `2000` (quiet ms after last bubble before one joined turn; `0` = off) |
 | `LOG_LEVEL` | no | `info` |
 
 Boot is fail-fast: missing required env = clear error + exit 1. No partial
@@ -435,7 +437,13 @@ contradictions get surfaced, not obeyed.
 - `gantry status` — exit-code healthcheck (reads `heartbeat` row in `$DATA_DIR/gantry.db`)
 - `gantry version` — build info
 - Logs: JSON `slog` to stderr (`journalctl` native, `docker logs` in compose).
-- Telegram/stdio `/new` — session reset; `/cancel` — stop in-flight turn; `/status` — uptime/model/history/tools; `/tools` — prefixed catalog; unix `SIGHUP` reloads persona.
+- Telegram/stdio slash commands: `/new` (session reset), `/cancel` (halt in-flight turn), `/status`, `/tools`; unix `SIGHUP` reloads persona.
+- **Multi-bubble (interrupt → coalesce → settle):** rapid follow-ups while a turn
+  is running (or within `COALESCE_SETTLE_MS`, default **2000**) cancel the current
+  loop, join the bubbles into one user message, then resubmit as a single turn.
+  `/cancel` also clears a pending settle batch. Tools that already finished are
+  not undone. Cron/reaction synthetics skip this path. Details:
+  [local-agent/docs/telegram.md](local-agent/docs/telegram.md).
 - Telegram photos: inbound → vision (Gemini/OpenAI-compat); outbound `SendPhoto` when the
   reply includes a markdown image or `*.png`/`*.jpg`/… URL (caption = remaining text).
 - Dev: `make build|test|lint|run|ci|check`; `make install-hooks` for pre-commit

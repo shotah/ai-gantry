@@ -94,7 +94,7 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 	if _, err := b.SetMyCommands(ctx, &bot.SetMyCommandsParams{
 		Commands: []models.BotCommand{
 			{Command: "new", Description: "Reset conversation session"},
-			{Command: "cancel", Description: "Stop the in-flight reply / tool loop"},
+			{Command: "cancel", Description: "Cancel the in-flight reply / tool loop"},
 			{Command: "status", Description: "Show uptime, model, history"},
 		},
 	}); err != nil {

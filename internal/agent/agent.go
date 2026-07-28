@@ -50,6 +50,10 @@ type Options struct {
 	// Location is the operator timezone for the per-turn temporal anchor (CRON_TZ).
 	Location *time.Location
 	TZName   string // IANA name for display (e.g. America/Los_Angeles)
+	// CoalesceSettle waits this long after the last bubble before running a
+	// joined turn (interrupt + coalesce). 0 disables. Production default is
+	// DefaultCoalesceSettle via run config.
+	CoalesceSettle time.Duration
 }
 
 // Agent runs the prompt → model → (tools) → reply loop.
@@ -73,6 +77,10 @@ type Agent struct {
 	turns        map[string]*turnSlot // sessionID → in-flight turn
 	sessionMu    sync.Mutex
 	sessionLocks map[string]*sessionGate
+
+	coalesceSettle time.Duration
+	coalesceMu     sync.Mutex
+	coalesce       map[string]*coalesceSession
 }
 
 // New creates an Agent. Completer and Sessions are required.
@@ -104,17 +112,18 @@ func New(opts Options) (*Agent, error) {
 		tzName = loc.String()
 	}
 	a := &Agent{
-		completer:     opts.Completer,
-		sessions:      opts.Sessions,
-		tools:         opts.Tools,
-		memory:        opts.Memory,
-		model:         opts.Model,
-		maxToolIters:  maxIters,
-		streamReplies: opts.StreamReplies,
-		log:           log,
-		startedAt:     started,
-		loc:           loc,
-		tzName:        tzName,
+		completer:      opts.Completer,
+		sessions:       opts.Sessions,
+		tools:          opts.Tools,
+		memory:         opts.Memory,
+		model:          opts.Model,
+		maxToolIters:   maxIters,
+		streamReplies:  opts.StreamReplies,
+		log:            log,
+		startedAt:      started,
+		loc:            loc,
+		tzName:         tzName,
+		coalesceSettle: opts.CoalesceSettle,
 	}
 	a.initTurns()
 	a.SetPersona(opts.Persona)
@@ -144,10 +153,6 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 	if text == "" && len(msg.Images) == 0 {
 		return "", nil
 	}
-	storeText := text
-	if storeText == "" {
-		storeText = "[photo]"
-	}
 
 	// Bind cron_* tools to this chat/session for scheduling.
 	ctx = cron.WithDelivery(ctx, cron.Delivery{
@@ -159,31 +164,59 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 
 	// /cancel must not take the session lock — it runs on a parallel Telegram
 	// worker while the in-flight turn still holds that lock.
-	if cmd, ok := parseCommand(text); ok && cmd == "/cancel" {
+	if cmd, ok := parseCommand(text); ok && (cmd == "/cancel" || cmd == "/stop") {
+		a.coalesceClear(msg.SessionID)
 		if a.Cancel(msg.SessionID) {
 			return "cancelled — stopped the in-flight turn (tools that already finished are not undone)", nil
 		}
 		return "nothing in progress to cancel", nil
 	}
 
-	unlock := a.lockSession(msg.SessionID)
-	defer unlock()
-
 	if cmd, ok := parseCommand(text); ok {
 		switch cmd {
 		case "/new", "/clear":
+			unlock := a.lockSession(msg.SessionID)
+			defer unlock()
+			a.coalesceClear(msg.SessionID)
 			if err := a.sessions.Reset(ctx, msg.SessionID); err != nil {
 				return "", err
 			}
 			return "session reset", nil
 		case "/status":
+			unlock := a.lockSession(msg.SessionID)
+			defer unlock()
 			return a.status(ctx, msg.SessionID)
 		case "/tools":
+			unlock := a.lockSession(msg.SessionID)
+			defer unlock()
 			return a.listTools(), nil
 		}
 	}
 
-	turnCtx, finish := a.beginTurn(ctx, msg.SessionID)
+	// Interrupt + coalesce + settle for multi-bubble asks (skip cron/reactions).
+	if a.coalesceSettle > 0 && !skipCoalesce(text) {
+		joined, run, err := a.coalesceAccept(ctx, msg)
+		if err != nil {
+			return "", err
+		}
+		if !run {
+			return "", nil
+		}
+		msg = joined
+		text = strings.TrimSpace(msg.Text)
+	}
+
+	return a.runTurn(ctx, msg, text)
+}
+
+// runTurn executes one model turn for an already-coalesced (or single) message.
+func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (string, error) {
+	storeText := messageStoreText(msg)
+
+	unlock := a.lockSession(msg.SessionID)
+	defer unlock()
+
+	turnCtx, finish := a.beginTurn(ctx, msg.SessionID, storeText, msg.Images)
 	defer func() {
 		if finish() {
 			a.log.Info("agent turn cancelled", "session_id", msg.SessionID)
