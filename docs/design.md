@@ -6,11 +6,12 @@ ZeroClaw-style runtimes drift toward multi-agent platforms (many providers,
 dashboards, config UIs). Our deployment model is the opposite:
 
 ```text
-container = persona + model + MCP set + memory volume
+process = persona + model + MCP set + data dir
 ```
 
-Want another LLM or persona? Another container. ai-gantry is the kernel that
-does exactly that — nothing else.
+Want another LLM or persona? Another process. ai-gantry is the kernel that
+does exactly that — nothing else. Deploy shapes:
+[deploy-native.md](deploy-native.md) · [deploy-docker.md](deploy-docker.md).
 
 ## Principles
 

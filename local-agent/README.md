@@ -1,28 +1,28 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="local-agent — a lean, self-hosted assistant on ai-gantry (Gemini + Telegram, dockerized)" width="100%">
+  <img src="docs/assets/banner.svg" alt="local-agent — a lean, self-hosted assistant on ai-gantry" width="100%">
 </p>
 
 # local-agent
 
 **local-agent** is the production personal-assistant **appliance** for this repo: Make
-targets, PowerShell/Bash helpers, and Docker Compose around the **ai-gantry**
-kernel. One persona, one model, MCP tool binaries baked into the image. Chat over
-**Telegram**; think with **Gemini**; act via Workspace, Strava, Garmin, Cast,
-YouTube Music, and web search.
+targets, auth helpers, and deploy scripts around the **ai-gantry** kernel. One
+persona, one model, MCP tool binaries. Chat over **Telegram**; think with
+**Ollama/Qwen** (native) or **Gemini** (Docker); act via Workspace, Strava,
+Garmin, Cast, YouTube Music, and web search.
 
-Lives at **`local-agent/`** in [shotah/ai-gantry](https://github.com/shotah/ai-gantry)
-(formerly a separate deploy repo). The kernel image is
-[`shotah/ai-gantry`](https://hub.docker.com/r/shotah/ai-gantry); this folder
-builds **`gantry-local-agent:local`** (kernel + tools).
+Lives at **`local-agent/`** in [shotah/ai-gantry](https://github.com/shotah/ai-gantry).
+Kernel overview: [../readme.md](../readme.md). Deploy styles:
+**[native](../docs/deploy-native.md)** *(featured)* ·
+[Docker](../docs/deploy-docker.md).
 
 Design goals: **tiny footprint, no inbound ports, one command to deploy.**
 
 - 🏗️ One static Go daemon — no Node, no plugin zoo, no dashboard, no gateway
 - 📴 Telegram long-polls outbound; **nothing is exposed to the internet, ever**
-- 🧠 Gemini via a single `.env` key (any OpenAI-compatible endpoint works)
+- 🧠 Any OpenAI-compatible chat endpoint (`LLM_*`) — Ollama/Qwen or Gemini/Grok
 - 🧱 MCP-first: every capability is a static Go binary listed in [`mcp.toml`](mcp.toml)
 - 🗂️ Inspectable SQLite memory (`data/gantry.db`) — typed rows, no embeddings
-- 🚀 Deploy Windows → Ubuntu over SSH with `make remote-deploy`
+- 🚀 Deploy Windows → Ubuntu over SSH: `make remote-native-deploy` or `make remote-deploy`
 
 ---
 
@@ -208,7 +208,8 @@ Everything lives in [`./docs`](docs). Start with Telegram, add the rest as neede
 | 🧠 **[docs/models.md](docs/models.md)** | One OpenAI-compatible chat provider (`LLM_*`); Gemini defaults; swapping chat to xAI/Grok/Ollama; local models + tool-name aliasing | Changing brain / cost tuning |
 | 🔌 **[../docs/mcp.md](../docs/mcp.md)** | Kernel MCP host: `{server}__{tool}` naming, underscore-prefix alias, unknown-tool hints, local `/tools` REPL | Debugging tool calls / wiring a new MCP |
 | 🎭 **[docs/persona.md](docs/persona.md)** | `persona/SOUL.md` / `USER.md` system prompt — coach mode, identity lock, vs SQLite memory | Shaping LOCAL_AGENT's behavior |
-| 🚀 **[docs/deploy.md](docs/deploy.md)** | Ubuntu server prep, UID/GID ownership, OpenSSH on Windows, the `make remote-*` workflow | Running on a real server |
+| 🚀 **[docs/deploy.md](docs/deploy.md)** | Docker remote deploy (SSH + compose) | Cloud-LLM / compose path |
+| 🐧 **[deploy/README.md](deploy/README.md)** · **[../docs/deploy-native.md](../docs/deploy-native.md)** | Native systemd + Ollama/Qwen on `/opt/gantry` | Featured production path |
 | 🗂️ **[docs/google-workspace.md](docs/google-workspace.md)** | Go MCP (`google-workspace-mcp-go`), `make google-auth`, Docs/Gmail/Calendar tools | Gmail / Docs / Calendar / Drive |
 | 🏃 **[docs/strava.md](docs/strava.md)** | Strava API app, `strava-mcp` OAuth, token mount, MCP wiring | Workout summaries & training nudges |
 | ⌚ **[docs/garmin.md](docs/garmin.md)** | go-garmin MCP, `make garmin-auth`, sleep / weight / readiness | Physiological recovery + scale weight |

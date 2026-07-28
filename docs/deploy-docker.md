@@ -1,0 +1,112 @@
+# Deploy: Docker (compose / Hub)
+
+Run gantry as a **distroless container**: outbound chat only, mounts for
+persona + `mcp.toml` + data. Fastest path when you want a cloud
+OpenAI-compatible LLM (Gemini is the cookbook default) without installing a
+local model host.
+
+Kernel contract (env, mounts, MCP): [root readme](../readme.md). Tool naming:
+[mcp.md](mcp.md). Full life-stack appliance: [local-agent/](../local-agent/).
+
+```mermaid
+flowchart LR
+  TG[Telegram / Discord / Slack] <-->|outbound only| C
+  subgraph C["container — distroless/static"]
+    G[gantry]
+    M[MCP binaries]
+    G -->|stdio| M
+  end
+  G -->|HTTPS OpenAI-compat| LLM[Gemini / Grok / …]
+```
+
+---
+
+## Hello in five minutes (no tools)
+
+**Telegram + Gemini.** You need: Docker, a
+[Gemini API key](https://aistudio.google.com/apikey), a bot token from
+[@BotFather](https://t.me/BotFather), and your numeric user id (e.g.
+[@userinfobot](https://t.me/userinfobot)).
+
+```bash
+git clone https://github.com/shotah/ai-gantry.git && cd ai-gantry
+make example-pa
+# edit examples/personal-assistant/.env — GEMINI_API_KEY, TELEGRAM_BOT_TOKEN,
+# TELEGRAM_ALLOWED_USERS (numeric id)
+
+docker compose -f examples/personal-assistant/compose.yml up -d --build
+docker compose -f examples/personal-assistant/compose.yml logs -f
+```
+
+Message the bot → `/status` → `/new`. Memory and cron work immediately; MCP
+servers stay commented until you want tools.
+
+Prefer the published image? Set `image: shotah/ai-gantry:latest` in that compose
+file and drop the `build:` block (`:edge` / `:0.x.y` also on Hub +
+`ghcr.io/shotah/ai-gantry`).
+
+### Discord / Slack (same compose)
+
+Swap the channel in `.env` after [discord.md](discord.md) or [slack.md](slack.md):
+
+```bash
+# examples/personal-assistant/.env
+CHANNEL=discord
+DISCORD_BOT_TOKEN=...
+DISCORD_ALLOWED_USERS=123456789012345678
+# GEMINI_API_KEY=...
+# leave TELEGRAM_* empty
+```
+
+```bash
+docker compose -f examples/personal-assistant/compose.yml up -d --build
+```
+
+---
+
+## Compose contract
+
+```yaml
+services:
+  gantry:
+    image: gantry:local            # or shotah/ai-gantry:latest
+    env_file: .env
+    volumes:
+      - ./deploy/persona:/persona:ro
+      - ./deploy/mcp.toml:/etc/gantry/mcp.toml:ro
+      - ./deploy/data:/data        # gantry.db (sessions + memory)
+      - ./deploy/secrets:/secrets:ro
+    healthcheck:
+      # exec form + full path — distroless has no shell
+      test: ["CMD", "/usr/local/bin/gantry", "status"]
+```
+
+Second persona / LLM = second service block. Nothing inbound; health is
+`gantry status` (exit code).
+
+---
+
+## Appliance path (Docker)
+
+For Workspace / Strava / Garmin / Cast / search baked into one image:
+
+```bash
+cd local-agent && make init && make up
+# remote Ubuntu: make remote-deploy  →  docs/deploy.md
+```
+
+See [local-agent/README.md](../local-agent/README.md) and
+[local-agent/docs/deploy.md](../local-agent/docs/deploy.md).
+
+---
+
+## When to prefer Docker
+
+| Prefer Docker when… | Prefer [native](deploy-native.md) when… |
+| --- | --- |
+| You want Hub image + compose in minutes | You want Ollama/Qwen on metal (no container tax) |
+| Cloud LLM (Gemini/Grok) is fine | Local model + systemd on a mini-PC |
+| Distroless sandbox is the grant story | Host PATH + `/opt/gantry` tree is enough |
+
+Model swap is always `LLM_BASE_URL` + `LLM_API_KEY` + `LLM_MODEL` — same
+binary in either supervisor.

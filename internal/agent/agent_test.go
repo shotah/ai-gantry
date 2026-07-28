@@ -203,6 +203,49 @@ func TestAgent_Handle_ThinkingOnlyAfterNudgeErrors(t *testing.T) {
 	}
 }
 
+// After a successful tool call, Qwen often puts the user-facing answer only in
+// Thinking. Promote that CoT instead of nudging into another stall/ERROR.
+func TestAgent_Handle_ThinkingOnlyAfterToolsPromotes(t *testing.T) {
+	ctx := context.Background()
+	var reqs int
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		reqs++
+		if reqs == 1 {
+			return &provider.Result{ToolCalls: []provider.ToolCall{
+				{ID: "c1", Name: "garmin__get_sleep", Arguments: `{"date":"2026-07-28"}`},
+			}}, nil
+		}
+		return &provider.Result{Thinking: "✅ Sleep score 78 — about 5h 36m total."}, nil
+	}}
+	tools := &fakeTools{
+		defs: []provider.ToolDef{{Name: "garmin__get_sleep", Parameters: map[string]any{"type": "object"}}},
+		out:  `{"sleepScore":78,"totalSleepSeconds":20160}`,
+	}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "how was my sleep?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(reply, "Sleep score 78") {
+		t.Fatalf("reply = %q, want promoted thinking", reply)
+	}
+	if reqs != 2 {
+		t.Fatalf("completions = %d, want 2 (tool + think-only)", reqs)
+	}
+	if len(tools.calls) != 1 {
+		t.Fatalf("tool calls = %v", tools.calls)
+	}
+}
+
 func TestAgent_Handle_PersonaAndHistory(t *testing.T) {
 	loc := time.FixedZone("test", -8*3600)
 	hist := newMemHistory()

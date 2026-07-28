@@ -39,8 +39,11 @@ second failure mode: valid tool, wrong argument shape.
 
 ## P0 — Keep the agent finishing multi-step tasks
 
-One think-stall nudge shipped. Remaining gaps:
+One think-stall nudge shipped. After tools, CoT-only answers are **promoted**
+to the user reply (Jul 28 Garmin sleep: data OK, Qwen wrote the summary only
+in thinking → ERROR). Remaining gaps:
 
+- [x] Promote thinking → reply when `sawTools` and Content empty (no second nudge)
 - [ ] Nudge on `finish_reason=length` with no usable output (today: warn only)
 - [ ] Nudge when the model emits prose *about* calling a tool but no tool call
       for N consecutive iterations (detect tool names in text?) — cheap heuristic,

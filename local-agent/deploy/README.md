@@ -1,6 +1,9 @@
 # Native host deploy (binary + systemd + Ollama)
 
-Same agent as Docker compose — different supervisor. Layout on the box:
+Same agent as Docker compose — different supervisor. Product overview and
+why native + Qwen: **[../../docs/deploy-native.md](../../docs/deploy-native.md)**.
+
+Layout on the box:
 
 ```text
 /opt/gantry/

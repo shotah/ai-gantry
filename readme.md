@@ -20,26 +20,27 @@ one model, MCP tools you choose, chat that only dials *out* (Telegram, Discord,
 or Slack). No dashboard. No config UI. **No open ports. Ever.**
 
 ```text
-docker pull  →  mount persona + mcp.toml  →  message your bot
+static binary + persona + mcp.toml + any OpenAI-compat LLM  →  outbound chat
 ```
 
 Chat, memory, and cron work with **zero MCP servers**. Tools are optional
-binaries you bake or mount later — the frame stays out of the way.
+binaries on `PATH` (or baked into an image) — the frame stays out of the way.
 
-| | **Kernel** (`shotah/ai-gantry`) | **Appliance** ([`local-agent/`](local-agent/)) |
+| | **Kernel** (`gantry`) | **Appliance** ([`local-agent/`](local-agent/)) |
 | --- | --- | --- |
-| What | Distroless runtime only | Kernel + Workspace / Strava / Garmin / Cast / YT Music / search |
-| Image | [Docker Hub](https://hub.docker.com/r/shotah/ai-gantry) / GHCR | Build locally (`gantry-local-agent:local`) |
+| What | Runtime only — env + mounts | Kernel + Workspace / Strava / Garmin / Cast / YT Music / search |
+| Run it | Binary, systemd, or Distroless image | Native Linux + Ollama, or Docker compose |
 | Start here if | You want a tiny host you control | You want a full life-stack assistant |
 
-> **In production** on the appliance path (Gemini + Telegram + MCP). Not a
-> demo scaffold — a kernel with a real deploy story.
+> **In production** as a native appliance (Telegram + local Qwen via Ollama +
+> MCP). Same kernel also runs under Docker with Gemini/Grok. Not a demo
+> scaffold — a binary with real deploy stories.
 
 ### Who this is for
 
 You want a **self-hosted assistant** with a clear security story (outbound-only,
-allowlist, distroless), **inspectable memory** (`sqlite3` on a file you own),
-and **MCP as the only plugin surface** — not another multi-agent platform.
+allowlist), **inspectable memory** (`sqlite3` on a file you own), and **MCP as
+the only plugin surface** — not another multi-agent platform.
 
 **Pick gantry** when you want small, boring, and shippable.  
 **Pick something else** (OpenClaw-style stacks, LangGraph apps, SaaS agents)
@@ -54,80 +55,38 @@ We deliberately don't build those.
 | **Planned** | Signal | Sidecar (`signal-cli`); not a Bot API — [todo.md](todo.md) |
 | **Won’t** | WhatsApp / Teams / Messenger webhooks | Need inbound ports — breaks the model |
 
-One `CHANNEL` per container. Allowlist only; no pairing.
+One `CHANNEL` per process. Allowlist only; no pairing.
 
-### Why it stays fast
+### Why it stays sharp
 
 Platform stacks tax every turn: huge tool catalogs, embedding round-trips,
-gateways, dashboards. Gantry refuses that tax.
+gateways, dashboards. Gantry refuses that tax — and hardens the loop for
+**local models** that invent tool names or park answers in CoT.
 
 | Lever | What we do | Why it matters |
 | --- | --- | --- |
-| Tool surface | Manifest filters + MCP `--tool-tier` | Smaller schemas → snappier Flash tool picks |
+| Tool surface | Manifest filters + MCP `--tool-tier` | Smaller schemas → better tool picks (Flash *or* Qwen) |
+| Name repair | Prefix alias + catalog hints on unknown tools | `google_search__…` still hits `google-search__…` |
+| Think stalls | Promote CoT → reply after tools | Multi-step turns finish instead of ERROR |
 | Memory | SQLite + FTS5 in-process | No embedding API before every reply |
-| Runtime | One static binary on distroless/static | No Node/Bun/gateway in the path |
-| Gemini 3 | Preserves `thought_signature` on tool rounds | Multi-step turns finish instead of 400’ing |
+| Runtime | One static binary (systemd *or* Distroless) | No Node/Bun/gateway in the path |
+| Gemini 3 | Preserves `thought_signature` on tool rounds | Cloud multi-step turns don't 400 |
+
+Details: [docs/mcp.md](docs/mcp.md) · [docs/deploy-native.md](docs/deploy-native.md).
 
 ---
 
-## Hello in five minutes (no tools)
+## Start here
 
-**Fastest path is Telegram.** You need: Docker, a
-[Gemini API key](https://aistudio.google.com/apikey), a bot token from
-[@BotFather](https://t.me/BotFather), and your numeric user id (e.g.
-[@userinfobot](https://t.me/userinfobot)).
-
-```bash
-git clone https://github.com/shotah/ai-gantry.git && cd ai-gantry
-make example-pa
-# edit examples/personal-assistant/.env — GEMINI_API_KEY, TELEGRAM_BOT_TOKEN,
-# TELEGRAM_ALLOWED_USERS (numeric id)
-
-docker compose -f examples/personal-assistant/compose.yml up -d --build
-docker compose -f examples/personal-assistant/compose.yml logs -f
-```
-
-Message the bot → `/status` → `/new`. Memory and cron work immediately; MCP
-servers stay commented until you want tools.
-
-Prefer the published image? Set `image: shotah/ai-gantry:latest` in that compose
-file and drop the `build:` block (`:edge` / `:0.x.y` also on Hub +
-`ghcr.io/shotah/ai-gantry`).
-
-### Discord variant (same compose)
-
-Same `examples/personal-assistant/` stack — swap the channel in `.env` after
-[docs/discord.md](docs/discord.md) (Message Content Intent + your snowflake):
-
-```bash
-# examples/personal-assistant/.env
-CHANNEL=discord
-DISCORD_BOT_TOKEN=...
-DISCORD_ALLOWED_USERS=123456789012345678
-# GEMINI_API_KEY=...   # same as Telegram path
-# leave TELEGRAM_* empty
-```
-
-```bash
-docker compose -f examples/personal-assistant/compose.yml up -d --build
-```
-
-DM the bot → `/status` → `/new`. Slack is the same pattern (`CHANNEL=slack` +
-tokens in [docs/slack.md](docs/slack.md)).
-
----
-
-## Go further
-
-| Path | When | Command |
+| Path | When | Doc |
 | --- | --- | --- |
-| **A — REPL** | Hack on the binary locally | `make init && make run` (`CHANNEL=stdio`) |
-| **B — Kernel bot** | Telegram + Hub image, add MCP yourself | [Hello above](#hello-in-five-minutes-no-tools) · [examples/personal-assistant/](examples/personal-assistant/) |
-| **C — Appliance** | Full life stack + `make remote-deploy` | `cd local-agent && make init && make up` → [local-agent/](local-agent/) |
+| **Native + local model** *(featured)* | Linux mini-PC, Ollama/Qwen, systemd | **[docs/deploy-native.md](docs/deploy-native.md)** → [`local-agent/deploy/`](local-agent/deploy/) |
+| **Docker + cloud LLM** | Hub/compose, Gemini hello in minutes | **[docs/deploy-docker.md](docs/deploy-docker.md)** → [`examples/personal-assistant/`](examples/personal-assistant/) |
+| **REPL** | Hack on the binary | `make init && make run` (`CHANNEL=stdio`) |
 
+Full life-stack (tools + auth helpers): **[local-agent/](local-agent/)**.  
 Cookbook: **[examples/README.md](examples/README.md)**. Design / security /
-architecture / MCP naming: **[docs/](docs/)** (start with
-[docs/mcp.md](docs/mcp.md) for tools). Follow-ups: **[todo.md](todo.md)**.
+MCP: **[docs/](docs/)**. Follow-ups: **[todo.md](todo.md)**.
 
 ---
 
@@ -143,12 +102,12 @@ Platform agent stacks drift toward multi-agent products: multiple providers,
 dashboards, console features, config UI. Our deployment model is the opposite:
 
 ```text
-container = persona + model + MCP set + memory volume
+process = persona + model + MCP set + data dir
 ```
 
-Want another LLM or persona? Spin up another container. No in-process routing,
-no dashboard, no manual config surface — a kernel that does exactly that and
-nothing else.
+Want another LLM or persona? Another process (second systemd unit or compose
+service). No in-process routing, no dashboard, no manual config surface — a
+kernel that does exactly that and nothing else.
 
 ## 2. Design principles
 
@@ -156,16 +115,17 @@ nothing else.
    needs a diagram to explain, it probably belongs in an MCP binary, not here.
 2. **Highly performant.** Pure Go, static binary, no CGO, small RSS, no
    background frameworks. Long-poll + goroutines; nothing dials in.
-3. **Highly portable.** `CGO_ENABLED=0`, ships on distroless/static (no shell).
-   No glibc dependency in our binary, no writable rootfs beyond mounts.
+3. **Highly portable.** `CGO_ENABLED=0` static binary — runs under systemd or
+   Distroless (no shell in the image). No glibc dependency in our binary.
 4. **Plugin-centric.** Capabilities come from external binaries over MCP
    stdio. The gantry hosts tools; it does not implement them. Import libraries
    over writing our own (official MCP SDK, maintained Telegram lib, pure-Go
    SQLite).
 5. **1:1, always.** No multi-provider config, no multi-agent config, no peer
-   routing. Scaling = more containers via compose.
-6. **Env/compose is the config plane.** Secrets and scalars via env. The only
-   files are mounts: persona markdown, MCP server manifest, data volume.
+   routing. Scaling = more processes (compose services or systemd units).
+6. **Env + files is the config plane.** Secrets and scalars via env. Structure
+   via persona markdown, MCP manifest, and a data directory (bind-mounts in
+   Docker; paths on the host for native).
 7. **Memory is structured and inspectable.** SQLite rows you can read and
    delete with `sqlite3`, not opaque embedding blobs. Persona files always
    outrank recalled memory.
@@ -178,8 +138,8 @@ nothing else.
   Messenger webhooks) — see channel table under [Who this is for](#who-this-is-for)
 - Built-in web search, built-in workspace tools (those are MCP binaries)
 - Vector database service (see memory design — SQLite is the store)
-- Sandboxing/risk-profile machinery (the container IS the sandbox; we run
-  full-autonomy with an allowlist)
+- Sandboxing/risk-profile machinery (the host or Distroless container is the
+  sandbox; we run full-autonomy with an allowlist)
 
 ## 4. Architecture
 
@@ -187,7 +147,7 @@ nothing else.
 flowchart LR
   TG[Telegram] <-->|long poll, outbound only| K
 
-  subgraph Container["container (distroless/static)"]
+  subgraph Host["host or Distroless container"]
     K[gantry binary]
     M1[mcp binary A]
     M2[mcp binary B]
@@ -195,11 +155,13 @@ flowchart LR
     K -->|MCP stdio| M2
   end
 
-  K -->|HTTPS| LLM[one LLM endpoint]
-  K --- P[("/persona *.md")]
-  K --- D[("/data gantry.db")]
-  M1 --- S[("/secrets/...")]
+  K -->|OpenAI-compat| LLM[one LLM endpoint]
+  K --- P[("persona/*.md")]
+  K --- D[("data/gantry.db")]
+  M1 --- S[("secrets / .config")]
 ```
+
+Deploy shapes: [native](docs/deploy-native.md) · [Docker](docs/deploy-docker.md).
 
 ### 4.1 Process model
 
@@ -243,7 +205,7 @@ internal/cron/       scheduled turns → agent → channel push
 | LLM client | `github.com/openai/openai-go/v3` | Official; custom `base_url` covers Gemini's OpenAI-compat endpoint, xAI, Ollama, etc. |
 | Env config | `github.com/caarlos0/env/v11` | Struct tags → env, tiny |
 | MCP manifest | `github.com/pelletier/go-toml/v2` | Minimal TOML for `mcp.toml` |
-| Logging | stdlib `log/slog` | JSON to **stderr** (keeps stdio REPL clean); `docker logs` still captures it |
+| Logging | stdlib `log/slog` | JSON to **stderr** (keeps stdio REPL clean; journald / `docker logs`) |
 
 One provider implementation (OpenAI-compatible) is deliberate: Gemini, Grok,
 and local models all speak it. Model identity is just `LLM_BASE_URL` +
@@ -321,8 +283,8 @@ Schema cost is logged as `est_tokens` (chars/4); set `TOOL_SCHEMA_MAX_TOKENS`
 to hard-fail when the published set is too fat.
 
 No bundles/grants layer: if a server is in the manifest, the agent gets it.
-The container composition IS the grant (1:1 model — you built this image/mount
-for this persona on purpose).
+The process composition IS the grant (1:1 — you chose this persona + MCP set
+on purpose).
 
 Tool names are always prefixed `{server}__{tool}` (OpenAI-safe; avoids
 collisions). Local models often turn the hyphenated *prefix* into underscores
@@ -331,27 +293,19 @@ name and, on hard misses, returns a model-facing suggestion with the exact
 tools for that server. Full contract, `/tools` REPL workflow, and why:
 **[docs/mcp.md](docs/mcp.md)**.
 
-### 5.3 Container contract
+### 5.3 Host layout
 
-Sample layout matches `compose.yml` today; rename the service when you ship a
-persona-specific image (e.g. `gantry-local-agent:local`):
+Same three directories whether Docker bind-mounts them or systemd points at
+`/opt/gantry/…`:
 
-```yaml
-services:
-  gantry:
-    image: gantry:local            # gantry (+ tool binaries in persona images)
-    env_file: .env
-    volumes:
-      - ./deploy/persona:/persona:ro
-      - ./deploy/mcp.toml:/etc/gantry/mcp.toml:ro
-      - ./deploy/data:/data        # gantry.db (sessions + memory)
-      - ./deploy/secrets:/secrets:ro
-    healthcheck:
-      # exec form + full path — distroless has no shell
-      test: ["CMD", "/usr/local/bin/gantry", "status"]
-```
+| Role | Typical path |
+| --- | --- |
+| Persona markdown | `PERSONA_DIR` → `/persona` or `/opt/gantry/persona` |
+| MCP manifest | `MCP_MANIFEST` → `/etc/gantry/mcp.toml` or `/opt/gantry/mcp.toml` |
+| SQLite + secrets | `DATA_DIR` → `/data` or `/opt/gantry/data` |
 
-Second persona/LLM = second service block. Nothing shared but the host.
+Compose sample + Hub hello: [docs/deploy-docker.md](docs/deploy-docker.md).  
+systemd + Ollama: [docs/deploy-native.md](docs/deploy-native.md).
 
 ## 6. The agent loop (context management)
 
@@ -389,7 +343,7 @@ the same shape: typed facts + episodic notes + periodic distillation.)
 
 ### 7.1 Store
 
-One SQLite file `/data/gantry.db` (WAL mode), pure-Go driver:
+One SQLite file `$DATA_DIR/gantry.db` (WAL mode), pure-Go driver:
 
 ```sql
 CREATE TABLE memory (
@@ -446,12 +400,12 @@ current message, rendered as a compact block:
 - (preference) user: coaching tone, no fluff
 ```
 
-**Persona precedence is law**: anything in `/persona/USER.md` outranks memory;
+**Persona precedence is law**: anything in `USER.md` outranks memory;
 contradictions get surfaced, not obeyed.
 
 ### 7.5 Why not vectors / cloud vector storage
 
-- One user, one container: recall corpus is hundreds–thousands of rows, not
+- One user, one process: recall corpus is hundreds–thousands of rows, not
   millions. FTS5 + recency + kind filters is enough and is debuggable.
 - Embeddings add a second model dependency, cache, and dimension migration
   for marginal recall gain at this scale.
@@ -464,9 +418,9 @@ contradictions get surfaced, not obeyed.
 ## 8. Ops surface
 
 - `gantry run` — the daemon (default)
-- `gantry status` — exit-code healthcheck (reads `heartbeat` row in `/data/gantry.db`)
+- `gantry status` — exit-code healthcheck (reads `heartbeat` row in `$DATA_DIR/gantry.db`)
 - `gantry version` — build info
-- Logs: JSON `slog` to stderr; `docker logs` is the console.
+- Logs: JSON `slog` to stderr (`journalctl` native, `docker logs` in compose).
 - Telegram/stdio `/new` — session reset; `/status` — uptime/model/history/tools; `/tools` — prefixed catalog; unix `SIGHUP` reloads persona.
 - Telegram photos: inbound → vision (Gemini/OpenAI-compat); outbound `SendPhoto` when the
   reply includes a markdown image or `*.png`/`*.jpg`/… URL (caption = remaining text).

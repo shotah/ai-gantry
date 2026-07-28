@@ -254,6 +254,7 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 	streamer, canStream := a.completer.(provider.Streamer)
 	writer, hasWriter := channel.ReplyWriterFrom(ctx)
 	nudged := false
+	sawTools := false
 
 	for iter := 0; iter < a.maxToolIters; iter++ {
 		bounded := collapseOldToolResults(messages)
@@ -289,22 +290,31 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 		}
 		if len(res.ToolCalls) == 0 {
 			if res.Content == "" {
-				if strings.TrimSpace(res.Thinking) != "" {
-					// CoT streamed already; empty answer must not become a
-					// silent no-op (common with Qwen think). Nudge once, then
-					// ERROR so Telegram error reporting surfaces it.
+				if think := strings.TrimSpace(res.Thinking); think != "" {
+					// CoT-only turns are common with Qwen think: the usable
+					// answer lands in Thinking with empty Content. After tools
+					// ran, promote CoT to the user reply — a nudge rarely
+					// helps and burns another long think. Before tools, nudge
+					// once; if still stuck, ERROR so Telegram reports it.
 					a.log.Warn("model returned thinking with empty answer",
 						"thinking_chars", len(res.Thinking),
 						"finish_reason", res.FinishReason,
 						"iteration", iter+1,
+						"saw_tools", sawTools,
 					)
+					if sawTools {
+						a.log.Info("promoting thinking to reply after tool results",
+							"chars", len(think),
+						)
+						return think, nil
+					}
 					if !nudged {
 						nudged = true
 						messages = append(messages, provider.Message{
 							Role: provider.RoleSystem,
 							Content: "[system] Your previous response contained only internal reasoning — no visible reply and no tool call. " +
 								"Act now: call the tool you decided on (use the exact tool name from the tools list), " +
-								"or write your final answer as plain text. Your reasoning was:\n" +
+								"or write your final answer as plain assistant text (not only inside thinking). Your reasoning was:\n" +
 								clipChars(res.Thinking, 600),
 						})
 						continue
@@ -340,6 +350,7 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 				out = fmt.Sprintf("tool error: %v", err)
 				a.log.Warn("tool call failed", "name", call.Name, "err", err)
 			}
+			sawTools = true
 			messages = append(messages, provider.Message{
 				Role:       provider.RoleTool,
 				Content:    out,

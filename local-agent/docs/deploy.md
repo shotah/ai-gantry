@@ -1,6 +1,11 @@
-# Deploy to an Ubuntu server
+# Deploy to an Ubuntu server (Docker)
 
 Run local-agent (ai-gantry) on a remote Ubuntu box from this Windows (or Linux) workstation via **SSH + scp**. Docker only needs to run on the **server**.
+
+Prefer native systemd + Ollama instead?
+→ **[../../docs/deploy-native.md](../../docs/deploy-native.md)** and
+[../deploy/README.md](../deploy/README.md). Kernel Docker hello:
+[../../docs/deploy-docker.md](../../docs/deploy-docker.md).
 
 ```mermaid
 flowchart LR

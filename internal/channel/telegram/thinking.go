@@ -20,6 +20,11 @@ func buildStreamDisplay(thinking, content string, limit int, collapsible bool) (
 		}
 		return clipRunes(content, limit), false
 	}
+	// Agent may promote CoT to the reply when the model left Content empty
+	// (Qwen think). Don't render the same text as both italic thinking and answer.
+	if content != "" && content == thinking {
+		return clipRunes(content, limit), false
+	}
 	if limit < 1 {
 		limit = telegramMaxMessageRunes
 	}

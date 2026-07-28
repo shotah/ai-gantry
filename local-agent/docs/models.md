@@ -126,7 +126,8 @@ Check live ids/pricing: [xAI models](https://docs.x.ai/developers/models). Names
 Retired slugs often **redirect** and bill at the new model's rate — pin a current id, don't assume an old "cheap" name stays cheap.
 
 The same three-var swap works for **Ollama** or any local OpenAI-compatible
-server (`LLM_BASE_URL=http://host:11434/v1`).
+server (`LLM_BASE_URL=http://host:11434/v1`). Native systemd + Qwen deploy:
+[../../docs/deploy-native.md](../../docs/deploy-native.md).
 
 ### Local models + tool names
 

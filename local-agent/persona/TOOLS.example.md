@@ -31,6 +31,7 @@
 - **Strava MCP** — activities, load, weekly summaries
 - **Garmin MCP** — sleep, weight, Body Battery / HRV / readiness
 - Prefer Garmin for recovery, Strava for “what did I do?”
+- **Sleep:** `garmin__get_sleep` — for “last night” omit `date` or pass **today** (wake-up day), not yesterday
 
 ## Web search
 

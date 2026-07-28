@@ -46,3 +46,14 @@ func TestBuildStreamDisplay_FinalExpandable(t *testing.T) {
 		t.Fatalf("missing separator: %s", text)
 	}
 }
+
+func TestBuildStreamDisplay_DedupesPromotedThinking(t *testing.T) {
+	same := "Sleep score 78 — solid deep sleep."
+	text, html := buildStreamDisplay(same, same, 4096, true)
+	if html {
+		t.Fatal("expected plain when thinking == content")
+	}
+	if text != same {
+		t.Fatalf("text=%q", text)
+	}
+}

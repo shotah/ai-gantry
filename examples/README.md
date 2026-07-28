@@ -8,8 +8,9 @@ Operator templates and a **usable** personal-assistant skeleton.
 | [`mcp.toml.example`](mcp.toml.example) / [`env.example`](env.example) | Embedded by `gantry init` |
 | [`personal-assistant/`](personal-assistant/) | **appliance-style compose stack** — copy, fill `.env`, `docker compose up` |
 
-Production local-agent (tools baked in, remote deploy, auth helpers) lives in
-**[`../local-agent/`](../local-agent/)** — same repo, appliance folder next to the kernel.
+Production local-agent (tools + remote deploy) lives in
+**[`../local-agent/`](../local-agent/)**. Deploy styles:
+[native](../docs/deploy-native.md) · [Docker](../docs/deploy-docker.md).
 
 ---
 
