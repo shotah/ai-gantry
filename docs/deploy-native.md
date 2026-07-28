@@ -41,7 +41,7 @@ Production shape we run today:
 
 | Piece | Choice |
 | --- | --- |
-| Chat | Ollama · `qwen3.5:35b-a3b` (or current pin) |
+| Chat | Ollama · `qwen3.6:35b-a3b` (or current pin) |
 | Channel | Telegram allowlist |
 | Supervisor | systemd unit under `/opt/gantry` |
 | Tools | Garmin, Workspace, search, Cast, … via `mcp.toml` |
@@ -67,7 +67,7 @@ Minimal `LLM_*` for Ollama on the same machine:
 ```env
 LLM_BASE_URL=http://127.0.0.1:11434/v1
 LLM_API_KEY=ollama
-LLM_MODEL=qwen3.5:35b-a3b
+LLM_MODEL=qwen3.6:35b-a3b
 ```
 
 ---

@@ -13,7 +13,7 @@
 # testing; pin a tag for reproducible deploys). `gantry tools-plan` lists these.
 
 # Google Workspace (maintained fork: google-workspace-mcp-go) — docs/google-workspace.md
-# Trimmed to day-to-day services: a small local model (Qwen3.5 A3B) hallucinates
+# Trimmed to day-to-day services: a small local model (Qwen3.6 A3B) hallucinates
 # tool names past ~15 tools per server, and every schema eats context tokens.
 # Add drive/docs/sheets/contacts back here if TIM actually needs them.
 # No auth subcommand yet — use `make google-auth` (Python OAuth helper).

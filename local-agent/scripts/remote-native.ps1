@@ -63,7 +63,7 @@ $key = $envMap['DEPLOY_SSH_KEY']
 $gantryVersion = if ($envMap['GANTRY_VERSION']) { $envMap['GANTRY_VERSION'] } else { 'latest' }
 $dockerHost = $envMap['NATIVE_DOCKER_HOST']
 $dockerContainer = if ($envMap['NATIVE_DOCKER_CONTAINER']) { $envMap['NATIVE_DOCKER_CONTAINER'] } else { 'gantry' }
-$llmModel = if ($envMap['NATIVE_LLM_MODEL']) { $envMap['NATIVE_LLM_MODEL'] } else { 'qwen3.5:35b' }
+$DefaultLlmModel = 'qwen3.6:35b-a3b'
 
 if (-not $hostName -and $Action -ne 'env' -and $Action -ne 'fetch') {
   throw "Set DEPLOY_HOST in .env"
@@ -97,11 +97,39 @@ function Get-ReleaseTag {
   return $api.tag_name
 }
 
+function Resolve-LlmModel {
+  # Precedence: explicit pin -> existing gantry.env -> current default.
+  # deploy/deploy-dev do NOT call Write-NativeEnv; edit NATIVE_LLM_MODEL (or
+  # deploy/gantry.env) then make remote-native-env when you want a rewrite.
+  $src = Read-DotEnv (Join-Path $Root '.env')
+  if ($src['NATIVE_LLM_MODEL']) { return $src['NATIVE_LLM_MODEL'] }
+  if ($src['LLM_MODEL']) { return $src['LLM_MODEL'] }
+  $existing = Join-Path $DeployDir 'gantry.env'
+  if (Test-Path $existing) {
+    $prev = Read-DotEnv $existing
+    if ($prev['LLM_MODEL']) { return $prev['LLM_MODEL'] }
+  }
+  return $DefaultLlmModel
+}
+
+function Ensure-NativeEnv {
+  $envFile = Join-Path $DeployDir 'gantry.env'
+  if (Test-Path $envFile) {
+    $prev = Read-DotEnv $envFile
+    $model = if ($prev['LLM_MODEL']) { $prev['LLM_MODEL'] } else { '(unset)' }
+    Write-Host "Using existing deploy/gantry.env (LLM_MODEL=$model). Regenerate: make remote-native-env"
+    return
+  }
+  Write-Host "deploy/gantry.env missing - generating from .env"
+  Write-NativeEnv
+}
+
 function Write-NativeEnv {
   $src = Read-DotEnv (Join-Path $Root '.env')
   if (-not $src['TELEGRAM_BOT_TOKEN']) { throw ".env missing TELEGRAM_BOT_TOKEN" }
   if (-not $src['TELEGRAM_ALLOWED_USERS']) { throw ".env missing TELEGRAM_ALLOWED_USERS" }
 
+  $llmModel = Resolve-LlmModel
   $out = Join-Path $DeployDir 'gantry.env'
   $tz = if ($src['TZ']) { $src['TZ'] } else { 'America/Los_Angeles' }
   $stream = if ($src['STREAM_REPLIES']) { $src['STREAM_REPLIES'] } else { 'true' }
@@ -377,7 +405,7 @@ switch ($Action) {
   'logs' { Invoke-RemoteTTY "journalctl -u gantry -f -n 100" }
   'status' { Invoke-RemoteTTY "systemctl is-active gantry; sudo -u gantry $deployPath/gantry status; echo OK" }
   'deploy' {
-    Write-NativeEnv
+    Ensure-NativeEnv
     Fetch-GantryBinary
     Fetch-McpDownloadTools
     Fetch-ToolsFromDocker
@@ -387,7 +415,7 @@ switch ($Action) {
     Write-Host "Deployed. Message TIM on Telegram; logs: make remote-native-logs"
   }
   'deploy-dev' {
-    Write-NativeEnv
+    Ensure-NativeEnv
     Build-GantryDev
     Fetch-McpDownloadTools
     Sync-Stage

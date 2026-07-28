@@ -20,7 +20,7 @@ Layout on the box:
 
 Done once on a clean Ubuntu box (see repo `todo.md` → Local Ubuntu + local model):
 
-- Ollama + model (`qwen3.5:35b`)
+- Ollama + model (`qwen3.6:35b-a3b`)
 - system user `gantry` + `/opt/gantry` tree
 
 ## From this workstation
@@ -43,6 +43,11 @@ make remote-native-logs
 # Dev loop (no release): cross-build this checkout → scp → install → restart
 make remote-native-deploy-dev
 ```
+
+Model pin: set `NATIVE_LLM_MODEL=qwen3.6:35b-a3b` in `.env`, then
+`make remote-native-env` (rewrites `deploy/gantry.env`). Deploy / deploy-dev
+**reuse** an existing `gantry.env` — they do not regenerate it, so a stale
+`NATIVE_LLM_MODEL` cannot silently overwrite a local edit on every ship.
 
 `remote-native-deploy` / `remote-native-deploy-dev` do **not** overwrite `data/gantry.db`. Migrate memory once (scp), then only ship binary/env/tools/persona.
 
@@ -75,7 +80,7 @@ gantry auth ytmusic
 
 | Target | What it does |
 | --- | --- |
-| `remote-native-env` | Build `deploy/gantry.env` from `.env` + Ollama LLM_* |
+| `remote-native-env` | **Rewrite** `deploy/gantry.env` from `.env` (`NATIVE_LLM_MODEL` / default `qwen3.6:35b-a3b`) |
 | `remote-native-check` | SSH + ollama + `/opt/gantry` |
 | `remote-native-fetch` | Download gantry release; optional docker-cp tools |
 | `remote-native-sync` | Stage files under `/tmp/gantry-native` on the host |

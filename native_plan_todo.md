@@ -61,7 +61,7 @@ cheapest first:
 | Option | Cost | Notes |
 | --- | --- | --- |
 | Prompt-side: "act first, think less" persona line for tool turns | free | try before anything structural |
-| `qwen3.5:35b-a3b` variants / smaller instruct for tool selection | pull + eval | same family, faster decode |
+| `qwen3.6:35b-a3b` / `qwen3.6:27b` / smaller instruct for tool selection | pull + eval | same family, faster decode |
 | Two-model router: small model picks tool + args, 35B composes reply | code | biggest win if selection is the bottleneck; adds real complexity |
 | Function-calling-tuned model as the single brain | pull + eval | risks losing Tim's voice; needs persona regression check |
 

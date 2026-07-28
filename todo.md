@@ -213,7 +213,7 @@ the full tool set; confirm Ollama/Qwen tool-calling quirks in practice.
 
 **Hardware (personal):** [SER10 MAX](https://www.bee-link.com/products/beelink-ser10-max-amd-pro-ryzen-ai-9-hx-470-openclaw)
 96GB — clean Ubuntu Server (wipe OEM/OpenClaw). **Model:**
-[Qwen3.5-35B-A3B](https://huggingface.co/collections/Qwen/qwen35) Q4/Q5 via Ollama.
+[Qwen3.6-35B-A3B](https://ollama.com/library/qwen3.6:35b-a3b) Q4 via Ollama (`qwen3.6:35b-a3b`).
 
 ### Host prep (clean Ubuntu — before copying gantry)
 
@@ -231,10 +231,10 @@ sudo apt install -y ca-certificates curl tzdata
 # https://ollama.com/download/linux
 curl -fsSL https://ollama.com/install.sh | sh
 sudo systemctl enable --now ollama
-# Ollama library uses name:tag — NOT HuggingFace "Qwen/Qwen3.5-35B-A3B"
-# https://ollama.com/library/qwen3.5
-ollama pull qwen3.5:35b
-# same weights family as HF Qwen3.5-35B-A3B (~24GB). Also: qwen3.5:35b-a3b
+# Ollama library uses name:tag — NOT HuggingFace "Qwen/Qwen3.6-35B-A3B"
+# https://ollama.com/library/qwen3.6
+ollama pull qwen3.6:35b-a3b
+
 
 # 4) Runtime user + empty tree
 sudo useradd --system --home /opt/gantry --shell /usr/sbin/nologin gantry
