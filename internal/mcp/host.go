@@ -132,11 +132,12 @@ func (h *Host) ToolCount() int {
 
 // Call executes a prefixed tool name and truncates the result.
 func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMessage) (string, error) {
-	h.mu.RLock()
-	tool, ok := h.tools[toolName]
-	h.mu.RUnlock()
+	tool, resolved, ok := h.resolve(toolName)
 	if !ok {
 		return "", fmt.Errorf("mcp: unknown tool %q — %s", toolName, h.suggest(toolName))
+	}
+	if resolved != toolName {
+		h.log.Info("mcp tool name aliased", "requested", toolName, "resolved", resolved)
 	}
 
 	args := map[string]any{}
@@ -147,14 +148,12 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 	}
 	text, err := h.callOnce(ctx, tool, args)
 	if err != nil {
-		h.log.Warn("mcp tool call failed; attempting restart", "tool", toolName, "server", tool.Server, "err", err)
+		h.log.Warn("mcp tool call failed; attempting restart", "tool", resolved, "server", tool.Server, "err", err)
 		if rerr := h.restartServer(ctx, tool.Server); rerr != nil {
-			return "", fmt.Errorf("mcp: call %q failed: %v (restart: %w)", toolName, err, rerr)
+			return "", fmt.Errorf("mcp: call %q failed: %v (restart: %w)", resolved, err, rerr)
 		}
-		// Tool map may have changed; re-resolve.
-		h.mu.RLock()
-		tool, ok = h.tools[toolName]
-		h.mu.RUnlock()
+		// Tool map may have changed; re-resolve (keep alias rules).
+		tool, _, ok = h.resolve(toolName)
 		if !ok {
 			return "", fmt.Errorf("mcp: tool %q missing after restart", toolName)
 		}
@@ -164,6 +163,38 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 		}
 	}
 	return Truncate(text, h.resultMaxChars), nil
+}
+
+// resolve looks up a tool by exact prefixed name, then by a common local-model
+// typo: underscores in the server prefix where the catalog uses hyphens
+// (e.g. google_search__google_search → google-search__google_search).
+// Only the prefix is rewritten; tool suffixes keep underscores.
+func (h *Host) resolve(toolName string) (*Tool, string, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if tool, ok := h.tools[toolName]; ok {
+		return tool, toolName, true
+	}
+	if alt, ok := hyphenatePrefix(toolName); ok {
+		if tool, ok := h.tools[alt]; ok {
+			return tool, alt, true
+		}
+	}
+	return nil, "", false
+}
+
+// hyphenatePrefix rewrites server__tool so underscores in the server prefix
+// become hyphens. Returns ok=false when unchanged or when no __ separator.
+func hyphenatePrefix(toolName string) (string, bool) {
+	prefix, rest, ok := strings.Cut(toolName, "__")
+	if !ok {
+		return "", false
+	}
+	altPrefix := strings.ReplaceAll(prefix, "_", "-")
+	if altPrefix == prefix {
+		return "", false
+	}
+	return altPrefix + "__" + rest, true
 }
 
 // suggest builds a model-facing hint for an unknown tool name. Small local
@@ -181,10 +212,25 @@ func (h *Host) suggest(toolName string) string {
 				names = append(names, name)
 			}
 		}
-	}
-	if len(names) > 0 {
-		sort.Strings(names)
-		return fmt.Sprintf("no such tool; valid %s tools are: %s — retry with one of these exact names", prefix, strings.Join(names, ", "))
+		if len(names) > 0 {
+			sort.Strings(names)
+			return fmt.Sprintf("no such tool; valid %s tools are: %s — retry with one of these exact names", prefix, strings.Join(names, ", "))
+		}
+		// Prefix miss that is only underscore-vs-hyphen: still list that
+		// server's tools so the model keeps the exact names (not just prefixes).
+		if alt, ok := hyphenatePrefix(toolName); ok {
+			altPrefix, _, _ := strings.Cut(alt, "__")
+			for name := range h.tools {
+				if strings.HasPrefix(name, altPrefix+"__") {
+					names = append(names, name)
+				}
+			}
+			if len(names) > 0 {
+				sort.Strings(names)
+				return fmt.Sprintf("no such tool or server prefix %q (did you mean %q?); valid %s tools are: %s — retry with one of these exact names",
+					prefix, altPrefix, altPrefix, strings.Join(names, ", "))
+			}
+		}
 	}
 	seen := make(map[string]bool)
 	for name := range h.tools {

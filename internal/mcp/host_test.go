@@ -92,6 +92,80 @@ command = "unused"
 	}
 }
 
+func TestHost_CallAliasesUnderscoredPrefix(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "google-search"
+command = "unused"
+`)
+	conn := &fakeConn{tools: []mcp.Tool{{OriginalName: "google_search"}}}
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
+			return conn, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	// Exact name still works.
+	got, err := host.Call(context.Background(), "google-search__google_search", json.RawMessage(`{"query":"x"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(got, "google_search:") {
+		t.Fatalf("got %q, want google_search:…", got)
+	}
+
+	// Local models often turn the hyphenated server prefix into underscores.
+	got, err = host.Call(context.Background(), "google_search__google_search", json.RawMessage(`{"query":"edgeworks"}`))
+	if err != nil {
+		t.Fatalf("aliased call failed: %v", err)
+	}
+	if !strings.Contains(got, "edgeworks") {
+		t.Fatalf("got %q, want args echoed", got)
+	}
+	if conn.calls != 2 {
+		t.Fatalf("calls = %d, want 2", conn.calls)
+	}
+}
+
+func TestHost_UnknownToolSuggestsHyphenPrefix(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "google-search"
+command = "unused"
+`)
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
+			return &fakeConn{tools: []mcp.Tool{{OriginalName: "google_search"}}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	// Wrong tool + underscored prefix: keep listing the real catalog (not only prefixes).
+	_, err = host.Call(context.Background(), "google_search__web_search", nil)
+	if err == nil {
+		t.Fatal("want error for unknown tool")
+	}
+	for _, want := range []string{
+		`unknown tool "google_search__web_search"`,
+		`did you mean "google-search"?`,
+		"valid google-search tools are",
+		"google-search__google_search",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("err = %v, want substring %q", err, want)
+		}
+	}
+}
+
 func TestHost_StartCallRestart(t *testing.T) {
 	path := writeManifest(t, `
 [[server]]
