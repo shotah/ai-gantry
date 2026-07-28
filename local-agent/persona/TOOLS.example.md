@@ -11,6 +11,7 @@
 - **Read a day:** `google-workspace__get_events` — omit `event_id`; pass email, `calendar_id="primary"`, both `time_min` + `time_max`
 - **Update existing:** `get_events` → copy `ID:` → search if needed → `modify_event`
 - Do not narrate / claim a tool is missing when it’s in the tools list — call it
+- **Get vs List:** both retrieve data. Before saying you can’t pull something, scan the tools list for `get_*` **and** `list_*` (and `*_get_*`). Names are not synonyms — use the exact one listed.
 
 ## Math
 
@@ -20,9 +21,10 @@
 
 ## Fitness
 
-- **Strava MCP** — activities, load, weekly summaries
-- **Garmin MCP** — sleep, weight, Body Battery / HRV / readiness
-- Prefer Garmin for recovery, Strava for “what did I do?”
+- **Strava MCP** — activities, load, weekly summaries (`strava__strava_get_activities`, by-id / zones / athlete stats)
+- **Garmin MCP** — sleep, weight, Body Battery / HRV / readiness, **and** activity history (`garmin__list_activities`, `garmin__get_activity`)
+- Prefer Garmin for recovery
+- **“What did I do?” / yesterday’s ride / session:** call a list tool first — `garmin__list_activities` and/or `strava__strava_get_activities` (whichever is in the tools list). Then by-id detail if needed. Do **not** ask the human to paste stats when a list tool exists; do **not** invent “no daily activity tool” because you only looked for `get_activities`.
 - **Sleep:** `garmin__get_sleep` only — not `get_body_battery`. Call it (don’t narrate “I’ll pull…”). For “last night” omit `date` or pass **today** (wake-up day). Example: today 2026-07-28 → `date=2026-07-28`, never yesterday
 
 ## Web search

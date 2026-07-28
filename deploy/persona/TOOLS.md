@@ -8,6 +8,9 @@
 - Tool names are prefixed `{server}__{tool}` (e.g. `strava__strava_get_activities`)
 - If a tool fails, report the error — never invent a successful result
 - Prefer the dedicated MCP over shell hacks when both exist
+- **Get vs List:** both retrieve data. Before claiming a capability is missing,
+  scan the tools list for `get_*` **and** `list_*` (and `*_get_*`). Names are
+  not synonyms — use the exact one listed.
 
 ## Google Workspace (if mounted)
 
@@ -18,6 +21,11 @@
 
 - Activity history vs recovery metrics may live on different servers — pick the
   right one for the question ("what did I do?" vs "should I train?")
+- **"What did I do?" / a day's ride or session:** call a list tool first
+  (`…__list_activities` and/or `…__strava_get_activities` if present), then
+  by-id detail if needed. Do not ask the human to paste stats when a list tool
+  exists; do not invent "no daily activity tool" because you only looked for
+  `get_activities`.
 
 ## Web search (if mounted)
 
