@@ -265,6 +265,58 @@ func TestEditStream_ThinkingAccumulatesAcrossIterations(t *testing.T) {
 	}
 }
 
+// After tools, the next model stream must not wipe earlier prose — traces sit
+// inline between answer chunks (math → ✗ failed → explanation).
+func TestEditStream_ToolLoopKeepsPriorAnswer(t *testing.T) {
+	prevFlush := streamFlushEvery
+	streamFlushEvery = time.Hour
+	t.Cleanup(func() { streamFlushEvery = prevFlush })
+
+	stream := newStubStream(t, 4000)
+	ctx := context.Background()
+	if err := stream.Update(ctx, "17.5% of 240 is 42."); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.UpdateProgress(ctx, "→ strava__strava_get_activity_zones"); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.UpdateProgress(ctx, "✗ failed · 405ms"); err != nil {
+		t.Fatal(err)
+	}
+	// Empty deltas after tools must not clear the math line.
+	if err := stream.Update(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := streamLatest(stream); !strings.Contains(got, "17.5%") || !strings.Contains(got, "✗ failed") {
+		t.Fatalf("mid-turn lost prose or trace: %q", got)
+	}
+	if err := stream.Update(ctx, "That activity id is missing from Strava."); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.Finish(ctx, "That activity id is missing from Strava."); err != nil {
+		t.Fatal(err)
+	}
+	stream.mu.Lock()
+	flushed := stream.lastFlushed
+	stream.mu.Unlock()
+	for _, want := range []string{
+		"17.5% of 240 is 42.",
+		"strava__strava_get_activity_zones",
+		"✗ failed",
+		"That activity id is missing from Strava.",
+	} {
+		if !strings.Contains(flushed, want) {
+			t.Fatalf("final missing %q: %q", want, flushed)
+		}
+	}
+	if i, j := strings.Index(flushed, "17.5%"), strings.Index(flushed, "strava__"); i < 0 || j < 0 || i > j {
+		t.Fatalf("want math before tool trace: %q", flushed)
+	}
+	if i, j := strings.Index(flushed, "✗ failed"), strings.Index(flushed, "missing from Strava"); i < 0 || j < 0 || i > j {
+		t.Fatalf("want failure trace before explanation: %q", flushed)
+	}
+}
+
 // Tool trace lines must survive into the final collapsible and stay ordered
 // relative to any CoT, so a long tool chain reads as progress.
 func TestEditStream_ProgressTraceSurvivesFinish(t *testing.T) {

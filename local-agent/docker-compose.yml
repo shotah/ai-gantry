@@ -1,6 +1,6 @@
-# local-agent on ai-gantry — Gemini + Telegram (Telegram polls outbound).
+﻿# local-agent on ai-gantry — Gemini + Telegram (Telegram polls outbound).
 # No ports, no gateway, no dashboard: the healthcheck is an exit code.
-# Image: distroless/static + gantry + google-workspace-mcp-go + strava + garmin + gemini-search + mcp-beam + youtube-go-mcp + mcp-go-math.
+# Image: distroless/static + gantry + google-mcp + strava + garmin + gemini-search + mcp-beam + youtube-go-mcp + mcp-go-math.
 # Docs: docs/telegram.md, docs/google-workspace.md, docs/strava.md, docs/garmin.md, docs/web-search.md, docs/cast.md, docs/ytmusic.md, docs/math.md
 # Cast mDNS: set NETWORK_MODE=host in .env on the Linux home server (docs/cast.md).
 
@@ -16,7 +16,7 @@ services:
         - STRAVA_MCP_VERSION
         - GARMIN_MCP_VERSION
         - GEMINI_SEARCH_MCP_VERSION
-        - GOOGLE_WORKSPACE_MCP_VERSION
+        - GOOGLE_MCP_VERSION
         - MCP_BEAM_VERSION
         - YOUTUBE_GO_MCP_VERSION
         - MCP_GO_MATH_VERSION
@@ -60,7 +60,7 @@ services:
       # Gemini Google Search MCP (shotah/mcp-gemini-search) — same key as chat.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
-      # Google Workspace MCP (magks) — OAuth client + token dir (docs/google-workspace.md).
+      # Google MCP (shotah/google-mcp) — OAuth client + token dir (docs/google-workspace.md).
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
       USER_GOOGLE_EMAIL: ${USER_GOOGLE_EMAIL:-}

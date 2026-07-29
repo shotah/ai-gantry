@@ -45,11 +45,11 @@ func TestParseSchedule_RelativeAndDaily(t *testing.T) {
 
 func TestAdvanceNext(t *testing.T) {
 	from := time.Date(2026, 7, 22, 17, 0, 0, 0, time.UTC)
-	_, ok, err := cron.AdvanceNext(cron.KindOnce, from.Format(time.RFC3339Nano), "UTC", from)
+	_, _, ok, err := cron.AdvanceNext(cron.KindOnce, from.Format(time.RFC3339Nano), "UTC", from)
 	if err != nil || ok {
 		t.Fatalf("once should not repeat: ok=%v err=%v", ok, err)
 	}
-	next, ok, err := cron.AdvanceNext(cron.KindDaily, "17:00", "UTC", from)
+	next, _, ok, err := cron.AdvanceNext(cron.KindDaily, "17:00", "UTC", from)
 	if err != nil || !ok {
 		t.Fatal(err)
 	}
@@ -61,14 +61,14 @@ func TestAdvanceNext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, ok, err = cron.AdvanceNext(cron.KindDaily, "09:00", "America/Los_Angeles", from)
+	next, _, ok, err = cron.AdvanceNext(cron.KindDaily, "09:00", "America/Los_Angeles", from)
 	if err != nil || !ok {
 		t.Fatal(err)
 	}
 	if next.In(loc).Hour() != 9 {
 		t.Fatalf("hour=%d", next.In(loc).Hour())
 	}
-	if _, _, err := cron.AdvanceNext(cron.KindDaily, "09:00", "Not/AZone", from); err == nil {
+	if _, _, _, err := cron.AdvanceNext(cron.KindDaily, "09:00", "Not/AZone", from); err == nil {
 		t.Fatal("expected bad timezone error")
 	}
 }

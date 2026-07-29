@@ -23,6 +23,16 @@ install -m 0755 "$STAGE/gantry" "$DEST/gantry"
 
 if [ -d "$STAGE/bin" ]; then
   find "$STAGE/bin" -maxdepth 1 -type f -executable -exec install -m 0755 {} "$DEST/bin/" \;
+  # Drop binaries no longer staged (renamed/removed MCP tools, e.g. google-workspace-mcp-go → google-mcp).
+  shopt -s nullglob
+  for f in "$DEST/bin"/*; do
+    base=$(basename "$f")
+    if [ ! -e "$STAGE/bin/$base" ]; then
+      echo "Removing obsolete tool: $DEST/bin/$base"
+      rm -f "$f"
+    fi
+  done
+  shopt -u nullglob
 fi
 
 if [ -f "$STAGE/gantry.env" ]; then

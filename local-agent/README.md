@@ -61,7 +61,7 @@ flowchart LR
 
   subgraph Host["🐳 container (distroless/static)"]
     GN[gantry daemon]
-    GW[google-workspace-mcp-go]
+    GW[google-mcp]
     SM[strava-mcp]
     GM[garmin]
     GS[mcp-gemini-google-search]
@@ -105,7 +105,7 @@ sequenceDiagram
   U->>G: "what's on my calendar tonight?"
   G->>G: check TELEGRAM_ALLOWED_USERS allowlist
   G->>L: persona + memory + history + tool schemas
-  L-->>G: call google-workspace__calendar_list_events
+  L-->>G: call google__calendar_list_events
   G->>W: MCP stdio tool call
   W-->>G: events JSON (truncated to bounds)
   G->>L: tool result
@@ -208,9 +208,10 @@ Everything lives in [`./docs`](docs). Start with Telegram, add the rest as neede
 | 🧠 **[docs/models.md](docs/models.md)** | One OpenAI-compatible chat provider (`LLM_*`); Gemini defaults; swapping chat to xAI/Grok/Ollama; local models + tool-name aliasing | Changing brain / cost tuning |
 | 🔌 **[../docs/mcp.md](../docs/mcp.md)** | Kernel MCP host: `{server}__{tool}` naming, underscore-prefix alias, unknown-tool hints, local `/tools` REPL | Debugging tool calls / wiring a new MCP |
 | 🎭 **[docs/persona.md](docs/persona.md)** | `SOUL` / `RULES` / `USER` / `TOOLS` system prompt vs SQLite memory | Shaping LOCAL_AGENT's behavior |
+| ⏰ **[../docs/cron.md](../docs/cron.md)** | Scheduled turns + opt-in spark-of-life (`SPARK_QTY`) | Reminders / presence pings |
 | 🚀 **[docs/deploy.md](docs/deploy.md)** | Docker remote deploy (SSH + compose) | Cloud-LLM / compose path |
 | 🐧 **[deploy/README.md](deploy/README.md)** · **[../docs/deploy-native.md](../docs/deploy-native.md)** | Native systemd + Ollama/Qwen on `/opt/gantry` | Featured production path |
-| 🗂️ **[docs/google-workspace.md](docs/google-workspace.md)** | Go MCP (`google-workspace-mcp-go`), `make google-auth`, Docs/Gmail/Calendar tools | Gmail / Docs / Calendar / Drive |
+| 🗂️ **[docs/google-workspace.md](docs/google-workspace.md)** | Go MCP (`google-mcp`), `make google-auth` / `gantry auth google` | Gmail / Calendar / Docs / Sheets / Tasks |
 | 🏃 **[docs/strava.md](docs/strava.md)** | Strava API app, `strava-mcp` OAuth, token mount, MCP wiring | Workout summaries & training nudges |
 | ⌚ **[docs/garmin.md](docs/garmin.md)** | go-garmin MCP, `make garmin-auth`, sleep / weight / readiness | Physiological recovery + scale weight |
 | 📺 **[docs/cast.md](docs/cast.md)** | mcp-beam (Go) release, host networking, `beam_youtube_video` / pause / volume | House Chromecast / Nest / DLNA |
@@ -238,11 +239,12 @@ Set in `.env` (copy from [`.env.example`](.env.example)). Secrets are never comm
 | `TELEGRAM_ALLOWED_USERS` | ✅ | Comma-separated numeric user IDs — the entire auth model; empty fails boot |
 | `STREAM_REPLIES` | — | `true` = Telegram edit-in-place streaming (default `false`) |
 | `MEMORY_*`, `HISTORY_*`, `TOOL_*`, `CRON_*` | — | gantry runtime knobs — see [ai-gantry §5.1](https://github.com/shotah/ai-gantry#51-environment-variables) |
+| `SPARK_QTY` / `SPARK_*` | — | Opt-in spark-of-life presence pings (`4-6`, window hours). Empty qty = off. See [docs/cron.md](../docs/cron.md#spark-of-life-opt-in); native: [deploy/README.md](deploy/README.md#spark-of-life-opt-in) |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | — | Strava API app (see [Workout coaching](#workout-coaching-strava)) |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `USER_GOOGLE_EMAIL` | — | Google Workspace MCP OAuth (see [docs/google-workspace.md](docs/google-workspace.md)) |
 | `GANTRY_VERSION` | — | shotah/ai-gantry release baked into the image (default pinned in `Dockerfile`) |
 | `GANTRY_IMAGE` | — | Local tag after build (default `gantry-local-agent:local`) |
-| `STRAVA_MCP_VERSION` / `GARMIN_MCP_VERSION` / `GEMINI_SEARCH_MCP_VERSION` / `GOOGLE_WORKSPACE_MCP_VERSION` | — | Tool build pins (defaults in `Dockerfile`) |
+| `STRAVA_MCP_VERSION` / `GARMIN_MCP_VERSION` / `GEMINI_SEARCH_MCP_VERSION` / `GOOGLE_MCP_VERSION` | — | Tool build pins (defaults in `Dockerfile`) |
 | `MCP_BEAM_VERSION` / `YOUTUBE_GO_MCP_VERSION` | — | shotah tool releases (`latest` default; pin `vX.Y.Z` to freeze) |
 | `MCP_GO_MATH_VERSION` | — | mcp-go-math release (Dockerfile default `v0.0.2`) |
 | `NETWORK_MODE` | Cast | `host` for Cast mDNS on Linux (default `bridge`) |

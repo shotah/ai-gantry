@@ -265,11 +265,12 @@ mounted read-only. TOML, minimal:
 
 ```toml
 [[server]]
-name    = "google-workspace"
-command = "google-workspace-mcp-go"
-args    = ["--tools", "gmail drive calendar docs sheets tasks contacts", "--tool-tier", "core"]
-download_tag = "latest"   # or pin "v0.1.0"; "latest" resolves via GitHub API at plan time
-download_url = "https://github.com/shotah/google-workspace-mcp-go/releases/download/{tag}/google-workspace-mcp-go_{version}_{os}_{arch}.tar.gz"
+name    = "google"
+command = "google-mcp"
+args    = ["--preset", "everyday"]
+auth_args = ["auth"]
+download_tag = "latest"   # or pin "v1.0.0"; "latest" resolves via GitHub API at plan time
+download_url = "https://github.com/shotah/google-mcp/releases/download/{tag}/google-mcp_{version}_{os}_{arch}.tar.gz"
 
 [[server]]
 name    = "garmin"

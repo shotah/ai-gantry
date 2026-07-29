@@ -203,14 +203,18 @@ func (s *Store) Finish(ctx context.Context, job Job, runErr error) error {
 			errText = errText[:500]
 		}
 	}
-	next, again, err := AdvanceNext(job.Kind, job.Expr, job.Timezone, now)
+	next, newExpr, again, err := AdvanceNext(job.Kind, job.Expr, job.Timezone, now)
 	if err != nil {
 		again = false
 	}
 	enabled := 1
 	nextStr := now.Format(time.RFC3339Nano)
+	expr := job.Expr
 	if again {
 		nextStr = next.Format(time.RFC3339Nano)
+		if newExpr != "" {
+			expr = newExpr
+		}
 	} else {
 		enabled = 0
 	}
@@ -218,13 +222,165 @@ func (s *Store) Finish(ctx context.Context, job Job, runErr error) error {
 		UPDATE cron_job SET
 			running = 0,
 			enabled = ?,
+			expr = ?,
 			next_run_at = ?,
 			last_run_at = ?,
 			last_error = ?,
 			updated_at = ?
 		WHERE id = ?`,
-		enabled, nextStr, now.Format(time.RFC3339Nano), errText, now.Format(time.RFC3339Nano), job.ID)
+		enabled, expr, nextStr, now.Format(time.RFC3339Nano), errText, now.Format(time.RFC3339Nano), job.ID)
 	return err
+}
+
+// Defer clears running and moves next_run_at forward without finishing the job.
+func (s *Store) Defer(ctx context.Context, id int64, until time.Time, reason string) error {
+	if len(reason) > 500 {
+		reason = reason[:500]
+	}
+	now := time.Now().UTC()
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE cron_job SET
+			running = 0,
+			next_run_at = ?,
+			last_error = ?,
+			updated_at = ?
+		WHERE id = ?`,
+		until.UTC().Format(time.RFC3339Nano), reason, now.Format(time.RFC3339Nano), id)
+	return err
+}
+
+// FindSpark returns the enabled spark *planner* job for a session, if any.
+func (s *Store) FindSpark(ctx context.Context, sessionID string) (Job, bool, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, prompt, kind, expr, timezone, next_run_at,
+		       session_id, user_id, chat_id, thread_id,
+		       enabled, running, created_at, updated_at, last_run_at, last_error
+		FROM cron_job
+		WHERE enabled = 1 AND kind = ? AND session_id = ?
+		ORDER BY id DESC LIMIT 1`, KindSpark, sessionID)
+	j, err := scanJob(row)
+	if err == sql.ErrNoRows {
+		return Job{}, false, nil
+	}
+	if err != nil {
+		return Job{}, false, err
+	}
+	return j, true, nil
+}
+
+// CancelSparkPings disables pending spark_ping jobs for a session.
+func (s *Store) CancelSparkPings(ctx context.Context, sessionID string) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ?
+		WHERE enabled = 1 AND kind = ? AND session_id = ?`,
+		time.Now().UTC().Format(time.RFC3339Nano), KindSparkPing, sessionID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+// ScheduleSparkPings inserts one-shot spark_ping jobs at the given times.
+func (s *Store) ScheduleSparkPings(ctx context.Context, prompt string, delivery Delivery, tz string, times []time.Time) (int, error) {
+	n := 0
+	for _, t := range times {
+		if !t.After(time.Now().UTC().Add(-time.Second)) {
+			continue
+		}
+		if _, err := s.Schedule(ctx, prompt, SparkPingParsed(t, tz), delivery); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
+}
+
+// EnsureSpark creates/refreshes the daily planner and seeds today's ping jobs.
+// The planner's next_run is always tomorrow's window start so boot-seeding today
+// is not overwritten when the planner wakes at today's start.
+func (s *Store) EnsureSpark(ctx context.Context, prompt string, template Parsed, delivery Delivery) (Job, bool, error) {
+	loc, err := loadTZ(template.Timezone)
+	if err != nil {
+		loc, err = loadTZ("UTC")
+		if err != nil {
+			return Job{}, false, err
+		}
+	}
+	spec, err := ParseSparkExpr(template.Expr)
+	if err != nil {
+		return Job{}, false, err
+	}
+	now := time.Now().In(loc)
+	startToday := windowStart(now, spec.StartHour, loc)
+	// Seed remaining day now; planner wakes tomorrow (not today's start).
+	template.Kind = KindSpark
+	template.Expr = FormatSparkExpr(spec)
+	template.NextRun = startToday.Add(24 * time.Hour).UTC()
+	template.Timezone = loc.String()
+
+	existing, ok, err := s.FindSpark(ctx, delivery.SessionID)
+	if err != nil {
+		return Job{}, false, err
+	}
+	created := false
+	if ok {
+		if existing.Prompt == prompt && existing.Expr == template.Expr {
+			pending, err := s.countSparkPings(ctx, delivery.SessionID)
+			if err != nil {
+				return Job{}, false, err
+			}
+			if pending > 0 {
+				return existing, false, nil
+			}
+		} else {
+			if err := s.Cancel(ctx, existing.ID); err != nil {
+				return Job{}, false, err
+			}
+			_, _ = s.CancelSparkPings(ctx, delivery.SessionID)
+			ok = false
+		}
+	}
+	var job Job
+	if !ok {
+		job, err = s.Schedule(ctx, prompt, template, delivery)
+		if err != nil {
+			return Job{}, false, err
+		}
+		created = true
+	} else {
+		job = existing
+		if err := s.setNextRun(ctx, job.ID, template.NextRun); err != nil {
+			return Job{}, false, err
+		}
+		job.NextRunAt = template.NextRun
+	}
+
+	_, _ = s.CancelSparkPings(ctx, delivery.SessionID)
+	_, times, err := PlanSparkDayTimes(spec, loc, time.Now())
+	if err != nil {
+		return job, created, err
+	}
+	if _, err := s.ScheduleSparkPings(ctx, prompt, delivery, loc.String(), times); err != nil {
+		return job, created, err
+	}
+	return job, created, nil
+}
+
+func (s *Store) setNextRun(ctx context.Context, id int64, next time.Time) error {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE cron_job SET next_run_at = ?, updated_at = ? WHERE id = ?`,
+		next.UTC().Format(time.RFC3339Nano), now, id)
+	return err
+}
+
+func (s *Store) countSparkPings(ctx context.Context, sessionID string) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM cron_job
+		WHERE enabled = 1 AND kind = ? AND session_id = ?`, KindSparkPing, sessionID).Scan(&n)
+	return n, err
 }
 
 // Get loads one job.

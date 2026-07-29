@@ -14,7 +14,7 @@ ARG STRAVA_MCP_VERSION=v1.2.0
 ARG GARMIN_MCP_VERSION=v0.1.2
 # Our packages: default `latest` (resolved at build). Pin e.g. v0.0.2 to freeze.
 # TOOLS_CACHEBUST (from make/remote) busts Docker cache so latest re-resolves.
-ARG GOOGLE_WORKSPACE_MCP_VERSION=latest
+ARG GOOGLE_MCP_VERSION=latest
 ARG GEMINI_SEARCH_MCP_VERSION=latest
 ARG MCP_BEAM_VERSION=latest
 ARG YOUTUBE_GO_MCP_VERSION=latest
@@ -41,9 +41,9 @@ RUN apt-get update \
     && install -m 0755 /tmp/gantry /gantry \
     && /gantry version
 
-# --- fetch Google Workspace MCP (static Go; shotah/google-workspace-mcp-go) --
-FROM debian:trixie-slim AS google-workspace-mcp
-ARG GOOGLE_WORKSPACE_MCP_VERSION
+# --- fetch Google MCP (static Go; shotah/google-mcp) --------------------------
+FROM debian:trixie-slim AS google-mcp
+ARG GOOGLE_MCP_VERSION
 ARG TARGETARCH
 ARG TOOLS_CACHEBUST=0
 
@@ -55,20 +55,20 @@ RUN apt-get update \
     *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
     esac \
     && : "TOOLS_CACHEBUST=${TOOLS_CACHEBUST}" \
-    && VER="${GOOGLE_WORKSPACE_MCP_VERSION}" \
+    && VER="${GOOGLE_MCP_VERSION}" \
     && if [ "${VER}" = "latest" ]; then \
     VER=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
-    "https://github.com/shotah/google-workspace-mcp-go/releases/latest" \
+    "https://github.com/shotah/google-mcp/releases/latest" \
     | sed 's|.*/||'); \
-    echo "resolved google-workspace-mcp-go latest -> ${VER}"; \
+    echo "resolved google-mcp latest -> ${VER}"; \
     fi \
     && V="${VER#v}" \
     && curl -fsSL \
-    "https://github.com/shotah/google-workspace-mcp-go/releases/download/${VER}/google-workspace-mcp-go_${V}_${GWS_ARCH}.tar.gz" \
-    -o /tmp/google-workspace-mcp-go.tar.gz \
-    && tar -xzf /tmp/google-workspace-mcp-go.tar.gz -C /tmp \
-    && install -m 0755 /tmp/google-workspace-mcp-go /google-workspace-mcp-go \
-    && test -x /google-workspace-mcp-go
+    "https://github.com/shotah/google-mcp/releases/download/${VER}/google-mcp_${V}_${GWS_ARCH}.tar.gz" \
+    -o /tmp/google-mcp.tar.gz \
+    && tar -xzf /tmp/google-mcp.tar.gz -C /tmp \
+    && install -m 0755 /tmp/google-mcp /google-mcp \
+    && test -x /google-mcp
 
 # --- fetch strava-mcp (static Go binary; MCP server for Strava) ---------------
 FROM debian:trixie-slim AS strava
@@ -233,7 +233,7 @@ RUN apt-get update \
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=gantry /gantry /usr/local/bin/gantry
-COPY --from=google-workspace-mcp /google-workspace-mcp-go /usr/local/bin/google-workspace-mcp-go
+COPY --from=google-mcp /google-mcp /usr/local/bin/google-mcp
 COPY --from=strava /strava-mcp /usr/local/bin/strava-mcp
 COPY --from=garmin /garmin /usr/local/bin/garmin
 COPY --from=gemini-search /mcp-gemini-google-search /usr/local/bin/mcp-gemini-google-search

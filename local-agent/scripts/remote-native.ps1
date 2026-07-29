@@ -169,7 +169,19 @@ function Write-NativeEnv {
     'LOG_LEVEL=info',
     "TZ=$tz",
     "CRON_TZ=$tz",
-    'CRON_ENABLED=true',
+    'CRON_ENABLED=true'
+  ))
+  # Spark of life — opt-in; only emit when SPARK_QTY is set in .env
+  if ($src['SPARK_QTY']) {
+    $lines.Add("SPARK_QTY=$($src['SPARK_QTY'])")
+    $lines.Add("SPARK_START_HOUR=$(if ($src['SPARK_START_HOUR']) { $src['SPARK_START_HOUR'] } else { '6' })")
+    $lines.Add("SPARK_END_HOUR=$(if ($src['SPARK_END_HOUR']) { $src['SPARK_END_HOUR'] } else { '21' })")
+    $lines.Add("SPARK_SKIP_RECENT_MINUTES=$(if ($src['SPARK_SKIP_RECENT_MINUTES']) { $src['SPARK_SKIP_RECENT_MINUTES'] } else { '15' })")
+    if ($src['SPARK_PROMPT']) {
+      $lines.Add("SPARK_PROMPT=$($src['SPARK_PROMPT'])")
+    }
+  }
+  $lines.AddRange([string[]]@(
     "GEMINI_API_KEY=$($src['GEMINI_API_KEY'])",
     "GEMINI_MODEL=$(if ($src['GEMINI_MODEL']) { $src['GEMINI_MODEL'] } else { 'gemini-3.5-flash' })",
     "GOOGLE_OAUTH_CLIENT_ID=$($src['GOOGLE_OAUTH_CLIENT_ID'])",
@@ -288,6 +300,25 @@ function Fetch-McpDownloadTools {
     Copy-Item $bin $dest -Force
     Write-Host "Cached $($d.command) -> .cache/native/bin/$($d.command)"
   }
+  $wanted = @(
+    @($plan.downloads | ForEach-Object { [string]$_.command }) + @($plan.commands)
+  ) | Where-Object { $_ } | Select-Object -Unique
+  Prune-CachedToolBins -Wanted $wanted
+}
+
+function Prune-CachedToolBins {
+  param([string[]]$Wanted)
+  $binDir = Join-Path $Cache 'bin'
+  if (-not (Test-Path $binDir)) { return }
+  $keep = @{}
+  foreach ($name in $Wanted) {
+    if ($name) { $keep[$name] = $true }
+  }
+  Get-ChildItem $binDir -File | ForEach-Object {
+    if ($keep.ContainsKey($_.Name)) { return }
+    Write-Host "Pruning stale cache bin/$($_.Name) (not in mcp.toml)"
+    Remove-Item -LiteralPath $_.FullName -Force
+  }
 }
 
 function Fetch-ToolsFromDocker {
@@ -365,12 +396,19 @@ function Sync-Stage {
   $mcp = Join-Path $Root 'mcp.toml'
   if (Test-Path $mcp) { & $ScpExe @scpArgs $mcp "${target}:${StageRemote}/mcp.toml" }
 
+  # Only stage MCP binaries named in mcp.toml (drops renames like google-workspace-mcp-go).
+  $plan = Get-McpToolsPlan
+  $wantedBins = @($plan.commands | Where-Object { $_ } | Select-Object -Unique)
+  Prune-CachedToolBins -Wanted $wantedBins
   $binDir = Join-Path $Cache 'bin'
-  if (Test-Path $binDir) {
-    Get-ChildItem $binDir -File | ForEach-Object {
-      & $ScpExe @scpArgs $_.FullName "${target}:${StageRemote}/bin/$($_.Name)"
-      if ($LASTEXITCODE -ne 0) { throw "scp tool $($_.Name) failed" }
+  foreach ($name in $wantedBins) {
+    $src = Join-Path $binDir $name
+    if (-not (Test-Path -LiteralPath $src)) {
+      Write-Host "Note: mcp.toml command '$name' not in .cache/native/bin (fetch may have skipped)"
+      continue
     }
+    & $ScpExe @scpArgs $src "${target}:${StageRemote}/bin/$name"
+    if ($LASTEXITCODE -ne 0) { throw "scp tool $name failed" }
   }
 
   # Persona: only the canonical four (SOUL/RULES/USER/TOOLS). install.sh rsync --delete

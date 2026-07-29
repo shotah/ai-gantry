@@ -30,16 +30,12 @@
 # --- Shape used by LOCAL_AGENT (binaries must exist on PATH) -------------------------
 #
 # [[server]]
-# name    = "google-workspace"
-# command = "google-workspace-mcp-go"
-# args    = [
-#   "--tools",
-#   "gmail drive calendar docs sheets tasks contacts",
-#   "--tool-tier",
-#   "core",
-# ]
+# name    = "google"
+# command = "google-mcp"
+# args    = ["--preset", "everyday"]
+# auth_args = ["auth"]
 # download_tag = "latest"
-# download_url = "https://github.com/shotah/google-workspace-mcp-go/releases/download/{tag}/google-workspace-mcp-go_{version}_{os}_{arch}.tar.gz"
+# download_url = "https://github.com/shotah/google-mcp/releases/download/{tag}/google-mcp_{version}_{os}_{arch}.tar.gz"
 #
 # [[server]]
 # name    = "strava"

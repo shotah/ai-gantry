@@ -1,53 +1,51 @@
-# Google Workspace (Gmail / Calendar / Docs / Drive)
+# Google (Gmail / Calendar / Docs / Sheets / Tasks)
 
-LOCAL_AGENT talks to Google through a **compiled Go MCP binary** we maintain:
-[`shotah/google-workspace-mcp-go`](https://github.com/shotah/google-workspace-mcp-go)
-(fork of magks; releases fetched like the other shotah MCPs — Docker bake +
-native `download_url`).
+LOCAL_AGENT talks to Google through **[`shotah/google-mcp`](https://github.com/shotah/google-mcp)**
+(renamed from `google-workspace-mcp-go`). Releases are fetched like the other
+shotah MCPs — Docker bake + native `download_url`.
 
-gantry has no built-in Google tooling — this MCP **is** the Workspace
-integration. (The old `gws` CLI is gone from the image: it needs glibc and the
-runtime is now distroless/static.)
+gantry has no built-in Google tooling — this MCP **is** the integration.
 
 ```mermaid
 flowchart LR
-  GN[gantry daemon] -->|MCP stdio| GW[google-workspace-mcp-go]
+  GN[gantry daemon] -->|MCP stdio| GW[google-mcp]
   GW -->|OAuth2 HTTPS| API[Google APIs]
   GW --- TOK[("data/.config/google-mcp/credentials")]
 ```
 
+Tools reach the model as **`google__{service}_{verb}_…`** (server id `google` +
+service-prefixed tool names). Examples: `google__calendar_list_events`,
+`google__gmail_search_messages`.
+
 ---
 
-## What LOCAL_AGENT can do (core tier)
+## What LOCAL_AGENT can do (`--preset everyday`)
 
-Default `mcp.toml` loads `--tools gmail calendar tasks docs sheets drive` with
-`--tool-tier core` (keeps Qwen’s tool surface small). Useful examples:
+Default `mcp.toml` uses `--preset everyday`: **gmail + calendar + docs + sheets +
+tasks**, core tier, edit capability (~20 tools). Drive tools are **not** loaded
+(Docs/Sheets work without them).
 
 | Ask | Tool |
 |---|---|
-| “What’s unread?” | `search_gmail_messages` → `get_gmail_message_content` |
-| “What’s on my calendar Friday?” | `get_events` |
-| “Add climbing tomorrow at 3pm” | **`create_event`** (not `modify_event`) |
-| “Change the location on my 3pm” | `get_events` → **`modify_event`** |
-| “Add a task …” | `list_task_lists` → `create_task` |
-| “Find that Doc / Sheet” | `search_drive_files` → then Docs/Sheets by id |
-| “What’s in that Doc?” / “make a Doc” | `get_doc_content` / `create_doc` |
-| “Read / update that Sheet” | `read_sheet_values` / `modify_sheet_values` |
+| “What’s unread?” | `google__gmail_search_messages` → `google__gmail_get_message` |
+| “What’s on my calendar Friday?” | `google__calendar_list_events` |
+| “Add climbing tomorrow at 3pm” | `google__calendar_create_event` |
+| “Change the location on my 3pm” | `calendar_list_events` → `google__calendar_update_event` |
+| “Add a task …” | `google__tasks_create_task` (often `task_list_id="@default"`) |
+| “Make / read a Doc” | `google__docs_create` / `google__docs_get_content` |
+| “Read / update that Sheet” | `google__sheets_read_values` / `google__sheets_modify_values` |
 
-Tool descriptions are LLM-oriented (Use for / Prefer / Not) in
-[shotah/google-workspace-mcp-go](https://github.com/shotah/google-workspace-mcp-go).
-Bump `download_tag` / refetch after a release to pick them up.
+Tiny models can starve harder with `--preset lean` (gmail + calendar only).
+Add `drive` only if TIM needs file search/share/upload.
 
-Add `contacts` (or other services) back to `--tools` or raise `--tool-tier` if
-TIM needs them (then redeploy). Note: `list_spreadsheets` / `search_docs` are
-extended-tier; under `core`, discovery goes through `search_drive_files`.
+Upstream naming notes: [shotah/google-mcp TODO](https://github.com/shotah/google-mcp/blob/main/TODO.md).
 
 ---
 
 ## 1. OAuth client (once)
 
 1. [Google Cloud Console](https://console.cloud.google.com/) → project
-2. Enable APIs you need (Gmail, Calendar, Docs, Drive, Sheets, Tasks, People, …)
+2. Enable APIs you need (Gmail, Calendar, Docs, Drive, Sheets, Tasks, …)
 3. OAuth consent (External + your Gmail as test user while in Testing)
 4. Credentials → OAuth client ID → **Desktop app**
 5. Authorized redirect URI (add if prompted):
@@ -62,109 +60,81 @@ USER_GOOGLE_EMAIL=you@gmail.com
 ```
 
 > **Testing vs Production:** OAuth apps in **Testing** expire refresh tokens
-> after ~7 days. Move the consent screen to **Production** (or re-run
-> `make google-auth` weekly).
+> after ~7 days. Move the consent screen to **Production** (or re-auth weekly).
 
 ---
 
-## 2. Authorize (`make google-auth`)
+## 2. Authorize
 
-`google-workspace-mcp-go` has **no** `auth` subcommand yet, so this is not
-wired through `gantry auth` (unlike Strava/Garmin/YT Music in `mcp.toml`).
-Same pattern as before — **no local `gws`**. Docker runs a throwaway
-Python container that:
+Prefer the binary’s own CLI (also wired as `gantry auth google` via `auth_args`):
 
-1. Clears any stale `data/.config/google-mcp/credentials/<email>.json`
-2. Prints a Google consent URL
-3. Listens on `localhost:4100` for the callback
-4. Writes the MCP credential file used at runtime (Docker `./data` and native
-   `/opt/gantry/data` share this relative layout)
+```bash
+# on a host with google-mcp + env loaded
+google-mcp auth
+# or: gantry auth google
+```
+
+Workstation helper (Python throwaway container — same credential path):
 
 ```bash
 make google-auth
 ```
 
-1. Open the printed URL, approve access.
-2. Browser hits `http://localhost:4100/oauth2callback` → container captures the code.
-3. On success: `data/.config/google-mcp/credentials/<you@email>.json`
-
-Then deploy. `make google-auth` auto-runs **`make google-sync`** when
-`DEPLOY_HOST` is set (`remote-deploy` / `remote-native-deploy` do not copy
-Workspace secrets):
+Writes `data/.config/google-mcp/credentials/<you@email>.json`. When
+`DEPLOY_HOST` is set, `make google-auth` auto-runs **`make google-sync`**.
 
 ```bash
-make google-sync              # push data/.config/google-mcp → DEPLOY_PATH (Docker or native)
-# or: make build && make up   # local Docker
+make google-sync              # push credentials → DEPLOY_PATH
 ```
-
-If you still have credentials under legacy `secrets/google-mcp/`, run
-`make secrets-migrate` once.
 
 Send **`/new`** in Telegram so LOCAL_AGENT drops any stale auth habit.
 
-Access tokens refresh automatically from the stored `refresh_token`. If Google
-revokes the refresh token (or Testing-mode expiry hits), re-run
-`make google-auth`.
+Access tokens refresh automatically from the stored `refresh_token`.
 
 ---
 
 ## 3. Config already wired
 
-`mcp.toml` (listed = granted; tools land as `google-workspace__<tool>`).
-Exact names matter for local models; underscored prefixes are aliased — see
-[../../docs/mcp.md](../../docs/mcp.md).
+`mcp.toml` (listed = granted):
 
 ```toml
 [[server]]
-name    = "google-workspace"
-command = "google-workspace-mcp-go"
-args    = [
-  "--tools",
-  "gmail calendar tasks docs sheets drive",
-  "--tool-tier",
-  "core",
-]
+name = "google"
+command = "google-mcp"
+args = ["--preset", "everyday"]
+auth_args = ["auth"]
 download_tag = "latest"
-download_url = "https://github.com/shotah/google-workspace-mcp-go/releases/download/{tag}/google-workspace-mcp-go_{version}_{os}_{arch}.tar.gz"
+download_url = "https://github.com/shotah/google-mcp/releases/download/{tag}/google-mcp_{version}_{os}_{arch}.tar.gz"
 ```
 
-Compose mounts `./data` → `/data` (so `data/.config/google-mcp` is
-`/data/.config/google-mcp`). Native uses `/opt/gantry/data/.config/google-mcp`.
+Compose mounts `./data` → `/data`. Native uses `/opt/gantry/data/.config/google-mcp`.
 Both set `WORKSPACE_MCP_CREDENTIALS_DIR`, `GOOGLE_OAUTH_*`, `USER_GOOGLE_EMAIL`.
+
+Exact names matter for local models — see [../../docs/mcp.md](../../docs/mcp.md)
+and `persona/TOOLS.md`.
 
 ---
 
 ## Legacy: import from `gws` (optional)
 
-If you already have a host `gws` export and prefer not to re-consent:
-
 ```bash
 make google-mcp-import   # secrets/google/credentials.json → google-mcp format
 ```
 
-Prefer **`make google-auth`** for new setups (no local gws dependency).
+Prefer **`google-mcp auth`** / **`make google-auth`** for new setups.
 
 ---
 
 ## Troubleshooting
 
-- **Docs write fails with “only lowercase…” / `batchUpdate`** — that’s the
-  **built-in** tool. Confirm `[google_workspace] enabled = false` and that LOCAL_AGENT
-  is using MCP tools (`modify_doc_text`, etc.). `/new` after deploy.
-- **MCP auth / 401 / “expired”** — re-run `make google-auth` (pushes via
-  `google-sync` if `DEPLOY_HOST` is set). Check OAuth app isn’t stuck in
-  Testing (7-day refresh).
-- **Callback never completes** — port `4100` free on the host; Desktop client
-  allows `http://localhost:4100/oauth2callback`.
-- **No `refresh_token` in response** — revoke prior grant at
-  [Google Account permissions](https://myaccount.google.com/permissions), then
-  `make google-auth` again (`prompt=consent` is already set).
-- **LOCAL_AGENT ignores Workspace MCP** — check the `[[server]]` entry in `mcp.toml`
-  and rebuild; a failing server fails the boot loudly (`make logs`).
-- **Wrong calendar tool name / 404 on `event_id`** — use
-  `google-workspace__get_events` with `time_min`/`time_max` (not a hallucinated
-  `get_calendar_event`); never put a date range in `event_id`. See
-  `persona/TOOLS.md` and [../../docs/mcp.md](../../docs/mcp.md).
-- **Too many tools / context bloat** — keep `--tool-tier core`; drop unused
-  services from `--tools`.
+- **MCP auth / 401 / “expired”** — re-run `google-mcp auth` or `make google-auth`.
+  Check OAuth app isn’t stuck in Testing (7-day refresh).
+- **LOCAL_AGENT ignores Google MCP** — check `name = "google"` / `command = "google-mcp"`
+  in `mcp.toml` and refetch/redeploy (`make logs`).
+- **Wrong calendar tool / 404 on `event_id`** — use
+  `google__calendar_list_events` with `time_min`/`time_max`; never put a date
+  range in `event_id`. One event: `google__calendar_get_event`.
+- **Still seeing `google-workspace__…`** — old binary or old persona; redeploy
+  `google-mcp` + sync `TOOLS.md`, then `/new`.
+- **Too many tools** — stay on `--preset everyday` or switch to `lean`.
 - **Permission denied on data/.config/** — readable/writable by `GANTRY_UID` (Docker) or `gantry` (native).

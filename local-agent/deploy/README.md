@@ -49,7 +49,30 @@ Model pin: set `NATIVE_LLM_MODEL=qwen3.6:35b-a3b` in `.env`, then
 **reuse** an existing `gantry.env` — they do not regenerate it, so a stale
 `NATIVE_LLM_MODEL` cannot silently overwrite a local edit on every ship.
 
+### Spark of life (opt-in)
+
+Random presence pings (jokes / check-ins). **Off unless `SPARK_QTY` is set** in
+`.env`. `make remote-native-env` copies `SPARK_*` into `deploy/gantry.env` when
+qty is set; otherwise those keys are omitted.
+
+```bash
+# in local-agent/.env
+SPARK_QTY=4-6
+SPARK_START_HOUR=6
+SPARK_END_HOUR=21
+# SPARK_SKIP_RECENT_MINUTES=15
+# SPARK_PROMPT=...   # optional; one variant per line (\n); empty = built-in pool
+```
+
+Then `make remote-native-env` (or edit `deploy/gantry.env` by hand) and redeploy.
+Full behavior: [../../docs/cron.md](../../docs/cron.md#spark-of-life-opt-in).
+
 `remote-native-deploy` / `remote-native-deploy-dev` do **not** overwrite `data/gantry.db`. Migrate memory once (scp), then only ship binary/env/tools/persona.
+
+MCP tools: sync only stages binaries named in `mcp.toml`. `install.sh` removes
+anything in `/opt/gantry/bin` that is not in the stage (so renames like
+`google-workspace-mcp-go` → `google-mcp` clean up on the next install). Local
+stale copies under `.cache/native/bin` are pruned on fetch/sync the same way.
 
 Ollama tuning (keep-alive, `num_ctx`) ships as
 [`ollama-gantry.conf`](ollama-gantry.conf) → `/etc/systemd/system/ollama.service.d/gantry.conf`.

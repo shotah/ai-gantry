@@ -12,22 +12,17 @@
 # resolve the current GitHub release at `gantry tools-plan` time (handy while
 # testing; pin a tag for reproducible deploys). `gantry tools-plan` lists these.
 
-# Google Workspace (maintained fork: google-workspace-mcp-go) — docs/google-workspace.md
-# Trimmed to day-to-day services: a small local model (Qwen3.6 A3B) hallucinates
-# tool names past ~15 tools per server, and every schema eats context tokens.
-# Add drive/docs/sheets/contacts back here if TIM actually needs them.
-# No auth subcommand yet — use `make google-auth` (Python OAuth helper).
+# Google MCP (shotah/google-mcp) — docs/google-workspace.md
+# Server id "google" → tools like google__calendar_list_events.
+# --preset everyday ≈ gmail+calendar+docs+sheets+tasks, core, edit (~20 tools).
+# Auth: `google-mcp auth` via gantry, or `make google-auth` (Python helper).
 [[server]]
-name = "google-workspace"
-command = "google-workspace-mcp-go"
-args = [
-  "--tools",
-  "gmail calendar tasks docs sheets drive",
-  "--tool-tier",
-  "core",
-]
+name = "google"
+command = "google-mcp"
+args = ["--preset", "everyday"]
+auth_args = ["auth"]
 download_tag = "latest"
-download_url = "https://github.com/shotah/google-workspace-mcp-go/releases/download/{tag}/google-workspace-mcp-go_{version}_{os}_{arch}.tar.gz"
+download_url = "https://github.com/shotah/google-mcp/releases/download/{tag}/google-mcp_{version}_{os}_{arch}.tar.gz"
 
 # Strava workouts (Stealinglight/StravaMCP) — docs/strava.md
 [[server]]

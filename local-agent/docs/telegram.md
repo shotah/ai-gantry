@@ -124,17 +124,22 @@ reset Telegram’s expandable UI). The **final** message uses an expandable
 italic blockquote. Set `LLM_REASONING_EFFORT=none` to disable thinking entirely
 (the native default — thinking tokens are decoded before any tool fires).
 
-Tool calls append a trace to the same block, so a slow multi-tool turn shows
-motion instead of looking frozen:
+Tool calls append a trace **inline** in the reply body (between prose chunks),
+so a slow multi-tool turn shows motion without wiping earlier text:
 
 ```text
+Here’s the math answer…
+
 → garmin__list_activities
 ✓ 1.2s · 4.1k chars
+
+You rode 21mi.
 ```
 
-With thinking off, that trace is the entire expandable block. Timings also land
-in the journal (`model call` / `tool done` / `turn perf`) — see
-[deploy-native.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-native.md#latency-measure-before-tuning).
+CoT (when enabled) stays in the expandable italic block above; traces ride with
+the conversation so a later tool failure cannot erase the earlier answer.
+Timings also land in the journal (`model call` / `tool done` / `turn perf`) —
+see [deploy-native.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-native.md#latency-measure-before-tuning).
 
 ### Error reporting (ops alerts)
 

@@ -65,6 +65,13 @@ type Config struct {
 	CronMaxJobs     int    `env:"CRON_MAX_JOBS" envDefault:"50"`
 	CronTickSeconds int    `env:"CRON_TICK_SECONDS" envDefault:"15"`
 
+	// Spark of life (opt-in). Empty SPARK_QTY = disabled. Examples: "5", "4-6".
+	SparkQty               string `env:"SPARK_QTY" envDefault:""`
+	SparkStartHour         int    `env:"SPARK_START_HOUR" envDefault:"6"`
+	SparkEndHour           int    `env:"SPARK_END_HOUR" envDefault:"21"`
+	SparkPrompt            string `env:"SPARK_PROMPT" envDefault:""`
+	SparkSkipRecentMinutes int    `env:"SPARK_SKIP_RECENT_MINUTES" envDefault:"15"`
+
 	StreamReplies bool `env:"STREAM_REPLIES" envDefault:"false"`
 
 	// CoalesceSettleMS is quiet time after the last chat bubble before running
@@ -216,6 +223,19 @@ func (c *Config) Validate() error {
 	}
 	if _, err := timeLoadLocation(c.CronTZ); err != nil {
 		return fmt.Errorf("CRON_TZ: %w", err)
+	}
+
+	c.SparkQty = strings.TrimSpace(c.SparkQty)
+	if c.SparkQty != "" {
+		if c.SparkStartHour < 0 || c.SparkStartHour > 23 {
+			return fmt.Errorf("SPARK_START_HOUR: must be 0–23, got %d", c.SparkStartHour)
+		}
+		if c.SparkEndHour < 1 || c.SparkEndHour > 24 || c.SparkEndHour <= c.SparkStartHour {
+			return fmt.Errorf("SPARK_END_HOUR: must be 1–24 and > SPARK_START_HOUR, got %d", c.SparkEndHour)
+		}
+		if c.SparkSkipRecentMinutes < 0 {
+			return fmt.Errorf("SPARK_SKIP_RECENT_MINUTES: must be >= 0, got %d", c.SparkSkipRecentMinutes)
+		}
 	}
 
 	if err := validateMemoryBackend(c.MemoryBackend); err != nil {

@@ -216,6 +216,31 @@ func (s *Store) Stats(ctx context.Context, sessionID string) (messages int, estT
 	return len(msgs), EstTokens(msgs), nil
 }
 
+// UserActiveSince reports whether a human user message exists at or after since.
+// Cron-injected turns ("[cron]…") are ignored so spark jobs do not suppress themselves.
+func (s *Store) UserActiveSince(ctx context.Context, sessionID string, since time.Time) (bool, error) {
+	var created string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT created_at FROM session_message
+		WHERE session_id = ? AND role = ?
+		  AND content NOT LIKE '[cron]%'
+		ORDER BY id DESC LIMIT 1`, sessionID, RoleUser).Scan(&created)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("session: last user message: %w", err)
+	}
+	t, err := time.Parse(time.RFC3339Nano, created)
+	if err != nil {
+		t, err = time.Parse(time.RFC3339, created)
+		if err != nil {
+			return false, nil
+		}
+	}
+	return !t.Before(since.UTC()), nil
+}
+
 func (s *Store) trimTx(ctx context.Context, tx *sql.Tx, sessionID string) ([]Message, error) {
 	var dropped []Message
 	for {

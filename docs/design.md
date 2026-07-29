@@ -63,6 +63,7 @@ Everything is env or a mount. Boot is fail-fast: missing required env → exit 1
 | Bounds | `HISTORY_MAX_MESSAGES`, `HISTORY_MAX_TOKENS`, `TOOL_RESULT_MAX_CHARS`, `TOOL_MAX_ITERATIONS` |
 | Memory | `MEMORY_ENABLED`, `MEMORY_BACKEND` (`builtin`\|`mcp:<name>`), `MEMORY_CONSOLIDATE_MINUTES` |
 | Cron | `CRON_ENABLED`, `CRON_TZ`, `CRON_MAX_JOBS`, `CRON_TICK_SECONDS` |
+| Spark of life | `SPARK_QTY` (empty=off), `SPARK_START_HOUR`, `SPARK_END_HOUR`, `SPARK_PROMPT`, `SPARK_SKIP_RECENT_MINUTES` |
 | Stream | `STREAM_REPLIES` (`false` default; Telegram edit / stdio tokens) |
 | Ops | `LOG_LEVEL` |
 

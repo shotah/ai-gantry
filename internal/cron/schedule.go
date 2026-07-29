@@ -60,6 +60,12 @@ func ParseSchedule(when, repeat string, loc *time.Location, now time.Time) (Pars
 		return Parsed{Kind: KindEvery, Expr: d.String(), NextRun: next.UTC(), Timezone: loc.String()}, nil
 	}
 
+	// spark: qty@HH-HH (or bare qty with default 6–21 window via ParseSparkSchedule hours)
+	if repeat == KindSpark || strings.HasPrefix(when, "spark:") || strings.HasPrefix(repeat, "spark") {
+		start, end := 6, 21
+		return ParseSparkSchedule(when, start, end, loc, now)
+	}
+
 	if strings.HasPrefix(when, "in ") {
 		d, err := time.ParseDuration(strings.TrimSpace(strings.TrimPrefix(when, "in ")))
 		if err != nil || d <= 0 {
@@ -125,21 +131,21 @@ func dailyAt(t time.Time, loc *time.Location, now time.Time) (Parsed, error) {
 	return Parsed{Kind: KindDaily, Expr: expr, NextRun: next.UTC(), Timezone: loc.String()}, nil
 }
 
-// AdvanceNext returns the following run time after a successful fire.
-// For once, ok=false (job should be disabled).
-func AdvanceNext(kind, expr, tz string, from time.Time) (next time.Time, ok bool, err error) {
+// AdvanceNext returns the following run time (and possibly updated expr) after a fire.
+// For once, ok=false (job should be disabled). newExpr is empty when unchanged.
+func AdvanceNext(kind, expr, tz string, from time.Time) (next time.Time, newExpr string, ok bool, err error) {
 	loc, err := loadTZ(tz)
 	if err != nil {
-		return time.Time{}, false, err
+		return time.Time{}, "", false, err
 	}
 	from = from.In(loc)
 	switch kind {
 	case KindOnce:
-		return time.Time{}, false, nil
+		return time.Time{}, "", false, nil
 	case KindDaily:
 		parts := strings.Split(expr, ":")
 		if len(parts) != 2 {
-			return time.Time{}, false, fmt.Errorf("cron: bad daily expr %q", expr)
+			return time.Time{}, "", false, fmt.Errorf("cron: bad daily expr %q", expr)
 		}
 		h, _ := strconv.Atoi(parts[0])
 		m, _ := strconv.Atoi(parts[1])
@@ -147,15 +153,24 @@ func AdvanceNext(kind, expr, tz string, from time.Time) (next time.Time, ok bool
 		if !next.After(from) {
 			next = next.Add(24 * time.Hour)
 		}
-		return next.UTC(), true, nil
+		return next.UTC(), "", true, nil
 	case KindEvery:
 		d, err := time.ParseDuration(expr)
 		if err != nil {
-			return time.Time{}, false, err
+			return time.Time{}, "", false, err
 		}
-		return from.Add(d).UTC(), true, nil
+		return from.Add(d).UTC(), "", true, nil
+	case KindSpark:
+		// Daily planner: wake again at the next window start.
+		spec, err := ParseSparkExpr(expr)
+		if err != nil {
+			return time.Time{}, "", false, err
+		}
+		return PlanSparkPlannerNext(spec, loc, from), "", true, nil
+	case KindSparkPing:
+		return time.Time{}, "", false, nil
 	default:
-		return time.Time{}, false, fmt.Errorf("cron: unknown kind %q", kind)
+		return time.Time{}, "", false, fmt.Errorf("cron: unknown kind %q", kind)
 	}
 }
 

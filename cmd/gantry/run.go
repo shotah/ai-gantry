@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -53,6 +54,7 @@ func run() int {
 		"memory_backend", cfg.MemoryBackend,
 		"cron_enabled", cfg.CronEnabled,
 		"cron_tz", cfg.CronTZ,
+		"spark_qty", cfg.SparkQty,
 		"stream_replies", cfg.StreamReplies,
 		"telegram_error_reporting", cfg.TelegramErrorReporting,
 	)
@@ -245,11 +247,17 @@ func run() int {
 			return 1
 		}
 		runner := &cron.Runner{
-			Store:    cronStore,
-			Handle:   handle,
-			Pusher:   pusher,
-			Interval: time.Duration(cfg.CronTickSeconds) * time.Second,
-			Logger:   logger,
+			Store:           cronStore,
+			Handle:          handle,
+			Pusher:          pusher,
+			Interval:        time.Duration(cfg.CronTickSeconds) * time.Second,
+			Logger:          logger,
+			Recent:          sessions,
+			SparkSkipRecent: time.Duration(cfg.SparkSkipRecentMinutes) * time.Minute,
+		}
+		if err := ensureSparkJobs(ctx, cfg, cronStore, logger); err != nil {
+			logger.Error("spark ensure failed", "err", err)
+			return 1
 		}
 		go runner.Start(ctx)
 	}
@@ -298,6 +306,57 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 	default:
 		return nil, fmt.Errorf("unknown channel %q", cfg.Channel)
 	}
+}
+
+// ensureSparkJobs installs opt-in spark-of-life cron jobs when SPARK_QTY is set.
+// Telegram DMs use chat_id == user_id from the allowlist.
+func ensureSparkJobs(ctx context.Context, cfg *config.Config, store *cron.Store, log *slog.Logger) error {
+	if strings.TrimSpace(cfg.SparkQty) == "" || store == nil {
+		return nil
+	}
+	loc, err := time.LoadLocation(cfg.CronTZ)
+	if err != nil {
+		return err
+	}
+	when := fmt.Sprintf("%s@%02d-%02d", cfg.SparkQty, cfg.SparkStartHour, cfg.SparkEndHour)
+	parsed, err := cron.ParseSparkSchedule(when, cfg.SparkStartHour, cfg.SparkEndHour, loc, time.Now())
+	if err != nil {
+		return fmt.Errorf("SPARK_QTY: %w", err)
+	}
+	prompt := strings.TrimSpace(cfg.SparkPrompt)
+	if prompt == "" {
+		prompt = cron.DefaultSparkPrompt
+	}
+
+	switch cfg.Channel {
+	case config.ChannelTelegram:
+		for _, uid := range cfg.TelegramAllowedUsers {
+			if uid == 0 {
+				continue
+			}
+			id := strconv.FormatInt(uid, 10)
+			delivery := cron.Delivery{
+				SessionID: fmt.Sprintf("telegram:%s:%s", id, id),
+				UserID:    id,
+				ChatID:    id,
+			}
+			job, created, err := store.EnsureSpark(ctx, prompt, parsed, delivery)
+			if err != nil {
+				return err
+			}
+			log.Info("spark job ready",
+				"created", created,
+				"id", job.ID,
+				"session_id", delivery.SessionID,
+				"next_run", job.NextRunAt.UTC().Format(time.RFC3339),
+				"expr", job.Expr,
+			)
+		}
+	default:
+		log.Info("spark configured but auto-bind is telegram-only; schedule via cron_schedule repeat=spark",
+			"channel", cfg.Channel, "qty", cfg.SparkQty)
+	}
+	return nil
 }
 
 // newLogger builds the process logger. When TELEGRAM_ERROR_REPORTING is

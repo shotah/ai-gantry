@@ -8,16 +8,20 @@
 - Date-only args: use the local calendar day from `[current time]` (`yesterday=` / `today=`).
 - RFC3339 / timestamps: include that zone’s offset from `[current time]`. **Never default to `Z` / UTC** unless asked or the schema requires it.
 
-## Google Workspace (MCP)
+## Google (MCP server `google`)
 
-- Always pass `user_google_email` from `USER.md` (canonical address)
-- If auth fails for that address, say so and point at `make google-auth` — do not try another email
-- Never invent message bodies, calendar events, or inbox contents without a successful tool result
-- **Create new:** `google-workspace__create_event` (summary + start_time + end_time + email). Not `modify_event` (needs existing `event_id`). If modify fails with `event_id is required`, call **create_event**.
-- **Read a day:** `google-workspace__get_events` — omit `event_id`; pass email, `calendar_id="primary"`, both `time_min` + `time_max`
-- **Update existing:** `get_events` → copy `ID:` → search if needed → `modify_event`
-- Do not narrate / claim a tool is missing when it’s in the tools list — call it
-- **Get vs List:** both retrieve data. Before saying you can’t pull something, scan the tools list for `get_*` **and** `list_*` (and `*_get_*`). Names are not synonyms — use the exact one listed.
+Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not fitness tools.
+
+- Always pass `user_google_email` from `USER.md`
+- Auth fails → `make google-auth` / `gantry auth google` — do not try another email
+- Never invent mail/calendar/docs/sheets/tasks without a successful tool result
+- **Calendar create:** `google__calendar_create_event` (not `calendar_update_event` — that needs `event_id`)
+- **Calendar day:** `google__calendar_list_events` — omit `event_id`; `calendar_id="primary"`, both `time_min` + `time_max`
+- **Calendar update:** `calendar_list_events` → id → `google__calendar_update_event`
+- **Gmail:** `google__gmail_search_messages` → `google__gmail_get_message`; send only if asked
+- **Tasks:** `google__tasks_list_tasks` / `google__tasks_create_task` (`task_list_id="@default"` when needed)
+- **Docs / Sheets:** `google__docs_*` / `google__sheets_*` (everyday preset has no Drive tools)
+- Do not narrate — call the exact `google__…` name from the tools list
 
 ## Math
 

@@ -36,7 +36,8 @@ type editStream struct {
 	thinking         string // raw CoT of the current model call (not HTML)
 	thinkingLog      string // archived CoT from earlier calls this turn (tool loops)
 	status           string // transient "hang on" line, cleared by real output
-	answer           string // raw answer text
+	body             string // committed prose + tool-trace lines (survives tool loops)
+	answer           string // in-progress model stream for the current iteration
 	useHTML          bool
 	started          bool
 	rateLimitedUntil time.Time
@@ -67,17 +68,17 @@ func (s *editStream) Started() bool {
 
 // Update caches the latest full text and ensures the flush loop is running.
 // It does not wait on Telegram rate limits — that would stall the LLM.
+//
+// Empty content is ignored so a fresh post-tool stream does not wipe prose
+// already shown. A non-prefix content restart commits the prior answer into
+// body (tool-loop iteration) instead of replacing the bubble.
 func (s *editStream) Update(ctx context.Context, fullText string) error {
 	s.mu.Lock()
 	s.thinking = ""
 	s.status = ""
-	s.answer = fullText
-	s.useHTML = false
-	display := fullText
-	if display == "" {
-		display = streamPlaceholder
-	}
-	display = clipRunes(display, s.chunkMax)
+	s.setAnswerLocked(fullText)
+	display, useHTML := buildStreamDisplay(s.statusThinkingLocked(), s.visibleAnswerLocked(), s.chunkMax, false)
+	s.useHTML = useHTML
 	s.started = true
 	s.latest = display
 	s.pending = display
@@ -92,6 +93,7 @@ func (s *editStream) Update(ctx context.Context, fullText string) error {
 // thinking accumulates within one model call; a tool loop starts a fresh call
 // whose stream restarts from empty. Archive the previous call's CoT instead of
 // overwriting it, so earlier reasoning never vanishes from the bubble.
+// Answer text is preserved the same way across tool-loop iterations.
 func (s *editStream) UpdateThinking(ctx context.Context, thinking, content string) error {
 	s.mu.Lock()
 	if s.thinking != "" && !strings.HasPrefix(thinking, s.thinking) {
@@ -101,9 +103,9 @@ func (s *editStream) UpdateThinking(ctx context.Context, thinking, content strin
 		s.thinkingLog += s.thinking
 	}
 	s.thinking = thinking
-	combined := s.statusThinkingLocked()
-	s.answer = content
-	display, useHTML := buildStreamDisplay(combined, content, s.chunkMax, false)
+	s.status = ""
+	s.setAnswerLocked(content)
+	display, useHTML := buildStreamDisplay(s.statusThinkingLocked(), s.visibleAnswerLocked(), s.chunkMax, false)
 	s.useHTML = useHTML
 	s.started = true
 	s.latest = display
@@ -113,16 +115,16 @@ func (s *editStream) UpdateThinking(ctx context.Context, thinking, content strin
 	return nil
 }
 
-// UpdateProgress appends a tool-trace line to the reasoning block so a long
-// tool chain shows motion. With LLM_REASONING_EFFORT=none this trace is the
-// only thing in the block, which is exactly what the operator wants to watch.
+// UpdateProgress commits any in-flight answer, then appends a tool-trace line
+// inline in the body so → / ✓ / ✗ sit between prose chunks instead of replacing
+// them. CoT stays in the thinking block; traces ride with the conversation.
 func (s *editStream) UpdateProgress(ctx context.Context, note string) error {
 	note = strings.TrimSpace(note)
 	if note == "" {
 		return nil
 	}
 	s.mu.Lock()
-	// Archive the current call's CoT first so trace lines stay in order.
+	// Park live CoT so the next model call can start a fresh thinking stream.
 	if s.thinking != "" {
 		if s.thinkingLog != "" {
 			s.thinkingLog += "\n\n"
@@ -130,11 +132,12 @@ func (s *editStream) UpdateProgress(ctx context.Context, note string) error {
 		s.thinkingLog += s.thinking
 		s.thinking = ""
 	}
-	if s.thinkingLog != "" {
-		s.thinkingLog += "\n"
+	s.commitAnswerLocked()
+	if s.body != "" {
+		s.body += "\n"
 	}
-	s.thinkingLog += note
-	display, useHTML := buildStreamDisplay(s.statusThinkingLocked(), s.answer, s.chunkMax, false)
+	s.body += note
+	display, useHTML := buildStreamDisplay(s.statusThinkingLocked(), s.visibleAnswerLocked(), s.chunkMax, false)
 	s.useHTML = useHTML
 	s.started = true
 	s.latest = display
@@ -156,7 +159,7 @@ func (s *editStream) UpdateStatus(ctx context.Context, note string) error {
 		return nil
 	}
 	s.status = note
-	display, useHTML := buildStreamDisplay(s.statusThinkingLocked(), s.answer, s.chunkMax, false)
+	display, useHTML := buildStreamDisplay(s.statusThinkingLocked(), s.visibleAnswerLocked(), s.chunkMax, false)
 	s.useHTML = useHTML
 	s.started = true
 	s.latest = display
@@ -164,6 +167,44 @@ func (s *editStream) UpdateStatus(ctx context.Context, note string) error {
 	s.ensureFlusherLocked(ctx)
 	s.mu.Unlock()
 	return nil
+}
+
+// setAnswerLocked grows or restarts the in-progress answer. Empty content is a
+// no-op (keeps prior prose). A non-prefix restart commits the old answer into
+// body first. Callers hold s.mu.
+func (s *editStream) setAnswerLocked(content string) {
+	if content == "" {
+		return
+	}
+	if s.answer != "" && !strings.HasPrefix(content, s.answer) {
+		s.commitAnswerLocked()
+	}
+	s.answer = content
+}
+
+// commitAnswerLocked moves the in-progress answer into body. Callers hold s.mu.
+func (s *editStream) commitAnswerLocked() {
+	ans := strings.TrimSpace(s.answer)
+	s.answer = ""
+	if ans == "" {
+		return
+	}
+	if s.body != "" {
+		s.body += "\n\n"
+	}
+	s.body += ans
+}
+
+// visibleAnswerLocked is body + in-flight answer for display. Callers hold s.mu.
+func (s *editStream) visibleAnswerLocked() string {
+	switch {
+	case s.body == "":
+		return s.answer
+	case s.answer == "":
+		return s.body
+	default:
+		return s.body + "\n\n" + s.answer
+	}
 }
 
 // statusThinkingLocked appends the status line below the reasoning/trace block,
@@ -298,13 +339,34 @@ func (s *editStream) Finish(ctx context.Context, final string) error {
 	// even if the turn ended by error or cancel before anything cleared it.
 	s.status = ""
 	thinking := s.combinedThinkingLocked()
-	if final == "" {
-		// Raw answer only. pending/latest hold the *formatted display* string
-		// (may contain HTML); re-composing with those as content double-renders
-		// the thinking with escaped tags visible.
-		final = s.answer
+	final = strings.TrimSpace(final)
+	// Raw answer only for the content half. pending/latest hold formatted
+	// display (may contain HTML); never re-compose from those.
+	switch {
+	case final == "":
+		s.commitAnswerLocked()
+		final = s.body
+	case s.answer != "" && (final == s.answer || strings.HasPrefix(final, s.answer)):
+		// Same iteration: final is the completed stream (or identical).
+		s.answer = final
+		final = s.visibleAnswerLocked()
+	default:
+		visible := s.visibleAnswerLocked()
+		switch {
+		case visible == "":
+			// only the agent-returned final
+		case final == visible || strings.HasSuffix(visible, final) || strings.Contains(visible, final):
+			final = visible
+		default:
+			// New segment after tools — keep math/traces, append last prose.
+			s.commitAnswerLocked()
+			if s.body != "" {
+				final = s.body + "\n\n" + final
+			}
+		}
 	}
-	s.answer = final
+	s.body = final
+	s.answer = ""
 	// Final edit may use expandable — stream flushes are done, so it won't keep collapsing.
 	display, useHTML := buildStreamDisplay(thinking, final, s.chunkMax, true)
 	s.useHTML = useHTML

@@ -29,9 +29,10 @@ func ToolDefs() []provider.ToolDef {
 	return []provider.ToolDef{
 		{
 			Name: ToolSchedule,
-			Description: "Schedule a proactive agent turn (reminder or digest). " +
+			Description: "Schedule a proactive agent turn (reminder, digest, or spark-of-life). " +
 				"Fires later, runs tools, and pushes the reply to this chat. " +
-				`when: RFC3339, "15:04", or "in 30m". repeat: once|daily|every:1h.`,
+				`when: RFC3339, "15:04", "in 30m", or for spark "4-6@06-21". ` +
+				`repeat: once|daily|every:1h|spark.`,
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -41,11 +42,11 @@ func ToolDefs() []provider.ToolDef {
 					},
 					"when": map[string]any{
 						"type":        "string",
-						"description": `e.g. "17:00", "in 2h", or RFC3339`,
+						"description": `e.g. "17:00", "in 2h", RFC3339, or spark "4-6@06-21"`,
 					},
 					"repeat": map[string]any{
 						"type":        "string",
-						"description": "once (default), daily, or every:30m",
+						"description": "once (default), daily, every:30m, or spark",
 					},
 				},
 				"required": []string{"prompt", "when"},
