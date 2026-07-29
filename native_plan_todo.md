@@ -30,9 +30,10 @@ second failure mode: valid tool, wrong argument shape.
 - [ ] **Detect + retry:** truncated/unparseable tool-call args → feed a tool
       error back ("arguments truncated — retry with shorter reasoning and
       minimal JSON"), same pattern as the unknown-tool suggestion
-- [ ] **Budget math:** consider `OLLAMA_CONTEXT_LENGTH=49152` override (same
-      systemd drop-in as keep-alive; 87GB unified RAM has headroom) so
-      `LLM_MAX_TOKENS` can stay generous without evicting persona
+- [x] **Budget math:** `OLLAMA_CONTEXT_LENGTH=49152` now ships in
+      `deploy/ollama-gantry.conf` (same drop-in as keep-alive; install.sh
+      reinstalls on change) so `LLM_MAX_TOKENS` can stay generous without
+      evicting persona
 - [ ] **Schema misuse (404s):** argument validation errors already round-trip
       to the model — verify the message names the offending parameter; if the
       MCP's error is opaque, wrap it with the tool's schema summary
@@ -55,8 +56,60 @@ in thinking → ERROR). Remaining gaps:
 
 ## P1 — Model strategy (routing + response time)
 
-Decode is fine (~23 tok/s); the pain is long thinking before action. Options,
-cheapest first:
+Decode is fine (~23 tok/s); the pain is long thinking before action.
+
+Shipped (config + visibility, do the eval on top of these):
+
+- [x] Per-turn perf logging: `model call` (`first_token_ms`, `dur_ms`,
+      `prompt_est_tokens`, `tool_schemas`), `tool done` (`dur_ms`,
+      `result_chars`), `turn perf` (`model_ms` / `tool_ms` / `total_ms`)
+- [x] `LLM_REASONING_EFFORT=none` as the **native default** (thinking decoded
+      at full price before any tool fires)
+- [x] `TOOL_RESULT_MAX_CHARS=6000` native default (results re-prefill on every
+      loop iteration, so the cap is a multiplier)
+- [x] `OLLAMA_CONTEXT_LENGTH` drop-in (see P0 budget math)
+- [x] Tool-call trace in the Telegram bubble — perceived latency, not real
+- [x] **Prompt cache was never hitting:** `mcp.Host.Tools()` iterated a map, so
+      the 13.5k-token schema block (63% of the prompt, leading the system
+      message) was reshuffled every turn. Sorted by name → measured on tim:
+      warm turn 74.5s → 15.6s, `first_token_ms` 68.8s → 8.6s. The tell was
+      iteration 2 of a turn prefilling in 1.8s (same order) while iteration 1
+      of the next turn took 68s
+- [x] `volatile_est_tokens` / `hydration_est_tokens` logging — `first_token_ms`
+      tracks the re-evaluated tail, not the total prompt
+
+Measured on tim once the cache was hitting (18.4s turn, ~25.8k context):
+
+| Phase | Cost | Rate |
+| --- | --- | --- |
+| Prefill 2,236 tokens (cache reused 23,561) | 8.5s | 264 tok/s |
+| Decode 229 tokens | 10.0s | 23 tok/s |
+
+Decode is now the bigger half. Two notes that killed earlier guesses:
+
+- **Hydration is not the problem** — `hydration_est_tokens=48`, whole volatile
+  tail 139 tokens. Lowering the 30-entry cap would save nothing.
+- 139 changed tokens still cost 2,236 tokens of prefill because Ollama rewinds
+  to the nearest **context checkpoint** (~2,044-token spacing), not to the
+  divergence point. That granularity is Ollama-internal.
+
+Remaining options, cheapest first:
+
+- [x] **Reply length:** persona `SOUL.md` "Length (hard rule)" — 2–4 sentence
+      default, no preamble/process-recap/closing offers. Persona lives in the
+      cached prefix, so this trades free prompt tokens for paid output tokens
+- [ ] **Lossless schema slimming:** strip `title` / `$schema` / `examples` from
+      MCP-supplied JSON Schema (no capability loss) to cut cache-miss cost
+- [ ] **Per-server schema accounting** at boot so trims are data-driven
+- [x] `COALESCE_SETTLE_MS` used to apply to *every* message (2s on every reply).
+      Now a lone bubble runs immediately; the settle only arms once a follow-up
+      interrupts a running turn — which is what the feature was always for
+- [x] **Perceived latency:** `SPINUP_NOTICE_MS` opens the bubble during silent
+      prefill, then the reply replaces the line (transient status, not a trace).
+      Immediate on the first turn after start (known-cold), threshold
+      otherwise. `/api/ps` is useless as a cold signal under
+      `OLLAMA_KEEP_ALIVE=-1` (`expires_at` = year 2318) and the KV prefix cache
+      has no API, so observed silence is the only honest trigger
 
 | Option | Cost | Notes |
 | --- | --- | --- |

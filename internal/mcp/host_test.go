@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +16,7 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/shotah/ai-gantry/internal/mcp"
+	"github.com/shotah/ai-gantry/internal/provider"
 )
 
 type fakeConn struct {
@@ -90,6 +93,58 @@ command = "unused"
 	if err == nil || !strings.Contains(err.Error(), "available server prefixes are: google-workspace") {
 		t.Fatalf("err = %v, want prefix list", err)
 	}
+}
+
+// The schema block is the biggest slice of the prompt and leads the system
+// message, so a randomized order would rewrite the prefix every turn and cost a
+// full re-prefill instead of a prompt-cache hit. Order must be stable and sorted.
+func TestHost_ToolsOrderIsStable(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "garmin"
+command = "unused"
+`)
+	// Enough tools that map iteration order would differ between calls.
+	var tools []mcp.Tool
+	for _, n := range []string{
+		"list_activities", "get_activity", "get_sleep", "get_weight",
+		"get_body_battery", "get_training_readiness", "get_hrv", "get_steps",
+		"get_stress", "get_vo2max", "get_races", "get_gear",
+	} {
+		tools = append(tools, mcp.Tool{OriginalName: n})
+	}
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
+			return &fakeConn{tools: tools}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	first := toolNames(host.Tools())
+	if len(first) != len(tools) {
+		t.Fatalf("got %d tools, want %d", len(first), len(tools))
+	}
+	if !sort.StringsAreSorted(first) {
+		t.Fatalf("tools not sorted by name: %v", first)
+	}
+	// Repeat: randomized map iteration shows up as a differing order here.
+	for i := 0; i < 20; i++ {
+		if got := toolNames(host.Tools()); !slices.Equal(got, first) {
+			t.Fatalf("call %d order = %v, want %v", i, got, first)
+		}
+	}
+}
+
+func toolNames(defs []provider.ToolDef) []string {
+	out := make([]string, len(defs))
+	for i, d := range defs {
+		out[i] = d.Name
+	}
+	return out
 }
 
 func TestHost_CallAliasesUnderscoredPrefix(t *testing.T) {

@@ -208,6 +208,7 @@ func run() int {
 		Location:       tzLoc,
 		TZName:         cfg.CronTZ,
 		CoalesceSettle: time.Duration(cfg.CoalesceSettleMS) * time.Millisecond,
+		SpinupNotice:   time.Duration(cfg.SpinupNoticeMS) * time.Millisecond,
 	})
 	if err != nil {
 		logger.Error("agent init failed", "err", err)

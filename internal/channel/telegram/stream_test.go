@@ -265,6 +265,164 @@ func TestEditStream_ThinkingAccumulatesAcrossIterations(t *testing.T) {
 	}
 }
 
+// Tool trace lines must survive into the final collapsible and stay ordered
+// relative to any CoT, so a long tool chain reads as progress.
+func TestEditStream_ProgressTraceSurvivesFinish(t *testing.T) {
+	prevFlush := streamFlushEvery
+	streamFlushEvery = time.Hour
+	t.Cleanup(func() { streamFlushEvery = prevFlush })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		method := strings.TrimPrefix(r.URL.Path, "/bot"+testBotToken+"/")
+		_, _ = io.ReadAll(r.Body)
+		switch method {
+		case "sendMessage":
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":7,"date":1,"chat":{"id":1,"type":"private"}}}`))
+		case "editMessageText":
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":7,"date":1,"chat":{"id":1,"type":"private"},"text":"x"}}`))
+		default:
+			t.Errorf("unexpected method %q", method)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	b, err := bot.New(testBotToken, bot.WithServerURL(srv.URL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := newEditStream(b, 1, 0, 4000)
+	ctx := context.Background()
+	if err := stream.UpdateThinking(ctx, "pick a tool", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.UpdateProgress(ctx, "→ garmin__list_activities"); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.UpdateProgress(ctx, "✓ 1.2s · 4.1k chars"); err != nil {
+		t.Fatal(err)
+	}
+	// Blank notes are no-ops (never blank out the bubble).
+	if err := stream.UpdateProgress(ctx, "   "); err != nil {
+		t.Fatal(err)
+	}
+	waitMsgID(t, stream)
+	if err := stream.Finish(ctx, "You rode 21mi."); err != nil {
+		t.Fatal(err)
+	}
+	stream.mu.Lock()
+	flushed := stream.lastFlushed
+	stream.mu.Unlock()
+	for _, want := range []string{"pick a tool", "garmin__list_activities", "4.1k chars", "You rode 21mi."} {
+		if !strings.Contains(flushed, want) {
+			t.Fatalf("final missing %q: %q", want, flushed)
+		}
+	}
+	if strings.Index(flushed, "pick a tool") > strings.Index(flushed, "garmin__list_activities") {
+		t.Fatalf("trace ordered before thinking: %q", flushed)
+	}
+}
+
+// newStubStream wires an editStream to a bot whose send/edit always succeed,
+// for tests that only care about the composed text.
+func newStubStream(t *testing.T, chunkMax int) *editStream {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		method := strings.TrimPrefix(r.URL.Path, "/bot"+testBotToken+"/")
+		_, _ = io.ReadAll(r.Body)
+		switch method {
+		case "sendMessage":
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":7,"date":1,"chat":{"id":1,"type":"private"}}}`))
+		case "editMessageText":
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":7,"date":1,"chat":{"id":1,"type":"private"},"text":"x"}}`))
+		default:
+			t.Errorf("unexpected method %q", method)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	b, err := bot.New(testBotToken, bot.WithServerURL(srv.URL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newEditStream(b, 1, 0, chunkMax)
+}
+
+// The spin-up notice is a waiting indicator: it opens the bubble during silent
+// prefill, coexists with tool traces, and is gone once the reply lands.
+func TestEditStream_StatusLineIsReplacedByReply(t *testing.T) {
+	prevFlush := streamFlushEvery
+	streamFlushEvery = time.Hour
+	t.Cleanup(func() { streamFlushEvery = prevFlush })
+
+	stream := newStubStream(t, 4000)
+	ctx := context.Background()
+	if err := stream.UpdateStatus(ctx, "⏳ spinning up"); err != nil {
+		t.Fatal(err)
+	}
+	// Nothing else has been said yet, so the notice alone opens the bubble.
+	waitMsgID(t, stream)
+	if got := streamLatest(stream); !strings.Contains(got, "spinning up") {
+		t.Fatalf("bubble missing notice: %q", got)
+	}
+	// A tool trace and the notice describe different things; both belong.
+	if err := stream.UpdateProgress(ctx, "→ garmin__list_activities"); err != nil {
+		t.Fatal(err)
+	}
+	got := streamLatest(stream)
+	if !strings.Contains(got, "garmin__list_activities") || !strings.Contains(got, "spinning up") {
+		t.Fatalf("bubble = %q, want trace + notice", got)
+	}
+
+	if err := stream.UpdateStatus(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.UpdateThinking(ctx, "", "You rode 21mi."); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.Finish(ctx, "You rode 21mi."); err != nil {
+		t.Fatal(err)
+	}
+	stream.mu.Lock()
+	flushed := stream.lastFlushed
+	stream.mu.Unlock()
+	if strings.Contains(flushed, "spinning up") {
+		t.Fatalf("notice survived into the reply: %q", flushed)
+	}
+	for _, want := range []string{"garmin__list_activities", "You rode 21mi."} {
+		if !strings.Contains(flushed, want) {
+			t.Fatalf("final missing %q: %q", want, flushed)
+		}
+	}
+}
+
+// Error and cancel paths jump straight to Finish, which must still drop it.
+func TestEditStream_FinishDropsLingeringStatus(t *testing.T) {
+	prevFlush := streamFlushEvery
+	streamFlushEvery = time.Hour
+	t.Cleanup(func() { streamFlushEvery = prevFlush })
+
+	stream := newStubStream(t, 4000)
+	ctx := context.Background()
+	if err := stream.UpdateStatus(ctx, "⏳ spinning up"); err != nil {
+		t.Fatal(err)
+	}
+	waitMsgID(t, stream)
+	if err := stream.Finish(ctx, "model call failed"); err != nil {
+		t.Fatal(err)
+	}
+	stream.mu.Lock()
+	flushed := stream.lastFlushed
+	stream.mu.Unlock()
+	if flushed != "model call failed" {
+		t.Fatalf("lastFlushed = %q, want the error text alone", flushed)
+	}
+}
+
+func streamLatest(s *editStream) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.latest
+}
+
 func TestEditStream_FinishNotModifiedIsOK(t *testing.T) {
 	prevFlush := streamFlushEvery
 	streamFlushEvery = time.Hour

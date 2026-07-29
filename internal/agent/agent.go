@@ -10,10 +10,12 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/cron"
+	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/provider"
 	"github.com/shotah/ai-gantry/internal/session"
@@ -54,6 +56,10 @@ type Options struct {
 	// joined turn (interrupt + coalesce). 0 disables. Production default is
 	// DefaultCoalesceSettle via run config.
 	CoalesceSettle time.Duration
+	// SpinupNotice posts a "still working" line once a turn has gone this long
+	// without model output. The first turn of the process posts immediately
+	// instead of waiting. 0 disables both notices.
+	SpinupNotice time.Duration
 }
 
 // Agent runs the prompt → model → (tools) → reply loop.
@@ -81,6 +87,9 @@ type Agent struct {
 	coalesceSettle time.Duration
 	coalesceMu     sync.Mutex
 	coalesce       map[string]*coalesceSession
+
+	spinupNotice time.Duration
+	warmed       atomic.Bool // set once any model call has returned
 }
 
 // New creates an Agent. Completer and Sessions are required.
@@ -124,6 +133,7 @@ func New(opts Options) (*Agent, error) {
 		loc:            loc,
 		tzName:         tzName,
 		coalesceSettle: opts.CoalesceSettle,
+		spinupNotice:   opts.SpinupNotice,
 	}
 	a.initTurns()
 	a.SetPersona(opts.Persona)
@@ -253,6 +263,9 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	// stable prefix (persona + summary + history) stays byte-identical across
 	// turns and llama.cpp/Ollama can reuse its prompt cache instead of
 	// re-evaluating the whole context every message.
+	// Everything appended from here is re-evaluated every turn, so its size —
+	// not the total prompt — is what first_token_ms actually measures.
+	shape := promptShape{stableEnd: len(messages)}
 	hydrateQuery := text
 	if hydrateQuery == "" {
 		hydrateQuery = storeText
@@ -262,6 +275,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		if err != nil {
 			a.log.Warn("memory hydrate failed", "err", err)
 		} else if block := memory.FormatHydration(entries); block != "" {
+			shape.hydration = (len(block) + 3) / 4
 			messages = append(messages, provider.Message{
 				Role:    provider.RoleSystem,
 				Content: block,
@@ -288,15 +302,16 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	if a.tools != nil {
 		toolDefs = a.tools.Tools()
 	}
+	shape.schemas = mcp.EstimateToolSchemaTokens(toolDefs)
 
 	a.log.Debug("agent complete",
 		"session_id", msg.SessionID,
 		"history_messages", len(history),
 		"tools", len(toolDefs),
-		"est_tokens", estTokens(messages),
+		"est_tokens", estTokens(messages)+shape.schemas,
 	)
 
-	reply, err := a.runLoop(turnCtx, messages, toolDefs)
+	reply, err := a.runLoop(turnCtx, messages, toolDefs, shape)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return "", nil
@@ -316,29 +331,71 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	return reply, nil
 }
 
-func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDefs []provider.ToolDef) (string, error) {
+// promptShape describes how much of the assembled prompt is cacheable. The
+// prefix (persona + summary + history) is byte-stable across turns, so
+// first_token_ms tracks the volatile remainder, not the total prompt size.
+type promptShape struct {
+	stableEnd int // index in messages where the cacheable prefix ends
+	hydration int // est tokens in the memory hydration block
+	schemas   int // est tokens in the tool schema block
+}
+
+func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDefs []provider.ToolDef, shape promptShape) (string, error) {
 	streamer, canStream := a.completer.(provider.Streamer)
 	writer, hasWriter := channel.ReplyWriterFrom(ctx)
+	progress, hasProgress := channel.ProgressWriterFrom(ctx)
+	status, hasStatus := channel.StatusWriterFrom(ctx)
 	nudged := false
 	sawTools := false
+
+	// Latency accounting: local models spend most of a turn in prefill/decode,
+	// so split model vs tool time to know which one to attack.
+	turnStart := time.Now()
+	iters := 0
+	var modelTime, toolTime time.Duration
+	defer func() {
+		a.log.Info("turn perf",
+			"iterations", iters,
+			"model_ms", modelTime.Milliseconds(),
+			"tool_ms", toolTime.Milliseconds(),
+			"total_ms", time.Since(turnStart).Milliseconds(),
+			"hydration_est_tokens", shape.hydration,
+		)
+	}()
 
 	for iter := 0; iter < a.maxToolIters; iter++ {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
+		iters = iter + 1
 		bounded := collapseOldToolResults(messages)
 		req := provider.Request{Messages: bounded, Tools: toolDefs}
+		promptTokens := estTokens(bounded) + shape.schemas
+		// The re-evaluated remainder: hydration + clock + user message, plus
+		// any tool results appended by earlier iterations.
+		volatileTokens := estTokens(bounded[min(shape.stableEnd, len(bounded)):])
 
 		var (
-			res *provider.Result
-			err error
+			res          *provider.Result
+			err          error
+			firstTokenAt time.Time
 		)
+		// Prefill is silent, so a slow turn looks frozen until the first token.
+		stopNotice := func() {}
+		if iter == 0 && hasStatus {
+			stopNotice = a.startSpinupNotice(ctx, status)
+		}
+		callStart := time.Now()
 		// Stream when enabled and a channel writer is present. Tool-call
 		// responses still come back on the same stream path; onProgress is
 		// skipped once tool deltas appear (see provider.CompleteStream).
 		if a.streamReplies && canStream && hasWriter {
 			tw, hasThinking := writer.(channel.ThinkingWriter)
 			res, err = streamer.CompleteStream(ctx, req, func(content, thinking string) error {
+				if firstTokenAt.IsZero() && (content != "" || thinking != "") {
+					firstTokenAt = time.Now()
+					stopNotice()
+				}
 				if hasThinking {
 					return tw.UpdateThinking(ctx, thinking, content)
 				}
@@ -347,9 +404,30 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 		} else {
 			res, err = a.completer.Complete(ctx, req)
 		}
+		callDur := time.Since(callStart)
+		stopNotice()
+		modelTime += callDur
 		if err != nil {
 			return "", err
 		}
+		a.warmed.Store(true)
+		perf := []any{
+			"iteration", iter + 1,
+			"dur_ms", callDur.Milliseconds(),
+			"prompt_est_tokens", promptTokens,
+			"schema_est_tokens", shape.schemas,
+			"volatile_est_tokens", volatileTokens,
+			"tool_schemas", len(toolDefs),
+			"content_chars", len(res.Content),
+			"thinking_chars", len(res.Thinking),
+			"tool_calls", len(res.ToolCalls),
+			"finish_reason", res.FinishReason,
+		}
+		if !firstTokenAt.IsZero() {
+			// Streaming only: prefill+queue time before the first delta.
+			perf = append(perf, "first_token_ms", firstTokenAt.Sub(callStart).Milliseconds())
+		}
+		a.log.Info("model call", perf...)
 		if res.FinishReason == "length" {
 			a.log.Warn("model hit max_tokens (reply may be truncated)",
 				"finish_reason", res.FinishReason,
@@ -431,17 +509,34 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 				"id", call.ID,
 				"iteration", iter+1,
 			)
+			// Show forward motion during long tool chains — with thinking
+			// disabled this is the only signal the user gets while waiting.
+			if hasProgress {
+				_ = progress.UpdateProgress(ctx, toolProgressStart(call.Name))
+			}
 			args := json.RawMessage(call.Arguments)
 			if len(args) == 0 {
 				args = json.RawMessage(`{}`)
 			}
+			toolStart := time.Now()
 			out, err := a.tools.Call(ctx, call.Name, args)
+			toolDur := time.Since(toolStart)
+			toolTime += toolDur
 			if err != nil {
 				if errors.Is(err, context.Canceled) || ctx.Err() != nil {
 					return "", context.Canceled
 				}
 				out = fmt.Sprintf("tool error: %v", err)
-				a.log.Warn("tool call failed", "name", call.Name, "err", err)
+				a.log.Warn("tool call failed", "name", call.Name, "dur_ms", toolDur.Milliseconds(), "err", err)
+			} else {
+				a.log.Info("tool done",
+					"name", call.Name,
+					"dur_ms", toolDur.Milliseconds(),
+					"result_chars", len(out),
+				)
+			}
+			if hasProgress {
+				_ = progress.UpdateProgress(ctx, toolProgressDone(toolDur, len(out), err != nil))
 			}
 			sawTools = true
 			messages = append(messages, provider.Message{
@@ -517,6 +612,113 @@ func parseCommand(text string) (string, bool) {
 		cmd = cmd[:i]
 	}
 	return strings.ToLower(cmd), true
+}
+
+// The two "hang on" lines shown while the model is still silent.
+const (
+	spinupColdNote = "⏳ spinning up — the first reply after a restart takes longer"
+	spinupSlowNote = "⏳ working on it…"
+)
+
+// startSpinupNotice posts one status line so a silent prefill does not look
+// frozen, and returns a stop func (safe to call more than once) that clears the
+// line again so the reply replaces it.
+//
+// The first turn of the process is known-cold — model load and/or an empty
+// prompt cache — so it posts at once. Later turns can be just as slow on a
+// cache miss, but nothing in an OpenAI-compatible API reveals that (Ollama
+// reports the model resident either way), so they post only after staying
+// silent past spinupNotice.
+func (a *Agent) startSpinupNotice(ctx context.Context, status channel.StatusWriter) func() {
+	if a.spinupNotice <= 0 {
+		return func() {}
+	}
+	// posted/stopped guard the timer goroutine against a concurrent stop, so a
+	// notice can never land after the model has already spoken.
+	var (
+		mu      sync.Mutex
+		posted  bool
+		stopped bool
+	)
+	set := func(note string) {
+		mu.Lock()
+		if stopped {
+			mu.Unlock()
+			return
+		}
+		posted = true
+		mu.Unlock()
+		// UpdateStatus only caches text; the channel flushes it out of band, so
+		// this never puts Telegram latency in front of the model call.
+		if err := status.UpdateStatus(ctx, note); err != nil {
+			a.log.Debug("spinup notice skipped", "err", err)
+		}
+	}
+	takeDown := func() {
+		mu.Lock()
+		if stopped {
+			mu.Unlock()
+			return
+		}
+		stopped = true
+		had := posted
+		mu.Unlock()
+		if !had {
+			return
+		}
+		if err := status.UpdateStatus(ctx, ""); err != nil {
+			a.log.Debug("spinup notice clear skipped", "err", err)
+		}
+	}
+	if !a.warmed.Load() {
+		set(spinupColdNote)
+		return takeDown
+	}
+	done := make(chan struct{})
+	go func() {
+		t := time.NewTimer(a.spinupNotice)
+		defer t.Stop()
+		select {
+		case <-done:
+			return
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		set(spinupSlowNote)
+	}()
+	wake := sync.OnceFunc(func() { close(done) })
+	return func() {
+		wake()
+		takeDown()
+	}
+}
+
+// toolProgressStart is the trace line shown before a tool call runs.
+func toolProgressStart(name string) string {
+	return "→ " + name
+}
+
+// toolProgressDone summarises a finished tool call for the visible trace.
+func toolProgressDone(d time.Duration, resultChars int, failed bool) string {
+	if failed {
+		return fmt.Sprintf("✗ failed · %s", shortDuration(d))
+	}
+	return fmt.Sprintf("✓ %s · %s", shortDuration(d), shortChars(resultChars))
+}
+
+func shortDuration(d time.Duration) string {
+	if d < time.Second {
+		return d.Truncate(time.Millisecond).String()
+	}
+	return d.Truncate(100 * time.Millisecond).String()
+}
+
+func shortChars(n int) string {
+	if n >= 1000 {
+		return fmt.Sprintf("%.1fk chars", float64(n)/1000)
+	}
+	return fmt.Sprintf("%d chars", n)
 }
 
 // clipChars truncates s to at most n runes (with ellipsis when clipped).

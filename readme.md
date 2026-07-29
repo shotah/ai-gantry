@@ -69,6 +69,7 @@ gateways, dashboards. Gantry refuses that tax — and hardens the loop for
 | Name repair | Prefix alias + catalog hints on unknown tools | `google_search__…` still hits `google-search__…` |
 | Think stalls | Promote CoT → reply after tools | Multi-step turns finish instead of ERROR |
 | Multi-bubble | Interrupt + coalesce + settle (`COALESCE_SETTLE_MS`) | “Strava… wait Garmin… nvm calendar” → one joined turn |
+| Slow turns | Per-turn perf logs + tool trace in the chat bubble | Know whether prefill, thinking, or an MCP is the wait |
 | Memory | SQLite + FTS5 in-process | No embedding API before every reply |
 | Runtime | One static binary (systemd *or* Distroless) | No Node/Bun/gateway in the path |
 | Gemini 3 | Preserves `thought_signature` on tool rounds | Cloud multi-step turns don't 400 |
@@ -249,7 +250,8 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `CRON_MAX_JOBS` | no | `50` |
 | `CRON_TICK_SECONDS` | no | `15` |
 | `STREAM_REPLIES` | no | `false` (Telegram edit-in-place / stdio token stream) |
-| `COALESCE_SETTLE_MS` | no | `2000` (quiet ms after last bubble before one joined turn; `0` = off) |
+| `COALESCE_SETTLE_MS` | no | `2000` (quiet ms after a bubble **interrupts a running turn**, before one joined turn; a lone message never waits; `0` = off) |
+| `SPINUP_NOTICE_MS` | no | `4000` (post “working on it” after this much model silence; the first turn after start posts at once; needs `STREAM_REPLIES`; `0` = off) |
 | `LOG_LEVEL` | no | `info` |
 
 Boot is fail-fast: missing required env = clear error + exit 1. No partial
@@ -334,7 +336,15 @@ This is the part that earns its keep. Keep it boring and bounded:
 3. **Tool iteration**: execute calls via MCP host (alias underscore prefixes,
    suggest catalog on unknown names), truncate each result to
    `TOOL_RESULT_MAX_CHARS`, loop until final text or `TOOL_MAX_ITERATIONS`.
+   Each call appends a trace line (`→ name`, `✓ 1.2s · 4.1k chars`) to a
+   streaming reply so long chains show motion.
 4. **Reply** on the channel; append turn to session.
+
+Every turn logs its own cost: `model call` (`first_token_ms`, `dur_ms`,
+`prompt_est_tokens`, `tool_schemas`), `tool done` (`dur_ms`, `result_chars`),
+and `turn perf` (`model_ms` / `tool_ms` / `total_ms`). On local models that
+split is the difference between a prefill problem and a slow MCP —
+[docs/deploy-native.md](docs/deploy-native.md#latency-measure-before-tuning).
 
 Bounding rules:
 
@@ -438,12 +448,19 @@ contradictions get surfaced, not obeyed.
 - `gantry version` — build info
 - Logs: JSON `slog` to stderr (`journalctl` native, `docker logs` in compose).
 - Telegram/stdio slash commands: `/new` (session reset), `/cancel` (halt in-flight turn), `/status`, `/tools`; unix `SIGHUP` reloads persona.
-- **Multi-bubble (interrupt → coalesce → settle):** rapid follow-ups while a turn
-  is running (or within `COALESCE_SETTLE_MS`, default **2000**) cancel the current
-  loop, join the bubbles into one user message, then resubmit as a single turn.
-  `/cancel` also clears a pending settle batch. Tools that already finished are
-  not undone. Cron/reaction synthetics skip this path. Details:
+- **Multi-bubble (interrupt → coalesce → settle):** a lone message runs at once;
+  a follow-up sent while a turn is running cancels the current loop, joins the
+  bubbles into one user message, waits `COALESCE_SETTLE_MS` (default **2000**)
+  of quiet, then resubmits as a single turn. `/cancel` also clears a pending
+  settle batch. Tools that already finished are not undone. Cron/reaction
+  synthetics skip this path. Details:
   [local-agent/docs/telegram.md](local-agent/docs/telegram.md).
+- **Spin-up notice:** local models prefill in silence, so `SPINUP_NOTICE_MS`
+  (default **4000**) opens the streaming bubble with a status line before the
+  first token — at once on the first turn after start (known-cold: model load
+  and/or empty prompt cache), otherwise only if the turn stays silent that long
+  (a prompt-cache miss, which no provider API exposes). The line is transient —
+  the reply replaces it, unlike a tool trace. Needs `STREAM_REPLIES`.
 - Telegram photos: inbound → vision (Gemini/OpenAI-compat); outbound `SendPhoto` when the
   reply includes a markdown image or `*.png`/`*.jpg`/… URL (caption = remaining text).
 - Dev: `make build|test|lint|run|ci|check`; `make install-hooks` for pre-commit

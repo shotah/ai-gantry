@@ -189,6 +189,14 @@ func (c *Channel) handleReaction(ctx context.Context, b *bot.Bot, handle channel
 	c.scheduleReaction(ctx, b, handle, key, emojis, target, threadID)
 }
 
+// editStream carries thinking and tool-trace lines, not just plain text — the
+// agent only emits those when the writer advertises the optional interfaces.
+var (
+	_ channel.ThinkingWriter = (*editStream)(nil)
+	_ channel.ProgressWriter = (*editStream)(nil)
+	_ channel.StatusWriter   = (*editStream)(nil)
+)
+
 func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handler, msg channel.Message, chatID int64, threadID int) {
 	stopTyping := c.startTyping(ctx, b, chatID, threadID)
 	defer stopTyping()

@@ -71,6 +71,11 @@ type Config struct {
 	// one joined turn (interrupt + coalesce). 0 disables. Default 2000ms.
 	CoalesceSettleMS int `env:"COALESCE_SETTLE_MS" envDefault:"2000"`
 
+	// SpinupNoticeMS posts a "still working" line once a turn has gone this
+	// long without model output. The first turn after start posts immediately.
+	// Needs STREAM_REPLIES=true. 0 disables. Default 4000ms.
+	SpinupNoticeMS int `env:"SPINUP_NOTICE_MS" envDefault:"4000"`
+
 	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
 }
 
@@ -192,6 +197,9 @@ func (c *Config) Validate() error {
 	}
 	if c.CoalesceSettleMS < 0 {
 		return fmt.Errorf("COALESCE_SETTLE_MS: must be >= 0, got %d", c.CoalesceSettleMS)
+	}
+	if c.SpinupNoticeMS < 0 {
+		return fmt.Errorf("SPINUP_NOTICE_MS: must be >= 0, got %d", c.SpinupNoticeMS)
 	}
 	if c.MemoryConsolidateMinutes < 0 {
 		return fmt.Errorf("MEMORY_CONSOLIDATE_MINUTES: must be >= 0, got %d", c.MemoryConsolidateMinutes)

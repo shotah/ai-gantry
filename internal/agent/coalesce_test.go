@@ -13,22 +13,63 @@ import (
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
-func TestCoalesce_JoinsBurst(t *testing.T) {
-	var saw atomic.Value
-	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
-		for i := len(req.Messages) - 1; i >= 0; i-- {
-			if req.Messages[i].Role == provider.RoleUser {
-				saw.Store(req.Messages[i].Content)
-				break
-			}
-		}
+// A lone bubble must never pay the settle window — that would delay every
+// single reply. Coalescing only kicks in once there is a turn to interrupt.
+func TestCoalesce_LoneMessageRunsImmediately(t *testing.T) {
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
 		return &provider.Result{Content: "ok"}, nil
 	}}
+	const settle = 3 * time.Second
 	a, err := agent.New(agent.Options{
 		Completer:      fc,
 		Sessions:       newMemHistory(),
 		Model:          "m",
-		CoalesceSettle: 30 * time.Millisecond,
+		CoalesceSettle: settle,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	reply, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "hi"})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != "ok" {
+		t.Fatalf("reply = %q", reply)
+	}
+	if elapsed >= settle {
+		t.Fatalf("lone message waited %v — settle must not apply with nothing in flight", elapsed)
+	}
+}
+
+// Chatty-Cathy burst: the first bubble runs, later bubbles land mid-turn and
+// interrupt it, then settle into a single joined turn.
+func TestCoalesce_JoinsBurstDuringInFlightTurn(t *testing.T) {
+	started := make(chan struct{})
+	var calls atomic.Int32
+	var saw atomic.Value
+	block := &gateCompleter{
+		started: started,
+		onComplete: func(ctx context.Context, req provider.Request) (*provider.Result, error) {
+			if calls.Add(1) == 1 {
+				<-ctx.Done() // hold the first turn open until it is interrupted
+				return nil, ctx.Err()
+			}
+			for i := len(req.Messages) - 1; i >= 0; i-- {
+				if req.Messages[i].Role == provider.RoleUser {
+					saw.Store(req.Messages[i].Content)
+					break
+				}
+			}
+			return &provider.Result{Content: "ok"}, nil
+		},
+	}
+	a, err := agent.New(agent.Options{
+		Completer:      block,
+		Sessions:       newMemHistory(),
+		Model:          "m",
+		CoalesceSettle: 60 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -36,9 +77,9 @@ func TestCoalesce_JoinsBurst(t *testing.T) {
 
 	var wg sync.WaitGroup
 	var replies [3]string
-	for i, text := range []string{"pull yesterday's ride", "from Garmin", "MTB"} {
+	send := func(i int, text string) {
 		wg.Add(1)
-		go func(i int, text string) {
+		go func() {
 			defer wg.Done()
 			reply, err := a.Handle(context.Background(), channel.Message{
 				SessionID: "s",
@@ -49,8 +90,18 @@ func TestCoalesce_JoinsBurst(t *testing.T) {
 				return
 			}
 			replies[i] = reply
-		}(i, text)
-		time.Sleep(5 * time.Millisecond) // keep burst inside settle window
+		}()
+	}
+
+	send(0, "pull yesterday's ride")
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first turn did not start")
+	}
+	for i, text := range []string{"from Garmin", "MTB"} {
+		send(i+1, text)
+		time.Sleep(10 * time.Millisecond) // stay inside the settle window
 	}
 	wg.Wait()
 
@@ -135,36 +186,71 @@ func TestCoalesce_InterruptsInFlight(t *testing.T) {
 	}
 }
 
+// /cancel during the settle window must drop the buffered batch, so the joined
+// turn never reaches the model. Pending state only exists after an interrupt.
 func TestCoalesce_CancelClearsPending(t *testing.T) {
-	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
-		t.Fatal("model should not run after /cancel cleared pending")
-		return nil, nil
-	}}
+	started := make(chan struct{})
+	var calls atomic.Int32
+	block := &gateCompleter{
+		started: started,
+		onComplete: func(ctx context.Context, _ provider.Request) (*provider.Result, error) {
+			if calls.Add(1) == 1 {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}
+			t.Error("joined turn ran after /cancel cleared pending")
+			return &provider.Result{Content: "should not happen"}, nil
+		},
+	}
+	const settle = 200 * time.Millisecond
 	a, err := agent.New(agent.Options{
-		Completer:      fc,
+		Completer:      block,
 		Sessions:       newMemHistory(),
 		Model:          "m",
-		CoalesceSettle: 200 * time.Millisecond,
+		CoalesceSettle: settle,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	done := make(chan struct{})
+	firstDone := make(chan struct{})
 	go func() {
-		defer close(done)
-		_, _ = a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "pending ask"})
+		defer close(firstDone)
+		_, _ = a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "first ask"})
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first turn did not start")
+	}
+
+	// Second bubble interrupts the in-flight turn and starts settling.
+	secondDone := make(chan struct{})
+	var secondReply string
+	go func() {
+		defer close(secondDone)
+		secondReply, _ = a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "and also this"})
 	}()
 	time.Sleep(20 * time.Millisecond)
+
 	got, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "/cancel"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The first turn was already interrupted by the second bubble, so only the
+	// settle buffer is left to clear.
 	if !strings.Contains(got, "nothing in progress") {
 		t.Fatalf("expected idle cancel while only settling, got %q", got)
 	}
-	<-done
-	time.Sleep(250 * time.Millisecond) // settle would have fired if not cleared
+	<-firstDone
+	<-secondDone
+	if secondReply != "" {
+		t.Fatalf("cancelled batch should not reply, got %q", secondReply)
+	}
+	time.Sleep(2 * settle) // the settle timer would have fired by now
+	if n := calls.Load(); n != 1 {
+		t.Fatalf("model calls = %d, want 1 (only the interrupted turn)", n)
+	}
 }
 
 func TestCoalesce_SkipsCron(t *testing.T) {

@@ -105,6 +105,11 @@ func Start(ctx context.Context, opts Options) (*Host, error) {
 }
 
 // Tools returns provider tool definitions for the current catalog.
+// Tools returns the published catalog in a stable name order. Order matters
+// for latency, not just tidiness: the schema block is usually the largest part
+// of the prompt and sits in the system message, so a map's randomized order
+// would rewrite the prompt prefix every turn and defeat the provider's prompt
+// cache (forcing a full re-prefill instead of a cache hit).
 func (h *Host) Tools() []provider.ToolDef {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -120,6 +125,7 @@ func (h *Host) Tools() []provider.ToolDef {
 			Parameters:  schema,
 		})
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
 

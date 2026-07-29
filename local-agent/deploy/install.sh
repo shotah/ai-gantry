@@ -46,18 +46,25 @@ chown -R gantry:gantry "$DEST"
 chmod 0755 "$DEST/gantry"
 chmod 0755 "$DEST/bin"/* 2>/dev/null || true
 
-# Dedicated agent box: keep the model resident. Default keep-alive (5m) means
-# every idle gap pays a ~23GB model reload + full cold prompt eval (minutes).
-# Idempotent; delete the override file and restart ollama to revert.
+# Ollama tuning drop-in (keep-alive + context length) from ollama-gantry.conf.
+# Reinstalled whenever the staged file changes, so tuning edits actually ship;
+# unchanged means no restart, so a redeploy keeps the model resident.
+# Delete the override file and restart ollama to revert.
 if systemctl cat ollama.service > /dev/null 2>&1; then
   OLLAMA_OVERRIDE=/etc/systemd/system/ollama.service.d/gantry.conf
-  if [ ! -f "$OLLAMA_OVERRIDE" ]; then
+  if [ -f "$STAGE/ollama-gantry.conf" ]; then
+    if ! cmp -s "$STAGE/ollama-gantry.conf" "$OLLAMA_OVERRIDE"; then
+      mkdir -p /etc/systemd/system/ollama.service.d
+      install -m 0644 "$STAGE/ollama-gantry.conf" "$OLLAMA_OVERRIDE"
+      systemctl daemon-reload
+      systemctl restart ollama
+      echo "Updated ollama drop-in: $OLLAMA_OVERRIDE (ollama restarted; first turn is cold)"
+    else
+      echo "Ollama drop-in already current: $OLLAMA_OVERRIDE"
+    fi
+  elif [ ! -f "$OLLAMA_OVERRIDE" ]; then
     mkdir -p /etc/systemd/system/ollama.service.d
-    cat > "$OLLAMA_OVERRIDE" <<'EOF'
-# Installed by gantry deploy (deploy/install.sh) — never unload the model.
-[Service]
-Environment=OLLAMA_KEEP_ALIVE=-1
-EOF
+    printf '%s\n' '[Service]' 'Environment=OLLAMA_KEEP_ALIVE=-1' > "$OLLAMA_OVERRIDE"
     systemctl daemon-reload
     systemctl restart ollama
     echo "Installed ollama keep-alive override: $OLLAMA_OVERRIDE"

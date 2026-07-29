@@ -35,6 +35,7 @@ type editStream struct {
 	pending          string
 	thinking         string // raw CoT of the current model call (not HTML)
 	thinkingLog      string // archived CoT from earlier calls this turn (tool loops)
+	status           string // transient "hang on" line, cleared by real output
 	answer           string // raw answer text
 	useHTML          bool
 	started          bool
@@ -69,6 +70,7 @@ func (s *editStream) Started() bool {
 func (s *editStream) Update(ctx context.Context, fullText string) error {
 	s.mu.Lock()
 	s.thinking = ""
+	s.status = ""
 	s.answer = fullText
 	s.useHTML = false
 	display := fullText
@@ -99,7 +101,7 @@ func (s *editStream) UpdateThinking(ctx context.Context, thinking, content strin
 		s.thinkingLog += s.thinking
 	}
 	s.thinking = thinking
-	combined := s.combinedThinkingLocked()
+	combined := s.statusThinkingLocked()
 	s.answer = content
 	display, useHTML := buildStreamDisplay(combined, content, s.chunkMax, false)
 	s.useHTML = useHTML
@@ -109,6 +111,73 @@ func (s *editStream) UpdateThinking(ctx context.Context, thinking, content strin
 	s.ensureFlusherLocked(ctx)
 	s.mu.Unlock()
 	return nil
+}
+
+// UpdateProgress appends a tool-trace line to the reasoning block so a long
+// tool chain shows motion. With LLM_REASONING_EFFORT=none this trace is the
+// only thing in the block, which is exactly what the operator wants to watch.
+func (s *editStream) UpdateProgress(ctx context.Context, note string) error {
+	note = strings.TrimSpace(note)
+	if note == "" {
+		return nil
+	}
+	s.mu.Lock()
+	// Archive the current call's CoT first so trace lines stay in order.
+	if s.thinking != "" {
+		if s.thinkingLog != "" {
+			s.thinkingLog += "\n\n"
+		}
+		s.thinkingLog += s.thinking
+		s.thinking = ""
+	}
+	if s.thinkingLog != "" {
+		s.thinkingLog += "\n"
+	}
+	s.thinkingLog += note
+	display, useHTML := buildStreamDisplay(s.statusThinkingLocked(), s.answer, s.chunkMax, false)
+	s.useHTML = useHTML
+	s.started = true
+	s.latest = display
+	s.pending = display
+	s.ensureFlusherLocked(ctx)
+	s.mu.Unlock()
+	return nil
+}
+
+// UpdateStatus sets the transient "hang on" line shown while the model is still
+// silent (prefill emits nothing, so the bubble would otherwise not exist yet).
+// An empty note clears it: the reply replaces the notice rather than leaving it
+// behind in the finished bubble.
+func (s *editStream) UpdateStatus(ctx context.Context, note string) error {
+	note = strings.TrimSpace(note)
+	s.mu.Lock()
+	if note == "" && s.status == "" {
+		s.mu.Unlock()
+		return nil
+	}
+	s.status = note
+	display, useHTML := buildStreamDisplay(s.statusThinkingLocked(), s.answer, s.chunkMax, false)
+	s.useHTML = useHTML
+	s.started = true
+	s.latest = display
+	s.pending = display
+	s.ensureFlusherLocked(ctx)
+	s.mu.Unlock()
+	return nil
+}
+
+// statusThinkingLocked appends the status line below the reasoning/trace block,
+// so it reads as "what is happening right now". Callers hold s.mu.
+func (s *editStream) statusThinkingLocked() string {
+	block := s.combinedThinkingLocked()
+	switch {
+	case s.status == "":
+		return block
+	case block == "":
+		return s.status
+	default:
+		return block + "\n" + s.status
+	}
 }
 
 // combinedThinkingLocked joins archived + current CoT. Callers hold s.mu.
@@ -225,6 +294,9 @@ func (s *editStream) noteRateLimit(err error) {
 
 func (s *editStream) Finish(ctx context.Context, final string) error {
 	s.mu.Lock()
+	// The status line is a waiting indicator — never part of the final bubble,
+	// even if the turn ended by error or cancel before anything cleared it.
+	s.status = ""
 	thinking := s.combinedThinkingLocked()
 	if final == "" {
 		// Raw answer only. pending/latest hold the *formatted display* string

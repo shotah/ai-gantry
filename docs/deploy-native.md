@@ -92,6 +92,80 @@ Open follow-ups (token truncation, eval harness): [native_plan_todo.md](../nativ
 
 ---
 
+## Latency: measure before tuning
+
+On a local model, "slow" is almost never decode speed. Decode is steady; the
+wait is **prefill** (persona + tool schemas + history re-evaluated) and
+**thinking tokens spent before the first tool call**. Both are visible in the
+journal — `gantry` logs every turn:
+
+```bash
+journalctl -u gantry -f | grep -E 'model call|tool done|turn perf'
+```
+
+| Log line | Fields | Read it as |
+| --- | --- | --- |
+| `model call` | `first_token_ms`, `dur_ms`, `volatile_est_tokens`, `prompt_est_tokens`, `schema_est_tokens` | `first_token_ms` ≈ prefill; the rest of `dur_ms` is decode |
+| `tool done` | `dur_ms`, `result_chars` | Slow MCP vs slow model; `result_chars` lands in the volatile tail |
+| `turn perf` | `iterations`, `model_ms`, `tool_ms`, `total_ms`, `hydration_est_tokens` | Which half of the turn to attack |
+
+**`volatile_est_tokens` is the number that predicts `first_token_ms`, not
+`prompt_est_tokens`.** The prefix (persona + summary + history) is byte-stable
+across turns and gets cached; only the tail — hydration, clock, user message,
+and tool results from earlier iterations — is re-evaluated. A warm turn with a
+big total prompt is fine; a warm turn with a big *volatile* tail is not.
+
+Cross-check the model side against Ollama's own numbers (`prompt eval count`
+and `eval count` with per-token timings):
+
+```bash
+journalctl -u ollama -f
+```
+
+### Levers, cheapest first
+
+| Lever | Where | Effect |
+| --- | --- | --- |
+| Stable prompt prefix | code — persona/summary/history first, volatile last; `Host.Tools()` sorted | Biggest single win measured on Qwen/890M: a reshuffled tool block broke the prompt cache and cost ~68s of re-prefill per turn instead of ~2s |
+| `OLLAMA_CONTEXT_LENGTH` | [`deploy/ollama-gantry.conf`](../local-agent/deploy/ollama-gantry.conf) | Ollama's default `num_ctx` is small; overflowing it forces context shifting + re-prefill every turn |
+| `OLLAMA_KEEP_ALIVE=-1` | same file | Model stays resident; confirm with `ollama ps` (want `100% GPU`) |
+| `LLM_REASONING_EFFORT=none` | `gantry.env` | Native default. Thinking tokens decode at full price *before* any tool fires |
+| `TOOL_RESULT_MAX_CHARS` | `gantry.env` | Native default `6000`. Results are re-sent each loop iteration, so this multiplies prefill |
+| Shorter replies | persona (`SOUL.md` → "Length") | Decode is a hard ~23 tok/s: a 230-token reply *is* 10s. Halving reply length halves that. Persona text is in the cached prefix, so it costs nothing per turn |
+| Fewer tools | `mcp.toml` `tools` / `exclude`, MCP `--tool-tier` | Schemas are cached once the prefix is stable, but they inflate total context — and prefill rate falls with length (~1000 tok/s at 16k vs ~264 tok/s at 25k) |
+| `COALESCE_SETTLE_MS` | `gantry.env` | Deliberate quiet window before a turn starts — counts against time-to-first-response |
+| `SPINUP_NOTICE_MS` | `gantry.env` | Doesn't make a turn faster — opens the bubble during silent prefill so it stops *feeling* frozen |
+| `OLLAMA_FLASH_ATTENTION` / `OLLAMA_KV_CACHE_TYPE=q8_0` | `ollama-gantry.conf` (commented) | Faster prefill, much smaller KV cache; measure quality before keeping |
+| Smaller / router model | `LLM_MODEL`, or a second endpoint | Real work — only worth it once the logs say model time dominates |
+
+`install.sh` reinstalls `ollama-gantry.conf` whenever it changes and restarts
+Ollama, so the first turn after a tuning change is cold. Unchanged means no
+restart, so ordinary redeploys keep the model resident.
+
+### Perceived latency
+
+Tool chains stream a trace into the Telegram bubble (`→ garmin__list_activities`
+then `✓ 1.2s · 4.1k chars`), so a long turn shows motion instead of looking
+frozen. With `LLM_REASONING_EFFORT=none` that trace is the whole expandable
+block. Needs `STREAM_REPLIES=true`.
+
+Prefill itself is silent, so `SPINUP_NOTICE_MS` (default `4000`) opens the
+bubble with a "hang on" line before the first token:
+
+- **First turn after gantry starts** posts *"spinning up"* immediately — that
+  turn is known-cold (model load and/or an empty prompt cache) and measures
+  ~76s against ~15s in steady state.
+- **Later turns** post *"working on it"* only after the threshold, which covers
+  a prompt-cache miss. Nothing in an OpenAI-compatible API reveals one:
+  `ollama ps` reports the model resident (`expires_at` in the year 2318 under
+  `OLLAMA_KEEP_ALIVE=-1`) whether the turn takes 15s or 76s, and the KV prefix
+  cache has no API at all. Observed silence is the only honest signal.
+
+Unlike a tool trace the notice is transient — the first token clears it and the
+reply takes the bubble, so it never lingers in the finished message.
+
+---
+
 ## REPL / hack loop (no systemd)
 
 From the repo root, against any OpenAI-compat endpoint (including Ollama):

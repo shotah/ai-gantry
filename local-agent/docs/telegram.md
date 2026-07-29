@@ -66,14 +66,33 @@ broken deploy — reset and ask one concrete thing again.
 
 ### Multi-bubble asks (interrupt + coalesce + settle)
 
-If you send several messages quickly (or a follow-up while Tim is still working), gantry:
+A single message starts work **immediately** — no settle delay. Coalescing only
+engages once there is something to interrupt, so a follow-up bubble that lands
+while Tim is still working causes gantry to:
 
-1. **Interrupts** the in-flight turn (same plumbing as `/cancel`)
-2. **Coalesces** the interrupted text with the new bubble(s)
-3. **Settles** ~2s after the last message (`COALESCE_SETTLE_MS`, default `2000`; `0` disables)
+1. **Interrupt** the in-flight turn (same plumbing as `/cancel`)
+2. **Coalesce** the interrupted text with the new bubble(s)
+3. **Settle** ~2s after the last message (`COALESCE_SETTLE_MS`, default `2000`; `0` disables)
 
-Then runs **one** joined turn. Tools that already finished are not undone. Cron and
-reaction synthetic messages skip this path.
+Then run **one** joined turn. So "check Strava… wait, Garmin… nvm, calendar" fired
+mid-turn becomes a single ask, while a lone question never pays the quiet window.
+Tools that already finished are not undone. Cron and reaction synthetics skip this
+path.
+
+### "Hang on" line before the first token
+
+With `STREAM_REPLIES=true` the bubble normally appears only once the model emits
+something, so a slow prefill shows nothing but the typing dot. `SPINUP_NOTICE_MS`
+(default `4000`) opens the bubble first:
+
+- **⏳ spinning up** — immediately, on the first turn after gantry restarts. That
+  turn is genuinely cold (model load and/or empty prompt cache).
+- **⏳ working on it…** — on any later turn that stays silent past the threshold,
+  which is what a prompt-cache miss looks like from the outside.
+
+Either line is a waiting indicator, not part of the answer: the reply replaces it
+the moment Tim starts talking, and it never survives into the finished bubble
+(tool traces still do). A fast turn never shows one at all. Set `0` to disable.
 
 ---
 
@@ -84,7 +103,9 @@ gantry keeps the prompt bounded with env knobs (defaults are sane; all in
 
 - `HISTORY_MAX_MESSAGES=200` — hard message cap
 - `HISTORY_MAX_TOKENS=128000` — estimated (chars/4); oldest turns drop first
-- `TOOL_RESULT_MAX_CHARS=16000` — trims huge single tool results (Gmail dumps)
+- `TOOL_RESULT_MAX_CHARS=16000` — trims huge single tool results (Gmail dumps).
+  Native/Ollama deploys default to `6000`: results are re-sent on every tool
+  loop iteration, so the cap multiplies prefill cost
 - Tool results older than the last 4 turns collapse to a one-line stub
 - Trimmed turns fold into a rolling per-session **summary** via the same LLM
 
@@ -99,7 +120,20 @@ silent half-message). The final reply is always written on finish.
 If the chat model emits chain-of-thought (Ollama/Qwen `reasoning` / `thinking`
 fields), streaming shows it as **italics** above the answer (live edits would
 reset Telegram’s expandable UI). The **final** message uses an expandable
-italic blockquote. Set `LLM_REASONING_EFFORT=none` to disable thinking entirely.
+italic blockquote. Set `LLM_REASONING_EFFORT=none` to disable thinking entirely
+(the native default — thinking tokens are decoded before any tool fires).
+
+Tool calls append a trace to the same block, so a slow multi-tool turn shows
+motion instead of looking frozen:
+
+```text
+→ garmin__list_activities
+✓ 1.2s · 4.1k chars
+```
+
+With thinking off, that trace is the entire expandable block. Timings also land
+in the journal (`model call` / `tool done` / `turn perf`) — see
+[deploy-native.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-native.md#latency-measure-before-tuning).
 
 ### Error reporting (ops alerts)
 

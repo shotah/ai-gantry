@@ -95,15 +95,28 @@ func (a *Agent) coalesceClear(sessionID string) {
 	}
 }
 
-// coalesceAccept buffers msg, interrupts an in-flight turn (re-merging its
-// user text), waits for settle quiet time, then returns either:
-//   - (joined, true) — this caller should run the turn
-//   - (zero, false) — superseded; another Accept will run the joined batch
+// coalesceAccept decides what to do with an inbound bubble:
+//   - Nothing in flight and nothing buffered → (msg, true) immediately. A lone
+//     message must not pay the settle window; that would delay every reply.
+//   - Otherwise buffer it, interrupt the in-flight turn (re-merging its user
+//     text), and wait out the quiet window, returning either:
+//     (joined, true) — this caller runs the joined turn
+//     (zero, false)  — superseded; a later Accept runs the joined batch
 func (a *Agent) coalesceAccept(ctx context.Context, msg channel.Message) (channel.Message, bool, error) {
 	s := a.coalesceSession(msg.SessionID)
 
 	s.mu.Lock()
-	if text, images, ok := a.interruptTurn(msg.SessionID); ok {
+	text, images, interrupted := a.interruptTurn(msg.SessionID)
+	if !interrupted && len(s.parts) == 0 {
+		// Fast path. A bubble arriving mid-turn still gets merged, because
+		// interruptTurn hands back the running turn's user text.
+		// (Two bubbles landing in the microseconds before runTurn registers the
+		// turn run as two serialized turns rather than one joined turn — the
+		// session lock keeps that correct, just not merged.)
+		s.mu.Unlock()
+		return msg, true, nil
+	}
+	if interrupted {
 		a.log.Info("coalesce interrupt", "session_id", msg.SessionID)
 		if !coalescePartsContain(s.parts, text) {
 			s.parts = append([]coalescePart{{text: text, images: images}}, s.parts...)

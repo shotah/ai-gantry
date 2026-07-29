@@ -51,6 +51,13 @@ Model pin: set `NATIVE_LLM_MODEL=qwen3.6:35b-a3b` in `.env`, then
 
 `remote-native-deploy` / `remote-native-deploy-dev` do **not** overwrite `data/gantry.db`. Migrate memory once (scp), then only ship binary/env/tools/persona.
 
+Ollama tuning (keep-alive, `num_ctx`) ships as
+[`ollama-gantry.conf`](ollama-gantry.conf) → `/etc/systemd/system/ollama.service.d/gantry.conf`.
+`install.sh` reinstalls it **only when the file changes**, and then restarts
+Ollama — so a tuning edit costs one cold turn, while ordinary redeploys leave
+the model resident. Latency levers and how to read the perf logs:
+[../../docs/deploy-native.md](../../docs/deploy-native.md#latency-measure-before-tuning).
+
 MCP credentials live under **`data/.config/`** (same relative paths as Docker):
 
 ```text
