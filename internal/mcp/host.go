@@ -140,7 +140,8 @@ func (h *Host) ToolCount() int {
 func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMessage) (string, error) {
 	tool, resolved, ok := h.resolve(toolName)
 	if !ok {
-		return "", fmt.Errorf("mcp: unknown tool %q — %s", toolName, h.suggest(toolName))
+		hint, candidates := h.suggest(toolName)
+		return "", &UnknownToolError{Name: toolName, Hint: hint, Candidates: candidates}
 	}
 	if resolved != toolName {
 		h.log.Info("mcp tool name aliased", "requested", toolName, "resolved", resolved)
@@ -175,6 +176,7 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 // typo: underscores in the server prefix where the catalog uses hyphens
 // (e.g. google_search__google_search → google-search__google_search).
 // Only the prefix is rewritten; tool suffixes keep underscores.
+// Failing that, a real tool name carrying an invented or missing prefix.
 func (h *Host) resolve(toolName string) (*Tool, string, bool) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -186,7 +188,62 @@ func (h *Host) resolve(toolName string) (*Tool, string, bool) {
 			return tool, alt, true
 		}
 	}
-	return nil, "", false
+	return h.resolveByBaseNameLocked(toolName)
+}
+
+// resolveByBaseNameLocked repairs a call whose tool name is real but whose
+// server prefix is invented or absent (mcp__get_hrv, get_hrv → garmin__get_hrv).
+// Each failed call costs a whole model round-trip, which on a local model is the
+// most expensive thing in a turn, so repair beats a retry hint when there is
+// only one possible answer.
+//
+// Two cases are deliberately left to the model instead:
+//   - The requested prefix is a real server. There the model chose a server on
+//     purpose, and suggest()'s catalog for *that* server beats silently crossing
+//     over to a different one.
+//   - Two servers publish the same tool name (garmin and strava both have
+//     get_activity). Guessing would be a coin flip.
+//
+// Callers hold h.mu.
+func (h *Host) resolveByBaseNameLocked(toolName string) (*Tool, string, bool) {
+	prefix, base, hasPrefix := strings.Cut(toolName, "__")
+	if !hasPrefix {
+		base = toolName
+	} else if h.hasServerPrefixLocked(prefix) {
+		return nil, "", false
+	}
+	base = strings.ToLower(base)
+	if base == "" {
+		return nil, "", false
+	}
+	var (
+		found    *Tool
+		resolved string
+		matches  int
+	)
+	for name, tool := range h.tools {
+		_, candidate, ok := strings.Cut(name, "__")
+		if !ok || strings.ToLower(candidate) != base {
+			continue
+		}
+		matches++
+		found, resolved = tool, name
+	}
+	if matches != 1 {
+		return nil, "", false
+	}
+	return found, resolved, true
+}
+
+// hasServerPrefixLocked reports whether any published tool uses this prefix.
+// Callers hold h.mu.
+func (h *Host) hasServerPrefixLocked(prefix string) bool {
+	for name := range h.tools {
+		if p, _, ok := strings.Cut(name, "__"); ok && p == prefix {
+			return true
+		}
+	}
+	return false
 }
 
 // hyphenatePrefix rewrites server__tool so underscores in the server prefix
@@ -203,11 +260,24 @@ func hyphenatePrefix(toolName string) (string, bool) {
 	return altPrefix + "__" + rest, true
 }
 
-// suggest builds a model-facing hint for an unknown tool name. Small local
-// models hallucinate tool names; echoing the real catalog for the requested
-// server prefix lets them self-correct on the next iteration instead of
-// concluding the whole integration is broken.
-func (h *Host) suggest(toolName string) string {
+// UnknownToolError reports a tool name that could not be resolved. Candidates
+// holds the real names the model most plausibly meant, so a caller can constrain
+// the retry to those instead of hoping the hint is read correctly.
+type UnknownToolError struct {
+	Name       string   // the name the model asked for
+	Hint       string   // model-facing explanation, already catalog-aware
+	Candidates []string // real prefixed names, best guess first; may be empty
+}
+
+func (e *UnknownToolError) Error() string {
+	return fmt.Sprintf("mcp: unknown tool %q — %s", e.Name, e.Hint)
+}
+
+// suggest builds a model-facing hint for an unknown tool name, plus the real
+// names behind it. Small local models hallucinate tool names; echoing the real
+// catalog for the requested server prefix lets them self-correct on the next
+// iteration instead of concluding the whole integration is broken.
+func (h *Host) suggest(toolName string) (string, []string) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	prefix, _, hasPrefix := strings.Cut(toolName, "__")
@@ -220,7 +290,7 @@ func (h *Host) suggest(toolName string) string {
 		}
 		if len(names) > 0 {
 			sort.Strings(names)
-			return fmt.Sprintf("no such tool; valid %s tools are: %s — retry with one of these exact names", prefix, strings.Join(names, ", "))
+			return fmt.Sprintf("no such tool; valid %s tools are: %s — retry with one of these exact names", prefix, strings.Join(names, ", ")), names
 		}
 		// Prefix miss that is only underscore-vs-hyphen: still list that
 		// server's tools so the model keeps the exact names (not just prefixes).
@@ -234,7 +304,7 @@ func (h *Host) suggest(toolName string) string {
 			if len(names) > 0 {
 				sort.Strings(names)
 				return fmt.Sprintf("no such tool or server prefix %q (did you mean %q?); valid %s tools are: %s — retry with one of these exact names",
-					prefix, altPrefix, altPrefix, strings.Join(names, ", "))
+					prefix, altPrefix, altPrefix, strings.Join(names, ", ")), names
 			}
 		}
 	}
@@ -247,7 +317,84 @@ func (h *Host) suggest(toolName string) string {
 		}
 	}
 	sort.Strings(names)
-	return "no such tool or server prefix; available server prefixes are: " + strings.Join(names, ", ")
+	prefixes := "available server prefixes are: " + strings.Join(names, ", ")
+	// A bare prefix list is useless to a model that invented the whole name, so
+	// lead with the real tools its fragments point at.
+	if near := h.nearestLocked(toolName); len(near) > 0 {
+		return fmt.Sprintf("no such tool; closest real names are: %s — retry with one of these exact names; %s",
+			strings.Join(near, ", "), prefixes), near
+	}
+	return "no such tool or server prefix; " + prefixes, nil
+}
+
+// maxToolSuggestions bounds the hint: a long list is just more to hallucinate from.
+const maxToolSuggestions = 5
+
+// genericToolTokens appear all over any catalog, so matching on them ranks
+// everything equally and says nothing.
+var genericToolTokens = map[string]bool{
+	"get": true, "list": true, "set": true, "search": true, "create": true,
+	"update": true, "delete": true, "add": true, "and": true, "or": true,
+	"my": true, "the": true, "data": true, "info": true,
+}
+
+// nearestLocked ranks published tools by how many meaningful name tokens they
+// share with the requested name. A local model that invents a tool usually
+// stitches real fragments together — mcp__get_hrv_and_body_battery is
+// garmin__get_hrv plus garmin__get_body_battery — so the fragments point
+// straight at the tools it actually wanted. Callers hold h.mu.
+func (h *Host) nearestLocked(toolName string) []string {
+	base := toolName
+	if _, rest, ok := strings.Cut(toolName, "__"); ok {
+		base = rest
+	}
+	want := meaningfulTokens(base)
+	if len(want) == 0 {
+		return nil
+	}
+	type scored struct {
+		name  string
+		score int
+	}
+	var ranked []scored
+	for name := range h.tools {
+		_, nameBase, _ := strings.Cut(name, "__")
+		score := 0
+		for tok := range meaningfulTokens(nameBase) {
+			if want[tok] {
+				score++
+			}
+		}
+		if score > 0 {
+			ranked = append(ranked, scored{name: name, score: score})
+		}
+	}
+	sort.Slice(ranked, func(i, j int) bool {
+		if ranked[i].score != ranked[j].score {
+			return ranked[i].score > ranked[j].score
+		}
+		return ranked[i].name < ranked[j].name
+	})
+	if len(ranked) > maxToolSuggestions {
+		ranked = ranked[:maxToolSuggestions]
+	}
+	out := make([]string, len(ranked))
+	for i, r := range ranked {
+		out[i] = r.name
+	}
+	return out
+}
+
+// meaningfulTokens splits a tool name into scoreable lowercase tokens.
+func meaningfulTokens(name string) map[string]bool {
+	out := make(map[string]bool)
+	for _, tok := range strings.Split(strings.ToLower(name), "_") {
+		if tok == "" || genericToolTokens[tok] {
+			continue
+		}
+		out[tok] = true
+	}
+	return out
 }
 
 func (h *Host) callOnce(ctx context.Context, tool *Tool, args map[string]any) (string, error) {

@@ -363,13 +363,18 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 		)
 	}()
 
+	// Names to force on the next call, set when a tool name failed to resolve.
+	var forceNames []string
 	for iter := 0; iter < a.maxToolIters; iter++ {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
 		iters = iter + 1
 		bounded := collapseOldToolResults(messages)
-		req := provider.Request{Messages: bounded, Tools: toolDefs}
+		req := provider.Request{Messages: bounded, Tools: toolDefs, ForceToolNames: forceNames}
+		// One-shot: a repair either lands or the turn continues unconstrained.
+		constrained := len(forceNames) > 0
+		forceNames = nil
 		promptTokens := estTokens(bounded) + shape.schemas
 		// The re-evaluated remainder: hydration + clock + user message, plus
 		// any tool results appended by earlier iterations.
@@ -389,7 +394,7 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 		// Stream when enabled and a channel writer is present. Tool-call
 		// responses still come back on the same stream path; onProgress is
 		// skipped once tool deltas appear (see provider.CompleteStream).
-		if a.streamReplies && canStream && hasWriter {
+		if a.streamReplies && canStream && hasWriter && !constrained {
 			tw, hasThinking := writer.(channel.ThinkingWriter)
 			res, err = streamer.CompleteStream(ctx, req, func(content, thinking string) error {
 				if firstTokenAt.IsZero() && (content != "" || thinking != "") {
@@ -423,6 +428,9 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 			"tool_calls", len(res.ToolCalls),
 			"finish_reason", res.FinishReason,
 		}
+		if constrained {
+			perf = append(perf, "forced_tool_names", len(req.ForceToolNames))
+		}
 		if !firstTokenAt.IsZero() {
 			// Streaming only: prefill+queue time before the first delta.
 			perf = append(perf, "first_token_ms", firstTokenAt.Sub(callStart).Milliseconds())
@@ -434,6 +442,20 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 				"chars", len(res.Content),
 				"iteration", iter+1,
 			)
+		}
+		// Models sometimes print the tool call instead of emitting one. Left
+		// alone that JSON becomes the visible reply — the agent answering in
+		// wire format — so run it as the call it plainly is.
+		if len(res.ToolCalls) == 0 && a.tools != nil {
+			if call, ok := salvageToolCall(res.Content, toolDefs); ok {
+				a.log.Warn("model printed a tool call instead of emitting one; executing it",
+					"name", call.Name,
+					"chars", len(res.Content),
+					"iteration", iter+1,
+				)
+				res.ToolCalls = []provider.ToolCall{call}
+				res.Content = ""
+			}
 		}
 		if len(res.ToolCalls) == 0 {
 			if res.Content == "" {
@@ -528,6 +550,16 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 				}
 				out = fmt.Sprintf("tool error: %v", err)
 				a.log.Warn("tool call failed", "name", call.Name, "dur_ms", toolDur.Milliseconds(), "err", err)
+				// A name that does not exist is worth more than a hint: constrain
+				// the retry so the model physically cannot spell it wrong twice.
+				var unknown *mcp.UnknownToolError
+				if errors.As(err, &unknown) && len(unknown.Candidates) > 0 {
+					forceNames = unknown.Candidates
+					a.log.Info("constraining retry to real tool names",
+						"requested", unknown.Name,
+						"candidates", len(unknown.Candidates),
+					)
+				}
 			} else {
 				a.log.Info("tool done",
 					"name", call.Name,
@@ -692,6 +724,27 @@ func (a *Agent) startSpinupNotice(ctx context.Context, status channel.StatusWrit
 		wake()
 		takeDown()
 	}
+}
+
+// salvageToolCall recovers a tool call the model wrote as text. The name must
+// look like a tool — published, or at least carrying a server prefix — so an
+// ordinary reply that happens to contain JSON is never hijacked into a call.
+// An unpublished but prefixed name is still worth running: the host answers with
+// the real names, which is how the model gets corrected.
+func salvageToolCall(content string, defs []provider.ToolDef) (provider.ToolCall, bool) {
+	call, ok := provider.ParseToolCallText(content)
+	if !ok {
+		return provider.ToolCall{}, false
+	}
+	if strings.Contains(call.Name, "__") {
+		return call, true
+	}
+	for _, def := range defs {
+		if def.Name == call.Name {
+			return call, true
+		}
+	}
+	return provider.ToolCall{}, false
 }
 
 // toolProgressStart is the trace line shown before a tool call runs.

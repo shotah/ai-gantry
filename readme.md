@@ -66,8 +66,9 @@ gateways, dashboards. Gantry refuses that tax — and hardens the loop for
 | Lever | What we do | Why it matters |
 | --- | --- | --- |
 | Tool surface | Manifest filters + MCP `--tool-tier` | Smaller schemas → better tool picks (Flash *or* Qwen) |
-| Name repair | Prefix alias + catalog hints on unknown tools | `google_search__…` still hits `google-search__…` |
+| Name repair | Prefix alias/rebuild, closest-name hints, then a grammar-constrained retry | `google_search__…` and `mcp__get_hrv` still land; an unresolvable name makes the retry unable to misspell it |
 | Think stalls | Promote CoT → reply after tools | Multi-step turns finish instead of ERROR |
+| Printed calls | Parse a tool call written as text and run it | A model that prints `{"name":…}` never speaks JSON at you |
 | Multi-bubble | Interrupt + coalesce + settle (`COALESCE_SETTLE_MS`) | “Strava… wait Garmin… nvm calendar” → one joined turn |
 | Slow turns | Per-turn perf logs + tool trace in the chat bubble | Know whether prefill, thinking, or an MCP is the wait |
 | Memory | SQLite + FTS5 in-process | No embedding API before every reply |
@@ -306,9 +307,10 @@ on purpose).
 
 Tool names are always prefixed `{server}__{tool}` (OpenAI-safe; avoids
 collisions). Local models often turn the hyphenated *prefix* into underscores
-(`google_search__google_search`); the host aliases that back to the catalog
-name and, on hard misses, returns a model-facing suggestion with the exact
-tools for that server. Full contract, `/tools` REPL workflow, and why:
+(`google_search__google_search`), or invent one outright (`mcp__get_hrv`); the
+host repairs both back to the catalog name when exactly one tool can be meant,
+and on hard misses returns a model-facing suggestion naming the closest real
+tools. Full contract, `/tools` REPL workflow, and why:
 **[docs/mcp.md](docs/mcp.md)**.
 
 ### 5.3 Host layout
@@ -333,8 +335,9 @@ This is the part that earns its keep. Keep it boring and bounded:
    hydration block (§7.4) + session history (bounded) + user message.
 2. **Call model** with MCP tool schemas (loaded eagerly at boot; refreshed on
    server restart).
-3. **Tool iteration**: execute calls via MCP host (alias underscore prefixes,
-   suggest catalog on unknown names), truncate each result to
+3. **Tool iteration**: execute calls via MCP host (repair unambiguous prefix
+   mistakes, else suggest closest real names *and* constrain the next call to
+   them with a response-format grammar), truncate each result to
    `TOOL_RESULT_MAX_CHARS`, loop until final text or `TOOL_MAX_ITERATIONS`.
    Each call appends a trace line (`→ name`, `✓ 1.2s · 4.1k chars`) to a
    streaming reply so long chains show motion.

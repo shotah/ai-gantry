@@ -47,10 +47,29 @@ in thinking → ERROR). Remaining gaps:
 - [x] Promote thinking → reply when `sawTools` and Content empty (no second nudge)
 - [x] Nudge when prose promises a tool (“let me pull…”, `server__tool`) with no
       `tool_calls` (once, before tools)
+- [x] Invented tool names now get closest-real-name hints, not just a prefix
+      list (Jul 28: `mcp__get_hrv_and_body_battery` = fake prefix + `get_hrv`
+      merged with `get_body_battery`; the bare prefix list told him nothing and
+      he answered in prose instead of retrying)
+- [x] Invented/missing prefix on a *real* tool name is now repaired in place
+      (`mcp__get_hrv` → `garmin__get_hrv`), saving a ~9s round-trip. Not repaired
+      when the prefix is a real server, or when two servers share the name
 - [ ] Nudge on `finish_reason=length` with no usable output (today: warn only)
 - [ ] `TOOL_MAX_ITERATIONS` exhaustion currently returns an error → user sees
       "something went wrong"; better: final forced completion with "answer with
       what you have, no more tools"
+- [x] **Printed tool calls** (Jul 28, seen in the wild): after the prose nudge,
+      Qwen answered with `{"name":"garmin__get_daily_activity","parameters":{…}}`
+      as *content* and gantry sent that JSON to Telegram as Tim's reply. Now
+      parsed back into a real call and executed (bare / fenced / `<tool_call>`
+      tags / embedded in prose; `arguments`|`parameters`|`args`|`input`). Requires
+      a tool-shaped name so a JSON answer is never hijacked
+- [x] **Grammar-constrained repair retry** (shipped). After an unresolvable tool
+      name, the next call sends `response_format` with an `enum` of the real
+      candidates, so Ollama's GBNF masks any other name. Probed on 0.32.4:
+      `tools` + `response_format` still suppresses `tool_calls` (call arrives in
+      `content`), and dropping `tools` costs argument correctness — so keep both.
+      One-shot and non-streaming, since a grammar forces every reply to be JSON
 - [ ] Consider Ollama structured outputs / `format` for tool-call turns if
       truncated-JSON retries prove common
 

@@ -59,6 +59,17 @@ const skipThoughtSignature = "skip_thought_signature_validator"
 type Request struct {
 	Messages []Message
 	Tools    []ToolDef
+	// ForceToolNames constrains the reply to exactly one tool call whose name is
+	// in this list, using the provider's structured-output grammar. Ollama
+	// compiles it to a GBNF that masks every token which would spell any other
+	// name, so a hallucinated name becomes unsamplable rather than unlikely.
+	//
+	// Keep Tools populated alongside it: the model still reads the real parameter
+	// schemas from there, which is what keeps arguments correct.
+	//
+	// Ollama drops the tool_calls field whenever a response_format is set, so the
+	// call arrives as JSON in content and Complete converts it back to a ToolCall.
+	ForceToolNames []string
 }
 
 // Result is the model response (text and/or tool calls).
@@ -136,7 +147,34 @@ func (c *Client) buildParams(req Request) (openai.ChatCompletionNewParams, error
 			Parameters:  shared.FunctionParameters(t.Parameters),
 		}))
 	}
+	if len(req.ForceToolNames) > 0 {
+		params.ResponseFormat = openai.ChatCompletionNewParamsResponseFormatUnion{
+			OfJSONSchema: &shared.ResponseFormatJSONSchemaParam{
+				JSONSchema: shared.ResponseFormatJSONSchemaJSONSchemaParam{
+					Name:   "tool_call",
+					Strict: openai.Bool(true),
+					Schema: forcedToolCallSchema(req.ForceToolNames),
+				},
+			},
+		}
+	}
 	return params, nil
+}
+
+// forcedToolCallSchema is the grammar for "one tool call, name from this set".
+// Arguments stay unconstrained on purpose: the real parameter schemas reach the
+// model through the tools list, and duplicating them here would only add a
+// second place to get them wrong.
+func forcedToolCallSchema(names []string) map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"name":      map[string]any{"type": "string", "enum": names},
+			"arguments": map[string]any{"type": "object"},
+		},
+		"required":             []string{"name", "arguments"},
+		"additionalProperties": false,
+	}
 }
 
 // Complete calls chat.completions and returns text and/or tool calls.
@@ -177,6 +215,15 @@ func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
 				call.Raw = json.RawMessage(raw)
 			}
 			out.ToolCalls = append(out.ToolCalls, call)
+		}
+	}
+	// Under a response_format grammar Ollama leaves tool_calls empty, so the call
+	// only exists as JSON in content.
+	if len(out.ToolCalls) == 0 && len(req.ForceToolNames) > 0 {
+		if call, ok := ParseToolCallText(out.Content); ok {
+			out.ToolCalls = []ToolCall{call}
+			out.Content = ""
+			out.FinishReason = "tool_calls"
 		}
 	}
 	if out.Content == "" && len(out.ToolCalls) == 0 && out.Thinking == "" {

@@ -3,6 +3,7 @@ package mcp_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -93,6 +94,134 @@ command = "unused"
 	if err == nil || !strings.Contains(err.Error(), "available server prefixes are: google-workspace") {
 		t.Fatalf("err = %v, want prefix list", err)
 	}
+}
+
+// A failed tool call costs a full model round-trip — the most expensive thing in
+// a local-model turn — so a real tool name wearing an invented or missing prefix
+// is repaired in place instead of bounced back as a hint.
+func TestHost_RepairsPrefixOnRealToolName(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "garmin"
+command = "unused"
+
+[[server]]
+name = "strava"
+command = "unused"
+`)
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(_ context.Context, spec mcp.ServerSpec, _ io.Writer) (mcp.Conn, error) {
+			if spec.Name == "garmin" {
+				return &fakeConn{tools: []mcp.Tool{
+					{OriginalName: "get_hrv"},
+					{OriginalName: "get_sleep"},
+					{OriginalName: "get_activity"},
+				}}, nil
+			}
+			return &fakeConn{tools: []mcp.Tool{
+				{OriginalName: "get_activity"},
+				{OriginalName: "get_athlete"},
+			}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+	ctx := context.Background()
+
+	// Invented prefix, one server publishes the name: call it.
+	for _, name := range []string{"mcp__get_hrv", "get_sleep", "GARMIN__get_hrv"} {
+		out, err := host.Call(ctx, name, nil)
+		if err != nil {
+			t.Fatalf("Call(%q) = %v, want repair", name, err)
+		}
+		if !strings.Contains(out, "get_") {
+			t.Fatalf("Call(%q) out = %q, want the tool result", name, out)
+		}
+	}
+
+	// Both servers publish get_activity: guessing would be a coin flip, so hand
+	// the model both real names instead.
+	_, err = host.Call(ctx, "mcp__get_activity", nil)
+	if err == nil {
+		t.Fatal("want error for an ambiguous tool name")
+	}
+	for _, want := range []string{"garmin__get_activity", "strava__get_activity"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("err = %v, want substring %q", err, want)
+		}
+	}
+
+	// Real prefix: the model picked that server deliberately, so list its
+	// catalog rather than silently crossing to the server that has the name.
+	_, err = host.Call(ctx, "garmin__get_athlete", nil)
+	if err == nil {
+		t.Fatal("want error, not a cross-server repair")
+	}
+	if !strings.Contains(err.Error(), "valid garmin tools are") {
+		t.Fatalf("err = %v, want the garmin catalog", err)
+	}
+}
+
+// Observed on Qwen: it invented mcp__get_hrv_and_body_battery — a fake prefix
+// stitched onto two real tool names merged together — then gave up when the
+// error only listed server prefixes. The fragments name the tools it wanted, so
+// the hint must lead with those.
+func TestHost_InventedToolNameSuggestsRealNeighbors(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "garmin"
+command = "unused"
+`)
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
+			return &fakeConn{tools: []mcp.Tool{
+				{OriginalName: "get_hrv"},
+				{OriginalName: "get_body_battery"},
+				{OriginalName: "get_sleep"},
+				{OriginalName: "list_activities"},
+			}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	_, err = host.Call(context.Background(), "mcp__get_hrv_and_body_battery", nil)
+	if err == nil {
+		t.Fatal("want error for invented tool")
+	}
+	got := err.Error()
+	if !strings.Contains(got, "closest real names are") {
+		t.Fatalf("err = %v, want closest-name hint", err)
+	}
+	// Two shared tokens (body, battery) must outrank one (hrv).
+	body := strings.Index(got, "garmin__get_body_battery")
+	hrv := strings.Index(got, "garmin__get_hrv")
+	if body < 0 || hrv < 0 || body > hrv {
+		t.Fatalf("err = %v, want get_body_battery ranked before get_hrv", err)
+	}
+	// Tools sharing nothing but the generic "get"/"list" verb are noise.
+	for _, unwanted := range []string{"garmin__get_sleep", "garmin__list_activities"} {
+		if strings.Contains(got, unwanted) {
+			t.Fatalf("err = %v, must not suggest unrelated %q", err, unwanted)
+		}
+	}
+	// The same names must be machine-readable, so the agent can constrain the
+	// retry instead of trusting the model to read the hint.
+	var unknown *mcp.UnknownToolError
+	if !errors.As(err, &unknown) {
+		t.Fatalf("err is %T, want *mcp.UnknownToolError", err)
+	}
+	want := []string{"garmin__get_body_battery", "garmin__get_hrv"}
+	if !slices.Equal(unknown.Candidates, want) {
+		t.Fatalf("candidates = %v, want %v", unknown.Candidates, want)
+	}
+
 }
 
 // The schema block is the biggest slice of the prompt and leads the system

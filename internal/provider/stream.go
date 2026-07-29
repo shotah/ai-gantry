@@ -99,6 +99,11 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onProgress fun
 	if len(req.Messages) == 0 {
 		return nil, fmt.Errorf("provider: messages must not be empty")
 	}
+	// A grammar-constrained reply is a JSON tool call, not prose — streaming it
+	// would type raw JSON into the user's bubble.
+	if len(req.ForceToolNames) > 0 {
+		return c.Complete(ctx, req)
+	}
 
 	params, err := c.buildParams(req)
 	if err != nil {

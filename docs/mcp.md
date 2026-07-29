@@ -88,7 +88,25 @@ google_workspace__get_events  →  google-workspace__get_events   ✅ called
 ```
 
 Tool suffixes are **not** rewritten (`google_search` stays `google_search`).
-When an alias fires, logs show:
+
+A real tool name wearing an invented or missing prefix is repaired the same way,
+because a bounced call costs a full model round-trip — the most expensive thing
+in a local-model turn:
+
+```text
+mcp__get_hrv  →  garmin__get_hrv   ✅ called
+get_hrv       →  garmin__get_hrv   ✅ called
+```
+
+Two cases are left to the model on purpose:
+
+- **Real prefix, wrong tool** (`garmin__get_athlete` when only Strava has it).
+  The model chose that server deliberately, so it gets that server's catalog
+  rather than a silent hop to a different server.
+- **Two servers publish the name** (`get_activity` on both Garmin and Strava).
+  Guessing is a coin flip, so both real names go back as a hint.
+
+When any repair fires, logs show:
 
 ```text
 mcp tool name aliased  requested=…  resolved=…
@@ -102,18 +120,82 @@ If lookup still fails, the error string is model-facing and catalog-aware:
 | --- | --- |
 | Wrong tool, real prefix | `valid google-search tools are: google-search__google_search — retry with one of these exact names` |
 | Underscored prefix, wrong tool | `did you mean "google-search"?` + that server’s exact tool list |
-| Unknown prefix | `available server prefixes are: cast, garmin, google-search, …` |
+| Invented name (fake prefix, merged suffix) | `closest real names are: garmin__get_body_battery, garmin__get_hrv — retry with one of these exact names` |
+| Unknown prefix, nothing close | `available server prefixes are: cast, garmin, google-search, …` |
 
 The agent loop feeds that error back as a tool result so the next iteration
 can self-correct (same pattern as argument/schema failures).
 
+Closest-name ranking scores shared name tokens, ignoring generic verbs (`get`,
+`list`, `set`, …) that would otherwise match everything. A model that invents a
+tool tends to stitch real fragments together — `mcp__get_hrv_and_body_battery`
+is `get_hrv` plus `get_body_battery` under a prefix that does not exist — so the
+fragments identify what it was reaching for even when neither prefix nor suffix
+is real.
+
+### Printed tool calls
+
+A model can also skip the `tool_calls` field entirely and *print* the call:
+
+```json
+{ "name": "garmin__get_daily_activity", "parameters": { "date": "2026-07-28" } }
+```
+
+Without handling, that JSON is just assistant text, so it becomes the visible
+reply — the agent answering in wire format. gantry parses it back into a real
+call and runs it, accepting the object bare, fenced, inside `<tool_call>` tags,
+or embedded in prose, with arguments under `arguments`, `parameters`, `args`, or
+`input` (models pick all of them).
+
+```text
+model printed a tool call instead of emitting one; executing it  name=… chars=90
+```
+
+The name must look like a tool — published, or at least carrying a `server__`
+prefix — so an ordinary reply that happens to contain JSON is never hijacked. An
+unpublished but prefixed name is still run on purpose: the host's answer is what
+names the real tools, which feeds the retry below.
+
+### Grammar-constrained retry
+
+A hint only works if the model reads it. When a name cannot be resolved *and*
+there are real candidates, the next model call is constrained instead: gantry
+sends `response_format` with a JSON schema whose `name` is an `enum` of those
+candidates. Ollama compiles that to a GBNF grammar and masks every token that
+would spell anything else, so a bad name stops being unlikely and becomes
+impossible.
+
+```text
+tool call failed        name=mcp__get_hrv_and_body_battery
+constraining retry …    requested=mcp__get_hrv_and_body_battery candidates=2
+model call              iteration=2 forced_tool_names=2
+```
+
+Three details make it work:
+
+- **`tools` stays in the request.** The model reads real parameter schemas from
+  there. Drop it and the name is still legal but the arguments are invented
+  (measured on Qwen: `start_date`/`end_date` instead of `date`).
+- **The call arrives in `content`, not `tool_calls`.** Ollama omits `tool_calls`
+  whenever a `response_format` is set (still true in 0.32.4), so the provider
+  parses the JSON object back into a `ToolCall`.
+- **It is one-shot, and never streams.** A grammar forces *every* reply to be
+  JSON, so leaving it on would make conversational answers impossible; and
+  streaming it would type raw JSON into the user's bubble.
+
+No candidates means no constraint — forcing a call out of the whole catalog is
+just a different guess.
+
 ### What aliasing does *not* fix
 
-- Invented tool suffixes (`…__web_search`) — still need a retry with the
-  suggested name (or a tighter `TOOLS.md` / smaller tool surface)
+- Invented tool suffixes (`…__web_search`) — no real name to repair to, so these
+  still need a retry with the suggested name (or a tighter `TOOLS.md` / smaller
+  tool surface)
 - Wrong arguments (e.g. passing a time range as `event_id`) — MCP/API errors
 - Think-only turns with no tool call — agent nudge / stall path in
   `internal/agent` (separate from naming)
+- A model that neither calls nor prints anything callable — still a nudge, then
+  the turn answers with whatever prose it has
 
 ---
 
