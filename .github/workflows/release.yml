@@ -31,6 +31,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Point latest git tag at this release
+        # Keep a floating `latest` tag on the same commit as the version tag (v*).
+        # Skip prereleases (semver with a hyphen, e.g. v1.2.3-rc.1).
+        if: ${{ !contains(github.ref_name, '-') }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa latest -m "Release ${GITHUB_REF_NAME} (latest)"
+          git push --force origin refs/tags/latest
+
       - name: Index module on proxy.golang.org
         # Makes `go get github.com/shotah/ai-gantry@${{ github.ref_name }}` resolve quickly.
         run: |

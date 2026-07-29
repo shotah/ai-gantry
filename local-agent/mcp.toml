@@ -14,7 +14,7 @@
 
 # Google MCP (shotah/google-mcp) — docs/google-workspace.md
 # Server id "google" → tools like google__calendar_list_events.
-# --preset everyday ≈ gmail+calendar+docs+sheets+tasks, core, edit (~20 tools).
+# --preset everyday ≈ gmail+calendar+docs+sheets+tasks, core, edit (~23 tools).
 # Auth: `google-mcp auth` via gantry, or `make google-auth` (Python helper).
 [[server]]
 name = "google"

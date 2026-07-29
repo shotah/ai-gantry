@@ -22,7 +22,7 @@ service-prefixed tool names). Examples: `google__calendar_list_events`,
 ## What LOCAL_AGENT can do (`--preset everyday`)
 
 Default `mcp.toml` uses `--preset everyday`: **gmail + calendar + docs + sheets +
-tasks**, core tier, edit capability (~20 tools). Drive tools are **not** loaded
+tasks**, core tier, edit capability (~23 tools). Drive tools are **not** loaded
 (Docs/Sheets work without them).
 
 | Ask | Tool |
@@ -33,6 +33,7 @@ tasks**, core tier, edit capability (~20 tools). Drive tools are **not** loaded
 | “Change the location on my 3pm” | `calendar_list_events` → `google__calendar_update_event` |
 | “Delete the duplicate / cancel my 3pm” | `calendar_list_events` → `google__calendar_delete_event` |
 | “Add a task …” | `google__tasks_create_task` (often `task_list_id="@default"`) |
+| “Make me a grocery list” | `google__tasks_create_tasklist` → `google__tasks_create_task` per item |
 | “Make / read a Doc” | `google__docs_create` / `google__docs_get_content` |
 | “Read / update that Sheet” | `google__sheets_read_values` / `google__sheets_modify_values` |
 

@@ -29,7 +29,7 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - **Calendar day:** `google__calendar_list_events` — omit `event_id`; `calendar_id="primary"`, both `time_min` + `time_max`
 - **Calendar update:** `calendar_list_events` → id → `google__calendar_update_event`
 - **Gmail:** `google__gmail_search_messages` → `google__gmail_get_message`; send only if asked
-- **Tasks:** `google__tasks_list_tasks` / `google__tasks_create_task` (`task_list_id="@default"` when needed)
+- **Tasks:** `google__tasks_list_tasks` / `google__tasks_create_task` (`task_list_id="@default"` when needed); new list → `google__tasks_create_tasklist` then create tasks in it
 - **Docs / Sheets:** `google__docs_*` / `google__sheets_*` (everyday preset has no Drive tools)
 - Do not narrate — call the exact `google__…` name from the tools list
 

@@ -217,7 +217,7 @@ func TestAgent_Handle_ProseToolPromiseGetsNudged(t *testing.T) {
 			}, nil
 		case 2:
 			last := req.Messages[len(req.Messages)-1]
-			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "did not emit a tool call") {
+			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "no tool call was made") {
 				t.Fatalf("missing tool-promise nudge: %+v", last)
 			}
 			return &provider.Result{ToolCalls: []provider.ToolCall{
@@ -249,6 +249,59 @@ func TestAgent_Handle_ProseToolPromiseGetsNudged(t *testing.T) {
 		t.Fatalf("reply = %q", reply)
 	}
 	if len(tools.calls) != 1 || tools.calls[0] != "garmin__get_sleep" {
+		t.Fatalf("tools = %v", tools.calls)
+	}
+	if reqs != 3 {
+		t.Fatalf("completions = %d, want 3", reqs)
+	}
+}
+
+// A fabricated success claim ("I've created…") with zero tool calls must get
+// the same nudge as a promise — the model then makes the real call.
+func TestAgent_Handle_FakeSuccessClaimGetsNudged(t *testing.T) {
+	ctx := context.Background()
+	var reqs int
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		reqs++
+		switch reqs {
+		case 1:
+			return &provider.Result{
+				Content: "You got it! I've created a new task list in Google Tasks for you.",
+			}, nil
+		case 2:
+			last := req.Messages[len(req.Messages)-1]
+			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "nothing actually happened") {
+				t.Fatalf("missing fake-success nudge: %+v", last)
+			}
+			return &provider.Result{ToolCalls: []provider.ToolCall{
+				{ID: "c1", Name: "google__tasks_create_tasklist", Arguments: `{"title":"Groceries"}`},
+			}}, nil
+		default:
+			return &provider.Result{Content: "Created the Groceries list."}, nil
+		}
+	}}
+	tools := &fakeTools{
+		defs: []provider.ToolDef{{Name: "google__tasks_create_tasklist", Parameters: map[string]any{"type": "object"}}},
+		out:  `{"id":"list1","title":"Groceries"}`,
+	}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "Can you create a Google task list"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(reply, "Groceries") {
+		t.Fatalf("reply = %q", reply)
+	}
+	if len(tools.calls) != 1 || tools.calls[0] != "google__tasks_create_tasklist" {
 		t.Fatalf("tools = %v", tools.calls)
 	}
 	if reqs != 3 {

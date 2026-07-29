@@ -493,10 +493,11 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 				return "", fmt.Errorf("agent: empty model reply")
 			}
 			// Prose that promises a tool ("I'll pull…", mentions server__tool)
-			// without actually emitting tool_calls — common Qwen failure. Nudge
-			// once before tools; after tools, accept the text as the answer.
-			if !sawTools && !nudged && promisesToolCall(res.Content, res.Thinking) {
-				a.log.Warn("model promised tool call in prose without calling",
+			// or falsely claims one already ran ("I've created…") without any
+			// tool_calls this turn — common Qwen failure. Nudge once before
+			// tools; after tools, accept the text as the answer.
+			if !sawTools && !nudged && (promisesToolCall(res.Content, res.Thinking) || claimsToolSuccess(res.Content)) {
+				a.log.Warn("model narrated tool action in prose without calling",
 					"chars", len(res.Content),
 					"iteration", iter+1,
 				)
@@ -507,9 +508,9 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 				})
 				messages = append(messages, provider.Message{
 					Role: provider.RoleSystem,
-					Content: "[system] You described calling a tool but did not emit a tool call. " +
-						"Do it now: invoke the exact tool name from the tools list (e.g. garmin__get_sleep for overnight sleep). " +
-						"Do not narrate — call the function. For 'last night' sleep, omit date or pass today.",
+					Content: "[system] You described or claimed a tool action, but no tool call was made — nothing actually happened. " +
+						"Emit the real tool call now using the exact name from the tools list. " +
+						"Do not narrate and never report results you did not receive from a tool.",
 				})
 				continue
 			}
@@ -821,7 +822,31 @@ func promisesToolCall(content, thinking string) bool {
 		"let me pull", "let me call", "let me query", "let me fetch", "let me check",
 		"i'll pull", "i'll call", "i'll query", "i'll fetch", "i'll check", "i'll use",
 		"i will call", "i will pull", "i will query", "going to call", "about to call",
-		"query body battery", "call this function", "calling the",
+		"query body battery", "call this function", "calling the", "call the tool",
+	}
+	for _, cue := range cues {
+		if strings.Contains(text, cue) {
+			return true
+		}
+	}
+	return false
+}
+
+// claimsToolSuccess reports whether content claims a completed side-effecting
+// action ("I've created…") — a fabricated success when no tools ran this turn.
+// Only checked when sawTools is false, so honest post-tool summaries never hit
+// it. Content only: thinking may legitimately plan in past tense.
+func claimsToolSuccess(content string) bool {
+	text := strings.ToLower(content)
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	cues := []string{
+		"i've created", "i have created", "i've added", "i have added",
+		"i've updated", "i have updated", "i've deleted", "i have deleted",
+		"i've removed", "i have removed", "i've sent", "i have sent",
+		"i've scheduled", "i have scheduled", "i've set up", "i have set up",
+		"is now created", "has been created", "has been added", "has been sent",
 	}
 	for _, cue := range cues {
 		if strings.Contains(text, cue) {

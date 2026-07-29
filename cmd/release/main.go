@@ -1,4 +1,5 @@
 // Command release bumps the semver tag, updates VERSION, and pushes.
+// Also moves the floating "latest" git tag to the same commit as the version tag.
 //
 // Usage:
 //
@@ -20,6 +21,8 @@ import (
 	"strings"
 )
 
+const latestTagName = "latest"
+
 var semverRE = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)$`)
 
 func main() {
@@ -40,7 +43,7 @@ func main() {
 
 	_ = gitRun("fetch", "--tags", "--quiet")
 
-	current := latestTag()
+	current := latestSemverTag()
 	next, err := nextVersion(current, *bump, *version)
 	if err != nil {
 		fatalf("%v", err)
@@ -48,6 +51,7 @@ func main() {
 
 	fmt.Printf("Current tag: %s\n", displayTag(current))
 	fmt.Printf("Next tag:    %s\n", next)
+	fmt.Printf("Also tag:    %s (moves to same commit)\n", latestTagName)
 
 	if *dryRun {
 		fmt.Println("Dry run — no commit, tag, or push.")
@@ -85,6 +89,11 @@ func main() {
 	}
 	fmt.Println("Created tag", next)
 
+	if err := pointLatestAtHEAD(next); err != nil {
+		fatalf("git tag %s: %v", latestTagName, err)
+	}
+	fmt.Println("Moved tag", latestTagName, "→", next)
+
 	if *skipPush {
 		fmt.Println("Skipped push (-skip-push).")
 		return
@@ -96,7 +105,16 @@ func main() {
 	if err := gitRun("push", "origin", next); err != nil {
 		fatalf("git push tag: %v", err)
 	}
-	fmt.Printf("Pushed HEAD and %s — GitHub Release workflow should start.\n", next)
+	// Floating tag — force is required when latest already exists on the remote.
+	if err := gitRun("push", "--force", "origin", "refs/tags/"+latestTagName); err != nil {
+		fatalf("git push %s: %v", latestTagName, err)
+	}
+	fmt.Printf("Pushed HEAD, %s, and %s — GitHub Release workflow should start.\n", next, latestTagName)
+}
+
+// pointLatestAtHEAD force-moves the floating "latest" annotated tag to HEAD.
+func pointLatestAtHEAD(version string) error {
+	return gitRun("tag", "-fa", latestTagName, "-m", "Release "+version+" ("+latestTagName+")")
 }
 
 func displayTag(tag string) string {
@@ -106,7 +124,7 @@ func displayTag(tag string) string {
 	return tag
 }
 
-func latestTag() string {
+func latestSemverTag() string {
 	out := strings.TrimSpace(gitOutput("tag", "-l", "v*", "--sort=-v:refname"))
 	if out == "" {
 		return ""
