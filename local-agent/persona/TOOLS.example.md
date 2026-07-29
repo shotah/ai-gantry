@@ -2,6 +2,16 @@
 
 > Copy to `TOOLS.md` via `make persona`. Add host-specific notes locally; don’t commit secrets.
 
+## Server routing (read first)
+
+| Ask about… | Server | Never |
+|---|---|---|
+| Calendar / mail / tasks / docs / sheets | `google__…` | `strava__`, `garmin__` |
+| Workouts / load | `strava__` / `garmin__` | `google__` |
+| Sleep / recovery | `garmin__` | `strava__` for sleep |
+
+Wrong-server error → switch prefix; don’t retry Strava for calendar.
+
 ## Timezone (all tools)
 
 - Human timezone is in `USER.md` / `[current time]` (from `CRON_TZ`) — usually Pacific here. Match that; not UTC.

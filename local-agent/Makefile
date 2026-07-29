@@ -60,7 +60,7 @@ endif
         remote-ssh remote-deploy \
         remote-native-env remote-native-check remote-native-fetch remote-native-sync remote-native-install \
         remote-native-up remote-native-down remote-native-restart remote-native-logs remote-native-status \
-        remote-native-deploy remote-native-deploy-dev remote-native-build-dev
+        remote-native-deploy remote-native-deploy-dev remote-native-deploy-dev-quick remote-native-build-dev
 
 help: ## Show available commands
 	@echo.
@@ -150,6 +150,7 @@ help: ## Show available commands
 	@echo     remote-native-status   gantry status on host
 	@echo     remote-native-deploy   env + fetch release + sync + install + start
 	@echo     remote-native-deploy-dev  cross-build tree + sync + install + start (no GH release)
+	@echo     remote-native-deploy-dev-quick  same, reuse host MCP bins (no GitHub tools-plan)
 	@echo     remote-native-build-dev   linux/amd64 -^> .cache/native/gantry only
 	@echo     deploy/README.md       Native layout + cutover notes
 	@echo.
@@ -377,7 +378,10 @@ remote-native-build-dev: ## Cross-build linux/amd64 gantry into .cache/native/ga
 	$(REMOTE_NATIVE) build-dev
 
 remote-native-deploy-dev: ## env + local linux build + sync + install + start (skip GH release)
-	$(REMOTE_NATIVE) deploy-dev
+	$(REMOTE_NATIVE) deploy-dev $(if $(filter 1 true yes,$(NATIVE_SKIP_TOOLS)),-SkipTools,)
 	@echo.
 	@echo Dev native deploy done (working-tree binary). logs: make remote-native-logs
 	@echo.
+
+remote-native-deploy-dev-quick: ## like deploy-dev but reuse host MCP bins (no GitHub tools-plan)
+	$(MAKE) remote-native-deploy-dev NATIVE_SKIP_TOOLS=1

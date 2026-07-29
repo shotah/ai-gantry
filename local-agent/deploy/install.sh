@@ -21,7 +21,9 @@ mkdir -p "$DEST/bin" "$DEST/data" "$DEST/persona"
 
 install -m 0755 "$STAGE/gantry" "$DEST/gantry"
 
-if [ -d "$STAGE/bin" ]; then
+# Only touch DEST/bin when the stage actually shipped tools. Empty/missing stage
+# bin means "leave host tools alone" (SkipTools / quick gantry-only deploys).
+if [ -d "$STAGE/bin" ] && compgen -G "$STAGE/bin/*" > /dev/null; then
   find "$STAGE/bin" -maxdepth 1 -type f -executable -exec install -m 0755 {} "$DEST/bin/" \;
   # Drop binaries no longer staged (renamed/removed MCP tools, e.g. google-workspace-mcp-go → google-mcp).
   shopt -s nullglob
@@ -33,6 +35,8 @@ if [ -d "$STAGE/bin" ]; then
     fi
   done
   shopt -u nullglob
+else
+  echo "No tools in stage — leaving $DEST/bin unchanged"
 fi
 
 if [ -f "$STAGE/gantry.env" ]; then

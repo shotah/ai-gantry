@@ -165,6 +165,74 @@ command = "unused"
 	}
 }
 
+// Calendar ask + hallucinated strava__*event* must not put every Strava tool in
+// Candidates — that constrained the retry so the model could not call google__.
+func TestHost_WrongServerGuessCandidatesAreNearestNotWholeCatalog(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "google"
+command = "unused"
+
+[[server]]
+name = "strava"
+command = "unused"
+`)
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(_ context.Context, spec mcp.ServerSpec, _ io.Writer) (mcp.Conn, error) {
+			switch spec.Name {
+			case "google":
+				return &fakeConn{tools: []mcp.Tool{
+					{OriginalName: "calendar_list_events"},
+					{OriginalName: "calendar_get_event"},
+					{OriginalName: "calendar_delete_event"},
+				}}, nil
+			case "strava":
+				return &fakeConn{tools: []mcp.Tool{
+					{OriginalName: "strava_get_activities"},
+					{OriginalName: "strava_get_activity"},
+					{OriginalName: "strava_get_activity_streams"},
+					{OriginalName: "strava_get_athlete"},
+					{OriginalName: "strava_get_stats"},
+					{OriginalName: "strava_get_zones"},
+				}}, nil
+			default:
+				return nil, fmt.Errorf("unexpected server %q", spec.Name)
+			}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	_, err = host.Call(context.Background(), "strava__strava_get_event", nil)
+	if err == nil {
+		t.Fatal("want unknown tool error")
+	}
+	var unknown *mcp.UnknownToolError
+	if !errors.As(err, &unknown) {
+		t.Fatalf("err is %T, want *mcp.UnknownToolError", err)
+	}
+	if !strings.Contains(unknown.Hint, "valid strava tools are") {
+		t.Fatalf("hint should still list the strava catalog: %s", unknown.Hint)
+	}
+	for _, c := range unknown.Candidates {
+		if strings.HasPrefix(c, "strava__") && len(unknown.Candidates) >= 6 {
+			t.Fatalf("Candidates = %v; must not be the whole strava catalog (traps calendar retries)", unknown.Candidates)
+		}
+	}
+	// Prefer pointing at calendar when the invented name ends in get_event.
+	joined := strings.Join(unknown.Candidates, " ")
+	if !strings.Contains(joined, "google__calendar_") && len(unknown.Candidates) > 0 {
+		// nearest may be empty if tokens don't match — also OK (unconstrained retry).
+		t.Logf("Candidates = %v (ok if empty; must not be full strava dump)", unknown.Candidates)
+	}
+	if len(unknown.Candidates) >= 6 {
+		t.Fatalf("Candidates = %v, want at most a short nearest list", unknown.Candidates)
+	}
+}
+
 // Observed on Qwen: it invented mcp__get_hrv_and_body_battery — a fake prefix
 // stitched onto two real tool names merged together — then gave up when the
 // error only listed server prefixes. The fragments name the tools it wanted, so

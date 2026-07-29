@@ -5,7 +5,10 @@
 param(
   [Parameter(Position = 0, Mandatory = $true)]
   [ValidateSet('check', 'env', 'fetch', 'build-dev', 'sync', 'install', 'up', 'down', 'restart', 'logs', 'status', 'deploy', 'deploy-dev')]
-  [string]$Action
+  [string]$Action,
+  # Skip MCP tool fetch/stage (reuse /opt/gantry/bin). For small gantry/persona iterates
+  # without hitting GitHub (download_tag=latest rate limits). Env: NATIVE_SKIP_TOOLS=1
+  [switch]$SkipTools
 )
 
 $ErrorActionPreference = 'Stop'
@@ -64,6 +67,10 @@ $gantryVersion = if ($envMap['GANTRY_VERSION']) { $envMap['GANTRY_VERSION'] } el
 $dockerHost = $envMap['NATIVE_DOCKER_HOST']
 $dockerContainer = if ($envMap['NATIVE_DOCKER_CONTAINER']) { $envMap['NATIVE_DOCKER_CONTAINER'] } else { 'gantry' }
 $DefaultLlmModel = 'qwen3.6:35b-a3b'
+if (-not $SkipTools) {
+  $v = $envMap['NATIVE_SKIP_TOOLS']
+  if ($v -eq '1' -or $v -eq 'true' -or $v -eq 'yes') { $SkipTools = $true }
+}
 
 if (-not $hostName -and $Action -ne 'env' -and $Action -ne 'fetch') {
   throw "Set DEPLOY_HOST in .env"
@@ -250,6 +257,7 @@ function Build-GantryDev {
 
 function Get-McpToolsPlan {
   # Inventory from mcp.toml via gantry tools-plan (download_url + all commands).
+  # Hits GitHub when download_tag=latest — use -SkipTools / Get-McpCommandsFromToml for iterates.
   $repoRoot = Split-Path -Parent $Root
   $manifest = Join-Path $Root 'mcp.toml'
   if (-not (Test-Path $manifest)) { throw "Missing $manifest" }
@@ -261,6 +269,19 @@ function Get-McpToolsPlan {
     Pop-Location
   }
   return ($json | ConvertFrom-Json)
+}
+
+function Get-McpCommandsFromToml {
+  # command = "…" lines only — no GitHub / tools-plan.
+  $manifest = Join-Path $Root 'mcp.toml'
+  if (-not (Test-Path $manifest)) { throw "Missing $manifest" }
+  $cmds = [System.Collections.Generic.List[string]]::new()
+  Get-Content -LiteralPath $manifest | ForEach-Object {
+    if ($_ -match '^\s*command\s*=\s*"([^"]+)"\s*(#.*)?$') {
+      $cmds.Add($Matches[1])
+    }
+  }
+  return @($cmds | Select-Object -Unique)
 }
 
 function Fetch-McpDownloadTools {
@@ -385,7 +406,12 @@ function Sync-Stage {
   if (-not (Test-Path $envFile)) { throw "Missing deploy/gantry.env - run make remote-native-env" }
 
   Write-Host "Staging -> ${target}:${StageRemote}"
-  Invoke-Remote "rm -rf $StageRemote && mkdir -p $StageRemote/bin $StageRemote/persona"
+  if ($SkipTools) {
+    Write-Host "SkipTools: not staging MCP bins (host /opt/gantry/bin left as-is)"
+    Invoke-Remote "rm -rf $StageRemote && mkdir -p $StageRemote/persona"
+  } else {
+    Invoke-Remote "rm -rf $StageRemote && mkdir -p $StageRemote/bin $StageRemote/persona"
+  }
   & $ScpExe @scpArgs $gantryBin "${target}:${StageRemote}/gantry"
   if ($LASTEXITCODE -ne 0) { throw 'scp gantry failed' }
   & $ScpExe @scpArgs (Join-Path $DeployDir 'gantry.service') "${target}:${StageRemote}/gantry.service"
@@ -396,19 +422,20 @@ function Sync-Stage {
   $mcp = Join-Path $Root 'mcp.toml'
   if (Test-Path $mcp) { & $ScpExe @scpArgs $mcp "${target}:${StageRemote}/mcp.toml" }
 
-  # Only stage MCP binaries named in mcp.toml (drops renames like google-workspace-mcp-go).
-  $plan = Get-McpToolsPlan
-  $wantedBins = @($plan.commands | Where-Object { $_ } | Select-Object -Unique)
-  Prune-CachedToolBins -Wanted $wantedBins
-  $binDir = Join-Path $Cache 'bin'
-  foreach ($name in $wantedBins) {
-    $src = Join-Path $binDir $name
-    if (-not (Test-Path -LiteralPath $src)) {
-      Write-Host "Note: mcp.toml command '$name' not in .cache/native/bin (fetch may have skipped)"
-      continue
+  if (-not $SkipTools) {
+    # Commands from mcp.toml only (no GitHub). Fetch already resolved archives into cache.
+    $wantedBins = @(Get-McpCommandsFromToml | Where-Object { $_ })
+    Prune-CachedToolBins -Wanted $wantedBins
+    $binDir = Join-Path $Cache 'bin'
+    foreach ($name in $wantedBins) {
+      $src = Join-Path $binDir $name
+      if (-not (Test-Path -LiteralPath $src)) {
+        Write-Host "Note: mcp.toml command '$name' not in .cache/native/bin (run fetch, or deploy with -SkipTools)"
+        continue
+      }
+      & $ScpExe @scpArgs $src "${target}:${StageRemote}/bin/$name"
+      if ($LASTEXITCODE -ne 0) { throw "scp tool $name failed" }
     }
-    & $ScpExe @scpArgs $src "${target}:${StageRemote}/bin/$name"
-    if ($LASTEXITCODE -ne 0) { throw "scp tool $name failed" }
   }
 
   # Persona: only the canonical four (SOUL/RULES/USER/TOOLS). install.sh rsync --delete
@@ -476,7 +503,11 @@ switch ($Action) {
   'deploy-dev' {
     Ensure-NativeEnv
     Build-GantryDev
-    Fetch-McpDownloadTools
+    if ($SkipTools) {
+      Write-Host "SkipTools: not fetching MCP binaries from GitHub"
+    } else {
+      Fetch-McpDownloadTools
+    }
     Sync-Stage
     Install-Remote -Restart
     Write-Host "Dev deploy done (local linux/amd64 build). logs: make remote-native-logs"

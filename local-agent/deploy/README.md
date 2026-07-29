@@ -42,7 +42,16 @@ make remote-native-logs
 
 # Dev loop (no release): cross-build this checkout → scp → install → restart
 make remote-native-deploy-dev
+
+# Quick iterate (gantry + persona + env only — leave /opt/gantry/bin alone; no GitHub)
+make remote-native-deploy-dev-quick
+# or: NATIVE_SKIP_TOOLS=1 make remote-native-deploy-dev
 ```
+
+`download_tag=latest` in `mcp.toml` calls the GitHub API on tool fetch and can
+403 when unauthenticated rate limits trip. Use **deploy-dev-quick** for kernel/persona
+loops; run a full `deploy-dev` / `remote-native-fetch` when you need new MCP binaries.
+Optional: set `GITHUB_TOKEN` in the environment to raise the API limit.
 
 Model pin: set `NATIVE_LLM_MODEL=qwen3.6:35b-a3b` in `.env`, then
 `make remote-native-env` (rewrites `deploy/gantry.env`). Deploy / deploy-dev
@@ -69,10 +78,10 @@ Full behavior: [../../docs/cron.md](../../docs/cron.md#spark-of-life-opt-in).
 
 `remote-native-deploy` / `remote-native-deploy-dev` do **not** overwrite `data/gantry.db`. Migrate memory once (scp), then only ship binary/env/tools/persona.
 
-MCP tools: sync only stages binaries named in `mcp.toml`. `install.sh` removes
-anything in `/opt/gantry/bin` that is not in the stage (so renames like
-`google-workspace-mcp-go` → `google-mcp` clean up on the next install). Local
-stale copies under `.cache/native/bin` are pruned on fetch/sync the same way.
+MCP tools: sync stages binaries named in `mcp.toml` (from local cache). `install.sh`
+removes anything in `/opt/gantry/bin` that is not in the stage — unless the stage
+ships **no** tools (`-SkipTools` / `deploy-dev-quick`), in which case host bins are
+left alone. Local stale copies under `.cache/native/bin` are pruned on fetch/sync.
 
 Ollama tuning (keep-alive, `num_ctx`) ships as
 [`ollama-gantry.conf`](ollama-gantry.conf) → `/etc/systemd/system/ollama.service.d/gantry.conf`.

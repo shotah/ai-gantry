@@ -54,6 +54,34 @@ func TestParseToolCallText(t *testing.T) {
 		content:  `{"name":"math__evaluate","arguments":{"expr":"{2+2}"}}`,
 		wantName: "math__evaluate",
 		wantArgs: "{2+2}",
+	}, {
+		// Qwen prints MCP calls as {server__tool(k="v")} instead of tool_calls.
+		name: "fn-style braced kwargs",
+		content: `{google__calendar_list_events(time_min="2026-07-29T00:00:00-07:00", ` +
+			`time_max="2026-07-30T00:00:00-07:00", calendar_id="primary", ` +
+			`user_google_email="christopherblodgett@gmail.com")}`,
+		wantName: "google__calendar_list_events",
+		wantArgs: "christopherblodgett@gmail.com",
+	}, {
+		name:     "fn-style without braces",
+		content:  `Calling garmin__get_sleep(date="2026-07-29") now.`,
+		wantName: "garmin__get_sleep",
+		wantArgs: "2026-07-29",
+	}, {
+		name: "fn-style duplicated in reply (take first)",
+		content: `{google__calendar_list_events(calendar_id="primary", time_min="2026-07-29T00:00:00-07:00")}` +
+			"\n\n" +
+			`{google__calendar_list_events(calendar_id="primary", time_min="2026-07-29T00:00:00-07:00")}`,
+		wantName: "google__calendar_list_events",
+		wantArgs: "primary",
+	}, {
+		// Brat mode: name in prose, args in a markdown json fence.
+		name: "args-only json fence with tool name nearby",
+		content: "google__calendar_list_events\n```json\n" +
+			`{"calendar_id":"primary","time_min":"2026-07-29T00:00:00-07:00","time_max":"2026-07-30T00:00:00-07:00"}` +
+			"\n```",
+		wantName: "google__calendar_list_events",
+		wantArgs: "time_min",
 	}}
 
 	for _, tc := range cases {
@@ -83,10 +111,28 @@ func TestParseToolCallText_Rejects(t *testing.T) {
 		`{"name":"","arguments":{}}`,            // empty name
 		`{"nickname":"tim","arguments":{}}`,     // name-ish key that is not name
 		"{\"name\":\"x\", \"arguments\": {oops", // unbalanced
+		// Real answer that mentions a tool and includes unrelated JSON — do not hijack.
+		`I already used google__calendar_list_events earlier. Macros: {"protein":180,"carbs":220}`,
 	} {
 		if call, ok := provider.ParseToolCallText(content); ok {
 			t.Errorf("ParseToolCallText(%q) = %+v, want rejected", content, call)
 		}
+	}
+}
+
+func TestParseToolCallTextHinted_ArgsOnlyFromPriorTurn(t *testing.T) {
+	content := "```json\n" +
+		`{"calendar_id":"primary","time_max":"2026-07-30T00:00:00-07:00","time_min":"2026-07-29T00:00:00-07:00","user_google_email":"christopherblodgett@gmail.com"}` +
+		"\n```"
+	call, ok := provider.ParseToolCallTextHinted(content, []string{"google__calendar_list_events"})
+	if !ok {
+		t.Fatal("expected salvage from hint + args-only fence")
+	}
+	if call.Name != "google__calendar_list_events" {
+		t.Fatalf("name = %q", call.Name)
+	}
+	if !strings.Contains(call.Arguments, "christopherblodgett@gmail.com") {
+		t.Fatalf("arguments = %q", call.Arguments)
 	}
 }
 

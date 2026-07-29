@@ -447,7 +447,7 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 		// alone that JSON becomes the visible reply — the agent answering in
 		// wire format — so run it as the call it plainly is.
 		if len(res.ToolCalls) == 0 && a.tools != nil {
-			if call, ok := salvageToolCall(res.Content, toolDefs); ok {
+			if call, ok := salvageToolCall(res.Content, toolDefs, messages); ok {
 				a.log.Warn("model printed a tool call instead of emitting one; executing it",
 					"name", call.Name,
 					"chars", len(res.Content),
@@ -550,12 +550,13 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 				}
 				out = fmt.Sprintf("tool error: %v", err)
 				a.log.Warn("tool call failed", "name", call.Name, "dur_ms", toolDur.Milliseconds(), "err", err)
-				// A name that does not exist is worth more than a hint: constrain
-				// the retry so the model physically cannot spell it wrong twice.
+				// Constrain only to a tight nearest shortlist (see mcp.suggest).
+				// Never lock the next turn to an entire wrong server (e.g. every
+				// strava__* tool after a calendar hallucination).
 				var unknown *mcp.UnknownToolError
 				if errors.As(err, &unknown) && len(unknown.Candidates) > 0 {
 					forceNames = unknown.Candidates
-					a.log.Info("constraining retry to real tool names",
+					a.log.Info("constraining retry to nearest tool names",
 						"requested", unknown.Name,
 						"candidates", len(unknown.Candidates),
 					)
@@ -735,8 +736,12 @@ func (a *Agent) startSpinupNotice(ctx context.Context, status channel.StatusWrit
 // ordinary reply that happens to contain JSON is never hijacked into a call.
 // An unpublished but prefixed name is still worth running: the host answers with
 // the real names, which is how the model gets corrected.
-func salvageToolCall(content string, defs []provider.ToolDef) (provider.ToolCall, bool) {
-	call, ok := provider.ParseToolCallText(content)
+//
+// hints come from the latest assistant message (name printed last turn, args-only
+// JSON this turn). System nudge text is ignored so examples like garmin__get_sleep
+// do not steal the call.
+func salvageToolCall(content string, defs []provider.ToolDef, messages []provider.Message) (provider.ToolCall, bool) {
+	call, ok := provider.ParseToolCallTextHinted(content, lastAssistantToolHints(messages))
 	if !ok {
 		return provider.ToolCall{}, false
 	}
@@ -749,6 +754,20 @@ func salvageToolCall(content string, defs []provider.ToolDef) (provider.ToolCall
 		}
 	}
 	return provider.ToolCall{}, false
+}
+
+func lastAssistantToolHints(messages []provider.Message) []string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role != provider.RoleAssistant {
+			continue
+		}
+		names := provider.PrefixedToolNames(messages[i].Content)
+		if len(names) == 1 {
+			return names
+		}
+		return nil
+	}
+	return nil
 }
 
 // toolProgressStart is the trace line shown before a tool call runs.

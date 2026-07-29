@@ -273,14 +273,16 @@ func (e *UnknownToolError) Error() string {
 	return fmt.Sprintf("mcp: unknown tool %q — %s", e.Name, e.Hint)
 }
 
-// suggest builds a model-facing hint for an unknown tool name, plus the real
-// names behind it. Small local models hallucinate tool names; echoing the real
-// catalog for the requested server prefix lets them self-correct on the next
-// iteration instead of concluding the whole integration is broken.
+// suggest builds a model-facing hint for an unknown tool name, plus Candidates
+// for a constrained retry. Hint may list a whole server catalog; Candidates are
+// only the nearest few names — never the full prefix dump. Dumping every
+// strava__* tool as Candidates trapped calendar asks on the wrong server after
+// one bad guess (the model could not call google__* on the retry).
 func (h *Host) suggest(toolName string) (string, []string) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	prefix, _, hasPrefix := strings.Cut(toolName, "__")
+	near := h.nearestLocked(toolName)
 	var names []string
 	if hasPrefix {
 		for name := range h.tools {
@@ -290,7 +292,9 @@ func (h *Host) suggest(toolName string) (string, []string) {
 		}
 		if len(names) > 0 {
 			sort.Strings(names)
-			return fmt.Sprintf("no such tool; valid %s tools are: %s — retry with one of these exact names", prefix, strings.Join(names, ", ")), names
+			hint := fmt.Sprintf("no such tool; valid %s tools are: %s — if this was the wrong integration, use another server prefix; otherwise retry with one of these exact names",
+				prefix, strings.Join(names, ", "))
+			return hint, near
 		}
 		// Prefix miss that is only underscore-vs-hyphen: still list that
 		// server's tools so the model keeps the exact names (not just prefixes).
@@ -303,8 +307,9 @@ func (h *Host) suggest(toolName string) (string, []string) {
 			}
 			if len(names) > 0 {
 				sort.Strings(names)
-				return fmt.Sprintf("no such tool or server prefix %q (did you mean %q?); valid %s tools are: %s — retry with one of these exact names",
-					prefix, altPrefix, altPrefix, strings.Join(names, ", ")), names
+				hint := fmt.Sprintf("no such tool or server prefix %q (did you mean %q?); valid %s tools are: %s — if this was the wrong integration, use another server prefix; otherwise retry with one of these exact names",
+					prefix, altPrefix, altPrefix, strings.Join(names, ", "))
+				return hint, near
 			}
 		}
 	}
@@ -320,7 +325,7 @@ func (h *Host) suggest(toolName string) (string, []string) {
 	prefixes := "available server prefixes are: " + strings.Join(names, ", ")
 	// A bare prefix list is useless to a model that invented the whole name, so
 	// lead with the real tools its fragments point at.
-	if near := h.nearestLocked(toolName); len(near) > 0 {
+	if len(near) > 0 {
 		return fmt.Sprintf("no such tool; closest real names are: %s — retry with one of these exact names; %s",
 			strings.Join(near, ", "), prefixes), near
 	}
