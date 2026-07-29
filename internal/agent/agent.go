@@ -582,17 +582,19 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 }
 
 func (a *Agent) status(ctx context.Context, sessionID string) (string, error) {
-	n, est, err := a.sessions.Stats(ctx, sessionID)
+	n, histEst, err := a.sessions.Stats(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}
-	tools := 0
+	var budget mcp.SchemaBudget
 	if a.tools != nil {
-		tools = a.tools.ToolCount()
+		budget = mcp.EstimateSchemaBudget(a.tools.Tools())
 	}
 	uptime := time.Since(a.startedAt).Truncate(time.Second)
-	return fmt.Sprintf("uptime=%s model=%s history_messages=%d est_tokens=%d tools=%d",
-		uptime, a.model, n, est, tools), nil
+	return fmt.Sprintf(
+		"uptime=%s model=%s history_messages=%d history_est_tokens=%d tools=%d schema_est_tokens=%d",
+		uptime, a.model, n, histEst, budget.Tools, budget.EstTokens,
+	), nil
 }
 
 func (a *Agent) listTools() string {
@@ -603,13 +605,20 @@ func (a *Agent) listTools() string {
 	if len(defs) == 0 {
 		return "tools: (none)"
 	}
+	budget := mcp.EstimateSchemaBudget(defs)
 	names := make([]string, 0, len(defs))
 	for _, d := range defs {
 		names = append(names, d.Name)
 	}
 	sort.Strings(names)
 	var b strings.Builder
-	fmt.Fprintf(&b, "tools (%d):\n", len(names))
+	fmt.Fprintf(&b, "tools (%d) schema_est_tokens≈%d (chars/4)\n", budget.Tools, budget.EstTokens)
+	if len(budget.ByServer) > 0 {
+		b.WriteString("by server:\n")
+		for _, s := range budget.ByServer {
+			fmt.Fprintf(&b, "  %s: %d tools ≈ %d\n", s.Server, s.Tools, s.EstTokens)
+		}
+	}
 	for _, name := range names {
 		server, tool := splitPrefixedTool(name)
 		if server != "" {
@@ -646,12 +655,6 @@ func parseCommand(text string) (string, bool) {
 	return strings.ToLower(cmd), true
 }
 
-// The two "hang on" lines shown while the model is still silent.
-const (
-	spinupColdNote = "⏳ spinning up — the first reply after a restart takes longer"
-	spinupSlowNote = "⏳ working on it…"
-)
-
 // startSpinupNotice posts one status line so a silent prefill does not look
 // frozen, and returns a stop func (safe to call more than once) that clears the
 // line again so the reply replaces it.
@@ -660,7 +663,8 @@ const (
 // prompt cache — so it posts at once. Later turns can be just as slow on a
 // cache miss, but nothing in an OpenAI-compatible API reveals that (Ollama
 // reports the model resident either way), so they post only after staying
-// silent past spinupNotice.
+// silent past spinupNotice. Lines are picked at random from spinupColdNotes /
+// spinupSlowNotes so the wait text does not go stale.
 func (a *Agent) startSpinupNotice(ctx context.Context, status channel.StatusWriter) func() {
 	if a.spinupNotice <= 0 {
 		return func() {}
@@ -703,7 +707,7 @@ func (a *Agent) startSpinupNotice(ctx context.Context, status channel.StatusWrit
 		}
 	}
 	if !a.warmed.Load() {
-		set(spinupColdNote)
+		set(pickSpinupNote(spinupColdNotes))
 		return takeDown
 	}
 	done := make(chan struct{})
@@ -717,7 +721,7 @@ func (a *Agent) startSpinupNotice(ctx context.Context, status channel.StatusWrit
 			return
 		case <-t.C:
 		}
-		set(spinupSlowNote)
+		set(pickSpinupNote(spinupSlowNotes))
 	}()
 	wake := sync.OnceFunc(func() { close(done) })
 	return func() {

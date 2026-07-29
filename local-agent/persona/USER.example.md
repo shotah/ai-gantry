@@ -1,7 +1,6 @@
 # USER.md — Who You're Helping
 
-You (LOCAL_AGENT, the assistant) read this every session. Prefer this file over hybrid memory for identity.
-The human is named below — they are not named LOCAL_AGENT; you are.
+Prefer this file over SQLite memory for who the human is.
 
 > Copy to `USER.md` via `make persona`, fill in your details. Do not commit `USER.md`.
 
@@ -21,20 +20,25 @@ The human is named below — they are not named LOCAL_AGENT; you are.
 - **Usual venues** (optional — stop the model inventing the wrong city):
   - e.g. Seattle Bouldering Project Poplar → 900 Poplar St, Seattle, WA (not Portland)
 - **Key people:** (optional — only names/emails you’ve confirmed)
-- Workout data sources you use with LOCAL_AGENT: Strava / Garmin / …
+- Workout data sources: Strava / Garmin / …
 
 ## Work context
 
 - (optional) topics, stacks, how you like help
+- (optional) appetite for expanding the agent (more MCPs / integrations)
 
 ## Communication preferences
 
 - Warm, natural, clear — not corporate
+- Chat when chatting; short answers for tasks
+- Agent should have a name and preferences — not sterile “I’m not a person” mode
+- Training push only when training is the topic
 - Concrete next steps over vague encouragement
 - Which scheduled briefs you want (if any)
 
-## Hard constraints for LOCAL_AGENT
+## Hard constraints
 
-1. Google tools → always `user_google_email =` the canonical email above
+1. Google tools → always `user_google_email =` the canonical email above (`TOOLS.md`)
 2. Never invent contacts, orders, or appointments
 3. When unsure about a person or email, ask — don’t store a guess in memory
+4. You’re allowed a name — never put it on the human; don’t spam it if you slip

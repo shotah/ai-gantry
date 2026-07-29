@@ -175,15 +175,22 @@ func run() int {
 		logger.Info("cron ready", "tz", cfg.CronTZ, "max_jobs", cfg.CronMaxJobs)
 	}
 
-	estTokens := mcp.EstimateToolSchemaTokens(tools.Tools())
+	budget := mcp.EstimateSchemaBudget(tools.Tools())
 	logger.Info("tool schema estimate",
-		"tools", tools.ToolCount(),
-		"est_tokens", estTokens,
+		"tools", budget.Tools,
+		"est_tokens", budget.EstTokens,
 		"max_tokens", cfg.ToolSchemaMaxTokens,
 	)
-	if cfg.ToolSchemaMaxTokens > 0 && estTokens > cfg.ToolSchemaMaxTokens {
+	for _, s := range budget.ByServer {
+		logger.Info("tool schema by server",
+			"server", s.Server,
+			"tools", s.Tools,
+			"est_tokens", s.EstTokens,
+		)
+	}
+	if cfg.ToolSchemaMaxTokens > 0 && budget.EstTokens > cfg.ToolSchemaMaxTokens {
 		logger.Error("tool schema exceeds TOOL_SCHEMA_MAX_TOKENS",
-			"est_tokens", estTokens,
+			"est_tokens", budget.EstTokens,
 			"max_tokens", cfg.ToolSchemaMaxTokens,
 		)
 		return 1

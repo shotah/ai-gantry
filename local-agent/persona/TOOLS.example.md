@@ -1,4 +1,4 @@
-# TOOLS.md — How LOCAL_AGENT should use tools here
+# TOOLS.md — How to use tools here
 
 > Copy to `TOOLS.md` via `make persona`. Add host-specific notes locally; don’t commit secrets.
 

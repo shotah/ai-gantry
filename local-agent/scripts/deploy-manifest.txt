@@ -12,13 +12,11 @@ Makefile
 Dockerfile
 mcp.toml
 # Live persona (gitignored) — synced when present after `make persona`
+# Canonical set: SOUL / RULES / USER / TOOLS (remote-sync removes obsolete names)
 persona/SOUL.md
+persona/RULES.md
 persona/USER.md
-persona/IDENTITY.md
-persona/AGENTS.md
 persona/TOOLS.md
-persona/MEMORY.md
-persona/HEARTBEAT.md
 scripts/deploy-manifest.txt
 scripts/secrets-manifest.txt
 scripts/google-auth.ps1

@@ -152,11 +152,11 @@ block. Needs `STREAM_REPLIES=true`.
 Prefill itself is silent, so `SPINUP_NOTICE_MS` (default `4000`) opens the
 bubble with a "hang on" line before the first token:
 
-- **First turn after gantry starts** posts *"spinning up"* immediately — that
-  turn is known-cold (model load and/or an empty prompt cache) and measures
+- **First turn after gantry starts** posts a random cold-start line immediately —
+  that turn is known-cold (model load and/or an empty prompt cache) and measures
   ~76s against ~15s in steady state.
-- **Later turns** post *"working on it"* only after the threshold, which covers
-  a prompt-cache miss. Nothing in an OpenAI-compatible API reveals one:
+- **Later turns** post a random "still working" line only after the threshold,
+  which covers a prompt-cache miss. Nothing in an OpenAI-compatible API reveals one:
   `ollama ps` reports the model resident (`expires_at` in the year 2318 under
   `OLLAMA_KEEP_ALIVE=-1`) whether the turn takes 15s or 76s, and the KV prefix
   cache has no API at all. Observed silence is the only honest signal.

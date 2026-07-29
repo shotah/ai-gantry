@@ -60,8 +60,8 @@ Walkthrough: **[local-agent/README.md](../local-agent/README.md)**. Same gantry 
 
 ## Persona & MCP rules of thumb
 
-- Concat order: `SOUL` → `IDENTITY` → `USER` → `AGENTS` → `TOOLS` → `HEARTBEAT` →
-  `BOOTSTRAP` → `MEMORY` (then other `*.md`). Missing files are skipped.
+- Concat order: `SOUL` → `RULES` → `USER` → `TOOLS` (then other `*.md`).
+  Missing files are skipped.
 - **Do not commit** filled-in personal `*.md` or `.env`.
 - `mcp.toml`: listed server = may start. Prefer `--tool-tier core` / `tools = […]`
   so Flash is not fed huge schemas. Boot logs `tools_listed` vs `tools_published`.

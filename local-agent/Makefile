@@ -94,7 +94,7 @@ help: ## Show available commands
 	@echo     dirs                   Create ./data directory
 	@echo     init                   env + dirs + persona
 	@echo.
-	@echo     docs/persona.md        SOUL/USER system prompt (examples vs personal files)
+	@echo     docs/persona.md        SOUL/RULES/USER/TOOLS prompt (examples vs personal)
 	@echo     docs/models.md         Gemini / Grok chat provider swap
 	@echo     mcp.toml               MCP server manifest (which tools LOCAL_AGENT gets)
 	@echo.
@@ -156,7 +156,7 @@ help: ## Show available commands
 	@echo   Docs
 	@echo   ----
 	@echo     docs/telegram.md       BotFather + Telegram peers
-	@echo     docs/persona.md        LOCAL_AGENT prompt (SOUL/USER) — examples are committed
+	@echo     docs/persona.md        LOCAL_AGENT prompt (SOUL/RULES/USER/TOOLS) — examples committed
 	@echo     docs/models.md         Chat model / Grok swap
 	@echo     docs/whatsapp.md       WhatsApp Web friend / group (optional)
 	@echo     docs/google-workspace.md Go MCP + OAuth import (Gmail/Docs/…)

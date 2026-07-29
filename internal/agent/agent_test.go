@@ -416,7 +416,10 @@ func TestAgent_NewAndStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(status, "history_messages=0") || !strings.Contains(status, "tools=1") {
+	if !strings.Contains(status, "history_messages=0") ||
+		!strings.Contains(status, "tools=1") ||
+		!strings.Contains(status, "schema_est_tokens=") ||
+		!strings.Contains(status, "history_est_tokens=") {
 		t.Fatalf("status = %q", status)
 	}
 
@@ -424,7 +427,10 @@ func TestAgent_NewAndStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(listed, "a__b") || !strings.Contains(listed, "server=a") {
+	if !strings.Contains(listed, "a__b") ||
+		!strings.Contains(listed, "server=a") ||
+		!strings.Contains(listed, "schema_est_tokens≈") ||
+		!strings.Contains(listed, "by server:") {
 		t.Fatalf("tools = %q", listed)
 	}
 

@@ -75,8 +75,8 @@ func TestAgent_SpinupNotice_ColdTurnPostsThenClears(t *testing.T) {
 	if len(sets) != 2 {
 		t.Fatalf("statuses = %q, want notice + clear", sets)
 	}
-	if !strings.Contains(sets[0], "spinning up") {
-		t.Fatalf("notice = %q", sets[0])
+	if !strings.HasPrefix(sets[0], "⏳") {
+		t.Fatalf("notice = %q, want a cold spinup line", sets[0])
 	}
 	if sets[1] != "" {
 		t.Fatalf("statuses = %q, want the notice cleared", sets)
@@ -104,7 +104,7 @@ func TestAgent_SpinupNotice_WarmSlowTurnPostsAfterThreshold(t *testing.T) {
 	w := &statusWriter{}
 	handleOnce(t, a, w, "slow one")
 	sets := w.statuses()
-	if len(sets) != 2 || !strings.Contains(sets[0], "working on it") || sets[1] != "" {
+	if len(sets) != 2 || !strings.HasPrefix(sets[0], "⏳") || sets[1] != "" {
 		t.Fatalf("statuses = %q, want slow notice + clear", sets)
 	}
 }

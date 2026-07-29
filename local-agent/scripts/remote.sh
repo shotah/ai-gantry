@@ -82,6 +82,9 @@ case "$ACTION" in
     for f in "${files[@]}"; do
       copy_to_remote "$f" || true
     done
+    # Persona is now SOUL/RULES/USER/TOOLS — scp does not delete leftovers
+    echo "Cleaning obsolete persona files on remote (if present)"
+    remote "cd '$DEPLOY_PATH/persona' 2>/dev/null && rm -f IDENTITY.md AGENTS.md MEMORY.md HEARTBEAT.md BOOTSTRAP.md || true"
     echo "Synced to $TARGET:$DEPLOY_PATH"
     echo "Note: data/.config secrets are NOT in remote-deploy. Use make garmin-sync / strava-sync / ytmusic-sync / google-sync"
     ;;

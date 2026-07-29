@@ -191,8 +191,8 @@ ships in `TOOLS.example.md`.
 | Living room | … | … |
 | Bedroom | … | … |
 
-After first successful `list_local_hardware`, store confirmed friendly names →
-rooms in local `MEMORY.md` if useful — don’t invent names discovery never returned.
+After first successful `list_local_hardware`, put confirmed friendly names →
+rooms in local `TOOLS.md` if useful — don’t invent names discovery never returned.
 
 ---
 

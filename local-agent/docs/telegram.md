@@ -57,7 +57,8 @@ No approval step — if the allowlist is right, it just replies.
 | --- | --- |
 | `/new` | Clear **this sender's** conversation history and start a fresh session |
 | `/cancel` | Cancel the **in-flight** reply / tool loop for this chat (does not undo tools that already finished) |
-| `/status` | Uptime, model, history size (estimated tokens), tool count |
+| `/status` | Uptime, model, history + **schema** estimated tokens, tool count |
+| `/tools` | Prefixed catalog + `schema_est_tokens` total and per-server breakdown |
 
 Use **`/cancel`** when a turn is stuck on tools or you want to abort mid-reply, then send
 the corrected ask. Use **`/new`** when LOCAL_AGENT dumps huge JSON/transcripts, loops on
@@ -85,10 +86,10 @@ With `STREAM_REPLIES=true` the bubble normally appears only once the model emits
 something, so a slow prefill shows nothing but the typing dot. `SPINUP_NOTICE_MS`
 (default `4000`) opens the bubble first:
 
-- **⏳ spinning up** — immediately, on the first turn after gantry restarts. That
-  turn is genuinely cold (model load and/or empty prompt cache).
-- **⏳ working on it…** — on any later turn that stays silent past the threshold,
-  which is what a prompt-cache miss looks like from the outside.
+- **Cold (first turn after restart)** — posts immediately; line picked at random
+  from a small pool (model load / empty prompt cache).
+- **Warm but slow** — posts after the threshold; another random pool line
+  (often a prompt-cache miss).
 
 Either line is a waiting indicator, not part of the answer: the reply replaces it
 the moment Tim starts talking, and it never survives into the finished bubble

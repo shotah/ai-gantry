@@ -373,11 +373,16 @@ function Sync-Stage {
     }
   }
 
-  # Persona: prefer live local-agent/persona, else skip (already on host).
+  # Persona: only the canonical four (SOUL/RULES/USER/TOOLS). install.sh rsync --delete
+  # clears obsolete ZeroClaw-era names on the host.
   $persona = Join-Path $Root 'persona'
+  $personaWanted = @('SOUL.md', 'RULES.md', 'USER.md', 'TOOLS.md')
   $personaFiles = @()
   if (Test-Path $persona) {
-    $personaFiles = @(Get-ChildItem $persona -Filter '*.md' -File | Where-Object { $_.Name -notlike '*.example.md' })
+    $personaFiles = @(
+      Get-ChildItem $persona -Filter '*.md' -File |
+        Where-Object { $personaWanted -contains $_.Name }
+    )
   }
   if ($personaFiles.Count -gt 0) {
     foreach ($f in $personaFiles) {

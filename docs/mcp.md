@@ -55,8 +55,10 @@ hyphenated product name fights the model (see below).
 
 Inspect what the running agent sees:
 
-- Telegram / Discord / Slack / stdio: `/tools`
-- Boot logs: `mcp server connected` with `tools_listed` vs `tools_published`
+- Telegram / Discord / Slack / stdio: `/tools` (total + per-server `schema_est_tokens`)
+- `/status` includes `schema_est_tokens` alongside history size
+- Boot logs: `mcp server connected` (`tools_listed` vs `tools_published`), then
+  `tool schema estimate` + one `tool schema by server` line per prefix
 
 ---
 

@@ -172,6 +172,13 @@ switch ($Action) {
       Copy-ToRemote $f | Out-Null
     }
 
+    # Persona is now SOUL/RULES/USER/TOOLS — scp does not delete leftovers
+    $obsoletePersona = @(
+      'IDENTITY.md', 'AGENTS.md', 'MEMORY.md', 'HEARTBEAT.md', 'BOOTSTRAP.md'
+    ) -join ' '
+    Write-Host "Cleaning obsolete persona files on remote (if present)"
+    Invoke-Remote "cd '$deployPath/persona' 2>/dev/null && rm -f $obsoletePersona || true"
+
     Write-Host "Synced to ${target}:${deployPath}"
     Write-Host "Note: token/session secrets are NOT in remote-deploy. Use make garmin-sync / strava-sync / ytmusic-sync / google-sync"
   }

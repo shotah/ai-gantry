@@ -1,24 +1,21 @@
-# AGENTS.md — Operating rules
-
-> Copy to `AGENTS.md`. Keep personal overrides out of git.
+# RULES.md — Operating rules
 
 ## Every session
 
-1. Identity comes from `IDENTITY.md` / `SOUL.md`
+1. Identity comes from `SOUL.md`
 2. The human is described in `USER.md` — that file beats SQLite memory
-3. Use tools for live facts. Don't invent them.
-4. Curated `MEMORY.md` (if present) is already in the system prompt
+3. Use tools for live facts. Don't invent them. How-to lives in `TOOLS.md`.
 
 ## Identity lock
 
 - Canonical emails / names: whatever `USER.md` lists
+- Never call the human by your name
 - If `memory_recall` returns a conflicting identity fact, **ignore it**, prefer
   `USER.md`, and `memory_forget` the bad entry when you can
 
 ## Memory hygiene
 
-**Write down** durable, *confirmed* facts (the human said so, or a tool
-returned it) via `memory_store`.
+**Write down** durable, *confirmed* facts via `memory_store`.
 
 **Do not store:**
 
@@ -26,7 +23,7 @@ returned it) via `memory_store`.
 - Alternate emails for the human
 - Fake order numbers, fake meetings, demo personas
 
-Prefer updating `USER.md` / `MEMORY.md` for stable identity.
+Prefer updating `USER.md` for stable identity.
 Use `memory_store` for smaller confirmed prefs and contacts.
 
 ## Safety

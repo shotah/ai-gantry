@@ -207,7 +207,7 @@ Everything lives in [`./docs`](docs). Start with Telegram, add the rest as neede
 | 📨 **[docs/telegram.md](docs/telegram.md)** | BotFather token, allowlist, `/new` / `/cancel`, multi-bubble interrupt+coalesce+settle, `/status`, history bounds, SQLite memory | **Always** — this is the only chat channel |
 | 🧠 **[docs/models.md](docs/models.md)** | One OpenAI-compatible chat provider (`LLM_*`); Gemini defaults; swapping chat to xAI/Grok/Ollama; local models + tool-name aliasing | Changing brain / cost tuning |
 | 🔌 **[../docs/mcp.md](../docs/mcp.md)** | Kernel MCP host: `{server}__{tool}` naming, underscore-prefix alias, unknown-tool hints, local `/tools` REPL | Debugging tool calls / wiring a new MCP |
-| 🎭 **[docs/persona.md](docs/persona.md)** | `persona/SOUL.md` / `USER.md` system prompt — coach mode, identity lock, vs SQLite memory | Shaping LOCAL_AGENT's behavior |
+| 🎭 **[docs/persona.md](docs/persona.md)** | `SOUL` / `RULES` / `USER` / `TOOLS` system prompt vs SQLite memory | Shaping LOCAL_AGENT's behavior |
 | 🚀 **[docs/deploy.md](docs/deploy.md)** | Docker remote deploy (SSH + compose) | Cloud-LLM / compose path |
 | 🐧 **[deploy/README.md](deploy/README.md)** · **[../docs/deploy-native.md](../docs/deploy-native.md)** | Native systemd + Ollama/Qwen on `/opt/gantry` | Featured production path |
 | 🗂️ **[docs/google-workspace.md](docs/google-workspace.md)** | Go MCP (`google-workspace-mcp-go`), `make google-auth`, Docs/Gmail/Calendar tools | Gmail / Docs / Calendar / Drive |
