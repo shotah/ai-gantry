@@ -22,7 +22,7 @@ name = "google-workspace"
 command = "google-workspace-mcp-go"
 args = [
   "--tools",
-  "gmail calendar tasks docs",
+  "gmail calendar tasks docs sheets",
   "--tool-tier",
   "core",
 ]
