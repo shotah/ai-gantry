@@ -10,7 +10,8 @@ $pairs = @(
   @{ Src = 'secrets/google-mcp'; Dst = 'data/.config/google-mcp' },
   @{ Src = 'secrets/strava'; Dst = 'data/.config/strava' },
   @{ Src = 'secrets/garmin'; Dst = 'data/.config/garmin' },
-  @{ Src = 'secrets/ytmusic'; Dst = 'data/.config/ytmusic' }
+  @{ Src = 'secrets/youtube'; Dst = 'data/.config/youtube' },
+  @{ Src = 'secrets/ytmusic'; Dst = 'data/.config/youtube' }
 )
 
 $copied = 0

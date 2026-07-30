@@ -4,7 +4,7 @@
 #
 # Build (from this directory):  docker compose build   # or: make build
 # Auth:   docs/google-workspace.md · docs/strava.md · docs/garmin.md ·
-#         docs/web-search.md · docs/cast.md · docs/ytmusic.md · docs/math.md
+#         docs/web-search.md · docs/cast.md · docs/youtube.md · docs/math.md
 
 # shotah/ai-gantry GitHub release (the runtime). Override via GANTRY_VERSION.
 # Also published as shotah/ai-gantry on Docker Hub / GHCR.
@@ -25,6 +25,7 @@ ARG TOOLS_CACHEBUST=0
 FROM debian:trixie-slim AS gantry
 ARG GANTRY_VERSION
 ARG TARGETARCH
+ARG TOOLS_CACHEBUST=0
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
@@ -33,9 +34,17 @@ RUN apt-get update \
     amd64|arm64) GANTRY_ARCH="linux_${TARGETARCH}" ;; \
     *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
     esac \
-    && V="${GANTRY_VERSION#v}" \
+    && : "TOOLS_CACHEBUST=${TOOLS_CACHEBUST}" \
+    && VER="${GANTRY_VERSION}" \
+    && if [ "${VER}" = "latest" ]; then \
+    VER=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+    "https://github.com/shotah/ai-gantry/releases/latest" \
+    | sed 's|.*/||'); \
+    echo "resolved gantry latest -> ${VER}"; \
+    fi \
+    && V="${VER#v}" \
     && curl -fsSL \
-    "https://github.com/shotah/ai-gantry/releases/download/${GANTRY_VERSION}/gantry_${V}_${GANTRY_ARCH}.tar.gz" \
+    "https://github.com/shotah/ai-gantry/releases/download/${VER}/gantry_${V}_${GANTRY_ARCH}.tar.gz" \
     -o /tmp/gantry.tar.gz \
     && tar -xzf /tmp/gantry.tar.gz -C /tmp \
     && install -m 0755 /tmp/gantry /gantry \
@@ -169,8 +178,8 @@ RUN apt-get update \
     && install -m 0755 /tmp/mcp-beam /mcp-beam \
     && /mcp-beam --version
 
-# --- fetch youtube-go-mcp (static Go; YouTube Music search + library) ---------
-# Browser-cookie auth at runtime via YTMUSIC_HEADERS_PATH (docs/ytmusic.md).
+# --- fetch youtube-go-mcp (static Go; YouTube Data API v3) --------------------
+# OAuth via YOUTUBE_OAUTH_* (docs/youtube.md). Legacy YOUTUBE_OAUTH_* still accepted.
 FROM debian:trixie-slim AS youtube-go-mcp
 ARG YOUTUBE_GO_MCP_VERSION
 ARG TARGETARCH

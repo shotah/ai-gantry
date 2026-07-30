@@ -96,7 +96,7 @@ MCP credentials live under **`data/.config/`** (same relative paths as Docker):
 data/.config/google-mcp/credentials/
 data/.config/strava/tokens.json
 data/.config/garmin/session.json
-data/.config/ytmusic/headers.json
+data/.config/youtube/oauth.json
 ```
 
 Push from the workstation with `make google-sync` / `secrets-sync` (uses
@@ -111,7 +111,7 @@ set -a && source /opt/gantry/gantry.env && set +a
 gantry auth                 # list
 gantry auth strava
 gantry auth garmin
-gantry auth ytmusic
+gantry auth youtube
 # Google Workspace MCP has no auth subcommand yet → make google-auth on a workstation
 ```
 

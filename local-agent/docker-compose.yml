@@ -1,7 +1,7 @@
 ﻿# local-agent on ai-gantry — Gemini + Telegram (Telegram polls outbound).
 # No ports, no gateway, no dashboard: the healthcheck is an exit code.
 # Image: distroless/static + gantry + google-mcp + strava + garmin + gemini-search + mcp-beam + youtube-go-mcp + mcp-go-math.
-# Docs: docs/telegram.md, docs/google-workspace.md, docs/strava.md, docs/garmin.md, docs/web-search.md, docs/cast.md, docs/ytmusic.md, docs/math.md
+# Docs: docs/telegram.md, docs/google-workspace.md, docs/strava.md, docs/garmin.md, docs/web-search.md, docs/cast.md, docs/youtube.md, docs/math.md
 # Cast mDNS: set NETWORK_MODE=host in .env on the Linux home server (docs/cast.md).
 
 services:
@@ -72,15 +72,17 @@ services:
       # Garmin MCP: no email/password env — session.json on the mount (docs/garmin.md).
       # Cast MCP (mcp-beam): no API keys. Optional knobs in docs/cast.md.
       MCP_BEAM_LOG_LEVEL: ${MCP_BEAM_LOG_LEVEL:-info}
-      # YouTube Music MCP (youtube-go-mcp): browser headers on the mount (docs/ytmusic.md).
-      YTMUSIC_HEADERS_PATH: /data/.config/ytmusic/headers.json
+      # YouTube Data API v3 MCP (youtube-go-mcp v1+) — docs/youtube.md
+      YOUTUBE_OAUTH_PATH: /data/.config/youtube/oauth.json
+      YOUTUBE_OAUTH_CLIENT_ID: ${YOUTUBE_OAUTH_CLIENT_ID:-${YOUTUBE_OAUTH_CLIENT_ID:-}}
+      YOUTUBE_OAUTH_CLIENT_SECRET: ${YOUTUBE_OAUTH_CLIENT_SECRET:-${YOUTUBE_OAUTH_CLIENT_SECRET:-}}
     volumes:
       # Persona markdown (SOUL.md USER.md TOOLS.md ...) — the system prompt
       - ./persona:/persona:ro
       # MCP server manifest — the one structured config file
       - ./mcp.toml:/etc/gantry/mcp.toml:ro
       # gantry.db + MCP tool state under data/.config/* (same layout as native /opt/gantry/data).
-      # Auth writes: make google-auth | strava-auth | garmin-auth | ytmusic-auth
+      # Auth writes: make google-auth | strava-auth | garmin-auth | youtube-auth
       - ./data:/data
     mem_limit: 1g
     cpus: 4.0

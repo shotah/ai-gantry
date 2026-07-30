@@ -47,11 +47,11 @@ local.
 | Seek | `cast__media_seek` |
 | Volume / mute | `cast__media_set_volume` (0–100), `cast__media_mute` |
 
-Typical music flow: `youtube__tracks_search` / library → note `videoId` →
+Typical video/music flow: `youtube__videos_search` / library → note `videoId` →
 `cast__devices_list` → `cast__youtube_beam_video` with bare `video_id` + device id →
 pause/volume/stop via `session_id`.
 
-**Do not** pass `https://music.youtube.com/watch?v=…` to `cast__media_beam` — that is
+**Do not** pass `https://www.youtube.com/watch?v=…` to `cast__media_beam` — that is
 a web page, not a stream. Nest will connect and stay silent. Use
 `cast__youtube_beam_video`.
 
@@ -69,7 +69,7 @@ Call discovery twice a few seconds apart if a known device is still missing
 (go2tv’s mDNS cache fills in the background). Default tool timeout is 5s and
 `include_unreachable` defaults to `false`.
 
-For real tracks, source `videoId` from [docs/ytmusic.md](ytmusic.md)
+For real videos/tracks, source `videoId` from [docs/youtube.md](youtube.md)
 (`youtube-go-mcp`) — don’t invent royalty-free MP3s.
 
 ---
@@ -199,5 +199,5 @@ rooms in local `TOOLS.md` if useful — don’t invent names discovery never ret
 ## Follow-ups
 
 - [x] Volume/mute + `youtube_beam_video` on [shotah/mcp-beam](https://github.com/shotah/mcp-beam) (release bake; default `latest`)
-- [x] Authenticated YouTube Music via [youtube-go-mcp](ytmusic.md)
+- [x] Authenticated YouTube via [youtube-go-mcp](youtube.md)
 - [x] Named-room map in `TOOLS.md` / `docs/cast.md`

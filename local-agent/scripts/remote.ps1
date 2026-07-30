@@ -180,12 +180,12 @@ switch ($Action) {
     Invoke-Remote "cd '$deployPath/persona' 2>/dev/null && rm -f $obsoletePersona || true"
 
     Write-Host "Synced to ${target}:${deployPath}"
-    Write-Host "Note: token/session secrets are NOT in remote-deploy. Use make garmin-sync / strava-sync / ytmusic-sync / google-sync"
+    Write-Host "Note: token/session secrets are NOT in remote-deploy. Use make garmin-sync / strava-sync / youtube-sync / google-sync"
   }
   'sync-secret' {
     $name = if ($Rest -and $Rest.Count -gt 0) { $Rest[0].Trim().ToLowerInvariant() } else { '' }
     if (-not $name) {
-      throw "Usage: remote.ps1 sync-secret <garmin|strava|ytmusic|google|all>"
+      throw "Usage: remote.ps1 sync-secret <garmin|strava|youtube|ytmusic|google|all>"
     }
     $manifest = Join-Path $Root 'scripts/secrets-manifest.txt'
     $entries = Get-ManifestPaths $manifest | ForEach-Object {

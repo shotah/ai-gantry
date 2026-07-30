@@ -60,20 +60,21 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - New event + place → search if needed, then **`google__calendar_create_event`**. Existing + place → **`google__calendar_update_event`**
 - If two cities share a gym-ish name, prefer the city in the ask / `USER.md`
 
-## YouTube Music
+## YouTube
 
-- **YT Music MCP (`youtube-go-mcp`, server id `youtube`)** — search, library playlists, liked songs, history, radio, lyrics
-- **Exact tools:** `youtube__tracks_search`, `youtube__library_list_playlists`, `youtube__playlists_get`, `youtube__library_list_liked_songs`, `youtube__library_list_history`, `youtube__tracks_list_watch_playlist`, `youtube__tracks_get`, `youtube__tracks_get_lyrics`, `youtube__cast_format_target`
+- **YouTube MCP (`youtube-go-mcp` v1+, server id `youtube`)** — Data API v3 search, playlists, liked videos
+- **Exact tools:** `youtube__videos_search`, `youtube__videos_get`, `youtube__library_list_playlists`, `youtube__playlists_get`, `youtube__library_list_liked_videos`, `youtube__cast_format_target`
+- Optional `musicOnly=true` on search / liked for music-leaning results (not YouTube Music Liked Songs)
 - Prefer this over inventing royalty-free / stock music URLs
 - Returns `videoId` / `video_id` → hand off to Cast `cast__youtube_beam_video` (bare id, not a watch URL)
-- Library tools need `make ytmusic-auth` (browser headers)
+- Needs `make youtube-auth` (OAuth → `data/.config/youtube/oauth.json`)
 
 ## House Cast (speakers / displays)
 
 - **Cast MCP (`mcp-beam`, server id `cast`)** — `cast__devices_list`, `cast__media_beam`, `cast__youtube_beam_video`, `cast__media_get_status`, play/pause/seek/stop/volume/mute
 - Prefer Cast tools over shell hacks for speakers/TVs
-- **Music flow:** YT Music → pick `videoId` → `cast__youtube_beam_video` + room device — never invent free-MP3 fallbacks
-- **Never** pass YouTube/Music watch URLs to `cast__media_beam` (Nest connects, silence)
+- **Video/music flow:** YouTube MCP → pick `videoId` → `cast__youtube_beam_video` + room device — never invent free-MP3 fallbacks
+- **Never** pass YouTube watch URLs to `cast__media_beam` (Nest connects, silence)
 - Match the human’s **room name** to a local room→device map (fill in below after `make persona`), then `cast__devices_list` and pick the best-matching device `id`
 - **Discovery defaults** (always pass these — slower Nest hubs can lose the race vs Mini/TV):
   - `timeout_ms`: **10000**
@@ -93,8 +94,9 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 ## Memory tools
 
 - `memory_recall` — helpful, but **not** authoritative for the human’s email/name
-- `memory_store` — only confirmed facts; never store a new identity for the human
-- `memory_forget` — delete contradictions with `USER.md` when you find them
+- `memory_store` — confirmed facts **and** `skill/<area>` tool craft (see `RULES.md` Skills); never a new identity for the human; never raw mail/calendar dumps
+- `memory_forget` — delete contradictions with `USER.md` / obsolete skills
+- Before a fiddly tool area: `memory_recall` query `skill/` — reuse your own recipes
 
 ## Shell
 

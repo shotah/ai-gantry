@@ -22,36 +22,99 @@ Convention: tool = `{service}_{verb}_{object}`; host = `{mcp.toml name}__{tool}`
 | google-mcp | `google` | done | `google__calendar_list_events` |
 | [go-strava-mcp](https://github.com/shotah/go-strava-mcp) | `strava` | done (fork) | `strava__activities_list` |
 | go-garmin | `garmin` | renamed; gantry persona/docs synced | `garmin__activities_list`, `garmin__sleep_get` |
-| youtube-go-mcp | `youtube` | renamed (server id `youtube`); persona synced | `youtube__tracks_search` |
+| youtube-go-mcp | `youtube` | Data API v3 (`videos_*`); persona synced | `youtube__videos_search` |
 | mcp-beam | `cast` | renamed; persona/docs synced | `cast__devices_list`, `cast__youtube_beam_video` |
 | mcp-go-math | `math` | renamed; persona/docs synced | `math__expression_evaluate` |
 | mcp-gemini-search | `google-search` | renamed; persona/docs synced | `google-search__web_search` |
 
-Sibling MCP TODOs may still say “update ai-gantry” — **persona/`TOOLS.md` +
-docs + `docs/mcp.md` are updated here.** Remaining ops:
+**Phase A consumer work — done** (2026-07-29 night). Host pulled renamed
+binaries (strava `v0.0.3`, garmin `v0.2.0`, search/cast/youtube/math `v0.1.0`);
+`/tools` shows new names. Open follow-up lives in **go-garmin** only: rename
+Connect `calendar_*` (gantry already excludes it from the published catalog).
 
 - [x] Rewrite persona recipes for all renamed host tool names
 - [x] Sync `examples/persona` + `deploy/persona` TOOLS
-- [ ] Bump / re-fetch MCP binaries on host (`download_tag=latest` or pin)
-- [ ] Smoke: `/tools` shows new names; one call each of google / garmin / youtube / cast / math / search / strava
-- [ ] Close consumer checkboxes in sibling `TODO.md` files after smoke
+- [x] Bump / re-fetch MCP binaries on host
+- [x] Smoke: `/tools` shows new names
+- [x] Close consumer checkboxes in sibling `TODO.md` files
 
-### Phase B — empty DB + memory
+### Phase B — empty DB + memory (Spark / Tim retrain)
 
 Start Gemini training from a clean slate (bad “I checked mail” turns poison Qwen later).
 
-- [ ] Document wipe procedure (sessions DB path on native host + any memory files Tim writes)
-- [ ] Stop gantry → wipe sessions / memory → start
-- [ ] `/new` after restart; confirm persona loads; confirm empty history
+Native wipe (sessions + SQLite memory; keeps `data/.config/*` secrets):
+
+```bash
+cd local-agent
+make remote-native-down
+# then on host (install path):
+sudo systemctl stop gantry
+sudo rm -f /opt/gantry/data/gantry.db /opt/gantry/data/gantry.db-*
+# Telegram: /new after restart (or delete chat history in the app if you want a clean UI)
+```
+
+- [x] Document wipe procedure (native `/opt/gantry/data/gantry.db*`)
+- [x] Stop gantry → wipe sessions / memory → start
+- [x] `/new` after restart; confirm persona loads; confirm empty history
 - [ ] Keep a short “seed facts only” USER.md — no fabricated tool folklore in memory
 
 ### Phase C — train on paid model (Gemini)
 
-- [ ] Point Tim at Gemini (existing gantry model switch; see `local-agent/docs/models.md`)
-- [ ] Run a deliberate drill set: Gmail today, Tasks create, Calendar list, Garmin activities, YT search→cast, math convert, web search — **require** real `tool_calls` in logs
-- [ ] Correct laziness / wrong arg names in the moment (persona already has “Chris sees tool_calls”)
+Native chat swap: edit `deploy/gantry.env` (do **not** `make remote-native-env` — that rewrites Ollama defaults):
+
+```env
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+LLM_API_KEY=<same as GEMINI_API_KEY>
+LLM_MODEL=gemini-3.5-flash   # or gemini-3.5-pro
+```
+
+Then `make remote-native-deploy-dev-quick` (or sync env + restart). `/status` should show Gemini.
+
+Drill prompts (one skill per message; watch logs for `tool_calls` / `→ …`):
+
+1. “What’s on my calendar tomorrow?” → `google__calendar_list_events`
+2. “Any new mail today?” → `google__gmail_search_messages`
+3. “Add milk to Grocery Shop” → tasks list → `google__tasks_create_task`
+4. “How did I sleep last night?” → `garmin__sleep_get`
+5. “What did I do yesterday?” → `garmin__activities_list` and/or `strava__activities_list`
+6. “What’s 17.5% of 240?” → `math__expression_evaluate`
+7. “Search the web for … gym address” → `google-search__web_search`
+8. “Search YouTube for … and play on kitchen Nest” → `youtube__videos_search` → `cast__devices_list` → `cast__youtube_beam_video`
+
+- [x] Point Tim at Gemini (`deploy/gantry.env` LLM_*)
+- [ ] Run deliberate drill set — **require** real tool calls in logs
+- [ ] Correct laziness / wrong arg names in the moment
 - [ ] Let memory accumulate **only** from verified successful tool turns
-- [ ] Tag/export candidates for Phase E as you go (don’t wait until the end)
+- [ ] Tag/export candidates for Phase E as you go
+
+#### Gap (important) — tool calls are NOT what Qwen inherits
+
+What Gemini is writing today:
+
+| Persist | Survives model swap? | Helps Qwen call tools? |
+| --- | --- | --- |
+| `memory_store` facts (name, prefs, “morning brief exists”) | Yes | Weak — personal lore, not recipes |
+| `cron_schedule` jobs | Yes (separate store) | N/A — jobs keep firing |
+| Session history (`session_message`) | Yes until `/new` / trim | **No tool traces** — only final assistant *prose* |
+| In-turn `tool_calls` / results | **Dropped** after the turn | Lost — never written to SQLite |
+| Persona `TOOLS.md` | Yes | **Yes** — real doctrine both models see |
+
+`agent.Handle` appends only `user` + `assistant` **content**
+([`internal/agent/agent.go`](internal/agent/agent.go)); `session.Message` has no
+tool-call field. So Gemini’s beautiful Gmail chains do **not** become few-shot
+examples for Qwen. Worse: stored prose like “I scanned your emails…” can teach
+narration-without-tools if that text is all Qwen sees in history.
+
+**Mitigations (do these, or Phase D is mostly hope):**
+
+- [x] Persona **Skills** rule — unprompted `memory_store` of `skill/<area>`
+      recipes after successful tool chains (not every call / not response cache);
+      see `RULES.md` + `TOOLS.md` Memory
+- [ ] Redeploy persona so live TIM picks up Skills hygiene
+- [ ] Spot-check: after a new drill, `memory` has `skill/…` rows (no mail bodies)
+- [ ] Keep `TOOLS.md` as source of truth (already done for renames)
+- [ ] Phase E export (below) — curate `skill/*` rows + logs into git seed
+- [ ] Optional later kernel: persist tool trace markers (not required for v1)
 
 ### Phase D — cut back to Qwen
 
@@ -62,10 +125,13 @@ Start Gemini training from a clean slate (bad “I checked mail” turns poison 
 
 ### Phase E — seed tool memory into this Git repo (for other people’s attempts)
 
-**Why:** Gemini training will teach Tim *how* to call tools. That knowledge
-should not die on one SER10 SQLite file. Ship a **privacy-scrubbed seed** so
-new installs (and other Qwen hosts) start with proven tool patterns instead of
-an empty brain.
+**Why:** Gemini’s live `tool_calls` are **not** stored for Qwen (see Phase C gap).
+Phase E is how tool craft survives — curated rows + optional golden traces,
+not hoping session history teaches the local model.
+
+That knowledge should not die on one SER10 SQLite file. Ship a
+**privacy-scrubbed seed** so new installs (and other Qwen hosts) start with
+proven tool patterns instead of an empty brain.
 
 **What belongs in git (tool craft):**
 
@@ -250,6 +316,11 @@ Kernel = published distroless image; LOCAL_AGENT = in-tree appliance that bakes 
 - [x] Multimodal Telegram (inbound photo → vision request; outbound `SendPhoto`)
 - [ ] Optional `embedding BLOB` behind the same `memory_recall` interface if FTS
       ever proves too weak at this scale
+- [ ] **Telegram: render model Markdown as HTML** — today answer text is plain or
+      `html.EscapeString`’d (`thinking.go` / stream finish), so Gemini’s `**bold**`,
+      `#` headings, and fat bullet lists show as raw syntax. Convert a safe subset
+      (`**`, `*`, `` ` ``, lists, links) → Telegram HTML on send/edit; keep
+      tool-trace lines plain. Pain is worse on paid models that write long digests.
 
 ---
 

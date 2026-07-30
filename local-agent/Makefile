@@ -16,7 +16,7 @@ endif
 ifeq ($(OS),Windows_NT)
   ENV_COPY := powershell -NoProfile -Command "if (-not (Test-Path '$(ENV_FILE)')) { Copy-Item '$(ENV_EXAMPLE)' '$(ENV_FILE)'; Write-Host 'Created $(ENV_FILE) — edit GEMINI_API_KEY and Telegram vars' } else { Write-Host '$(ENV_FILE) already exists (use make env-force to overwrite)' }"
   ENV_FORCE := powershell -NoProfile -Command "Copy-Item '$(ENV_EXAMPLE)' '$(ENV_FILE)' -Force; Write-Host 'Overwrote $(ENV_FILE)'"
-  MKDIR_DATA := powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path data, 'data/.config/google-mcp/credentials', 'data/.config/strava', 'data/.config/garmin', 'data/.config/ytmusic' | Out-Null"
+  MKDIR_DATA := powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path data, 'data/.config/google-mcp/credentials', 'data/.config/strava', 'data/.config/garmin', 'data/.config/youtube' | Out-Null"
   RM_GARMIN_SESSION := powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue 'data/.config/garmin/session.json'"
   # Non-empty DEPLOY_HOST in .env → push secrets after *-auth
   HAS_DEPLOY_HOST := $(shell powershell -NoProfile -Command "$$l = Get-Content .env -ErrorAction SilentlyContinue | Where-Object { $$_ -match '^DEPLOY_HOST=' } | Select-Object -First 1; if ($$l -and (($$l -split '=',2)[1].Trim())) { '1' }")
@@ -32,7 +32,7 @@ else
                 cp $(ENV_EXAMPLE) $(ENV_FILE) && echo "Created $(ENV_FILE) — edit GEMINI_API_KEY and Telegram vars"; \
               fi
   ENV_FORCE := cp $(ENV_EXAMPLE) $(ENV_FILE) && echo "Overwrote $(ENV_FILE)"
-  MKDIR_DATA := mkdir -p data data/.config/google-mcp/credentials data/.config/strava data/.config/garmin data/.config/ytmusic
+  MKDIR_DATA := mkdir -p data data/.config/google-mcp/credentials data/.config/strava data/.config/garmin data/.config/youtube
   RM_GARMIN_SESSION := rm -f data/.config/garmin/session.json
   HAS_DEPLOY_HOST := $(shell awk -F= '/^[[:space:]]*DEPLOY_HOST=/{v=$$2; gsub(/^[[:space:]]+|[[:space:]]+$$/,"",v); gsub(/^["'\'']|["'\'']$$/,"",v); if (v!="") print "1"}' .env 2>/dev/null)
   PERSONA_COPY := @mkdir -p $(PERSONA_DIR); \
@@ -54,8 +54,9 @@ else
 endif
 
 .PHONY: help env env-force dirs init persona persona-force build up down restart logs ps status shell clean \
-        strava-auth garmin-auth google-auth google-mcp-import ytmusic-auth \
-        garmin-sync strava-sync ytmusic-sync google-sync secrets-sync secrets-migrate \
+        strava-auth garmin-auth google-auth google-mcp-import youtube-auth \
+        youtube-whoami youtube-probe ytmusic-auth ytmusic-whoami ytmusic-probe \
+        garmin-sync strava-sync youtube-sync ytmusic-sync google-sync secrets-sync secrets-migrate \
         remote-check remote-sync remote-up remote-down remote-restart remote-logs remote-ps remote-status \
         remote-ssh remote-deploy \
         remote-native-env remote-native-check remote-native-fetch remote-native-sync remote-native-install \
@@ -113,10 +114,12 @@ help: ## Show available commands
 	@echo     garmin-auth            One-time Garmin login; writes data/.config/garmin/session.json
 	@echo     google-auth            One-time Google OAuth; writes data/.config/google-mcp/credentials
 	@echo     google-mcp-import      Legacy: import gws export into google-mcp (prefer google-auth)
-	@echo     ytmusic-auth           YouTube Music headers -^> data/.config/ytmusic/headers.json
+	@echo     youtube-auth           YouTube OAuth -^> data/.config/youtube/oauth.json (mcp.toml)
+	@echo     youtube-whoami         Show Google/YouTube channel for current oauth.json
+	@echo     youtube-probe          Data API probe (likes / channel / playlists)
 	@echo     garmin-sync            Push data/.config/garmin to DEPLOY_HOST (not part of remote-deploy)
 	@echo     strava-sync            Push data/.config/strava to DEPLOY_HOST
-	@echo     ytmusic-sync           Push data/.config/ytmusic to DEPLOY_HOST
+	@echo     youtube-sync           Push data/.config/youtube to DEPLOY_HOST
 	@echo     google-sync            Push Google Workspace creds to DEPLOY_HOST
 	@echo     secrets-sync           Push all secret groups to DEPLOY_HOST
 	@echo     secrets-migrate        Copy legacy secrets/* into data/.config/* (once)
@@ -164,7 +167,7 @@ help: ## Show available commands
 	@echo     docs/strava.md         Strava workouts via strava-mcp (optional)
 	@echo     docs/garmin.md         Garmin sleep/weight via go-garmin MCP (optional)
 	@echo     docs/cast.md           Google Cast/DLNA via mcp-beam Go MCP (optional)
-	@echo     docs/ytmusic.md        YouTube Music via youtube-go-mcp (optional)
+	@echo     docs/youtube.md        YouTube Data API v3 via youtube-go-mcp (optional)
 	@echo     docs/math.md           Calculator via mcp-go-math (optional)
 	@echo     docs/deploy.md         Windows -^> Ubuntu remote deploy
 	@echo     README.md              Overview and architecture
@@ -237,8 +240,10 @@ garmin-sync: ## Push data/.config/garmin/session.json to DEPLOY_HOST
 strava-sync: ## Push data/.config/strava/tokens.json to DEPLOY_HOST
 	$(REMOTE) sync-secret strava
 
-ytmusic-sync: ## Push data/.config/ytmusic/headers.json to DEPLOY_HOST
-	$(REMOTE) sync-secret ytmusic
+youtube-sync: ## Push data/.config/youtube/oauth.json to DEPLOY_HOST
+	$(REMOTE) sync-secret youtube
+
+ytmusic-sync: youtube-sync ## Deprecated alias for youtube-sync
 
 google-sync: ## Push data/.config/google-mcp/credentials to DEPLOY_HOST
 	$(REMOTE) sync-secret google
@@ -281,11 +286,24 @@ garmin-auth: ## Garmin login via gantry auth; clears stale session first (see do
 	$(COMPOSE) run --rm --build -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth garmin
 	$(call PUSH_SECRET_IF_REMOTE,garmin)
 
-ytmusic-auth: ## YouTube Music headers via gantry auth (see docs/ytmusic.md)
-	@echo DevTools → Network → browse → Request Headers: copy cookie, then x-goog-authuser.
-	@echo The CLI prompts for each value. See docs/ytmusic.md.
-	$(COMPOSE) run --rm --build -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth ytmusic
-	$(call PUSH_SECRET_IF_REMOTE,ytmusic)
+# No --build here: compose run --build without TOOLS_CACHEBUST can revive a
+# cached pre-v1 youtube-go-mcp that only reads YTMUSIC_* (auth then looks empty).
+youtube-auth: ## YouTube OAuth via gantry auth (mcp.toml auth_args; see docs/youtube.md)
+	@echo Needs YOUTUBE_OAUTH_CLIENT_ID / YOUTUBE_OAUTH_CLIENT_SECRET in .env
+	@echo Approve as the Google account that owns your YouTube likes/playlists (incognito helps).
+	@echo See docs/youtube.md. Run make build first if the image is missing/stale.
+	$(COMPOSE) run --rm -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth youtube
+	$(call PUSH_SECRET_IF_REMOTE,youtube)
+
+youtube-whoami: ## Show token + YouTube channel for data/.config/youtube/oauth.json
+	$(COMPOSE) run --rm --entrypoint youtube-go-mcp $(SERVICE) auth oauth --whoami
+
+youtube-probe: ## Data API probe — likes / channel / playlists (needs oauth.json + client id/secret)
+	$(COMPOSE) run --rm --entrypoint youtube-go-mcp $(SERVICE) auth oauth --probe-data-api
+
+ytmusic-auth: youtube-auth ## Deprecated alias for youtube-auth
+ytmusic-whoami: youtube-whoami ## Deprecated alias for youtube-whoami
+ytmusic-probe: youtube-probe ## Deprecated alias for youtube-probe
 
 google-auth: ## Google Workspace OAuth; writes data/.config/google-mcp (see docs/google-workspace.md)
 ifeq ($(OS),Windows_NT)

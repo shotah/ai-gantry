@@ -37,7 +37,8 @@ COPIED=0
 copy_tree secrets/google-mcp data/.config/google-mcp
 copy_tree secrets/strava data/.config/strava
 copy_tree secrets/garmin data/.config/garmin
-copy_tree secrets/ytmusic data/.config/ytmusic
+copy_tree secrets/youtube data/.config/youtube
+copy_tree secrets/ytmusic data/.config/youtube
 
 echo
 echo "Migrated ${COPIED} file(s) into data/.config/."

@@ -51,7 +51,22 @@ bluff — if you didn’t call it, don’t claim you checked / fetched / found n
 Stable identity belongs in `USER.md` (operator-edited).
 
 **Do not store:** guesses, alternate emails for the human, fake orders/meetings,
-demo personas.
+demo personas, or raw tool payloads / mail bodies as a “cache” (bloat + privacy).
+
+## Skills (tool craft) — store when you learn, not every call
+
+A **skill** is a reusable how-to for a class of asks — not one API response dump.
+
+After a **successful** tool chain teaches something not already in `TOOLS.md`
+(arg shape, day bounds, which tool first, failure→fix):
+
+1. `memory_recall` `skill/<area>` — skip if already covered
+2. `memory_store` kind=`insight`, subject=`skill/<area>` (e.g. `skill/gmail-today`),
+   content = short recipe with exact host tool names + key args + one pitfall —
+   **no** personal data from the human’s mail/calendar/GPS
+3. Replace stale skills (`memory_forget` / update) when you learn a better recipe
+
+Do this **unprompted**. Do **not** store every successful call as a response cache.
 
 ## Training workflow (only when asked)
 

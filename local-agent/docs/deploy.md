@@ -82,8 +82,8 @@ Or step by step:
 | Command | What it does |
 | --- | --- |
 | `make remote-sync` | scp compose, Makefile, `.env`, `mcp.toml`, persona, scripts (not token/session secrets) |
-| `make garmin-sync` / `strava-sync` / `ytmusic-sync` / `google-sync` | Push one secret group (also auto after `*-auth` when `DEPLOY_HOST` is set) |
-| `gantry auth <server>` | Native/Docker: run auth flow from `mcp.toml` `auth_*` (strava / garmin / ytmusic) |
+| `make garmin-sync` / `strava-sync` / `youtube-sync` / `google-sync` | Push one secret group (also auto after `*-auth` when `DEPLOY_HOST` is set) |
+| `gantry auth <server>` | Native/Docker: run auth flow from `mcp.toml` `auth_*` (strava / garmin / youtube) |
 | `make secrets-sync` | Push all secret groups |
 | `make remote-up` | `docker compose build --pull && up -d` on server |
 | `make remote-down` | stop stack on server |

@@ -35,6 +35,9 @@ secrets/garmin/*
 !secrets/garmin/.gitkeep
 !secrets/garmin/.gitignore
 
+secrets/youtube/*
+!secrets/youtube/.gitkeep
+!secrets/youtube/.gitignore
 secrets/ytmusic/*
 !secrets/ytmusic/.gitkeep
 !secrets/ytmusic/.gitignore

@@ -3,7 +3,7 @@
 # Missing files are skipped. Remote parent directories are created automatically.
 #
 # Credential / session files live in scripts/secrets-manifest.txt and are pushed
-# only via `make garmin-sync` / `strava-sync` / `ytmusic-sync` / `google-sync`
+# only via `make garmin-sync` / `strava-sync` / `youtube-sync` / `google-sync`
 # (auth targets do that automatically when DEPLOY_HOST is set).
 
 docker-compose.yml
@@ -30,4 +30,5 @@ secrets/google-mcp/.gitkeep
 secrets/google-mcp/credentials/.gitkeep
 secrets/strava/.gitkeep
 secrets/garmin/.gitkeep
+secrets/youtube/.gitkeep
 secrets/ytmusic/.gitkeep

@@ -25,6 +25,10 @@ Chat, memory, and cron work with **zero** MCP servers. Tools are optional.
 
 ## Naming: `{server}__{tool}`
 
+**Authoring new MCP tools?** Follow the shared package contract:
+[mcp-naming.md](mcp-naming.md) (`{service}_{verb}_{object}`, no server-id in the
+tool name, stable verbs, sibling nouns). This section is the **host** side.
+
 Every published tool reaches the model as:
 
 ```text
@@ -38,7 +42,7 @@ Examples:
 | `google-search` | `web_search` | `google-search__web_search` |
 | `google` | `calendar_list_events` | `google__calendar_list_events` |
 | `math` | `expression_evaluate` | `math__expression_evaluate` |
-| `youtube` | `tracks_search` | `youtube__tracks_search` |
+| `youtube` | `videos_search` | `youtube__videos_search` |
 | `cast` | `youtube_beam_video` | `cast__youtube_beam_video` |
 | `garmin` | `sleep_get` | `garmin__sleep_get` |
 | `strava` | `activities_list` | `strava__activities_list` |

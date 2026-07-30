@@ -9,6 +9,7 @@ is the product contract and milestone checklist; these pages go deeper.
 | [deploy-native.md](deploy-native.md) | **Featured:** Linux systemd + Ollama/Qwen, local-model hardening |
 | [deploy-docker.md](deploy-docker.md) | Distroless compose / Hub, Gemini hello path |
 | [mcp.md](mcp.md) | MCP host: `{server}__{tool}` naming, underscore alias, suggestions, local REPL |
+| [mcp-naming.md](mcp-naming.md) | **Shared** tool naming contract for all shotah MCP packages (Qwen / closest-match) |
 | [discord.md](discord.md) | Discord Gateway channel (DMs, allowlist, no ports) |
 | [slack.md](slack.md) | Slack Socket Mode channel (DMs + @mention, no ports) |
 | [milestones.md](milestones.md) | Archived M0–M7 build checklist (shipped) |

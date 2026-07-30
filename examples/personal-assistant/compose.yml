@@ -52,7 +52,7 @@ services:
       # - ./secrets/google-mcp:/data/.config/google-mcp
       # - ./secrets/strava:/data/.config/strava
       # - ./secrets/garmin:/data/.config/garmin
-      # - ./secrets/ytmusic:/data/.config/ytmusic
+      # - ./data/.config/youtube:/data/.config/youtube
     healthcheck:
       test: ["CMD", "/usr/local/bin/gantry", "status"]
       interval: 60s

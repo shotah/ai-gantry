@@ -44,10 +44,11 @@
 # name = "cast"
 # command = "mcp-beam"
 
-# --- YouTube Music (shotah/youtube-go-mcp) -----------------------------------
+# --- YouTube Data API v3 (shotah/youtube-go-mcp) -----------------------------
 # [[server]]
 # name = "youtube"
 # command = "youtube-go-mcp"
+# auth_args = ["auth", "oauth", "--out", "${YOUTUBE_OAUTH_PATH}"]
 #
 # --- Calculator (shotah/mcp-go-math) -----------------------------------------
 # [[server]]

@@ -61,9 +61,9 @@
 # command = "mcp-beam"
 #
 # [[server]]
-# name    = "ytmusic"
+# name    = "youtube"
 # command = "youtube-go-mcp"
-# auth_args = ["auth", "--out", "${YTMUSIC_HEADERS_PATH}"]
+# auth_args = ["auth", "oauth", "--out", "${YOUTUBE_OAUTH_PATH}"]
 #
 # [[server]]
 # name    = "math"

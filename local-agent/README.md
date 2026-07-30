@@ -8,7 +8,7 @@
 targets, auth helpers, and deploy scripts around the **ai-gantry** kernel. One
 persona, one model, MCP tool binaries. Chat over **Telegram**; think with
 **Ollama/Qwen** (native) or **Gemini** (Docker); act via Workspace, Strava,
-Garmin, Cast, YouTube Music, and web search.
+Garmin, Cast, YouTube, and web search.
 
 Lives at **`local-agent/`** in [shotah/ai-gantry](https://github.com/shotah/ai-gantry).
 Kernel overview: [../readme.md](../readme.md). Deploy styles:
@@ -39,7 +39,7 @@ Design goals: **tiny footprint, no inbound ports, one command to deploy.**
   - [Workout coaching (Strava)](#workout-coaching-strava)
   - [Garmin recovery (sleep / weight)](#garmin-recovery-sleep--weight)
   - [House Cast (speakers / displays)](#house-cast-speakers--displays)
-  - [YouTube Music](#youtube-music)
+  - [YouTube](#youtube)
   - [Web search (Google via Gemini)](#web-search-google-via-gemini)
   - [Make targets](#make-targets)
   - [Design \& efficiency notes](#design--efficiency-notes)
@@ -83,7 +83,7 @@ flowchart LR
   GM -->|session| GC[Garmin Connect]
   GS -->|grounding| GGL[Google Search]
   CM -->|mDNS / castv2| CAST[Nest / Chromecast / DLNA]
-  YM -->|InnerTube| YTM[YouTube Music]
+  YM -->|Data API v3| YT[YouTube]
 
   GN --- P[("./persona<br/>SOUL.md USER.md …")]
   GN --- M[("./mcp.toml<br/>server manifest")]
@@ -215,7 +215,7 @@ Everything lives in [`./docs`](docs). Start with Telegram, add the rest as neede
 | 🏃 **[docs/strava.md](docs/strava.md)** | Strava API app, `strava-mcp` OAuth, token mount, MCP wiring | Workout summaries & training nudges |
 | ⌚ **[docs/garmin.md](docs/garmin.md)** | go-garmin MCP, `make garmin-auth`, sleep / weight / readiness | Physiological recovery + scale weight |
 | 📺 **[docs/cast.md](docs/cast.md)** | mcp-beam (Go) release, host networking, `cast__youtube_beam_video` / pause / volume | House Chromecast / Nest / DLNA |
-| 🎵 **[docs/ytmusic.md](docs/ytmusic.md)** | youtube-go-mcp (Go), browser headers, search / library / liked | YouTube Music → `videoId` → Cast |
+| 📺 **[docs/youtube.md](docs/youtube.md)** | youtube-go-mcp v1+ (Go), Data API v3 OAuth, search / playlists / liked | YouTube → `videoId` → Cast |
 | 🧮 **[docs/math.md](docs/math.md)** | mcp-go-math (Go), `evaluate` + `convert` | Non-trivial arithmetic / unit conversion |
 | 🔎 **[docs/web-search.md](docs/web-search.md)** | Google Search via Gemini grounding MCP (same API key) | Web answers |
 
@@ -298,7 +298,7 @@ LOCAL_AGENT can discover and control Chromecast / Nest / DLNA devices on your LA
 [shotah/mcp-beam](https://github.com/shotah/mcp-beam) — a **static Go** release
 binary baked into the image (same pattern as Strava/Garmin). No API keys.
 Optional. Includes `cast__youtube_beam_video` for Nest playback from a YouTube
-`videoId` (pair with YouTube Music below).
+`videoId` (pair with YouTube below).
 
 **On the Linux home server**, enable host networking so mDNS works:
 
@@ -314,22 +314,23 @@ Full guide: **[docs/cast.md](docs/cast.md)**.
 
 ---
 
-## YouTube Music
+## YouTube
 
-LOCAL_AGENT can search YouTube Music and read your library (playlists, liked songs, history)
-via [youtube-go-mcp](https://github.com/shotah/youtube-go-mcp) — a **static Go**
-binary baked into the image. Auth is browser-session headers (Premium rides along),
-not a Data API key. Optional. Playback: hand `videoId` to Cast
+LOCAL_AGENT can search YouTube and read playlists / liked videos via
+[youtube-go-mcp](https://github.com/shotah/youtube-go-mcp) **v1+** — a **static Go**
+binary over **YouTube Data API v3**. Auth is OAuth (`YOUTUBE_OAUTH_*`, TV/Limited
+Input client). Optional. Playback: hand `videoId` to Cast
 `cast__youtube_beam_video` (not a watch URL on `cast__media_beam`).
 
 ```bash
-make ytmusic-auth     # paste DevTools headers → secrets/ytmusic/headers.json
+# Set YOUTUBE_OAUTH_CLIENT_ID / YOUTUBE_OAUTH_CLIENT_SECRET in .env first
+make youtube-auth     # device OAuth → data/.config/youtube/oauth.json (+ sync if DEPLOY_HOST set)
 make up               # or: make remote-deploy
 ```
 
-Ask LOCAL_AGENT: "Search YouTube Music for … and play it on the kitchen Nest."
+Ask LOCAL_AGENT: "Search YouTube for … and play it on the kitchen Nest."
 
-Full guide: **[docs/ytmusic.md](docs/ytmusic.md)**.
+Full guide: **[docs/youtube.md](docs/youtube.md)**.
 
 ---
 
@@ -364,7 +365,7 @@ make help            # full grouped list
 | `up` / `down` / `restart` | `remote-sync` — scp compose/.env/mcp.toml/persona (not secrets) |
 | `logs` / `ps` / `status` | `remote-up` / `remote-down` / `remote-restart` |
 | `shell` — alpine with ./data (sqlite) | `remote-logs` / `remote-ps` / `remote-status` |
-| `strava-auth` / `garmin-auth` / `google-auth` / `ytmusic-auth` | `remote-ssh [CMD='…']` — run on server |
+| `strava-auth` / `garmin-auth` / `google-auth` / `youtube-auth` | `remote-ssh [CMD='…']` — run on server |
 
 ---
 
@@ -385,7 +386,7 @@ make help            # full grouped list
 ```text
 local-agent/
 ├── docker-compose.yml         # the gantry service (no ports; 1G / 4 CPU; NETWORK_MODE)
-├── Dockerfile                 # distroless/static + gantry + workspace/strava/garmin/search/beam/ytmusic
+├── Dockerfile                 # distroless/static + gantry + workspace/strava/garmin/search/beam/youtube
 ├── Makefile                   # local + remote targets
 ├── .env.example               # all knobs, documented
 ├── mcp.toml                   # MCP server manifest — listed = granted
@@ -394,7 +395,7 @@ local-agent/
 │   ├── google-mcp/            # Workspace MCP OAuth tokens (gitignored)
 │   ├── strava/                # OAuth token for strava-mcp (gitignored)
 │   ├── garmin/                # Connect session for go-garmin (gitignored)
-│   └── ytmusic/               # browser headers for youtube-go-mcp (gitignored)
+│   └── youtube/               # legacy stub; prefer data/.config/youtube/oauth.json
 ├── scripts/
 │   ├── deploy-manifest.txt    # single source of files to sync
 │   ├── remote.ps1             # Windows → Ubuntu deploy

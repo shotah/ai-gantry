@@ -65,11 +65,11 @@ command = "mcp-beam"
 download_tag = "latest"
 download_url = "https://github.com/shotah/mcp-beam/releases/download/{tag}/mcp-beam_{version}_{os}_{arch}.tar.gz"
 
-# YouTube Music (shotah/youtube-go-mcp) — docs/ytmusic.md
+# YouTube Data API v3 (shotah/youtube-go-mcp) — docs/youtube.md
 [[server]]
 name = "youtube"
 command = "youtube-go-mcp"
-auth_args = ["auth", "--out", "${YTMUSIC_HEADERS_PATH}"]
+auth_args = ["auth", "oauth", "--out", "${YOUTUBE_OAUTH_PATH}"]
 download_tag = "latest"
 download_url = "https://github.com/shotah/youtube-go-mcp/releases/download/{tag}/youtube-go-mcp_{version}_{os}_{arch}.tar.gz"
 
