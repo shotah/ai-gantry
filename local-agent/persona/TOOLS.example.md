@@ -13,7 +13,8 @@ Wrong args → fix and retry; unknown tool → use the exact name below.
 | Workouts / load | `strava__` / `garmin__` | `google__` |
 | Sleep / recovery | `garmin__` | `strava__` for sleep |
 
-Wrong-server error → switch prefix; don’t retry Strava for calendar.
+Wrong-server error → switch prefix; don’t retry Strava/Garmin for calendar.
+Never `garmin__calendar_*` for Google Calendar (Connect training calendar).
 
 ## Timezone (all tools)
 

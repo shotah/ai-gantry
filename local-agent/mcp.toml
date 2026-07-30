@@ -25,20 +25,27 @@ download_tag = "latest"
 download_url = "https://github.com/shotah/google-mcp/releases/download/{tag}/google-mcp_{version}_{os}_{arch}.tar.gz"
 
 # Strava workouts (shotah/go-strava-mcp) — docs/strava.md
+# No calendar tools (good). Hide release-only utility_* (self-update / check)
+# so the agent cannot "upgrade" the binary mid-session.
 [[server]]
 name = "strava"
 command = "strava-mcp"
 auth_args = ["auth"]
+exclude = ["utility_*"]
 download_tag = "latest"
 download_url = "https://github.com/shotah/go-strava-mcp/releases/download/{tag}/strava-mcp_{version}_{os}_{arch}.tar.gz"
 
 # Garmin sleep / body battery / weight (shotah/go-garmin) — docs/garmin.md
 # --tool-tier core ≈ 10 recovery/coaching tools (not the full ~100).
+# Belt-and-suspenders: never publish Connect "calendar" / menstrual calendar —
+# those names steal Google Calendar asks (`garmin__calendar_get` literally says
+# "what's on my calendar" in its blurb). Rename upstream later; exclude here.
 [[server]]
 name = "garmin"
 command = "garmin"
 args = ["mcp", "--tool-tier", "core"]
 auth_args = ["login"]
+exclude = ["calendar_*", "*_calendar", "*_calendar_*"]
 download_tag = "latest"
 download_url = "https://github.com/shotah/go-garmin/releases/download/{tag}/garmin_{version}_{os}_{arch}.tar.gz"
 
