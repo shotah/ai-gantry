@@ -144,7 +144,7 @@ restart, so ordinary redeploys keep the model resident.
 
 ### Perceived latency
 
-Tool chains stream a trace into the Telegram bubble (`→ garmin__list_activities`
+Tool chains stream a trace into the Telegram bubble (`→ garmin__activities_list`
 then `✓ 1.2s · 4.1k chars`), so a long turn shows motion instead of looking
 frozen. With `LLM_REASONING_EFFORT=none` that trace is the whole expandable
 block. Needs `STREAM_REPLIES=true`.

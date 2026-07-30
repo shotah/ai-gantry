@@ -1,15 +1,17 @@
 # Strava workout data (Garmin friendly)
 
 Give LOCAL_AGENT your training history so he can nudge you ("bro, get to the gym"),
-suggest rest, and summarize the week. This uses the
-[StravaMCP](https://github.com/Stealinglight/StravaMCP) server — a single static
-Go binary baked into the image that gantry launches over stdio.
+suggest rest, and summarize the week. This uses
+[go-strava-mcp](https://github.com/shotah/go-strava-mcp) — our fork of
+Stealinglight/StravaMCP with `{service}_{verb}_{object}` tool names (host:
+`strava__activities_list`, not `strava__strava_*`). Single static Go binary;
+gantry launches it over stdio.
 
 **Using a Garmin?** Connect the watch to Strava once (Garmin Connect → Settings →
 Connected Apps → Strava). Every activity then auto-syncs to Strava and LOCAL_AGENT reads
 it here — no fragile unofficial Garmin login required.
 
-Upstream: [StravaMCP](https://github.com/Stealinglight/StravaMCP) ·
+Package: [go-strava-mcp](https://github.com/shotah/go-strava-mcp) ·
 [Strava API](https://developers.strava.com).
 
 ```mermaid
@@ -23,13 +25,13 @@ flowchart LR
 
 ## What LOCAL_AGENT can do
 
-`strava-mcp` exposes 11 tools (prefixed `strava__…`). The useful ones here:
+`strava-mcp` exposes 11 tools (host form `strava__…`). The useful ones here:
 
 | Ask | Tool |
 |---|---|
-| "Summarize my workouts this week" | `strava_get_activities` + `strava_get_athlete_stats` |
-| "Should I train or rest today?" | recent `strava_get_activities` (frequency / load heuristic) |
-| "How was my last ride?" | `strava_get_activity_by_id`, `strava_get_activity_zones` |
+| "Summarize my workouts this week" | `strava__activities_list` + `strava__athlete_get_stats` |
+| "Should I train or rest today?" | recent `strava__activities_list` (frequency / load heuristic) |
+| "How was my last ride?" | `strava__activities_get`, `strava__activities_get_zones` |
 
 > **Rest-day reality check:** true recovery metrics (HRV, Body Battery, sleep)
 > are **Garmin-only**. Wire [docs/garmin.md](garmin.md) for those; with Strava
@@ -94,9 +96,8 @@ automatically from here on.
 <details>
 <summary>Alternative: run the binary directly (macOS / Linux / WSL)</summary>
 
-Get the binary (`brew install Stealinglight/tap/strava-mcp`,
-`go install github.com/Stealinglight/StravaMCP@latest`, or a
-[release](https://github.com/Stealinglight/StravaMCP/releases/latest)), then from
+Get the binary (`go install github.com/shotah/go-strava-mcp@latest`, or a
+[release](https://github.com/shotah/go-strava-mcp/releases/latest)), then from
 the repo root:
 
 ```bash
@@ -150,11 +151,14 @@ no bundles, no deferred loading, and no approval prompts to configure:
 [[server]]
 name    = "strava"
 command = "strava-mcp"
+auth_args = ["auth"]
+download_tag = "latest"
+download_url = "https://github.com/shotah/go-strava-mcp/releases/download/{tag}/strava-mcp_{version}_{os}_{arch}.tar.gz"
 ```
 
-Tools reach the model as `strava__<tool>` (server-prefixed, eager-loaded at
-boot). If the binary can't start, gantry fails the boot loudly instead of
-letting the model improvise.
+Tools reach the model as `strava__{service}_{verb}_…` (e.g.
+`strava__activities_list`). Eager-loaded at boot. If the binary can't start,
+gantry fails loudly instead of letting the model improvise.
 
 Credentials come from the container environment (set in `.env`, passed through
 `docker-compose.yml`): `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, and

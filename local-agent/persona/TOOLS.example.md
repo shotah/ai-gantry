@@ -41,43 +41,44 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 
 ## Math
 
-- **Math MCP (`mcp-go-math`)** — `evaluate` for arithmetic; `convert` for units
+- **Math MCP (`mcp-go-math`)** — `math__expression_evaluate` for arithmetic; `math__units_convert` for units
 - Use the math tool for **any arithmetic beyond trivial** — do not invent results in reasoning
-- Prefer `evaluate` over mental math for percentages, multi-step formulas, and roots/powers
+- Prefer `expression_evaluate` over mental math for percentages, multi-step formulas, and roots/powers
 
 ## Fitness
 
-- **Strava MCP** — activities, load, weekly summaries (`strava__strava_get_activities`, by-id / zones / athlete stats)
-- **Garmin MCP** — sleep, weight, Body Battery / HRV / readiness, **and** activity history (`garmin__list_activities`, `garmin__get_activity`)
+- **Strava MCP** — activities, load, weekly summaries (`strava__activities_list`, `strava__activities_get` / `_zones`, `strava__athlete_get_stats`)
+- **Garmin MCP** (core) — `garmin__sleep_get`, `garmin__weight_get`, `garmin__wellness_get_body_battery`, `garmin__hrv_get`, `garmin__metrics_get_training_readiness`, `garmin__activities_list`, `garmin__activities_get`
 - Prefer Garmin for recovery
-- **“What did I do?” / yesterday’s ride / session:** call a list tool first — `garmin__list_activities` and/or `strava__strava_get_activities` (whichever is in the tools list). Bound the day in the human’s timezone from `[current time]` (not UTC). Then by-id detail if needed. Do **not** ask the human to paste stats when a list tool exists; do **not** invent “no daily activity tool” because you only looked for `get_activities`.
-- **Sleep:** `garmin__get_sleep` only — not `get_body_battery`. Call it (don’t narrate “I’ll pull…”). For “last night” omit `date` or pass **today** (wake-up day). Example: today 2026-07-28 → `date=2026-07-28`, never yesterday
+- **“What did I do?” / yesterday’s ride / session:** call a list tool first — `garmin__activities_list` and/or `strava__activities_list` (whichever is in the tools list). Bound the day in the human’s timezone from `[current time]` (not UTC). Then by-id detail if needed. Do **not** ask the human to paste stats when a list tool exists; do **not** invent “no daily activity tool” because you only looked for `get_activities`.
+- **Sleep:** `garmin__sleep_get` only — not Body Battery. Call it (don’t narrate “I’ll pull…”). For “last night” omit `date` or pass **today** (wake-up day). Example: today 2026-07-28 → `date=2026-07-28`, never yesterday
 
 ## Web search
 
-- **Exact tool name:** `google-search__google_search` (not `web_search*`)
-- New event + place → search if needed, then **`create_event`**. Existing + place → **`modify_event`**
+- **Exact tool name:** `google-search__web_search` (not `google_search`, not `web_search_mcp_*`)
+- New event + place → search if needed, then **`google__calendar_create_event`**. Existing + place → **`google__calendar_update_event`**
 - If two cities share a gym-ish name, prefer the city in the ask / `USER.md`
 
 ## YouTube Music
 
-- **YT Music MCP (`youtube-go-mcp`, Go)** — search, library playlists, liked songs, history, radio, lyrics
+- **YT Music MCP (`youtube-go-mcp`, server id `youtube`)** — search, library playlists, liked songs, history, radio, lyrics
+- **Exact tools:** `youtube__tracks_search`, `youtube__library_list_playlists`, `youtube__playlists_get`, `youtube__library_list_liked_songs`, `youtube__library_list_history`, `youtube__tracks_list_watch_playlist`, `youtube__tracks_get`, `youtube__tracks_get_lyrics`, `youtube__cast_format_target`
 - Prefer this over inventing royalty-free / stock music URLs
-- Returns `videoId` → hand off to Cast `beam_youtube_video` (bare id, not a watch URL)
+- Returns `videoId` / `video_id` → hand off to Cast `cast__youtube_beam_video` (bare id, not a watch URL)
 - Library tools need `make ytmusic-auth` (browser headers)
 
 ## House Cast (speakers / displays)
 
-- **Cast MCP (`mcp-beam`, Go)** — discover Chromecast / Nest / DLNA on the LAN; beam URLs or local files; YouTube-by-id; pause / resume / seek / stop / volume / mute
+- **Cast MCP (`mcp-beam`, server id `cast`)** — `cast__devices_list`, `cast__media_beam`, `cast__youtube_beam_video`, `cast__media_get_status`, play/pause/seek/stop/volume/mute
 - Prefer Cast tools over shell hacks for speakers/TVs
-- **Music flow:** YT Music → pick `videoId` → `beam_youtube_video` + room device — never invent free-MP3 fallbacks
-- **Never** pass YouTube/Music watch URLs to `beam_media` (Nest connects, silence)
-- Match the human’s **room name** to a local room→device map (fill in below after `make persona`), then `list_local_hardware` and pick the best-matching device `id`
+- **Music flow:** YT Music → pick `videoId` → `cast__youtube_beam_video` + room device — never invent free-MP3 fallbacks
+- **Never** pass YouTube/Music watch URLs to `cast__media_beam` (Nest connects, silence)
+- Match the human’s **room name** to a local room→device map (fill in below after `make persona`), then `cast__devices_list` and pick the best-matching device `id`
 - **Discovery defaults** (always pass these — slower Nest hubs can lose the race vs Mini/TV):
   - `timeout_ms`: **10000**
   - `include_unreachable`: **true**
-  - If a known room device is missing, call `list_local_hardware` again a few seconds later (background mDNS cache), then map by room
-- Volume: `set_beaming_volume` (0–100) / `mute_beaming` on an active session
+  - If a known room device is missing, call `cast__devices_list` again a few seconds later (background mDNS cache), then map by room
+- Volume: `cast__media_set_volume` (0–100) / `cast__media_mute` on an active session
 
 ### Room → devices (edit for your house)
 

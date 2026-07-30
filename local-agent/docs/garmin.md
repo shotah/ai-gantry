@@ -43,12 +43,12 @@ $XDG_CONFIG_HOME/garmin/session.json
 Tools reach the model prefixed as `garmin__…` (no approval gates in gantry —
 listed in `mcp.toml` = granted):
 
-| Ask | Tool |
+| Ask | Tool (host form) |
 |---|---|
-| "How did I sleep last night?" | `get_sleep` |
-| "What's my weight trend?" | `get_weight` |
-| "Am I recovered enough to train?" | `get_body_battery`, `get_hrv`, `get_training_readiness` |
-| "What did I do this week?" | `list_activities`, `get_activity` |
+| "How did I sleep last night?" | `garmin__sleep_get` |
+| "What's my weight trend?" | `garmin__weight_get` |
+| "Am I recovered enough to train?" | `garmin__wellness_get_body_battery`, `garmin__hrv_get`, `garmin__metrics_get_training_readiness` |
+| "What did I do this week?" | `garmin__activities_list`, `garmin__activities_get` |
 
 ---
 

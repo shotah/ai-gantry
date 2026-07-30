@@ -9,7 +9,7 @@
 # shotah/ai-gantry GitHub release (the runtime). Override via GANTRY_VERSION.
 # Also published as shotah/ai-gantry on Docker Hub / GHCR.
 ARG GANTRY_VERSION=v0.0.5
-ARG STRAVA_MCP_VERSION=v1.2.0
+ARG STRAVA_MCP_VERSION=v0.0.2
 # shotah/go-garmin release (DI auth + MCP). Override via GARMIN_MCP_VERSION.
 ARG GARMIN_MCP_VERSION=v0.1.2
 # Our packages: default `latest` (resolved at build). Pin e.g. v0.0.2 to freeze.
@@ -70,7 +70,7 @@ RUN apt-get update \
     && install -m 0755 /tmp/google-mcp /google-mcp \
     && test -x /google-mcp
 
-# --- fetch strava-mcp (static Go binary; MCP server for Strava) ---------------
+# --- fetch strava-mcp (static Go; shotah/go-strava-mcp) -----------------------
 FROM debian:trixie-slim AS strava
 ARG STRAVA_MCP_VERSION
 ARG TARGETARCH
@@ -84,7 +84,7 @@ RUN apt-get update \
     esac \
     && V="${STRAVA_MCP_VERSION#v}" \
     && curl -fsSL \
-    "https://github.com/Stealinglight/StravaMCP/releases/download/${STRAVA_MCP_VERSION}/StravaMCP_${V}_${STRAVA_ARCH}.tar.gz" \
+    "https://github.com/shotah/go-strava-mcp/releases/download/${STRAVA_MCP_VERSION}/strava-mcp_${V}_${STRAVA_ARCH}.tar.gz" \
     -o /tmp/strava.tar.gz \
     && tar -xzf /tmp/strava.tar.gz -C /tmp \
     && install -m 0755 /tmp/strava-mcp /strava-mcp \

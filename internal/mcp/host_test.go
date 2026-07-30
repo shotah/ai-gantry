@@ -114,14 +114,14 @@ command = "unused"
 		Dial: func(_ context.Context, spec mcp.ServerSpec, _ io.Writer) (mcp.Conn, error) {
 			if spec.Name == "garmin" {
 				return &fakeConn{tools: []mcp.Tool{
-					{OriginalName: "get_hrv"},
-					{OriginalName: "get_sleep"},
-					{OriginalName: "get_activity"},
+					{OriginalName: "hrv_get"},
+					{OriginalName: "sleep_get"},
+					{OriginalName: "activities_get"},
 				}}, nil
 			}
 			return &fakeConn{tools: []mcp.Tool{
-				{OriginalName: "get_activity"},
-				{OriginalName: "get_athlete"},
+				{OriginalName: "activities_get"},
+				{OriginalName: "athlete_get"},
 			}}, nil
 		},
 	})
@@ -132,23 +132,23 @@ command = "unused"
 	ctx := context.Background()
 
 	// Invented prefix, one server publishes the name: call it.
-	for _, name := range []string{"mcp__get_hrv", "get_sleep", "GARMIN__get_hrv"} {
+	for _, name := range []string{"mcp__hrv_get", "sleep_get", "GARMIN__hrv_get"} {
 		out, err := host.Call(ctx, name, nil)
 		if err != nil {
 			t.Fatalf("Call(%q) = %v, want repair", name, err)
 		}
-		if !strings.Contains(out, "get_") {
+		if !strings.Contains(out, "hrv_get") && !strings.Contains(out, "sleep_get") {
 			t.Fatalf("Call(%q) out = %q, want the tool result", name, out)
 		}
 	}
 
-	// Both servers publish get_activity: guessing would be a coin flip, so hand
+	// Both servers publish activities_get: guessing would be a coin flip, so hand
 	// the model both real names instead.
-	_, err = host.Call(ctx, "mcp__get_activity", nil)
+	_, err = host.Call(ctx, "mcp__activities_get", nil)
 	if err == nil {
 		t.Fatal("want error for an ambiguous tool name")
 	}
-	for _, want := range []string{"garmin__get_activity", "strava__get_activity"} {
+	for _, want := range []string{"garmin__activities_get", "strava__activities_get"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("err = %v, want substring %q", err, want)
 		}
@@ -156,7 +156,7 @@ command = "unused"
 
 	// Real prefix: the model picked that server deliberately, so list its
 	// catalog rather than silently crossing to the server that has the name.
-	_, err = host.Call(ctx, "garmin__get_athlete", nil)
+	_, err = host.Call(ctx, "garmin__athlete_get", nil)
 	if err == nil {
 		t.Fatal("want error, not a cross-server repair")
 	}
@@ -189,12 +189,12 @@ command = "unused"
 				}}, nil
 			case "strava":
 				return &fakeConn{tools: []mcp.Tool{
-					{OriginalName: "strava_get_activities"},
-					{OriginalName: "strava_get_activity"},
-					{OriginalName: "strava_get_activity_streams"},
-					{OriginalName: "strava_get_athlete"},
-					{OriginalName: "strava_get_stats"},
-					{OriginalName: "strava_get_zones"},
+					{OriginalName: "activities_list"},
+					{OriginalName: "activities_get"},
+					{OriginalName: "activities_get_streams"},
+					{OriginalName: "athlete_get"},
+					{OriginalName: "athlete_get_stats"},
+					{OriginalName: "activities_get_zones"},
 				}}, nil
 			default:
 				return nil, fmt.Errorf("unexpected server %q", spec.Name)
@@ -206,7 +206,7 @@ command = "unused"
 	}
 	t.Cleanup(func() { _ = host.Close() })
 
-	_, err = host.Call(context.Background(), "strava__strava_get_event", nil)
+	_, err = host.Call(context.Background(), "strava__activities_get_event", nil)
 	if err == nil {
 		t.Fatal("want unknown tool error")
 	}
@@ -247,10 +247,10 @@ command = "unused"
 		ManifestPath: path,
 		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
 			return &fakeConn{tools: []mcp.Tool{
-				{OriginalName: "get_hrv"},
-				{OriginalName: "get_body_battery"},
-				{OriginalName: "get_sleep"},
-				{OriginalName: "list_activities"},
+				{OriginalName: "hrv_get"},
+				{OriginalName: "wellness_get_body_battery"},
+				{OriginalName: "sleep_get"},
+				{OriginalName: "activities_list"},
 			}}, nil
 		},
 	})
@@ -268,13 +268,13 @@ command = "unused"
 		t.Fatalf("err = %v, want closest-name hint", err)
 	}
 	// Two shared tokens (body, battery) must outrank one (hrv).
-	body := strings.Index(got, "garmin__get_body_battery")
-	hrv := strings.Index(got, "garmin__get_hrv")
+	body := strings.Index(got, "garmin__wellness_get_body_battery")
+	hrv := strings.Index(got, "garmin__hrv_get")
 	if body < 0 || hrv < 0 || body > hrv {
-		t.Fatalf("err = %v, want get_body_battery ranked before get_hrv", err)
+		t.Fatalf("err = %v, want wellness_get_body_battery ranked before hrv_get", err)
 	}
 	// Tools sharing nothing but the generic "get"/"list" verb are noise.
-	for _, unwanted := range []string{"garmin__get_sleep", "garmin__list_activities"} {
+	for _, unwanted := range []string{"garmin__sleep_get", "garmin__activities_list"} {
 		if strings.Contains(got, unwanted) {
 			t.Fatalf("err = %v, must not suggest unrelated %q", err, unwanted)
 		}
@@ -285,7 +285,7 @@ command = "unused"
 	if !errors.As(err, &unknown) {
 		t.Fatalf("err is %T, want *mcp.UnknownToolError", err)
 	}
-	want := []string{"garmin__get_body_battery", "garmin__get_hrv"}
+	want := []string{"garmin__wellness_get_body_battery", "garmin__hrv_get"}
 	if !slices.Equal(unknown.Candidates, want) {
 		t.Fatalf("candidates = %v, want %v", unknown.Candidates, want)
 	}
@@ -350,7 +350,7 @@ func TestHost_CallAliasesUnderscoredPrefix(t *testing.T) {
 name = "google-search"
 command = "unused"
 `)
-	conn := &fakeConn{tools: []mcp.Tool{{OriginalName: "google_search"}}}
+	conn := &fakeConn{tools: []mcp.Tool{{OriginalName: "web_search"}}}
 	host, err := mcp.Start(context.Background(), mcp.Options{
 		ManifestPath: path,
 		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
@@ -363,16 +363,16 @@ command = "unused"
 	t.Cleanup(func() { _ = host.Close() })
 
 	// Exact name still works.
-	got, err := host.Call(context.Background(), "google-search__google_search", json.RawMessage(`{"query":"x"}`))
+	got, err := host.Call(context.Background(), "google-search__web_search", json.RawMessage(`{"query":"x"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(got, "google_search:") {
-		t.Fatalf("got %q, want google_search:…", got)
+	if !strings.HasPrefix(got, "web_search:") {
+		t.Fatalf("got %q, want web_search:…", got)
 	}
 
 	// Local models often turn the hyphenated server prefix into underscores.
-	got, err = host.Call(context.Background(), "google_search__google_search", json.RawMessage(`{"query":"edgeworks"}`))
+	got, err = host.Call(context.Background(), "google_search__web_search", json.RawMessage(`{"query":"edgeworks"}`))
 	if err != nil {
 		t.Fatalf("aliased call failed: %v", err)
 	}
@@ -393,7 +393,7 @@ command = "unused"
 	host, err := mcp.Start(context.Background(), mcp.Options{
 		ManifestPath: path,
 		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
-			return &fakeConn{tools: []mcp.Tool{{OriginalName: "google_search"}}}, nil
+			return &fakeConn{tools: []mcp.Tool{{OriginalName: "web_search"}}}, nil
 		},
 	})
 	if err != nil {
@@ -402,15 +402,15 @@ command = "unused"
 	t.Cleanup(func() { _ = host.Close() })
 
 	// Wrong tool + underscored prefix: keep listing the real catalog (not only prefixes).
-	_, err = host.Call(context.Background(), "google_search__web_search", nil)
+	_, err = host.Call(context.Background(), "google_search__google_search", nil)
 	if err == nil {
 		t.Fatal("want error for unknown tool")
 	}
 	for _, want := range []string{
-		`unknown tool "google_search__web_search"`,
+		`unknown tool "google_search__google_search"`,
 		`did you mean "google-search"?`,
 		"valid google-search tools are",
-		"google-search__google_search",
+		"google-search__web_search",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("err = %v, want substring %q", err, want)
@@ -481,7 +481,7 @@ func TestHost_ToolsAllowlistAndPrefix(t *testing.T) {
 [[server]]
 name = "garmin"
 command = "unused"
-tools = ["get_sleep", "raw_dump"]
+tools = ["sleep_get", "raw_dump"]
 exclude = ["raw_*"]
 tools_prefix = "garm"
 `)
@@ -489,8 +489,8 @@ tools_prefix = "garm"
 		ManifestPath: path,
 		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
 			return &fakeConn{tools: []mcp.Tool{
-				{OriginalName: "get_sleep"},
-				{OriginalName: "get_weight"},
+				{OriginalName: "sleep_get"},
+				{OriginalName: "weight_get"},
 				{OriginalName: "raw_dump"},
 			}}, nil
 		},
@@ -502,7 +502,7 @@ tools_prefix = "garm"
 	if host.ToolCount() != 1 {
 		t.Fatalf("tools=%d", host.ToolCount())
 	}
-	if host.Tools()[0].Name != "garm__get_sleep" {
+	if host.Tools()[0].Name != "garm__sleep_get" {
 		t.Fatalf("%q", host.Tools()[0].Name)
 	}
 }

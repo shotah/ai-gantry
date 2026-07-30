@@ -48,7 +48,7 @@ func forcedNamesSeen(t *testing.T, candidates []string) ([][]string, string) {
 			}}, nil
 		case 2:
 			return &provider.Result{ToolCalls: []provider.ToolCall{
-				{ID: "c2", Name: "garmin__get_hrv", Arguments: `{"date":"2026-07-27"}`},
+				{ID: "c2", Name: "garmin__hrv_get", Arguments: `{"date":"2026-07-27"}`},
 			}}, nil
 		default:
 			return &provider.Result{Content: "HRV was 62ms."}, nil
@@ -59,8 +59,8 @@ func forcedNamesSeen(t *testing.T, candidates []string) ([][]string, string) {
 		Sessions:  newMemHistory(),
 		Tools: &unknownThenOK{
 			defs: []provider.ToolDef{
-				{Name: "garmin__get_hrv"},
-				{Name: "garmin__get_body_battery"},
+				{Name: "garmin__hrv_get"},
+				{Name: "garmin__wellness_get_body_battery"},
 			},
 			unknown: &mcp.UnknownToolError{
 				Name:       "mcp__get_hrv_and_body_battery",
@@ -85,7 +85,7 @@ func forcedNamesSeen(t *testing.T, candidates []string) ([][]string, string) {
 // physically cannot misspell it twice. The constraint is one-shot: forcing every
 // later call would make the model unable to answer in prose at all.
 func TestAgent_UnknownToolConstrainsNextCallOnly(t *testing.T) {
-	candidates := []string{"garmin__get_body_battery", "garmin__get_hrv"}
+	candidates := []string{"garmin__wellness_get_body_battery", "garmin__hrv_get"}
 	seen, reply := forcedNamesSeen(t, candidates)
 
 	if reply != "HRV was 62ms." {

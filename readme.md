@@ -287,8 +287,8 @@ download_url = "https://github.com/shotah/go-garmin/releases/download/{tag}/garm
 name    = "strava"
 command = "strava-mcp"
 auth_args = ["auth"]
-download_tag = "v1.2.0"
-download_url = "https://github.com/Stealinglight/StravaMCP/releases/download/{tag}/StravaMCP_{version}_{os}_{arch}.tar.gz"
+download_tag = "latest"
+download_url = "https://github.com/shotah/go-strava-mcp/releases/download/{tag}/strava-mcp_{version}_{os}_{arch}.tar.gz"
 ```
 
 `download_url` + `download_tag` are for native deploy (`gantry tools-plan` /

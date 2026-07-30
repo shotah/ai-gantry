@@ -140,7 +140,7 @@ func TestClient_CompleteStream_ParallelToolsSameIndex(t *testing.T) {
 		chunks := []string{
 			`{"id":"1","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"a1","type":"function","function":{"name":"ytmusic__search_tracks","arguments":""}}]}}]}`,
 			`{"id":"1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"q\":\"x\"}"}}]}}]}`,
-			`{"id":"1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"b2","type":"function","function":{"name":"cast__list_local_hardware","arguments":""}}]}}]}`,
+			`{"id":"1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"b2","type":"function","function":{"name":"cast__devices_list","arguments":""}}]}}]}`,
 			`{"id":"1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{}"}}]}}]}`,
 			`{"id":"1","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`,
 		}
@@ -156,7 +156,7 @@ func TestClient_CompleteStream_ParallelToolsSameIndex(t *testing.T) {
 		Messages: []provider.Message{{Role: provider.RoleUser, Content: "play"}},
 		Tools: []provider.ToolDef{
 			{Name: "ytmusic__search_tracks", Parameters: map[string]any{"type": "object"}},
-			{Name: "cast__list_local_hardware", Parameters: map[string]any{"type": "object"}},
+			{Name: "cast__devices_list", Parameters: map[string]any{"type": "object"}},
 		},
 	}, nil)
 	if err != nil {
@@ -168,7 +168,7 @@ func TestClient_CompleteStream_ParallelToolsSameIndex(t *testing.T) {
 	if got.ToolCalls[0].Name != "ytmusic__search_tracks" || got.ToolCalls[0].ID != "a1" {
 		t.Fatalf("call0=%+v", got.ToolCalls[0])
 	}
-	if got.ToolCalls[1].Name != "cast__list_local_hardware" || got.ToolCalls[1].ID != "b2" {
+	if got.ToolCalls[1].Name != "cast__devices_list" || got.ToolCalls[1].ID != "b2" {
 		t.Fatalf("call1=%+v", got.ToolCalls[1])
 	}
 	if strings.Contains(got.ToolCalls[0].Name, "cast") || strings.Contains(got.ToolCalls[1].Name, "ytmusic") {

@@ -9,7 +9,7 @@ func TestStreamToolBuf_NewIDSameIndex(t *testing.T) {
 	a.args += `{"q":"x"}`
 
 	c := b.accFor(0, "b2")
-	mergeName(c, "cast__list_local_hardware")
+	mergeName(c, "cast__devices_list")
 	c.args += `{}`
 
 	// Further index-only deltas bind to the latest id at that index (b2).
@@ -18,7 +18,7 @@ func TestStreamToolBuf_NewIDSameIndex(t *testing.T) {
 	if d != c {
 		t.Fatal("index-only delta should follow latest id at index")
 	}
-	if len(b.order) != 2 || b.order[0].name != "ytmusic__search_tracks" || b.order[1].name != "cast__list_local_hardware" {
+	if len(b.order) != 2 || b.order[0].name != "ytmusic__search_tracks" || b.order[1].name != "cast__devices_list" {
 		t.Fatalf("%+v", b.order)
 	}
 	if a.args != `{"q":"x"}` {

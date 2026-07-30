@@ -8,7 +8,7 @@ No API keys, no cloud registration. gantry launches the binary over stdio
 
 Build source: [shotah/mcp-beam](https://github.com/shotah/mcp-beam) (fork of
 [alexballas/mcp-beam](https://github.com/alexballas/mcp-beam) with volume/mute +
-`beam_youtube_video`). Module `go2tv.app/mcp-beam`.
+`youtube_beam_video`). Module `go2tv.app/mcp-beam`.
 
 ```mermaid
 flowchart LR
@@ -16,7 +16,7 @@ flowchart LR
   MB -->|mDNS / SSDP| LAN[Home Wi‑Fi]
   MB -->|castv2 / DLNA| DEV[Nest / Chromecast / DLNA]
   YM[youtube-go-mcp] -->|videoId| GN
-  GN -->|beam_youtube_video| MB
+  GN -->|youtube_beam_video| MB
 ```
 
 **No secrets.** Nothing under `secrets/` — discovery and control are entirely
@@ -37,23 +37,23 @@ local.
 `mcp-beam` exposes 10 tools (prefixed `cast__…` because the server name in
 `mcp.toml` is `cast`):
 
-| Ask | Tool |
+| Ask | Tool (host form) |
 |---|---|
-| “What Cast / DLNA devices are on the network?” | `list_local_hardware` |
-| “Play this URL / file on the kitchen speaker” | `beam_media` |
-| “Play this YouTube / Music track on the Nest” | `beam_youtube_video` |
-| “What’s playing?” | `get_beaming_status` |
-| Pause / resume / stop | `pause_beaming`, `play_beaming`, `stop_beaming` |
-| Seek | `seek_beaming` |
-| Volume / mute | `set_beaming_volume` (0–100), `mute_beaming` |
+| “What Cast / DLNA devices are on the network?” | `cast__devices_list` |
+| “Play this URL / file on the kitchen speaker” | `cast__media_beam` |
+| “Play this YouTube / Music track on the Nest” | `cast__youtube_beam_video` |
+| “What’s playing?” | `cast__media_get_status` |
+| Pause / resume / stop | `cast__media_pause`, `cast__media_play`, `cast__media_stop` |
+| Seek | `cast__media_seek` |
+| Volume / mute | `cast__media_set_volume` (0–100), `cast__media_mute` |
 
-Typical music flow: ytmusic `search_tracks` / library → note `videoId` →
-`list_local_hardware` → `beam_youtube_video` with bare `video_id` + device id →
+Typical music flow: `youtube__tracks_search` / library → note `videoId` →
+`cast__devices_list` → `cast__youtube_beam_video` with bare `video_id` + device id →
 pause/volume/stop via `session_id`.
 
-**Do not** pass `https://music.youtube.com/watch?v=…` to `beam_media` — that is
+**Do not** pass `https://music.youtube.com/watch?v=…` to `cast__media_beam` — that is
 a web page, not a stream. Nest will connect and stay silent. Use
-`beam_youtube_video`.
+`cast__youtube_beam_video`.
 
 **Discovery defaults** (also in `TOOLS.md`): always pass a longer timeout and
 keep sleepy devices — Nest Hub Max often loses a short race to Mini / TV:
@@ -85,8 +85,8 @@ No Cast credentials. The image downloads the
 # MCP_BEAM_LOG_LEVEL=info
 ```
 
-`ffmpeg` / `ffprobe` are **optional** — needed only when `beam_media` must
-transcode. Direct Chromecast URL play and `beam_youtube_video` usually work
+`ffmpeg` / `ffprobe` are **optional** — needed only when `media_beam` must
+transcode. Direct Chromecast URL play and `youtube_beam_video` usually work
 without them. Distroless has no ffmpeg; if you hit `FFMPEG_NOT_FOUND`, prefer a
 direct-playable URL, `transcode: "never"`, or YouTube-by-id.
 
@@ -156,10 +156,10 @@ With host networking enabled and devices on the LAN, ask LOCAL_AGENT over Telegr
 |---|---|
 | LOCAL_AGENT doesn’t see Cast tools | Check the `[[server]]` entry in `mcp.toml`; rebuild so `mcp-beam` is in the image |
 | Boot fails with `mcp: boot server "cast"` | `make build` / `make remote-deploy`; check `make logs` for the tool's stderr |
-| `list_local_hardware` returns empty / missing Nest Max | Set `NETWORK_MODE=host` in `.env`; same subnet/VLAN; use `timeout_ms: 10000` + `include_unreachable: true` (see Discovery defaults); retry a few seconds later; if Chrome/Google Home also can’t see it, it’s network/mDNS |
-| Nest connects but no music | Don’t use `beam_media` with a YouTube/Music watch URL — use `beam_youtube_video` with the bare `video_id` from ytmusic |
-| `FFMPEG_NOT_FOUND` | Use a direct-playable URL / `transcode: "never"` / `beam_youtube_video`, or add ffmpeg later (not in distroless by default) |
-| Play fails / wrong device | Re-run discovery; pass the stable device `id` from `list_local_hardware` |
+| `cast__devices_list` returns empty / missing Nest Max | Set `NETWORK_MODE=host` in `.env`; same subnet/VLAN; use `timeout_ms: 10000` + `include_unreachable: true` (see Discovery defaults); retry a few seconds later; if Chrome/Google Home also can’t see it, it’s network/mDNS |
+| Nest connects but no music | Don’t use `cast__media_beam` with a YouTube/Music watch URL — use `cast__youtube_beam_video` with the bare `video_id` from youtube |
+| `FFMPEG_NOT_FOUND` | Use a direct-playable URL / `transcode: "never"` / `cast__youtube_beam_video`, or add ffmpeg later (not in distroless by default) |
+| Play fails / wrong device | Re-run discovery; pass the stable device `id` from `cast__devices_list` |
 | Works on server, not on Windows Docker | Expected — use the home Linux host for Cast |
 | Image build fails in mcp-beam stage | Check a release exists on [shotah/mcp-beam releases](https://github.com/shotah/mcp-beam/releases); if pinned, verify `MCP_BEAM_VERSION` |
 | Stale mcp-beam after a new release | Rebuild via `make build` / `make remote-deploy` (TOOLS_CACHEBUST re-resolves `latest`) |
@@ -191,13 +191,13 @@ ships in `TOOLS.example.md`.
 | Living room | … | … |
 | Bedroom | … | … |
 
-After first successful `list_local_hardware`, put confirmed friendly names →
+After first successful `devices_list`, put confirmed friendly names →
 rooms in local `TOOLS.md` if useful — don’t invent names discovery never returned.
 
 ---
 
 ## Follow-ups
 
-- [x] Volume/mute + `beam_youtube_video` on [shotah/mcp-beam](https://github.com/shotah/mcp-beam) (release bake; default `latest`)
+- [x] Volume/mute + `youtube_beam_video` on [shotah/mcp-beam](https://github.com/shotah/mcp-beam) (release bake; default `latest`)
 - [x] Authenticated YouTube Music via [youtube-go-mcp](ytmusic.md)
 - [x] Named-room map in `TOOLS.md` / `docs/cast.md`

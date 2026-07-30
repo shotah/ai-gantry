@@ -10,7 +10,7 @@ Upstream: [shotah/mcp-go-math](https://github.com/shotah/mcp-go-math).
 ```mermaid
 flowchart LR
   GN[gantry daemon] -->|MCP stdio| M[mcp-go-math]
-  M -->|evaluate / convert| GN
+  M -->|expression_evaluate / units_convert| GN
 ```
 
 ---
@@ -21,10 +21,10 @@ Tools are prefixed `math__…` (server name `math` in `mcp.toml`):
 
 | Ask | Tool |
 |---|---|
-| “What’s 17.5% of 240?” / multi-step formulas | `evaluate` |
-| “Convert 5 miles to km” / lb→kg / F→C | `convert` |
+| “What’s 17.5% of 240?” / multi-step formulas | `math__expression_evaluate` |
+| “Convert 5 miles to km” / lb→kg / F→C | `math__units_convert` |
 
-`evaluate` supports `+ - * / % **` (and `^` as power), parentheses, `pi`/`e`,
+`expression_evaluate` supports `+ - * / % **` (and `^` as power), parentheses, `pi`/`e`,
 and common functions (`sqrt`, `pow`, `sin`, …). Trig uses radians.
 
 ---
@@ -37,7 +37,7 @@ Pinned in the Dockerfile (`v0.0.2`). Override only to freeze/advance:
 # MCP_GO_MATH_VERSION=v0.0.2
 ```
 
-`evaluate` accepts percentages (`17.5% of 240`). For volume: `gallon` is
+`expression_evaluate` accepts percentages (`17.5% of 240`). For volume: `gallon` is
 imperial; use `us_gallon` for US liquid gallons.
 
 ---
@@ -79,4 +79,4 @@ tool = add the block to `mcp.toml` (no script edits).
 |---|---|
 | LOCAL_AGENT doesn’t see math tools | Check `[[server]]` in `mcp.toml`; rebuild so `mcp-go-math` is in the image |
 | Image build fails in mcp-go-math stage | Publish a release on [shotah/mcp-go-math](https://github.com/shotah/mcp-go-math/releases); or pin `MCP_GO_MATH_VERSION` |
-| Model still guesses arithmetic | Reinforce in `TOOLS.md`: use `math__evaluate` for non-trivial math |
+| Model still guesses arithmetic | Reinforce in `TOOLS.md`: use `math__expression_evaluate` for non-trivial math |

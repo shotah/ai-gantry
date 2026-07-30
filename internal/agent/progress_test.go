@@ -38,7 +38,7 @@ func TestAgent_ToolProgress_TracesEachCall(t *testing.T) {
 		n++
 		if n == 1 {
 			return &provider.Result{ToolCalls: []provider.ToolCall{
-				{ID: "c1", Name: "garmin__list_activities", Arguments: `{}`},
+				{ID: "c1", Name: "garmin__activities_list", Arguments: `{}`},
 			}}, nil
 		}
 		return &provider.Result{Content: "21mi, nice"}, nil
@@ -47,7 +47,7 @@ func TestAgent_ToolProgress_TracesEachCall(t *testing.T) {
 	a, err := agent.New(agent.Options{
 		Completer:    fc,
 		Sessions:     newMemHistory(),
-		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "garmin__list_activities"}}, out: strings.Repeat("x", 4100)},
+		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "garmin__activities_list"}}, out: strings.Repeat("x", 4100)},
 		Model:        "m",
 		MaxToolIters: 5,
 	})
@@ -62,7 +62,7 @@ func TestAgent_ToolProgress_TracesEachCall(t *testing.T) {
 	if len(notes) != 2 {
 		t.Fatalf("notes = %v, want start + done", notes)
 	}
-	if !strings.Contains(notes[0], "garmin__list_activities") {
+	if !strings.Contains(notes[0], "garmin__activities_list") {
 		t.Fatalf("start note = %q", notes[0])
 	}
 	// Duration is timing-dependent; the size summary is not.
@@ -77,7 +77,7 @@ func TestAgent_ToolProgress_MarksFailure(t *testing.T) {
 		n++
 		if n == 1 {
 			return &provider.Result{ToolCalls: []provider.ToolCall{
-				{ID: "c1", Name: "garmin__list_activities", Arguments: `{}`},
+				{ID: "c1", Name: "garmin__activities_list", Arguments: `{}`},
 			}}, nil
 		}
 		return &provider.Result{Content: "garmin is down"}, nil
@@ -86,7 +86,7 @@ func TestAgent_ToolProgress_MarksFailure(t *testing.T) {
 	a, err := agent.New(agent.Options{
 		Completer:    fc,
 		Sessions:     newMemHistory(),
-		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "garmin__list_activities"}}, err: errors.New("boom")},
+		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "garmin__activities_list"}}, err: errors.New("boom")},
 		Model:        "m",
 		MaxToolIters: 5,
 	})

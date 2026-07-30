@@ -24,13 +24,13 @@ auth_args = ["auth"]
 download_tag = "latest"
 download_url = "https://github.com/shotah/google-mcp/releases/download/{tag}/google-mcp_{version}_{os}_{arch}.tar.gz"
 
-# Strava workouts (Stealinglight/StravaMCP) — docs/strava.md
+# Strava workouts (shotah/go-strava-mcp) — docs/strava.md
 [[server]]
 name = "strava"
 command = "strava-mcp"
 auth_args = ["auth"]
 download_tag = "latest"
-download_url = "https://github.com/Stealinglight/StravaMCP/releases/download/{tag}/StravaMCP_{version}_{os}_{arch}.tar.gz"
+download_url = "https://github.com/shotah/go-strava-mcp/releases/download/{tag}/strava-mcp_{version}_{os}_{arch}.tar.gz"
 
 # Garmin sleep / body battery / weight (shotah/go-garmin) — docs/garmin.md
 # --tool-tier core ≈ 10 recovery/coaching tools (not the full ~100).
@@ -60,7 +60,7 @@ download_url = "https://github.com/shotah/mcp-beam/releases/download/{tag}/mcp-b
 
 # YouTube Music (shotah/youtube-go-mcp) — docs/ytmusic.md
 [[server]]
-name = "ytmusic"
+name = "youtube"
 command = "youtube-go-mcp"
 auth_args = ["auth", "--out", "${YTMUSIC_HEADERS_PATH}"]
 download_tag = "latest"

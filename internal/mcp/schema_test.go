@@ -22,10 +22,10 @@ func TestEstimateToolSchemaTokens(t *testing.T) {
 
 func TestEstimateSchemaBudget_ByServer(t *testing.T) {
 	defs := []provider.ToolDef{
-		{Name: "garmin__get_sleep", Description: "sleep", Parameters: map[string]any{"type": "object"}},
+		{Name: "garmin__sleep_get", Description: "sleep", Parameters: map[string]any{"type": "object"}},
 		{Name: "garmin__get_weight", Description: "weight", Parameters: map[string]any{"type": "object"}},
 		{Name: "memory_store", Description: "store", Parameters: map[string]any{"type": "object"}},
-		{Name: "cast__list_local_hardware", Description: "discover", Parameters: map[string]any{"type": "object"}},
+		{Name: "cast__devices_list", Description: "discover", Parameters: map[string]any{"type": "object"}},
 	}
 	got := mcp.EstimateSchemaBudget(defs)
 	if got.Tools != 4 {

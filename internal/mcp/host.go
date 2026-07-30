@@ -174,7 +174,7 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 
 // resolve looks up a tool by exact prefixed name, then by a common local-model
 // typo: underscores in the server prefix where the catalog uses hyphens
-// (e.g. google_search__google_search → google-search__google_search).
+// (e.g. google_search__google_search → google-search__web_search).
 // Only the prefix is rewritten; tool suffixes keep underscores.
 // Failing that, a real tool name carrying an invented or missing prefix.
 func (h *Host) resolve(toolName string) (*Tool, string, bool) {
@@ -192,7 +192,7 @@ func (h *Host) resolve(toolName string) (*Tool, string, bool) {
 }
 
 // resolveByBaseNameLocked repairs a call whose tool name is real but whose
-// server prefix is invented or absent (mcp__get_hrv, get_hrv → garmin__get_hrv).
+// server prefix is invented or absent (mcp__get_hrv, get_hrv → garmin__hrv_get).
 // Each failed call costs a whole model round-trip, which on a local model is the
 // most expensive thing in a turn, so repair beats a retry hint when there is
 // only one possible answer.
@@ -346,7 +346,7 @@ var genericToolTokens = map[string]bool{
 // nearestLocked ranks published tools by how many meaningful name tokens they
 // share with the requested name. A local model that invents a tool usually
 // stitches real fragments together — mcp__get_hrv_and_body_battery is
-// garmin__get_hrv plus garmin__get_body_battery — so the fragments point
+// garmin__hrv_get plus garmin__wellness_get_body_battery — so the fragments point
 // straight at the tools it actually wanted. Callers hold h.mu.
 func (h *Host) nearestLocked(toolName string) []string {
 	base := toolName

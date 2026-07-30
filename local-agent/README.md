@@ -214,7 +214,7 @@ Everything lives in [`./docs`](docs). Start with Telegram, add the rest as neede
 | 🗂️ **[docs/google-workspace.md](docs/google-workspace.md)** | Go MCP (`google-mcp`), `make google-auth` / `gantry auth google` | Gmail / Calendar / Docs / Sheets / Tasks |
 | 🏃 **[docs/strava.md](docs/strava.md)** | Strava API app, `strava-mcp` OAuth, token mount, MCP wiring | Workout summaries & training nudges |
 | ⌚ **[docs/garmin.md](docs/garmin.md)** | go-garmin MCP, `make garmin-auth`, sleep / weight / readiness | Physiological recovery + scale weight |
-| 📺 **[docs/cast.md](docs/cast.md)** | mcp-beam (Go) release, host networking, `beam_youtube_video` / pause / volume | House Chromecast / Nest / DLNA |
+| 📺 **[docs/cast.md](docs/cast.md)** | mcp-beam (Go) release, host networking, `cast__youtube_beam_video` / pause / volume | House Chromecast / Nest / DLNA |
 | 🎵 **[docs/ytmusic.md](docs/ytmusic.md)** | youtube-go-mcp (Go), browser headers, search / library / liked | YouTube Music → `videoId` → Cast |
 | 🧮 **[docs/math.md](docs/math.md)** | mcp-go-math (Go), `evaluate` + `convert` | Non-trivial arithmetic / unit conversion |
 | 🔎 **[docs/web-search.md](docs/web-search.md)** | Google Search via Gemini grounding MCP (same API key) | Web answers |
@@ -255,7 +255,7 @@ Set in `.env` (copy from [`.env.example`](.env.example)). Secrets are never comm
 
 ## Workout coaching (Strava)
 
-LOCAL_AGENT can read your training history to summarize the week and nudge you ("get to the gym" / "rest today"). It uses the [`strava-mcp`](https://github.com/Stealinglight/StravaMCP) server — a single static binary baked into the image and listed in `mcp.toml`. Optional.
+LOCAL_AGENT can read your training history to summarize the week and nudge you ("get to the gym" / "rest today"). It uses [`go-strava-mcp`](https://github.com/shotah/go-strava-mcp) (`strava-mcp` binary) — baked into the image and listed in `mcp.toml`. Optional.
 
 **Garmin users:** connect the watch to Strava once (Garmin Connect → *Connected Apps* → Strava); activities auto-sync and LOCAL_AGENT reads them here — no fragile unofficial Garmin login. Garmin's own API is enterprise-only and currently closed to new sign-ups, so Strava is the robust path.
 
@@ -297,7 +297,7 @@ Full guide: **[docs/garmin.md](docs/garmin.md)**.
 LOCAL_AGENT can discover and control Chromecast / Nest / DLNA devices on your LAN via
 [shotah/mcp-beam](https://github.com/shotah/mcp-beam) — a **static Go** release
 binary baked into the image (same pattern as Strava/Garmin). No API keys.
-Optional. Includes `beam_youtube_video` for Nest playback from a YouTube
+Optional. Includes `cast__youtube_beam_video` for Nest playback from a YouTube
 `videoId` (pair with YouTube Music below).
 
 **On the Linux home server**, enable host networking so mDNS works:
@@ -320,7 +320,7 @@ LOCAL_AGENT can search YouTube Music and read your library (playlists, liked son
 via [youtube-go-mcp](https://github.com/shotah/youtube-go-mcp) — a **static Go**
 binary baked into the image. Auth is browser-session headers (Premium rides along),
 not a Data API key. Optional. Playback: hand `videoId` to Cast
-`beam_youtube_video` (not a watch URL on `beam_media`).
+`cast__youtube_beam_video` (not a watch URL on `cast__media_beam`).
 
 ```bash
 make ytmusic-auth     # paste DevTools headers → secrets/ytmusic/headers.json
@@ -338,7 +338,7 @@ Full guide: **[docs/ytmusic.md](docs/ytmusic.md)**.
 LOCAL_AGENT searches the web through
 [shotah/mcp-gemini-search](https://github.com/shotah/mcp-gemini-search)
 — Gemini Grounding with Google Search, same `GEMINI_API_KEY` as chat, exposed as
-the `google-search__google_search` tool. No scraping, no extra keys. (Local
+the `google-search__web_search` tool. No scraping, no extra keys. (Local
 models that underscore the prefix are aliased — [docs/mcp.md](../docs/mcp.md).)
 
 ```bash

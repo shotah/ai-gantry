@@ -52,14 +52,14 @@ download_tag = "latest"
 download_url = "https://github.com/shotah/mcp-gemini-search/releases/download/{tag}/mcp-gemini-google-search_{version}_{os}_{arch}.tar.gz"
 ```
 
-Tool LOCAL_AGENT should use: `google-search__google_search` (query string).
+Tool LOCAL_AGENT should use: `google-search__web_search` (query string).
 
 **Why the hyphen matters:** the server prefix is `google-search`; the MCP tool
-is `google_search`. Local models often call `google_search__google_search`
-(underscored prefix) or invent `…__web_search`. gantry aliases the underscored
-prefix automatically and suggests the exact catalog on hard misses — see
-[../../docs/mcp.md](../../docs/mcp.md). Still put the exact name in
-`persona/TOOLS.md`.
+is `web_search`. Local models often call `google_search__web_search`
+(underscored prefix) or invent `google_search` / `google-search__google_search`.
+gantry aliases the underscored prefix automatically and suggests the exact
+catalog on hard misses — see [../../docs/mcp.md](../../docs/mcp.md). Still put
+the exact name in `persona/TOOLS.md`.
 
 ---
 
@@ -82,7 +82,7 @@ docker compose run --rm --entrypoint mcp-gemini-google-search gantry -version
 
 Ask LOCAL_AGENT: “Search the web for today’s Seattle weather summary.”
 
-He should call `google-search__google_search`.
+He should call `google-search__web_search`.
 
 ---
 
@@ -90,8 +90,8 @@ He should call `google-search__google_search`.
 
 | Symptom | Likely fix |
 |---|---|
-| LOCAL_AGENT doesn’t see `google_search` | Check the `[[server]]` entry in `mcp.toml`; rebuild / re-fetch so the binary is present; Telegram `/tools` should list `google-search__google_search` |
-| Logs show `unknown tool "google_search__…"` then success | Harmless if followed by `mcp tool name aliased` — host rewrote the prefix. If it keeps failing, the *suffix* is wrong (use `google_search`, not `web_search`) |
-| Logs show `unknown tool "…__web_search"` | Model hallucinated the tool name; host suggests `google-search__google_search`. Tighten `persona/TOOLS.md`; see [../../docs/mcp.md](../../docs/mcp.md) |
+| LOCAL_AGENT doesn’t see `web_search` | Check the `[[server]]` entry in `mcp.toml`; rebuild / re-fetch so the binary is present; Telegram `/tools` should list `google-search__web_search` |
+| Logs show `unknown tool "google_search__…"` then success | Harmless if followed by `mcp tool name aliased` — host rewrote the prefix. If it keeps failing, the *suffix* is wrong (use `web_search`) |
+| Logs show `unknown tool "…__google_search"` | Old tool name — use `google-search__web_search`. Tighten `persona/TOOLS.md`; see [../../docs/mcp.md](../../docs/mcp.md) |
 | `GEMINI_API_KEY` / grounding errors | Billing enabled on the Google AI project; key has access to search grounding |
 | Expensive search model | Keep `GEMINI_MODEL=gemini-3.5-flash` (MCP defaults to a Pro preview if unset) |

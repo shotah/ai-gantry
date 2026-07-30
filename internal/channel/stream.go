@@ -23,7 +23,7 @@ type ThinkingWriter interface {
 }
 
 // ProgressWriter is an optional ReplyWriter that can append a trace line while
-// tools run (e.g. "→ garmin__list_activities"). Long local-model tool chains
+// tools run (e.g. "→ garmin__activities_list"). Long local-model tool chains
 // otherwise look frozen, especially with chain-of-thought disabled.
 type ProgressWriter interface {
 	ReplyWriter

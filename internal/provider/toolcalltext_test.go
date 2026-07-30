@@ -20,39 +20,39 @@ func TestParseToolCallText(t *testing.T) {
 		wantArgs: "2026-07-28",
 	}, {
 		name:     "arguments key",
-		content:  `{"name":"garmin__get_hrv","arguments":{"date":"2026-07-27"}}`,
-		wantName: "garmin__get_hrv",
+		content:  `{"name":"garmin__hrv_get","arguments":{"date":"2026-07-27"}}`,
+		wantName: "garmin__hrv_get",
 		wantArgs: "2026-07-27",
 	}, {
 		name:     "stringified arguments",
-		content:  `{"name":"garmin__get_hrv","arguments":"{\"date\":\"2026-07-27\"}"}`,
-		wantName: "garmin__get_hrv",
+		content:  `{"name":"garmin__hrv_get","arguments":"{\"date\":\"2026-07-27\"}"}`,
+		wantName: "garmin__hrv_get",
 		wantArgs: "2026-07-27",
 	}, {
 		name:     "markdown fence",
-		content:  "```json\n{\"name\":\"garmin__get_hrv\",\"parameters\":{}}\n```",
-		wantName: "garmin__get_hrv",
+		content:  "```json\n{\"name\":\"garmin__hrv_get\",\"parameters\":{}}\n```",
+		wantName: "garmin__hrv_get",
 		wantArgs: "{}",
 	}, {
 		name:     "tool_call tags",
-		content:  "<tool_call>\n{\"name\": \"math__evaluate\", \"arguments\": {\"expr\": \"2+2\"}}\n</tool_call>",
-		wantName: "math__evaluate",
+		content:  "<tool_call>\n{\"name\": \"math__expression_evaluate\", \"arguments\": {\"expr\": \"2+2\"}}\n</tool_call>",
+		wantName: "math__expression_evaluate",
 		wantArgs: "2+2",
 	}, {
 		name:     "embedded in prose",
-		content:  `Pulling that up now: {"name":"garmin__get_sleep","parameters":{"date":"2026-07-28"}} — one sec.`,
-		wantName: "garmin__get_sleep",
+		content:  `Pulling that up now: {"name":"garmin__sleep_get","parameters":{"date":"2026-07-28"}} — one sec.`,
+		wantName: "garmin__sleep_get",
 		wantArgs: "2026-07-28",
 	}, {
 		name:     "no arguments at all still runs",
-		content:  `{"name":"garmin__get_hrv"}`,
-		wantName: "garmin__get_hrv",
+		content:  `{"name":"garmin__hrv_get"}`,
+		wantName: "garmin__hrv_get",
 		wantArgs: "{}",
 	}, {
 		// Braces inside a string value must not end the object early.
 		name:     "braces inside string values",
-		content:  `{"name":"math__evaluate","arguments":{"expr":"{2+2}"}}`,
-		wantName: "math__evaluate",
+		content:  `{"name":"math__expression_evaluate","arguments":{"expr":"{2+2}"}}`,
+		wantName: "math__expression_evaluate",
 		wantArgs: "{2+2}",
 	}, {
 		// Qwen prints MCP calls as {server__tool(k="v")} instead of tool_calls.
@@ -64,8 +64,8 @@ func TestParseToolCallText(t *testing.T) {
 		wantArgs: "christopherblodgett@gmail.com",
 	}, {
 		name:     "fn-style without braces",
-		content:  `Calling garmin__get_sleep(date="2026-07-29") now.`,
-		wantName: "garmin__get_sleep",
+		content:  `Calling garmin__sleep_get(date="2026-07-29") now.`,
+		wantName: "garmin__sleep_get",
 		wantArgs: "2026-07-29",
 	}, {
 		name: "fn-style duplicated in reply (take first)",
@@ -138,8 +138,8 @@ func TestParseToolCallTextHinted_ArgsOnlyFromPriorTurn(t *testing.T) {
 
 // Ids must not collide: the tool result is matched back by id.
 func TestParseToolCallText_UniqueIDs(t *testing.T) {
-	a, _ := provider.ParseToolCallText(`{"name":"garmin__get_hrv"}`)
-	b, _ := provider.ParseToolCallText(`{"name":"garmin__get_hrv"}`)
+	a, _ := provider.ParseToolCallText(`{"name":"garmin__hrv_get"}`)
+	b, _ := provider.ParseToolCallText(`{"name":"garmin__hrv_get"}`)
 	if a.ID == b.ID {
 		t.Fatalf("both calls got id %q", a.ID)
 	}

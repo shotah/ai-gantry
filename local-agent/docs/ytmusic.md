@@ -14,33 +14,33 @@ flowchart LR
   YM -->|InnerTube| YTM[YouTube Music]
   YM --- HDR[("secrets/ytmusic/headers.json")]
   YM -->|videoId| GN
-  GN -->|beam_youtube_video| MB[mcp-beam Cast]
+  GN -->|youtube_beam_video| MB[mcp-beam Cast]
 ```
 
 **Cast is separate.** This MCP returns `videoId` (+ watch URLs for reference).
-Playback goes through [docs/cast.md](cast.md) via `beam_youtube_video` with the
+Playback goes through [docs/cast.md](cast.md) via `cast__youtube_beam_video` with the
 bare `videoId` — do **not** invent royalty-free MP3 fallbacks, and do **not**
-pass Music/YouTube watch URLs to `beam_media`.
+pass Music/YouTube watch URLs to `cast__media_beam`.
 
 ---
 
 ## What LOCAL_AGENT can do
 
-Tools are prefixed `ytmusic__…` (server name `ytmusic` in `mcp.toml`):
+Tools are prefixed `youtube__…` (server name `youtube` in `mcp.toml`):
 
 | Ask | Tool | Auth |
 |---|---|---|
-| “Search YouTube Music for …” | `search_tracks` | optional |
-| “What playlists do I have?” | `get_library_playlists` | required |
-| “What’s on playlist X / Liked Songs?” | `get_playlist` (`LM` = liked) | depends |
-| “What have I liked?” | `get_liked_songs` | required |
-| “What did I listen to recently?” | `get_history` | required |
-| Radio / continuum from a track | `get_watch_playlist` | optional |
-| Track metadata / lyrics | `get_track`, `get_lyrics` | optional |
-| Cast payload + hint for a `videoId` | `format_cast_target` | no |
+| “Search YouTube Music for …” | `tracks_search` | optional |
+| “What playlists do I have?” | `library_list_playlists` | required |
+| “What’s on playlist X / Liked Songs?” | `playlists_get` (`LM` = liked) | depends |
+| “What have I liked?” | `library_list_liked_songs` | required |
+| “What did I listen to recently?” | `library_list_history` | required |
+| Radio / continuum from a track | `tracks_list_watch_playlist` | optional |
+| Track metadata / lyrics | `tracks_get`, `tracks_get_lyrics` | optional |
+| Cast payload + hint for a `videoId` | `cast_format_target` | no |
 
-`format_cast_target` (v0.0.3+) returns URLs plus a hint to call mcp-beam
-`beam_youtube_video` with the bare `video_id`.
+`cast_format_target` returns URLs plus a hint to call mcp-beam
+`cast__youtube_beam_video` with the bare `video_id`.
 
 ---
 
@@ -114,7 +114,7 @@ auto-runs **`make ytmusic-sync`** when `DEPLOY_HOST` is set.
 
 ```toml
 [[server]]
-name    = "ytmusic"
+name    = "youtube"
 command = "youtube-go-mcp"
 ```
 
@@ -134,9 +134,9 @@ Ask LOCAL_AGENT over Telegram:
 - “List my YouTube Music playlists”
 - “What have I liked lately?”
 
-Flow: `search_tracks` / library → pick `videoId` → (optional
-`format_cast_target`) → Cast `beam_youtube_video` with bare `video_id` + room
-device.
+Flow: `youtube__tracks_search` / library → pick `videoId` → (optional
+`youtube__cast_format_target`) → Cast `cast__youtube_beam_video` with bare
+`video_id` + room device.
 
 ---
 
@@ -144,16 +144,16 @@ device.
 
 | Symptom | Likely fix |
 |---|---|
-| LOCAL_AGENT doesn’t see YT Music tools | Grant bundle `"ytmusic"`; rebuild so `youtube-go-mcp` is in the image |
+| LOCAL_AGENT doesn’t see YT Music tools | Ensure `[[server]] name = "youtube"` in `mcp.toml`; rebuild so `youtube-go-mcp` is in the image |
 | `youtube-go-mcp: not found` | `make build` / `make remote-deploy` |
 | Library tools fail; search works | Missing/expired headers — `make ytmusic-auth` (or `make ytmusic-sync`) |
 | `--self-test` liked/library fail | Re-export headers from a fresh authenticated `/browse` call |
-| Nest connects but silence | Agent used `beam_media` with a watch URL — must use `beam_youtube_video` + `videoId` |
+| Nest connects but silence | Agent used `cast__media_beam` with a watch URL — must use `cast__youtube_beam_video` + `videoId` |
 | Cast plays royalty-free junk | Use `videoId` from this MCP; don’t invent free MP3s |
 
 ---
 
 ## Follow-ups
 
-- [x] Cast-by-video-ID via mcp-beam `beam_youtube_video` ([docs/cast.md](cast.md))
-- [x] Cast hint → `beam_youtube_video`; bake defaults to GitHub `latest`
+- [x] Cast-by-video-ID via mcp-beam `youtube_beam_video` ([docs/cast.md](cast.md))
+- [x] Cast hint → `cast__youtube_beam_video`; bake defaults to GitHub `latest`

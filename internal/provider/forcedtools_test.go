@@ -56,18 +56,18 @@ func TestClient_Complete_ForcedToolNames(t *testing.T) {
 				"finish_reason": "stop",
 				"message": map[string]any{
 					"role":    "assistant",
-					"content": `{"name":"garmin__get_hrv","arguments":{"date":"2026-07-27"}}`,
+					"content": `{"name":"garmin__hrv_get","arguments":{"date":"2026-07-27"}}`,
 				},
 			}},
 		})
 	}))
 	t.Cleanup(srv.Close)
 
-	names := []string{"garmin__get_body_battery", "garmin__get_hrv"}
+	names := []string{"garmin__wellness_get_body_battery", "garmin__hrv_get"}
 	c := provider.New(srv.URL, "test-key", "test-model")
 	got, err := c.Complete(context.Background(), provider.Request{
 		Messages:       []provider.Message{{Role: provider.RoleUser, Content: "hrv yesterday?"}},
-		Tools:          []provider.ToolDef{{Name: "garmin__get_hrv", Parameters: map[string]any{"type": "object"}}},
+		Tools:          []provider.ToolDef{{Name: "garmin__hrv_get", Parameters: map[string]any{"type": "object"}}},
 		ForceToolNames: names,
 	})
 	if err != nil {
@@ -90,7 +90,7 @@ func TestClient_Complete_ForcedToolNames(t *testing.T) {
 		t.Fatalf("tool calls = %d, want the content JSON converted to one call", len(got.ToolCalls))
 	}
 	call := got.ToolCalls[0]
-	if call.Name != "garmin__get_hrv" {
+	if call.Name != "garmin__hrv_get" {
 		t.Errorf("name = %q", call.Name)
 	}
 	if !strings.Contains(call.Arguments, "2026-07-27") {
@@ -124,7 +124,7 @@ func TestClient_CompleteStream_ForcedToolNamesDoesNotStream(t *testing.T) {
 				"index": 0,
 				"message": map[string]any{
 					"role":    "assistant",
-					"content": `{"name":"garmin__get_hrv","arguments":{}}`,
+					"content": `{"name":"garmin__hrv_get","arguments":{}}`,
 				},
 			}},
 		})
@@ -135,7 +135,7 @@ func TestClient_CompleteStream_ForcedToolNamesDoesNotStream(t *testing.T) {
 	c := provider.New(srv.URL, "test-key", "test-model")
 	got, err := c.CompleteStream(context.Background(), provider.Request{
 		Messages:       []provider.Message{{Role: provider.RoleUser, Content: "hrv?"}},
-		ForceToolNames: []string{"garmin__get_hrv"},
+		ForceToolNames: []string{"garmin__hrv_get"},
 	}, func(string, string) error {
 		progress++
 		return nil

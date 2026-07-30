@@ -221,14 +221,14 @@ func TestAgent_Handle_ProseToolPromiseGetsNudged(t *testing.T) {
 				t.Fatalf("missing tool-promise nudge: %+v", last)
 			}
 			return &provider.Result{ToolCalls: []provider.ToolCall{
-				{ID: "c1", Name: "garmin__get_sleep", Arguments: `{}`},
+				{ID: "c1", Name: "garmin__sleep_get", Arguments: `{}`},
 			}}, nil
 		default:
 			return &provider.Result{Content: "Sleep score 80 — solid night."}, nil
 		}
 	}}
 	tools := &fakeTools{
-		defs: []provider.ToolDef{{Name: "garmin__get_sleep", Parameters: map[string]any{"type": "object"}}},
+		defs: []provider.ToolDef{{Name: "garmin__sleep_get", Parameters: map[string]any{"type": "object"}}},
 		out:  `{"sleepScore":80}`,
 	}
 	a, err := agent.New(agent.Options{
@@ -248,7 +248,7 @@ func TestAgent_Handle_ProseToolPromiseGetsNudged(t *testing.T) {
 	if !strings.Contains(reply, "Sleep score 80") {
 		t.Fatalf("reply = %q", reply)
 	}
-	if len(tools.calls) != 1 || tools.calls[0] != "garmin__get_sleep" {
+	if len(tools.calls) != 1 || tools.calls[0] != "garmin__sleep_get" {
 		t.Fatalf("tools = %v", tools.calls)
 	}
 	if reqs != 3 {
@@ -318,13 +318,13 @@ func TestAgent_Handle_ThinkingOnlyAfterToolsPromotes(t *testing.T) {
 		reqs++
 		if reqs == 1 {
 			return &provider.Result{ToolCalls: []provider.ToolCall{
-				{ID: "c1", Name: "garmin__get_sleep", Arguments: `{"date":"2026-07-28"}`},
+				{ID: "c1", Name: "garmin__sleep_get", Arguments: `{"date":"2026-07-28"}`},
 			}}, nil
 		}
 		return &provider.Result{Thinking: "✅ Sleep score 78 — about 5h 36m total."}, nil
 	}}
 	tools := &fakeTools{
-		defs: []provider.ToolDef{{Name: "garmin__get_sleep", Parameters: map[string]any{"type": "object"}}},
+		defs: []provider.ToolDef{{Name: "garmin__sleep_get", Parameters: map[string]any{"type": "object"}}},
 		out:  `{"sleepScore":78,"totalSleepSeconds":20160}`,
 	}
 	a, err := agent.New(agent.Options{

@@ -277,7 +277,7 @@ func TestEditStream_ToolLoopKeepsPriorAnswer(t *testing.T) {
 	if err := stream.Update(ctx, "17.5% of 240 is 42."); err != nil {
 		t.Fatal(err)
 	}
-	if err := stream.UpdateProgress(ctx, "→ strava__strava_get_activity_zones"); err != nil {
+	if err := stream.UpdateProgress(ctx, "→ strava__activities_get_zones"); err != nil {
 		t.Fatal(err)
 	}
 	if err := stream.UpdateProgress(ctx, "✗ failed · 405ms"); err != nil {
@@ -301,7 +301,7 @@ func TestEditStream_ToolLoopKeepsPriorAnswer(t *testing.T) {
 	stream.mu.Unlock()
 	for _, want := range []string{
 		"17.5% of 240 is 42.",
-		"strava__strava_get_activity_zones",
+		"strava__activities_get_zones",
 		"✗ failed",
 		"That activity id is missing from Strava.",
 	} {
@@ -347,7 +347,7 @@ func TestEditStream_ProgressTraceSurvivesFinish(t *testing.T) {
 	if err := stream.UpdateThinking(ctx, "pick a tool", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := stream.UpdateProgress(ctx, "→ garmin__list_activities"); err != nil {
+	if err := stream.UpdateProgress(ctx, "→ garmin__activities_list"); err != nil {
 		t.Fatal(err)
 	}
 	if err := stream.UpdateProgress(ctx, "✓ 1.2s · 4.1k chars"); err != nil {
@@ -364,12 +364,12 @@ func TestEditStream_ProgressTraceSurvivesFinish(t *testing.T) {
 	stream.mu.Lock()
 	flushed := stream.lastFlushed
 	stream.mu.Unlock()
-	for _, want := range []string{"pick a tool", "garmin__list_activities", "4.1k chars", "You rode 21mi."} {
+	for _, want := range []string{"pick a tool", "garmin__activities_list", "4.1k chars", "You rode 21mi."} {
 		if !strings.Contains(flushed, want) {
 			t.Fatalf("final missing %q: %q", want, flushed)
 		}
 	}
-	if strings.Index(flushed, "pick a tool") > strings.Index(flushed, "garmin__list_activities") {
+	if strings.Index(flushed, "pick a tool") > strings.Index(flushed, "garmin__activities_list") {
 		t.Fatalf("trace ordered before thinking: %q", flushed)
 	}
 }
@@ -416,11 +416,11 @@ func TestEditStream_StatusLineIsReplacedByReply(t *testing.T) {
 		t.Fatalf("bubble missing notice: %q", got)
 	}
 	// A tool trace and the notice describe different things; both belong.
-	if err := stream.UpdateProgress(ctx, "→ garmin__list_activities"); err != nil {
+	if err := stream.UpdateProgress(ctx, "→ garmin__activities_list"); err != nil {
 		t.Fatal(err)
 	}
 	got := streamLatest(stream)
-	if !strings.Contains(got, "garmin__list_activities") || !strings.Contains(got, "spinning up") {
+	if !strings.Contains(got, "garmin__activities_list") || !strings.Contains(got, "spinning up") {
 		t.Fatalf("bubble = %q, want trace + notice", got)
 	}
 
@@ -439,7 +439,7 @@ func TestEditStream_StatusLineIsReplacedByReply(t *testing.T) {
 	if strings.Contains(flushed, "spinning up") {
 		t.Fatalf("notice survived into the reply: %q", flushed)
 	}
-	for _, want := range []string{"garmin__list_activities", "You rode 21mi."} {
+	for _, want := range []string{"garmin__activities_list", "You rode 21mi."} {
 		if !strings.Contains(flushed, want) {
 			t.Fatalf("final missing %q: %q", want, flushed)
 		}

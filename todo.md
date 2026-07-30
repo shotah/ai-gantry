@@ -17,44 +17,24 @@ Convention: tool = `{service}_{verb}_{object}`; host = `{mcp.toml name}__{tool}`
 **Never** put the server id in the tool name (no `garmin__garmin_*`, no
 `strava__strava_*`). google-mcp is already the reference.
 
-| Repo / binary | Server id | TODO location | Target examples |
+| Repo / binary | Server id | Status | Host examples |
 | --- | --- | --- | --- |
-| google-mcp | `google` | done ([google-mcp/TODO.md](https://github.com/shotah/google-mcp)) | `google__calendar_list_events` |
-| go-garmin | `garmin` | `go-garmin/TODO.md` | `garmin__activities_list`, `garmin__sleep_get` |
-| youtube-go-mcp | `youtube` | `youtube-go-mcp/TODO.md` | `youtube__tracks_search` |
-| mcp-beam | `cast` | `mcp-beam/TODO.md` | `cast__devices_list`, `cast__youtube_beam_video` |
-| mcp-go-math | `math` | `mcp-go-math/TODO.md` | `math__expression_evaluate` |
-| mcp-gemini-search | `google-search` | `mcp-gemini-search/TODO.md` | `google-search__web_search` |
-| StravaMCP | `strava` | **no local clone** — map below | `strava__activities_list` (drop tool `strava_` prefix) |
+| google-mcp | `google` | done | `google__calendar_list_events` |
+| [go-strava-mcp](https://github.com/shotah/go-strava-mcp) | `strava` | done (fork) | `strava__activities_list` |
+| go-garmin | `garmin` | renamed; gantry persona/docs synced | `garmin__activities_list`, `garmin__sleep_get` |
+| youtube-go-mcp | `youtube` | renamed (server id `youtube`); persona synced | `youtube__tracks_search` |
+| mcp-beam | `cast` | renamed; persona/docs synced | `cast__devices_list`, `cast__youtube_beam_video` |
+| mcp-go-math | `math` | renamed; persona/docs synced | `math__expression_evaluate` |
+| mcp-gemini-search | `google-search` | renamed; persona/docs synced | `google-search__web_search` |
 
-#### Strava (upstream [Stealinglight/StravaMCP](https://github.com/Stealinglight/StravaMCP) — clone or PR when ready)
+Sibling MCP TODOs may still say “update ai-gantry” — **persona/`TOOLS.md` +
+docs + `docs/mcp.md` are updated here.** Remaining ops:
 
-Tools were prefixed `strava_*` for RustyClaw (hosts that do **not** add a server
-prefix). Gantry already does `strava__{tool}`, so today you get
-`strava__strava_get_activities`. Drop the tool-level `strava_` prefix:
-
-| Old tool | New tool | Host after |
-| --- | --- | --- |
-| `strava_get_activities` | `activities_list` | `strava__activities_list` |
-| `strava_get_activity_by_id` | `activities_get` | `strava__activities_get` |
-| `strava_create_activity` | `activities_create` | `strava__activities_create` |
-| `strava_update_activity` | `activities_update` | `strava__activities_update` |
-| `strava_get_activity_zones` | `activities_get_zones` | `strava__activities_get_zones` |
-| `strava_get_activity_streams` | `activities_get_streams` | `strava__activities_get_streams` |
-| `strava_get_athlete` | `athlete_get` | `strava__athlete_get` |
-| `strava_get_athlete_stats` | `athlete_get_stats` | `strava__athlete_get_stats` |
-| `strava_get_club_activities` | `clubs_list_activities` | `strava__clubs_list_activities` |
-| `strava_create_upload` | `uploads_create` | `strava__uploads_create` |
-| `strava_get_upload` | `uploads_get` | `strava__uploads_get` |
-
-Note in that PR: breaking for RustyClaw-style hosts that relied on bare
-`strava_*` without a server prefix — gantry/google-mcp convention wins here.
-
-- [ ] Land renames + releases in each MCP repo above
-- [ ] Bump pinned versions / install paths on host
-- [ ] Rewrite `local-agent/persona/TOOLS.md` (+ `.example.md`) to new host names
-- [ ] Sync `examples/persona` + `deploy/persona` recipes
+- [x] Rewrite persona recipes for all renamed host tool names
+- [x] Sync `examples/persona` + `deploy/persona` TOOLS
+- [ ] Bump / re-fetch MCP binaries on host (`download_tag=latest` or pin)
 - [ ] Smoke: `/tools` shows new names; one call each of google / garmin / youtube / cast / math / search / strava
+- [ ] Close consumer checkboxes in sibling `TODO.md` files after smoke
 
 ### Phase B — empty DB + memory
 

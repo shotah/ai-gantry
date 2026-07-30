@@ -35,9 +35,13 @@ Examples:
 
 | Manifest `name` | MCP tool | Name the model must call |
 | --- | --- | --- |
-| `google-search` | `google_search` | `google-search__google_search` |
-| `google-workspace` | `get_events` | `google-workspace__get_events` |
-| `math` | `evaluate` | `math__evaluate` |
+| `google-search` | `web_search` | `google-search__web_search` |
+| `google` | `calendar_list_events` | `google__calendar_list_events` |
+| `math` | `expression_evaluate` | `math__expression_evaluate` |
+| `youtube` | `tracks_search` | `youtube__tracks_search` |
+| `cast` | `youtube_beam_video` | `cast__youtube_beam_video` |
+| `garmin` | `sleep_get` | `garmin__sleep_get` |
+| `strava` | `activities_list` | `strava__activities_list` |
 
 **Why the prefix?** OpenAI-safe characters, no collisions across servers, and
 obvious provenance in logs / collapsed history markers.
@@ -47,7 +51,7 @@ Optional override in `mcp.toml`:
 ```toml
 [[server]]
 name = "garmin"
-tools_prefix = "garm"   # tools become garm__get_sleep, …
+tools_prefix = "garm"   # tools become garm__sleep_get, …
 ```
 
 Default prefix is the server `name`. Prefer short, stable prefixes when a
@@ -64,16 +68,16 @@ Inspect what the running agent sees:
 
 ## Local models and hyphenated prefixes
 
-Server names often use hyphens (`google-search`). Tool *suffixes* often use
-underscores (`google_search`). Small local models (e.g. Qwen via Ollama)
+Server names often use hyphens (`google-search`). Tool *suffixes* use
+underscores (`web_search`). Small local models (e.g. Qwen via Ollama)
 frequently **normalize the whole name to underscores** and invent nearby
-names (`web_search`, `gmail_search`, …).
+names (`google_search`, `gmail_search`, …).
 
 Typical failure spiral:
 
-1. Model calls `google-search__web_search` → unknown tool  
-2. Host suggests exact catalog: `google-search__google_search`  
-3. Model “fixes” the prefix to `google_search__google_search` → unknown prefix  
+1. Model calls `google-search__google_search` → unknown tool (old / invented suffix)  
+2. Host suggests exact catalog: `google-search__web_search`  
+3. Model “fixes” the prefix to `google_search__web_search` → unknown prefix  
 4. Hint degrades to a bare prefix list → more guessing → think-stall
 
 That is a **runtime** problem, not a persona typo. Persona `TOOLS.md` should
@@ -85,27 +89,26 @@ On `Call`, if the exact name is missing, gantry rewrites **only the server
 prefix** so underscores become hyphens, then retries lookup:
 
 ```text
-google_search__google_search  →  google-search__google_search   ✅ called
-google_workspace__get_events  →  google-workspace__get_events   ✅ called
+google_search__web_search  →  google-search__web_search   ✅ called
 ```
 
-Tool suffixes are **not** rewritten (`google_search` stays `google_search`).
+Tool suffixes are **not** rewritten (`web_search` stays `web_search`).
 
 A real tool name wearing an invented or missing prefix is repaired the same way,
 because a bounced call costs a full model round-trip — the most expensive thing
 in a local-model turn:
 
 ```text
-mcp__get_hrv  →  garmin__get_hrv   ✅ called
-get_hrv       →  garmin__get_hrv   ✅ called
+mcp__hrv_get  →  garmin__hrv_get   ✅ called
+hrv_get       →  garmin__hrv_get   ✅ called
 ```
 
 Two cases are left to the model on purpose:
 
-- **Real prefix, wrong tool** (`garmin__get_athlete` when only Strava has it).
+- **Real prefix, wrong tool** (`garmin__athlete_get` when only Strava has it).
   The model chose that server deliberately, so it gets that server's catalog
   rather than a silent hop to a different server.
-- **Two servers publish the name** (`get_activity` on both Garmin and Strava).
+- **Two servers publish the name** (`activities_get` on both Garmin and Strava).
   Guessing is a coin flip, so both real names go back as a hint.
 
 When any repair fires, logs show:
@@ -120,9 +123,9 @@ If lookup still fails, the error string is model-facing and catalog-aware:
 
 | Mistake | Hint shape |
 | --- | --- |
-| Wrong tool, real prefix | `valid google-search tools are: google-search__google_search — retry with one of these exact names` |
+| Wrong tool, real prefix | `valid google-search tools are: google-search__web_search — retry with one of these exact names` |
 | Underscored prefix, wrong tool | `did you mean "google-search"?` + that server’s exact tool list |
-| Invented name (fake prefix, merged suffix) | `closest real names are: garmin__get_body_battery, garmin__get_hrv — retry with one of these exact names` |
+| Invented name (fake prefix, merged suffix) | `closest real names are: garmin__wellness_get_body_battery, garmin__hrv_get — retry with one of these exact names` |
 | Unknown prefix, nothing close | `available server prefixes are: cast, garmin, google-search, …` |
 
 The agent loop feeds that error back as a tool result so the next iteration

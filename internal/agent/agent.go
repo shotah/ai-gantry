@@ -739,7 +739,7 @@ func (a *Agent) startSpinupNotice(ctx context.Context, status channel.StatusWrit
 // the real names, which is how the model gets corrected.
 //
 // hints come from the latest assistant message (name printed last turn, args-only
-// JSON this turn). System nudge text is ignored so examples like garmin__get_sleep
+// JSON this turn). System nudge text is ignored so examples like garmin__sleep_get
 // do not steal the call.
 func salvageToolCall(content string, defs []provider.ToolDef, messages []provider.Message) (provider.ToolCall, bool) {
 	call, ok := provider.ParseToolCallTextHinted(content, lastAssistantToolHints(messages))

@@ -130,7 +130,7 @@ so a slow multi-tool turn shows motion without wiping earlier text:
 ```text
 Here’s the math answer…
 
-→ garmin__list_activities
+→ garmin__activities_list
 ✓ 1.2s · 4.1k chars
 
 You rode 21mi.

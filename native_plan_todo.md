@@ -52,7 +52,7 @@ in thinking → ERROR). Remaining gaps:
       merged with `get_body_battery`; the bare prefix list told him nothing and
       he answered in prose instead of retrying)
 - [x] Invented/missing prefix on a *real* tool name is now repaired in place
-      (`mcp__get_hrv` → `garmin__get_hrv`), saving a ~9s round-trip. Not repaired
+      (`mcp__get_hrv` → `garmin__hrv_get`), saving a ~9s round-trip. Not repaired
       when the prefix is a real server, or when two servers share the name
 - [ ] Nudge on `finish_reason=length` with no usable output (today: warn only)
 - [ ] `TOOL_MAX_ITERATIONS` exhaustion currently returns an error → user sees
@@ -157,7 +157,7 @@ Qwen does arithmetic in CoT and gets it wrong; a calculator tool ends that.
       (`evaluate` + `convert`); Dockerfile pin + `download_url` in mcp.toml
       (source-agnostic; `gantry tools-plan` → native fetch)
 - [ ] Deploy to Tim (`make remote-native-deploy-dev`) and smoke
-      `math__evaluate`
+      `math__expression_evaluate`
 
 ## P1 — Errors → Telegram (red collapsed box)
 
