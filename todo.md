@@ -4,6 +4,139 @@ Open follow-ups only. Shipped build order: [docs/milestones.md](docs/milestones.
 
 ---
 
+## Master — make Qwen work (MCP pristine → Gemini train → cutover)
+
+**Goal:** Local Qwen (Tim on SER10) gets reliable tool use. Fat catalogs +
+ambiguous tool names + polluted memory taught laziness and fabrication. Fix the
+**tools first**, wipe state, **train on paid Gemini**, then cut back to Qwen with
+a clean history of good tool calls.
+
+### Phase A — pristine MCP names (sibling repos; you re-release)
+
+Convention: tool = `{service}_{verb}_{object}`; host = `{mcp.toml name}__{tool}`.
+**Never** put the server id in the tool name (no `garmin__garmin_*`, no
+`strava__strava_*`). google-mcp is already the reference.
+
+| Repo / binary | Server id | TODO location | Target examples |
+| --- | --- | --- | --- |
+| google-mcp | `google` | done ([google-mcp/TODO.md](https://github.com/shotah/google-mcp)) | `google__calendar_list_events` |
+| go-garmin | `garmin` | `go-garmin/TODO.md` | `garmin__activities_list`, `garmin__sleep_get` |
+| youtube-go-mcp | `youtube` | `youtube-go-mcp/TODO.md` | `youtube__tracks_search` |
+| mcp-beam | `cast` | `mcp-beam/TODO.md` | `cast__devices_list`, `cast__youtube_beam_video` |
+| mcp-go-math | `math` | `mcp-go-math/TODO.md` | `math__expression_evaluate` |
+| mcp-gemini-search | `google-search` | `mcp-gemini-search/TODO.md` | `google-search__web_search` |
+| StravaMCP | `strava` | **no local clone** — map below | `strava__activities_list` (drop tool `strava_` prefix) |
+
+#### Strava (upstream [Stealinglight/StravaMCP](https://github.com/Stealinglight/StravaMCP) — clone or PR when ready)
+
+Tools were prefixed `strava_*` for RustyClaw (hosts that do **not** add a server
+prefix). Gantry already does `strava__{tool}`, so today you get
+`strava__strava_get_activities`. Drop the tool-level `strava_` prefix:
+
+| Old tool | New tool | Host after |
+| --- | --- | --- |
+| `strava_get_activities` | `activities_list` | `strava__activities_list` |
+| `strava_get_activity_by_id` | `activities_get` | `strava__activities_get` |
+| `strava_create_activity` | `activities_create` | `strava__activities_create` |
+| `strava_update_activity` | `activities_update` | `strava__activities_update` |
+| `strava_get_activity_zones` | `activities_get_zones` | `strava__activities_get_zones` |
+| `strava_get_activity_streams` | `activities_get_streams` | `strava__activities_get_streams` |
+| `strava_get_athlete` | `athlete_get` | `strava__athlete_get` |
+| `strava_get_athlete_stats` | `athlete_get_stats` | `strava__athlete_get_stats` |
+| `strava_get_club_activities` | `clubs_list_activities` | `strava__clubs_list_activities` |
+| `strava_create_upload` | `uploads_create` | `strava__uploads_create` |
+| `strava_get_upload` | `uploads_get` | `strava__uploads_get` |
+
+Note in that PR: breaking for RustyClaw-style hosts that relied on bare
+`strava_*` without a server prefix — gantry/google-mcp convention wins here.
+
+- [ ] Land renames + releases in each MCP repo above
+- [ ] Bump pinned versions / install paths on host
+- [ ] Rewrite `local-agent/persona/TOOLS.md` (+ `.example.md`) to new host names
+- [ ] Sync `examples/persona` + `deploy/persona` recipes
+- [ ] Smoke: `/tools` shows new names; one call each of google / garmin / youtube / cast / math / search / strava
+
+### Phase B — empty DB + memory
+
+Start Gemini training from a clean slate (bad “I checked mail” turns poison Qwen later).
+
+- [ ] Document wipe procedure (sessions DB path on native host + any memory files Tim writes)
+- [ ] Stop gantry → wipe sessions / memory → start
+- [ ] `/new` after restart; confirm persona loads; confirm empty history
+- [ ] Keep a short “seed facts only” USER.md — no fabricated tool folklore in memory
+
+### Phase C — train on paid model (Gemini)
+
+- [ ] Point Tim at Gemini (existing gantry model switch; see `local-agent/docs/models.md`)
+- [ ] Run a deliberate drill set: Gmail today, Tasks create, Calendar list, Garmin activities, YT search→cast, math convert, web search — **require** real `tool_calls` in logs
+- [ ] Correct laziness / wrong arg names in the moment (persona already has “Chris sees tool_calls”)
+- [ ] Let memory accumulate **only** from verified successful tool turns
+- [ ] Tag/export candidates for Phase E as you go (don’t wait until the end)
+
+### Phase D — cut back to Qwen
+
+- [ ] Switch model back to Qwen pin (`qwen3.6:35b-a3b` or current host pin)
+- [ ] Keep catalog lean (google `everyday`/`lean`, garmin `--tool-tier core`, etc.)
+- [ ] Same drill set; compare tool_calls rate vs pre-wipe baseline
+- [ ] If Qwen still invents tools / skips calls: shrink catalog further or keep Gemini for tool-heavy turns
+
+### Phase E — seed tool memory into this Git repo (for other people’s attempts)
+
+**Why:** Gemini training will teach Tim *how* to call tools. That knowledge
+should not die on one SER10 SQLite file. Ship a **privacy-scrubbed seed** so
+new installs (and other Qwen hosts) start with proven tool patterns instead of
+an empty brain.
+
+**What belongs in git (tool craft):**
+
+- Arg shapes that matter (`task_list_id` not `tasklistId`; Gmail `after:` day math)
+- “Which tool first” recipes (list → get-by-id; never invent success)
+- Host-facing names after Phase A renames (`google__…`, `garmin__activities_list`, …)
+- Short failure→fix notes (“model skipped tools”; “wrong camelCase”)
+
+**What never belongs in git:**
+
+- Chris’s email, calendar contents, task text, activity GPS, message bodies
+- Raw `gantry.db` / session transcripts / Telegram chat ids
+- Anything that only makes sense for one human’s `USER.md`
+
+**Proposed layout (adjust when implementing):**
+
+```text
+examples/memory-seed/
+  README.md              # how to import; what was scrubbed
+  tool-craft.jsonl       # curated memory_store-shaped rows (key + text)
+  # optional later:
+  # golden-traces/       # anonymized prompt → tool_calls → outcome (eval only)
+```
+
+Persona (`TOOLS.md` examples) stays the **doctrine** everyone gets by default.
+The seed is **SQLite memory** — optional boost after `make init`, for hosts that
+want Tim’s post-training muscle memory without replaying Gemini drills.
+
+Checklist:
+
+- [ ] Decide export shape: curated JSONL (preferred) vs dump+scrub of `memory_*` tables
+- [ ] Add `gantry memory export|import` (or a small script under `local-agent/scripts/`) that:
+  - exports only rows tagged / keyed as tool-craft (or allowlist prefixes)
+  - redacts emails, ids, dates that look personal
+  - imports into a fresh `gantry.db` without clobbering operator `USER.md` facts
+- [ ] After Phase C drills: review live memory → keep tool craft, `memory_forget` personal residue
+- [ ] Commit scrubbed seed under `examples/memory-seed/` + short README
+- [ ] Document in `local-agent/docs/persona.md` (or memory doc): optional
+  `make memory-seed` after init
+- [ ] Version the seed when MCP tool names change (Phase A renames = bump / rewrite seed)
+- [ ] Optional: CI check that seed has no `@gmail.com` / phone-like strings
+
+### Exit criteria
+
+- Logs show non-zero `tool_calls` on mail / garmin / tasks prompts
+- No double-prefixed host names (`*__strava_*`, `*__garmin_*` as tool body)
+- Persona recipes match live `/tools` output
+- Scrubbed tool-craft seed committed; a fresh DB can import it without personal data
+
+---
+
 ## Channels — what unlocks adoption next
 
 Telegram is a **real limiter** for many people (friends/work don’t live there), but

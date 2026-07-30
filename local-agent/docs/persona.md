@@ -16,13 +16,18 @@ SOUL.md → RULES.md → USER.md → TOOLS.md
 Missing files are skipped. Any other `*.md` follows alphabetically (avoid extras
 unless you mean them — leftovers still get loaded).
 
+Voice and ops lean on the [OpenClaw](https://github.com/openclaw/openclaw) workspace
+templates (`SOUL` / `AGENTS` / `USER`), folded into gantry’s four files so small
+local models aren’t flooded. Hard tool-discipline (“no lazy tools”) lives in
+`RULES.md` — OpenClaw SOUL alone is too soft for that.
+
 ## The four files
 
 | File | Purpose |
 | --- | --- |
-| `SOUL.md` | Who the agent is — name/vibe, lab energy, optional training tone, anti-hallucination, communication |
-| `RULES.md` | Operating rules — identity lock, execute bias, safety, memory hygiene |
-| `USER.md` | Who Chris is — **canonical email lives here**, gyms, prefs, hard constraints |
+| `SOUL.md` | Who the agent is — name/vibe, OpenClaw-style core truths, lab energy, communication |
+| `RULES.md` | Operating rules — **no lazy tools**, identity lock, execute bias, safety, memory hygiene |
+| `USER.md` | Who Chris is — **canonical email lives here**, directives, gyms, prefs |
 | `TOOLS.md` | MCP recipes only — exact tool names, Google/fitness/cast/search how-tos |
 
 Keep tool recipes **out** of SOUL/RULES/USER. Point at `TOOLS.md` instead.
@@ -53,13 +58,15 @@ agent writes via `memory_store` (and can get wrong).
 
 There is no curated `MEMORY.md` anymore — put durable human facts in `USER.md`.
 
-## Obsolete ZeroClaw-era names
+## Obsolete OpenClaw / ZeroClaw-era names
 
 These are **not** used (removed on `make remote-sync` / native `rsync --delete`):
 
 `IDENTITY.md`, `AGENTS.md`, `MEMORY.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`
 
-(`HEARTBEAT.md` was never the SQLite healthcheck — that lives in `gantry.db`.)
+Map: OpenClaw `SOUL`+`IDENTITY` → `SOUL.md`; `AGENTS` → `RULES.md`; durable
+facts that were in `MEMORY.md` → `USER.md`. (`HEARTBEAT.md` was never the SQLite
+healthcheck — that lives in `gantry.db`.)
 
 ## Edit & deploy
 

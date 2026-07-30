@@ -2,6 +2,9 @@
 
 > Copy to `TOOLS.md` via `make persona`. Add host-specific notes locally; don’t commit secrets.
 
+**If a tool is in this file or in `/tools`, call it — do not claim it is absent.**
+Wrong args → fix and retry; unknown tool → use the exact name below.
+
 ## Server routing (read first)
 
 | Ask about… | Server | Never |
@@ -29,7 +32,10 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - **Calendar day:** `google__calendar_list_events` — omit `event_id`; `calendar_id="primary"`, both `time_min` + `time_max`
 - **Calendar update:** `calendar_list_events` → id → `google__calendar_update_event`
 - **Gmail:** `google__gmail_search_messages` → `google__gmail_get_message`; send only if asked
-- **Tasks:** `google__tasks_list_tasks` / `google__tasks_create_task` (`task_list_id="@default"` when needed); new list → `google__tasks_create_tasklist` then create tasks in it
+  - “Today”: Gmail `after:YYYY/MM/DD` is *after* that day — for date D use
+    `after:`(D−1) `before:`(D+1) with **slashes**, or `newer_than:1d`. Never
+    `after:` today (skips today).
+- **Tasks:** `task_list_id` (snake_case, not `tasklistId`); `google__tasks_list_tasks` / `google__tasks_create_task` (`task_list_id="@default"` or id from `tasks_list_tasklists`); new list → `google__tasks_create_tasklist` then create tasks in it
 - **Docs / Sheets:** `google__docs_*` / `google__sheets_*` (everyday preset has no Drive tools)
 - Do not narrate — call the exact `google__…` name from the tools list
 
