@@ -74,6 +74,11 @@ type Config struct {
 
 	StreamReplies bool `env:"STREAM_REPLIES" envDefault:"false"`
 
+	// ToolTrace controls user-visible tool activity when STREAM_REPLIES is on.
+	// compact = Making Calls: ✓, ✗ (default); full = → name / ✓ timing lines;
+	// off = hide tool activity entirely. Journal logs are unaffected.
+	ToolTrace string `env:"TOOL_TRACE" envDefault:"compact"`
+
 	// CoalesceSettleMS is quiet time after the last chat bubble before running
 	// one joined turn (interrupt + coalesce). 0 disables. Default 2000ms.
 	CoalesceSettleMS int `env:"COALESCE_SETTLE_MS" envDefault:"2000"`
@@ -161,6 +166,16 @@ func (c *Config) Validate() error {
 	case "debug", "info", "warn", "error":
 	default:
 		return fmt.Errorf("LOG_LEVEL: must be debug|info|warn|error, got %q", c.LogLevel)
+	}
+
+	c.ToolTrace = strings.ToLower(strings.TrimSpace(c.ToolTrace))
+	switch c.ToolTrace {
+	case "", "full", "compact", "off":
+		if c.ToolTrace == "" {
+			c.ToolTrace = "compact"
+		}
+	default:
+		return fmt.Errorf("TOOL_TRACE: must be full|compact|off, got %q", c.ToolTrace)
 	}
 
 	c.TelegramErrorReporting = strings.ToLower(strings.TrimSpace(c.TelegramErrorReporting))

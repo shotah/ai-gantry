@@ -37,6 +37,16 @@ type Tools interface {
 	ToolCount() int
 }
 
+// Tool-trace modes for user-visible progress (see TOOL_TRACE).
+const (
+	ToolTraceFull    = "full"    // → name / ✓ timing · chars
+	ToolTraceCompact = "compact" // Making Calls: ✓, ✗, ✓ (default)
+	ToolTraceOff     = "off"     // hide tool activity
+)
+
+// compactCallsHeader is the progress line opened in TOOL_TRACE=compact.
+const compactCallsHeader = "Making Calls:"
+
 // Options configures the agent.
 type Options struct {
 	Persona       string
@@ -47,8 +57,10 @@ type Options struct {
 	Model         string
 	MaxToolIters  int
 	StreamReplies bool // stream final text via channel.ReplyWriter when Completer is a Streamer
-	Logger        *slog.Logger
-	StartedAt     time.Time
+	// ToolTrace is full|compact|off. Empty defaults to compact.
+	ToolTrace string
+	Logger    *slog.Logger
+	StartedAt time.Time
 	// Location is the operator timezone for the per-turn temporal anchor (CRON_TZ).
 	Location *time.Location
 	TZName   string // IANA name for display (e.g. America/Los_Angeles)
@@ -73,6 +85,7 @@ type Agent struct {
 	model         string
 	maxToolIters  int
 	streamReplies bool
+	toolTrace     string
 	log           *slog.Logger
 	startedAt     time.Time
 	loc           *time.Location
@@ -112,6 +125,12 @@ func New(opts Options) (*Agent, error) {
 	if maxIters < 1 {
 		maxIters = 20
 	}
+	toolTrace := strings.ToLower(strings.TrimSpace(opts.ToolTrace))
+	switch toolTrace {
+	case ToolTraceFull, ToolTraceCompact, ToolTraceOff:
+	default:
+		toolTrace = ToolTraceCompact
+	}
 	loc := opts.Location
 	if loc == nil {
 		loc = time.Local
@@ -128,6 +147,7 @@ func New(opts Options) (*Agent, error) {
 		model:          opts.Model,
 		maxToolIters:   maxIters,
 		streamReplies:  opts.StreamReplies,
+		toolTrace:      toolTrace,
 		log:            log,
 		startedAt:      started,
 		loc:            loc,
@@ -526,6 +546,7 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 			ToolCalls: res.ToolCalls,
 		})
 
+		compactHeader := false
 		for _, call := range res.ToolCalls {
 			a.log.Info("tool call",
 				"name", call.Name,
@@ -534,8 +555,17 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 			)
 			// Show forward motion during long tool chains — with thinking
 			// disabled this is the only signal the user gets while waiting.
+			// TOOL_TRACE=compact|off hides tool names (semi-quiet / fully quiet).
 			if hasProgress {
-				_ = progress.UpdateProgress(ctx, toolProgressStart(call.Name))
+				switch a.toolTrace {
+				case ToolTraceFull:
+					_ = progress.UpdateProgress(ctx, toolProgressStart(call.Name))
+				case ToolTraceCompact:
+					if !compactHeader {
+						_ = progress.UpdateProgress(ctx, compactCallsHeader)
+						compactHeader = true
+					}
+				}
 			}
 			args := json.RawMessage(call.Arguments)
 			if len(args) == 0 {
@@ -570,7 +600,16 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 				)
 			}
 			if hasProgress {
-				_ = progress.UpdateProgress(ctx, toolProgressDone(toolDur, len(out), err != nil))
+				switch a.toolTrace {
+				case ToolTraceFull:
+					_ = progress.UpdateProgress(ctx, toolProgressDone(toolDur, len(out), err != nil))
+				case ToolTraceCompact:
+					mark := "✓"
+					if err != nil {
+						mark = "✗"
+					}
+					_ = progress.UpdateProgress(ctx, mark)
+				}
 			}
 			sawTools = true
 			messages = append(messages, provider.Message{

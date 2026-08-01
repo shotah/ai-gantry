@@ -68,6 +68,7 @@ flowchart LR
     CM[mcp-beam]
     YM[youtube-go-mcp]
     MM[mcp-go-math]
+    FM[flights-search-mcp]
     GN -->|MCP stdio| GW
     GN -->|MCP stdio| SM
     GN -->|MCP stdio| GM
@@ -75,6 +76,7 @@ flowchart LR
     GN -->|MCP stdio| CM
     GN -->|MCP stdio| YM
     GN -->|MCP stdio| MM
+    GN -->|MCP stdio| FM
   end
 
   GN -->|HTTPS| GEM[Gemini API]
@@ -84,6 +86,7 @@ flowchart LR
   GS -->|grounding| GGL[Google Search]
   CM -->|mDNS / castv2| CAST[Nest / Chromecast / DLNA]
   YM -->|Data API v3| YT[YouTube]
+  FM -->|SerpAPI| FL[Google Flights]
 
   GN --- P[("./persona<br/>SOUL.md USER.md …")]
   GN --- M[("./mcp.toml<br/>server manifest")]
@@ -217,6 +220,7 @@ Everything lives in [`./docs`](docs). Start with Telegram, add the rest as neede
 | 📺 **[docs/cast.md](docs/cast.md)** | mcp-beam (Go) release, host networking, `cast__youtube_beam_video` / pause / volume | House Chromecast / Nest / DLNA |
 | 📺 **[docs/youtube.md](docs/youtube.md)** | youtube-go-mcp v1+ (Go), Data API v3 OAuth, search / playlists / liked | YouTube → `videoId` → Cast |
 | 🧮 **[docs/math.md](docs/math.md)** | mcp-go-math (Go), `evaluate` + `convert` | Non-trivial arithmetic / unit conversion |
+| ✈️ **[docs/flights.md](docs/flights.md)** | flights-search-mcp (Go), SerpAPI Google Flights | Price scan + recommend (no buy) |
 | 🔎 **[docs/web-search.md](docs/web-search.md)** | Google Search via Gemini grounding MCP (same API key) | Web answers |
 
 Legacy proposals from the ZeroClaw era ([docs/whatsapp.md](docs/whatsapp.md), [docs/sms.md](docs/sms.md)) are kept for reference; extra channels are an explicit ai-gantry non-goal — one persona, one channel, one container.
@@ -247,6 +251,7 @@ Set in `.env` (copy from [`.env.example`](.env.example)). Secrets are never comm
 | `STRAVA_MCP_VERSION` / `GARMIN_MCP_VERSION` / `GEMINI_SEARCH_MCP_VERSION` / `GOOGLE_MCP_VERSION` | — | Tool build pins (defaults in `Dockerfile`) |
 | `MCP_BEAM_VERSION` / `YOUTUBE_GO_MCP_VERSION` | — | shotah tool releases (`latest` default; pin `vX.Y.Z` to freeze) |
 | `MCP_GO_MATH_VERSION` | — | mcp-go-math release (Dockerfile default `v0.0.2`) |
+| `SERPAPI_API_KEY` / `FLIGHTS_SEARCH_MCP_VERSION` | — | Flights MCP (SerpAPI); see [docs/flights.md](docs/flights.md) |
 | `NETWORK_MODE` | Cast | `host` for Cast mDNS on Linux (default `bridge`) |
 | `GANTRY_UID` / `GANTRY_GID` | server | Match the server login user (`id -u` / `id -g`) |
 | `DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_PATH` / `DEPLOY_SSH_PORT` / `DEPLOY_SSH_KEY` | remote | SSH deploy target (see [docs/deploy.md](docs/deploy.md)) |
@@ -422,9 +427,9 @@ Historical ZeroClaw-era commits live in the old deploy repo history if you ever 
 
 ## Roadmap
 
-Still open: Google OAuth export polish, a flight-search tool, cron-driven proactive
-nudges (persona prompts), optional Hub publish of `gantry-local-agent`, and retiring the
-old standalone deploy repo once the live server runs from `ai-gantry/local-agent`.
+Still open: Google OAuth export polish, cron-driven proactive nudges (persona
+prompts), optional Hub publish of `gantry-local-agent`, and retiring the old
+standalone deploy repo once the live server runs from `ai-gantry/local-agent`.
 
 ---
 

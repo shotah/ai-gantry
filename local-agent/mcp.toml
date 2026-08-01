@@ -80,3 +80,11 @@ name = "math"
 command = "mcp-go-math"
 download_tag = "latest"
 download_url = "https://github.com/shotah/mcp-go-math/releases/download/{tag}/mcp-go-math_{version}_{os}_{arch}.tar.gz"
+
+# Google Flights search via SerpAPI (shotah/flights-search-mcp) — docs/flights.md
+# Recommend-only: offers + flexible dates + airport resolve + buy link + quota. No purchase.
+[[server]]
+name = "flights"
+command = "flights-search-mcp"
+download_tag = "latest"
+download_url = "https://github.com/shotah/flights-search-mcp/releases/download/{tag}/flights-search-mcp_{version}_{os}_{arch}.tar.gz"

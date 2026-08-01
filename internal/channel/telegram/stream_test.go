@@ -272,7 +272,7 @@ func TestEditStream_ToolLoopKeepsPriorAnswer(t *testing.T) {
 	streamFlushEvery = time.Hour
 	t.Cleanup(func() { streamFlushEvery = prevFlush })
 
-	stream := newStubStream(t, 4000)
+	stream := newStubStream(t)
 	ctx := context.Background()
 	if err := stream.Update(ctx, "17.5% of 240 is 42."); err != nil {
 		t.Fatal(err)
@@ -374,9 +374,61 @@ func TestEditStream_ProgressTraceSurvivesFinish(t *testing.T) {
 	}
 }
 
+func TestEditStream_CompactMakingCallsLine(t *testing.T) {
+	prevFlush := streamFlushEvery
+	streamFlushEvery = time.Hour
+	t.Cleanup(func() { streamFlushEvery = prevFlush })
+
+	stream := newStubStream(t)
+	ctx := context.Background()
+	if err := stream.Update(ctx, "Looking…"); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.UpdateProgress(ctx, "Making Calls:"); err != nil {
+		t.Fatal(err)
+	}
+	for _, mark := range []string{"✓", "✗", "✓"} {
+		if err := stream.UpdateProgress(ctx, mark); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Duplicate header across tool batches must not open a second line.
+	if err := stream.UpdateProgress(ctx, "Making Calls:"); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.UpdateProgress(ctx, "✗"); err != nil {
+		t.Fatal(err)
+	}
+	got := streamLatest(stream)
+	want := "Making Calls: ✓, ✗, ✓, ✗"
+	if !strings.Contains(got, "Looking…") || !strings.Contains(got, want) {
+		t.Fatalf("want prose + %q: %q", want, got)
+	}
+	if strings.Count(got, "Making Calls:") != 1 {
+		t.Fatalf("want one Making Calls line: %q", got)
+	}
+	// Prose between batches opens a fresh line.
+	if err := stream.Update(ctx, "Still working."); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.UpdateProgress(ctx, "Making Calls:"); err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.UpdateProgress(ctx, "✓"); err != nil {
+		t.Fatal(err)
+	}
+	got = streamLatest(stream)
+	if strings.Count(got, "Making Calls:") != 2 {
+		t.Fatalf("want a second Making Calls after prose: %q", got)
+	}
+	if !strings.Contains(got, "Still working.") || !strings.Contains(got, "Making Calls: ✓") {
+		t.Fatalf("missing second batch: %q", got)
+	}
+}
+
 // newStubStream wires an editStream to a bot whose send/edit always succeed,
 // for tests that only care about the composed text.
-func newStubStream(t *testing.T, chunkMax int) *editStream {
+func newStubStream(t *testing.T) *editStream {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		method := strings.TrimPrefix(r.URL.Path, "/bot"+testBotToken+"/")
@@ -395,7 +447,7 @@ func newStubStream(t *testing.T, chunkMax int) *editStream {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return newEditStream(b, 1, 0, chunkMax)
+	return newEditStream(b, 1, 0, 4000)
 }
 
 // The spin-up notice is a waiting indicator: it opens the bubble during silent
@@ -405,7 +457,7 @@ func TestEditStream_StatusLineIsReplacedByReply(t *testing.T) {
 	streamFlushEvery = time.Hour
 	t.Cleanup(func() { streamFlushEvery = prevFlush })
 
-	stream := newStubStream(t, 4000)
+	stream := newStubStream(t)
 	ctx := context.Background()
 	if err := stream.UpdateStatus(ctx, "⏳ spinning up"); err != nil {
 		t.Fatal(err)
@@ -452,7 +504,7 @@ func TestEditStream_FinishDropsLingeringStatus(t *testing.T) {
 	streamFlushEvery = time.Hour
 	t.Cleanup(func() { streamFlushEvery = prevFlush })
 
-	stream := newStubStream(t, 4000)
+	stream := newStubStream(t)
 	ctx := context.Background()
 	if err := stream.UpdateStatus(ctx, "⏳ spinning up"); err != nil {
 		t.Fatal(err)

@@ -251,6 +251,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `CRON_MAX_JOBS` | no | `50` |
 | `CRON_TICK_SECONDS` | no | `15` |
 | `STREAM_REPLIES` | no | `false` (Telegram edit-in-place / stdio token stream) |
+| `TOOL_TRACE` | no | `compact` (`compact` = `Making Calls: ✓, ✗`; `full` = → name / ✓ timing; `off` = hide; needs `STREAM_REPLIES`) |
 | `COALESCE_SETTLE_MS` | no | `2000` (quiet ms after a bubble **interrupts a running turn**, before one joined turn; a lone message never waits; `0` = off) |
 | `SPINUP_NOTICE_MS` | no | `4000` (post “working on it” after this much model silence; the first turn after start posts at once; needs `STREAM_REPLIES`; `0` = off) |
 | `LOG_LEVEL` | no | `info` |

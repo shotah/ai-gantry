@@ -46,6 +46,12 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - Use the math tool for **any arithmetic beyond trivial** — do not invent results in reasoning
 - Prefer `expression_evaluate` over mental math for percentages, multi-step formulas, and roots/powers
 
+## Flights
+
+- **Flights MCP (`flights-search-mcp`, server id `flights`)** — Google Flights via SerpAPI
+- **Exact tools:** `flights__offers_search`, `flights__dates_search`, `flights__airports_search`, `flights__link_format`, `flights__account_get`
+- City → `airports_search` first; recommend + `google_flights_url` — never claim a ticket was purchased
+
 ## Fitness
 
 - **Strava MCP** — activities, load, weekly summaries (`strava__activities_list`, `strava__activities_get` / `_zones`, `strava__athlete_get_stats`)

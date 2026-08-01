@@ -46,6 +46,16 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - Use the math tool for **any arithmetic beyond trivial** — do not invent results in reasoning
 - Prefer `expression_evaluate` over mental math for percentages, multi-step formulas, and roots/powers
 
+## Flights
+
+- **Flights MCP (`flights-search-mcp`, server id `flights`)** — Google Flights prices via SerpAPI
+- **Exact tools:** `flights__offers_search`, `flights__dates_search`, `flights__airports_search`, `flights__link_format`, `flights__account_get`
+- City names → `flights__airports_search` first, then `flights__offers_search` with IATA codes
+- Flexible window → `flights__dates_search` (one SerpAPI credit per sample day; default 5, max 7), then confirm with `offers_search`
+- Quota check → `flights__account_get` (free; does not burn searches)
+- Recommend + hand a `google_flights_url` / `flights__link_format` — **never claim you purchased a ticket**
+- Needs `SERPAPI_API_KEY` in `.env`
+
 ## Fitness
 
 - **Strava MCP** — activities, load, weekly summaries (`strava__activities_list`, `strava__activities_get` / `_zones`, `strava__athlete_get_stats`)

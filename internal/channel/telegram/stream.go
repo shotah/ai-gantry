@@ -115,9 +115,16 @@ func (s *editStream) UpdateThinking(ctx context.Context, thinking, content strin
 	return nil
 }
 
+// makingCallsPrefix is the TOOL_TRACE=compact header line.
+const makingCallsPrefix = "Making Calls:"
+
 // UpdateProgress commits any in-flight answer, then appends a tool-trace line
 // inline in the body so → / ✓ / ✗ sit between prose chunks instead of replacing
 // them. CoT stays in the thinking block; traces ride with the conversation.
+//
+// Compact mode (TOOL_TRACE=compact) builds one line: "Making Calls: ✓, ✗, ✓".
+// A duplicate header is ignored when that line is already open; lone ✓ / ✗
+// marks append to it (or open it if missing).
 func (s *editStream) UpdateProgress(ctx context.Context, note string) error {
 	note = strings.TrimSpace(note)
 	if note == "" {
@@ -133,10 +140,17 @@ func (s *editStream) UpdateProgress(ctx context.Context, note string) error {
 		s.thinking = ""
 	}
 	s.commitAnswerLocked()
-	if s.body != "" {
-		s.body += "\n"
+	switch {
+	case note == makingCallsPrefix && trailingMakingCallsLine(s.body):
+		// Already open from an earlier tool batch this turn.
+	case note == "✓" || note == "✗":
+		s.body = appendMakingCallsMark(s.body, note)
+	default:
+		if s.body != "" {
+			s.body += "\n"
+		}
+		s.body += note
 	}
-	s.body += note
 	display, useHTML := buildStreamDisplay(s.statusThinkingLocked(), s.visibleAnswerLocked(), s.chunkMax, false)
 	s.useHTML = useHTML
 	s.started = true
@@ -145,6 +159,40 @@ func (s *editStream) UpdateProgress(ctx context.Context, note string) error {
 	s.ensureFlusherLocked(ctx)
 	s.mu.Unlock()
 	return nil
+}
+
+// trailingMakingCallsLine reports whether body ends with a Making Calls line.
+func trailingMakingCallsLine(body string) bool {
+	return strings.HasPrefix(trailingLine(body), makingCallsPrefix)
+}
+
+func trailingLine(body string) string {
+	i := strings.LastIndexByte(body, '\n')
+	if i < 0 {
+		return body
+	}
+	return body[i+1:]
+}
+
+// appendMakingCallsMark adds ✓ / ✗ to a trailing Making Calls line, or opens one.
+func appendMakingCallsMark(body, mark string) string {
+	i := strings.LastIndexByte(body, '\n')
+	prefix, line := "", body
+	if i >= 0 {
+		prefix = body[:i+1]
+		line = body[i+1:]
+	}
+	if !strings.HasPrefix(line, makingCallsPrefix) {
+		if body != "" {
+			return body + "\n" + makingCallsPrefix + " " + mark
+		}
+		return makingCallsPrefix + " " + mark
+	}
+	rest := strings.TrimSpace(strings.TrimPrefix(line, makingCallsPrefix))
+	if rest == "" {
+		return prefix + makingCallsPrefix + " " + mark
+	}
+	return prefix + makingCallsPrefix + " " + rest + ", " + mark
 }
 
 // UpdateStatus sets the transient "hang on" line shown while the model is still

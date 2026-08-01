@@ -125,15 +125,23 @@ italic blockquote. Set `LLM_REASONING_EFFORT=none` to disable thinking entirely
 (the native default — thinking tokens are decoded before any tool fires).
 
 Tool calls append a trace **inline** in the reply body (between prose chunks),
-so a slow multi-tool turn shows motion without wiping earlier text:
+so a slow multi-tool turn shows motion without wiping earlier text.
+`TOOL_TRACE` controls how much shows (default `compact`):
+
+| Value | Bubble shows |
+|-------|----------------|
+| `compact` | `Making Calls: ✓, ✗, ✓` (no tool names; default) |
+| `full` | `→ tool_name` / `✓ 1.2s · 4.1k chars` / `✗ failed` |
+| `off` | nothing (journal still logs `tool call` / `tool done`) |
 
 ```text
-Here’s the math answer…
-
-→ garmin__activities_list
-✓ 1.2s · 4.1k chars
+Making Calls: ✓, ✗, ✓
 
 You rode 21mi.
+```
+
+```env
+TOOL_TRACE=full   # named tool traces with timings
 ```
 
 CoT (when enabled) stays in the expandable italic block above; traces ride with

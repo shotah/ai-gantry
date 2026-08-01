@@ -56,6 +56,7 @@ func run() int {
 		"cron_tz", cfg.CronTZ,
 		"spark_qty", cfg.SparkQty,
 		"stream_replies", cfg.StreamReplies,
+		"tool_trace", cfg.ToolTrace,
 		"telegram_error_reporting", cfg.TelegramErrorReporting,
 	)
 
@@ -213,6 +214,7 @@ func run() int {
 		Model:          cfg.LLMModel,
 		MaxToolIters:   cfg.ToolMaxIterations,
 		StreamReplies:  cfg.StreamReplies,
+		ToolTrace:      cfg.ToolTrace,
 		Logger:         logger,
 		Location:       tzLoc,
 		TZName:         cfg.CronTZ,

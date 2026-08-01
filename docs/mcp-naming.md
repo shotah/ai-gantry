@@ -5,7 +5,7 @@ host that prefixes `{server}__{tool}`). Sibling packages should link here from
 their `TODO.md` / README rather than inventing a local dialect.
 
 **Audience:** authors of google-mcp, go-garmin, go-strava-mcp, youtube-go-mcp,
-mcp-beam, mcp-go-math, mcp-gemini-search, and future MCPs.  
+mcp-beam, mcp-go-math, mcp-gemini-search, flights-search-mcp, and future MCPs.
 **Why it matters:** small models (Qwen) and host closest-match repair pick tools
 by **name tokens + description**. Synonyms and double prefixes break matching.
 
@@ -29,21 +29,21 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
 
 ## Hard rules
 
-1. **Tool = `{service}_{verb}_{object…}`**  
+1. **Tool = `{service}_{verb}_{object…}`**
    Service first (resource / domain), then verb, then object. Same family as
    google-mcp (`calendar_list_events`, `gmail_search_messages`).
 
-2. **Never put the server id in the tool name**  
-   Host already prefixes.  
-   - Bad: `youtube_videos_search` → `youtube__youtube_videos_search`  
-   - Bad: `strava_get_activities` → `strava__strava_get_activities`  
+2. **Never put the server id in the tool name**
+   Host already prefixes.
+   - Bad: `youtube_videos_search` → `youtube__youtube_videos_search`
+   - Bad: `strava_get_activities` → `strava__strava_get_activities`
    - Good: `videos_search` → `youtube__videos_search`
 
-3. **No dual aliases**  
+3. **No dual aliases**
    One name set per release. Breaking renames get a semver bump + host
    `TOOLS.md` update in the same change.
 
-4. **Stable verb set** (prefer these; don’t invent synonyms)  
+4. **Stable verb set** (prefer these; don’t invent synonyms)
 
    | Verb | Meaning |
    | --- | --- |
@@ -56,7 +56,7 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
    Avoid verb-first tools (`search_tracks`, `get_sleep`) — rename to
    `tracks_search` / `sleep_get` style when touching that surface.
 
-5. **Shared nouns across packages** when the concept is shared  
+5. **Shared nouns across packages** when the concept is shared
 
    | Concept | Preferred service token | Used by |
    | --- | --- | --- |
@@ -69,26 +69,27 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
    | Cast handoff helpers | `cast_` | youtube (`cast_format_target`); beam owns playback tools |
    | Math | `expression_` / `units_` | math |
    | Web search | `web_` | google-search (`web_search`) |
+   | Flight offers / dates / airports / returns / booking / quota | `offers_` / `dates_` / `airports_` / `returns_` / `booking_` / `link_` / `account_` | flights |
 
-6. **Descriptions sell the intent**  
+6. **Descriptions sell the intent**
    First sentence = what the agent wants (“Search YouTube videos…”, “List
    liked videos…”). Host nearest-name / Qwen fragment matching uses these
    tokens. Do not start with “Calls the YouTube Data API v3 Search.list…”
 
-7. **Args: snake_case**  
+7. **Args: snake_case**
    `task_list_id`, `video_id`, `time_min` — never camelCase in schemas
    (`tasklistId`). Teach-in errors > silent defaults.
 
-8. **Don’t steal another server’s domain words**  
+8. **Don’t steal another server’s domain words**
    No `calendar_*` on fitness MCPs for Google Calendar asks. No `mail_*` on
    Strava. If a product has a “calendar” of workouts, name it
    `training_calendar_*` (or exclude it from lean/core tiers).
 
-9. **Lean catalogs for agent hosts**  
+9. **Lean catalogs for agent hosts**
    Prefer `--tool-tier core` / presets / `exclude` so Tim’s published set stays
    small. Fat schemas starve local models even when names are perfect.
 
-10. **Tests lock names**  
+10. **Tests lock names**
     Assert every registered tool matches `^[a-z]+_[a-z]+` and does **not**
     start with the server id string.
 
@@ -105,6 +106,7 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
 | `youtube` | `videos_search`, `library_list_liked_videos` | `youtube__videos_search` |
 | `cast` | `devices_list`, `youtube_beam_video` | `cast__devices_list` |
 | `math` | `expression_evaluate`, `units_convert` | `math__expression_evaluate` |
+| `flights` | `offers_search`, `dates_search`, `airports_search`, `returns_search`, `booking_options_get`, `link_format`, `account_get` | `flights__offers_search` |
 
 Hyphenated server ids (`google-search`) are fine; tool suffixes stay underscores.
 The host aliases `google_search__web_search` → `google-search__web_search` on
