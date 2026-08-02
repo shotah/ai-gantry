@@ -88,3 +88,11 @@ name = "flights"
 command = "flights-search-mcp"
 download_tag = "latest"
 download_url = "https://github.com/shotah/flights-search-mcp/releases/download/{tag}/flights-search-mcp_{version}_{os}_{arch}.tar.gz"
+
+# Long-term residential rentals via RentCast (shotah/rentals-search-mcp) — docs/rentals.md
+# Recommend-only: listings + rent estimate + market stats + listing handoff. No applications.
+[[server]]
+name = "rentals"
+command = "rentals-search-mcp"
+download_tag = "latest"
+download_url = "https://github.com/shotah/rentals-search-mcp/releases/download/{tag}/rentals-search-mcp_{version}_{os}_{arch}.tar.gz"

@@ -5,7 +5,7 @@
 # Build (from this directory):  docker compose build   # or: make build
 # Auth:   docs/google-workspace.md · docs/strava.md · docs/garmin.md ·
 #         docs/web-search.md · docs/cast.md · docs/youtube.md · docs/math.md ·
-#         docs/flights.md
+#         docs/flights.md · docs/rentals.md
 
 # shotah/ai-gantry GitHub release (the runtime). Override via GANTRY_VERSION.
 # Also published as shotah/ai-gantry on Docker Hub / GHCR.
@@ -21,6 +21,7 @@ ARG MCP_BEAM_VERSION=latest
 ARG YOUTUBE_GO_MCP_VERSION=latest
 ARG MCP_GO_MATH_VERSION=latest
 ARG FLIGHTS_SEARCH_MCP_VERSION=latest
+ARG RENTALS_SEARCH_MCP_VERSION=latest
 ARG TOOLS_CACHEBUST=0
 
 # --- fetch gantry (static Go; shotah/ai-gantry release) -----------------------
@@ -268,6 +269,35 @@ RUN apt-get update \
     && install -m 0755 /tmp/flights-search-mcp /flights-search-mcp \
     && /flights-search-mcp --version
 
+# --- fetch rentals-search-mcp (static Go; RentCast long-term rentals) ---------
+FROM debian:trixie-slim AS rentals-search-mcp
+ARG RENTALS_SEARCH_MCP_VERSION
+ARG TARGETARCH
+ARG TOOLS_CACHEBUST=0
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && case "${TARGETARCH}" in \
+    amd64|arm64) RENTALS_ARCH="linux_${TARGETARCH}" ;; \
+    *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && : "TOOLS_CACHEBUST=${TOOLS_CACHEBUST}" \
+    && VER="${RENTALS_SEARCH_MCP_VERSION}" \
+    && if [ "${VER}" = "latest" ]; then \
+    VER=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+    "https://github.com/shotah/rentals-search-mcp/releases/latest" \
+    | sed 's|.*/||'); \
+    echo "resolved rentals-search-mcp latest -> ${VER}"; \
+    fi \
+    && V="${VER#v}" \
+    && curl -fsSL \
+    "https://github.com/shotah/rentals-search-mcp/releases/download/${VER}/rentals-search-mcp_${V}_${RENTALS_ARCH}.tar.gz" \
+    -o /tmp/rentals-search-mcp.tar.gz \
+    && tar -xzf /tmp/rentals-search-mcp.tar.gz -C /tmp \
+    && install -m 0755 /tmp/rentals-search-mcp /rentals-search-mcp \
+    && /rentals-search-mcp --version
+
 # --- runtime: distroless/static + gantry + tool binaries ----------------------
 # ca-certs + tzdata included; no shell, no libc. Healthchecks must be exec form.
 FROM gcr.io/distroless/static-debian12:nonroot
@@ -281,6 +311,7 @@ COPY --from=mcp-beam /mcp-beam /usr/local/bin/mcp-beam
 COPY --from=youtube-go-mcp /youtube-go-mcp /usr/local/bin/youtube-go-mcp
 COPY --from=mcp-go-math /mcp-go-math /usr/local/bin/mcp-go-math
 COPY --from=flights-search-mcp /flights-search-mcp /usr/local/bin/flights-search-mcp
+COPY --from=rentals-search-mcp /rentals-search-mcp /usr/local/bin/rentals-search-mcp
 
 WORKDIR /data
 ENTRYPOINT ["/usr/local/bin/gantry"]

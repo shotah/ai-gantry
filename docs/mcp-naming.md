@@ -5,7 +5,8 @@ host that prefixes `{server}__{tool}`). Sibling packages should link here from
 their `TODO.md` / README rather than inventing a local dialect.
 
 **Audience:** authors of google-mcp, go-garmin, go-strava-mcp, youtube-go-mcp,
-mcp-beam, mcp-go-math, mcp-gemini-search, flights-search-mcp, and future MCPs.
+mcp-beam, mcp-go-math, mcp-gemini-search, flights-search-mcp, rentals-search-mcp,
+and future MCPs.
 **Why it matters:** small models (Qwen) and host closest-match repair pick tools
 by **name tokens + description**. Synonyms and double prefixes break matching.
 
@@ -70,6 +71,7 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
    | Math | `expression_` / `units_` | math |
    | Web search | `web_` | google-search (`web_search`) |
    | Flight offers / dates / airports / returns / booking / quota | `offers_` / `dates_` / `airports_` / `returns_` / `booking_` / `link_` / `account_` | flights |
+   | Rental listings / rent estimate / markets / areas / quota | `listings_` / `rent_` / `markets_` / `areas_` / `link_` / `account_` | rentals |
 
 6. **Descriptions sell the intent**
    First sentence = what the agent wants (“Search YouTube videos…”, “List
@@ -107,6 +109,7 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
 | `cast` | `devices_list`, `youtube_beam_video` | `cast__devices_list` |
 | `math` | `expression_evaluate`, `units_convert` | `math__expression_evaluate` |
 | `flights` | `offers_search`, `dates_search`, `airports_search`, `returns_search`, `booking_options_get`, `link_format`, `account_get` | `flights__offers_search` |
+| `rentals` | `listings_search`, `listings_get`, `rent_estimate_get`, `markets_get`, `areas_resolve`, `link_format`, `account_get` | `rentals__listings_search` |
 
 Hyphenated server ids (`google-search`) are fine; tool suffixes stay underscores.
 The host aliases `google_search__web_search` → `google-search__web_search` on

@@ -200,7 +200,9 @@ function Write-NativeEnv {
     'STRAVA_TOKEN_PATH=/opt/gantry/data/.config/strava/tokens.json',
     'YOUTUBE_OAUTH_PATH=/opt/gantry/data/.config/youtube/oauth.json',
     "YOUTUBE_OAUTH_CLIENT_ID=$(if ($src['YOUTUBE_OAUTH_CLIENT_ID']) { $src['YOUTUBE_OAUTH_CLIENT_ID'] } else { $src['YOUTUBE_OAUTH_CLIENT_ID'] })",
-    "YOUTUBE_OAUTH_CLIENT_SECRET=$(if ($src['YOUTUBE_OAUTH_CLIENT_SECRET']) { $src['YOUTUBE_OAUTH_CLIENT_SECRET'] } else { $src['YOUTUBE_OAUTH_CLIENT_SECRET'] })"
+    "YOUTUBE_OAUTH_CLIENT_SECRET=$(if ($src['YOUTUBE_OAUTH_CLIENT_SECRET']) { $src['YOUTUBE_OAUTH_CLIENT_SECRET'] } else { $src['YOUTUBE_OAUTH_CLIENT_SECRET'] })",
+    "SERPAPI_API_KEY=$($src['SERPAPI_API_KEY'])",
+    "RENTCAST_API_KEY=$($src['RENTCAST_API_KEY'])"
   ))
   New-Item -ItemType Directory -Force -Path $DeployDir | Out-Null
   Set-Content -LiteralPath $out -Value $lines -Encoding utf8

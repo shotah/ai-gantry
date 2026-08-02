@@ -1,7 +1,7 @@
 ﻿# local-agent on ai-gantry — Gemini + Telegram (Telegram polls outbound).
 # No ports, no gateway, no dashboard: the healthcheck is an exit code.
-# Image: distroless/static + gantry + google-mcp + strava + garmin + gemini-search + mcp-beam + youtube-go-mcp + mcp-go-math + flights-search-mcp.
-# Docs: docs/telegram.md, docs/google-workspace.md, docs/strava.md, docs/garmin.md, docs/web-search.md, docs/cast.md, docs/youtube.md, docs/math.md, docs/flights.md
+# Image: distroless/static + gantry + google-mcp + strava + garmin + gemini-search + mcp-beam + youtube-go-mcp + mcp-go-math + flights-search-mcp + rentals-search-mcp.
+# Docs: docs/telegram.md, docs/google-workspace.md, docs/strava.md, docs/garmin.md, docs/web-search.md, docs/cast.md, docs/youtube.md, docs/math.md, docs/flights.md, docs/rentals.md
 # Cast mDNS: set NETWORK_MODE=host in .env on the Linux home server (docs/cast.md).
 
 services:
@@ -21,6 +21,7 @@ services:
         - YOUTUBE_GO_MCP_VERSION
         - MCP_GO_MATH_VERSION
         - FLIGHTS_SEARCH_MCP_VERSION
+        - RENTALS_SEARCH_MCP_VERSION
         - TOOLS_CACHEBUST
     image: ${GANTRY_IMAGE:-gantry-local-agent:local}
     container_name: gantry
@@ -80,6 +81,8 @@ services:
       YOUTUBE_OAUTH_CLIENT_SECRET: ${YOUTUBE_OAUTH_CLIENT_SECRET:-${YOUTUBE_OAUTH_CLIENT_SECRET:-}}
       # Flights MCP (flights-search-mcp) — SerpAPI Google Flights (docs/flights.md)
       SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
+      # Rentals MCP (rentals-search-mcp) — RentCast long-term residential (docs/rentals.md)
+      RENTCAST_API_KEY: ${RENTCAST_API_KEY:-}
     volumes:
       # Persona markdown (SOUL.md USER.md TOOLS.md ...) — the system prompt
       - ./persona:/persona:ro

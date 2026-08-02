@@ -52,6 +52,12 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - **Exact tools:** `flights__offers_search`, `flights__dates_search`, `flights__airports_search`, `flights__link_format`, `flights__account_get`
 - City → `airports_search` first; recommend + `google_flights_url` — never claim a ticket was purchased
 
+## Rentals
+
+- **Rentals MCP (`rentals-search-mcp`, server id `rentals`)** — long-term apartments/houses via RentCast
+- **Exact tools:** `rentals__listings_search`, `rentals__listings_get`, `rentals__areas_resolve`, `rentals__rent_estimate_get`, `rentals__markets_get`, `rentals__link_format`, `rentals__account_get`
+- Neighborhood → `areas_resolve` then `listings_search`; hand off listing URL — never apply or contact landlords; not for commercial leases
+
 ## Fitness
 
 - **Strava MCP** — activities, load, weekly summaries (`strava__activities_list`, `strava__activities_get` / `_zones`, `strava__athlete_get_stats`)
