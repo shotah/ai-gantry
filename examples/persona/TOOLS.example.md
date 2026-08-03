@@ -58,6 +58,12 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - **Exact tools:** `rentals__listings_search`, `rentals__listings_get`, `rentals__areas_resolve`, `rentals__rent_estimate_get`, `rentals__markets_get`, `rentals__link_format`, `rentals__account_get`
 - Neighborhood → `areas_resolve` then `listings_search`; hand off listing URL — never apply or contact landlords; not for commercial leases
 
+## Cars
+
+- **Cars MCP (`cars-search-mcp`, server id `cars`)** — MarketCheck for-sale inventory
+- **Exact tools:** `cars__listings_search`, `cars__listings_get`, `cars__vin_get`, `cars__markets_get`, `cars__link_format`, `cars__account_get`
+- Zip/make/model search → hand off listing URL — never submit dealer leads; not `rentals__`
+
 ## Fitness
 
 - **Strava MCP** — activities, load, weekly summaries (`strava__activities_list`, `strava__activities_get` / `_zones`, `strava__athlete_get_stats`)

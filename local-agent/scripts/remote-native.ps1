@@ -202,7 +202,9 @@ function Write-NativeEnv {
     "YOUTUBE_OAUTH_CLIENT_ID=$(if ($src['YOUTUBE_OAUTH_CLIENT_ID']) { $src['YOUTUBE_OAUTH_CLIENT_ID'] } else { $src['YOUTUBE_OAUTH_CLIENT_ID'] })",
     "YOUTUBE_OAUTH_CLIENT_SECRET=$(if ($src['YOUTUBE_OAUTH_CLIENT_SECRET']) { $src['YOUTUBE_OAUTH_CLIENT_SECRET'] } else { $src['YOUTUBE_OAUTH_CLIENT_SECRET'] })",
     "SERPAPI_API_KEY=$($src['SERPAPI_API_KEY'])",
-    "RENTCAST_API_KEY=$($src['RENTCAST_API_KEY'])"
+    "RENTCAST_API_KEY=$($src['RENTCAST_API_KEY'])",
+    "MARKETCHECK_API_KEY=$($src['MARKETCHECK_API_KEY'])",
+    "MARKETCHECK_USAGE_FILE=$(if ($src['MARKETCHECK_USAGE_FILE']) { $src['MARKETCHECK_USAGE_FILE'] } else { '/opt/gantry/data/marketcheck-usage.json' })"
   ))
   New-Item -ItemType Directory -Force -Path $DeployDir | Out-Null
   Set-Content -LiteralPath $out -Value $lines -Encoding utf8

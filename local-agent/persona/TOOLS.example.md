@@ -12,6 +12,7 @@ Wrong args → fix and retry; unknown tool → use the exact name below.
 | Calendar / mail / tasks / docs / sheets | `google__…` | `strava__`, `garmin__` |
 | Flights / fares / Fly America / checkout | `flights__…` | inventing `#flt=` links or claiming you bought a ticket |
 | Apartments / houses / rentals | `rentals__…` | applying, messaging landlords, or retail/commercial leases |
+| Cars / vehicles for sale | `cars__…` | submitting dealer leads, buying for the human, or `rentals__` |
 | Workouts / load | `strava__` / `garmin__` | `google__` |
 | Sleep / recovery | `garmin__` | `strava__` for sleep |
 
@@ -67,6 +68,14 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - Fresh inventory: `new_this_week` or `days_old_max`. Soft prefs (`pets_wanted`, etc.) are not API filters — confirm on the listing page
 - Context: `markets_get` (zip) / `rent_estimate_get` (fair rent). `link_format` is a public search fallback only
 - **Not for** retail / office / commercial leases. Quota: ~50 free RentCast req/month — `rentals__account_get` / search `usage` are a **local** counter (dashboard is source of truth). Free: `areas_resolve`, `link_format`, `account_get`. Needs `RENTCAST_API_KEY` in `.env`
+
+## Cars
+
+- **Cars MCP (`cars-search-mcp`, server id `cars`)** — MarketCheck inventory. Search + recommend + listing handoff. Never submits leads or purchases.
+- **Exact tools:** `cars__listings_search`, `cars__listings_get`, `cars__vin_get`, `cars__markets_get`, `cars__link_format`, `cars__account_get`
+- **Flow:** `listings_search` (zip or city+state, make/model, year/price/miles) → `listings_get` → hand off VDP / dealer URL
+- Context: `vin_get` for a VIN; `markets_get` for fair-price / days-supply style context. `link_format` is a public search fallback only
+- **Not** apartment hunting (`rentals__…`). Quota: MarketCheck free ≈ 500 calls/month — `cars__account_get` / search `usage` are a **local** counter. Needs `MARKETCHECK_API_KEY` in `.env` (native: also `make remote-native-env`)
 
 ## Fitness
 

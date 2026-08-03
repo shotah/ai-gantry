@@ -96,3 +96,11 @@ name = "rentals"
 command = "rentals-search-mcp"
 download_tag = "latest"
 download_url = "https://github.com/shotah/rentals-search-mcp/releases/download/{tag}/rentals-search-mcp_{version}_{os}_{arch}.tar.gz"
+
+# Cars for sale via MarketCheck (shotah/cars-search-mcp) — docs/cars.md
+# Recommend-only: inventory + VIN + market context + listing handoff. No leads / purchases.
+[[server]]
+name = "cars"
+command = "cars-search-mcp"
+download_tag = "latest"
+download_url = "https://github.com/shotah/cars-search-mcp/releases/download/{tag}/cars-search-mcp_{version}_{os}_{arch}.tar.gz"
