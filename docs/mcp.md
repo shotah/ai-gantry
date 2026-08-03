@@ -67,6 +67,9 @@ Inspect what the running agent sees:
 - `/status` includes `schema_est_tokens` alongside history size
 - Boot logs: `mcp server connected` (`tools_listed` vs `tools_published`), then
   `tool schema estimate` + one `tool schema by server` line per prefix
+- **Fail-soft boot:** if one `[[server]]` fails to spawn/initialize (missing API
+  key, broken binary, EOF), gantry logs `mcp server boot skipped` and continues
+  with the rest. A single optional tool must not take down the agent.
 
 ---
 

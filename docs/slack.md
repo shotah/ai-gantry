@@ -51,7 +51,7 @@ SLACK_ALLOWED_USERS=U01234567
 | Commands | Text `/new` `/cancel` `/status` `/tools` (same as Telegram) |
 | Threads | Channel `@mention` replies land in a thread; DMs stay flat |
 | Cron push | Posts to stored channel / opens DM for allowlisted user |
-| Streaming | Opt-in `STREAM_REPLIES=true` — post placeholder, then `chat.update` |
+| Streaming | Default on (`STREAM_REPLIES=true`) — post placeholder, then `chat.update` |
 | Files | Image shares → vision; reply markdown/`https` as image blocks; `data:` via file upload |
 
 ## Notes

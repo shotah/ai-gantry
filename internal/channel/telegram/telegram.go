@@ -29,6 +29,7 @@ type Config struct {
 	AllowedUsers  []int64
 	Logger        *slog.Logger
 	StreamReplies bool // placeholder + editMessageText while the model streams
+	ShowThinking  bool // CoT in the bubble (italics → expandable); needs StreamReplies
 }
 
 // Channel long-polls Telegram and fans messages into a channel.Handler.
@@ -39,6 +40,7 @@ type Channel struct {
 	newBot        func(token string, opts ...bot.Option) (*bot.Bot, error)
 	chunkMax      int
 	streamReplies bool
+	showThinking  bool
 	botID         int64
 	outbound      *outboundCache
 	reactSettle   *reactionSettler
@@ -67,6 +69,7 @@ func New(cfg Config) (*Channel, error) {
 		newBot:        bot.New,
 		chunkMax:      telegramMaxMessageRunes,
 		streamReplies: cfg.StreamReplies,
+		showThinking:  cfg.ShowThinking,
 		outbound:      newOutboundCache(outboundCacheCap),
 		reactSettle:   newReactionSettler(),
 	}, nil
@@ -205,6 +208,7 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 	handleCtx := ctx
 	if c.streamReplies {
 		stream = newEditStream(b, chatID, threadID, c.chunkMax)
+		stream.showThinking = c.showThinking
 		stream.onSent = func(msgID int, text string) {
 			c.outbound.remember(chatID, msgID, threadID, text)
 		}

@@ -32,6 +32,8 @@ Agent recipes live in `persona/TOOLS.md` (and `TOOLS.example.md`).
 RENTCAST_API_KEY=...
 # Optional pin (Docker bake / native fetch):
 # RENTALS_SEARCH_MCP_VERSION=v0.0.1
+# Persist local usage counter on the gantry volume:
+# RENTCAST_USAGE_FILE=/data/rentcast-usage.json
 ```
 
 3. Rebuild / native-fetch and restart:
@@ -63,7 +65,7 @@ download_url = "https://github.com/shotah/rentals-search-mcp/releases/download/{
 | `rent_estimate_get` | `rentals__rent_estimate_get` | Fair-rent AVM for an address |
 | `markets_get` | `rentals__markets_get` | Zip market aggregates |
 | `link_format` | `rentals__link_format` | Fallback *search* URL only (no API) |
-| `account_get` | `rentals__account_get` | Quota reminder + dashboard (no public usage JSON) |
+| `account_get` | `rentals__account_get` | Local usage counter + dashboard (no public RentCast quota API) |
 
 Tool names follow
 [mcp-naming.md](../../docs/mcp-naming.md) — **no** `rentals_listings_search`

@@ -56,6 +56,7 @@ func run() int {
 		"cron_tz", cfg.CronTZ,
 		"spark_qty", cfg.SparkQty,
 		"stream_replies", cfg.StreamReplies,
+		"show_thinking", cfg.ShowThinking,
 		"tool_trace", cfg.ToolTrace,
 		"telegram_error_reporting", cfg.TelegramErrorReporting,
 	)
@@ -289,6 +290,7 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 			AllowedUsers:  cfg.TelegramAllowedUsers,
 			Logger:        logger,
 			StreamReplies: cfg.StreamReplies,
+			ShowThinking:  cfg.ShowThinking,
 		})
 	case config.ChannelDiscord:
 		return discord.New(discord.Config{

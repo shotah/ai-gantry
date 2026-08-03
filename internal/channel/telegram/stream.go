@@ -39,6 +39,7 @@ type editStream struct {
 	body             string // committed prose + tool-trace lines (survives tool loops)
 	answer           string // in-progress model stream for the current iteration
 	useHTML          bool
+	showThinking     bool // SHOW_THINKING — live italics + final expandable CoT
 	started          bool
 	rateLimitedUntil time.Time
 	flushStop        chan struct{}
@@ -51,7 +52,8 @@ func newEditStream(b *bot.Bot, chatID int64, threadID, chunkMax int) *editStream
 	if chunkMax < 1 {
 		chunkMax = telegramMaxMessageRunes
 	}
-	return &editStream{bot: b, chatID: chatID, threadID: threadID, chunkMax: chunkMax}
+	// showThinking defaults on for unit tests; Channel overrides from SHOW_THINKING.
+	return &editStream{bot: b, chatID: chatID, threadID: threadID, chunkMax: chunkMax, showThinking: true}
 }
 
 func (s *editStream) remember(msgID int, text string) {
@@ -257,8 +259,12 @@ func (s *editStream) visibleAnswerLocked() string {
 
 // statusThinkingLocked appends the status line below the reasoning/trace block,
 // so it reads as "what is happening right now". Callers hold s.mu.
+// When SHOW_THINKING is off, CoT is omitted but the status line still shows.
 func (s *editStream) statusThinkingLocked() string {
-	block := s.combinedThinkingLocked()
+	block := ""
+	if s.showThinking {
+		block = s.combinedThinkingLocked()
+	}
 	switch {
 	case s.status == "":
 		return block
@@ -386,7 +392,10 @@ func (s *editStream) Finish(ctx context.Context, final string) error {
 	// The status line is a waiting indicator — never part of the final bubble,
 	// even if the turn ended by error or cancel before anything cleared it.
 	s.status = ""
-	thinking := s.combinedThinkingLocked()
+	thinking := ""
+	if s.showThinking {
+		thinking = s.combinedThinkingLocked()
+	}
 	final = strings.TrimSpace(final)
 	// Raw answer only for the content half. pending/latest hold formatted
 	// display (may contain HTML); never re-compose from those.

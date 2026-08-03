@@ -113,16 +113,22 @@ gantry keeps the prompt bounded with env knobs (defaults are sane; all in
 Gemini 3.5's ~1M window leaves headroom, but fat tool results still make
 answers worse without these caps. `/new` remains the hard **session** reset.
 
-Streaming replies (Telegram edit-in-place) are opt-in: `STREAM_REPLIES=true`.
-When enabled, gantry caches the model text and flushes to Telegram about once
-per second (so 429 flood-control does not stall the LLM or leave you with a
-silent half-message). The final reply is always written on finish.
+Streaming replies (Telegram edit-in-place) are on by default
+(`STREAM_REPLIES=true`). Gantry caches the model text and flushes to Telegram
+about once per second (so 429 flood-control does not stall the LLM or leave you
+with a silent half-message). The final reply is always written on finish.
+Set `STREAM_REPLIES=false` for a single final bubble.
 
 If the chat model emits chain-of-thought (Ollama/Qwen `reasoning` / `thinking`
-fields), streaming shows it as **italics** above the answer (live edits would
-reset Telegram’s expandable UI). The **final** message uses an expandable
-italic blockquote. Set `LLM_REASONING_EFFORT=none` to disable thinking entirely
-(the native default — thinking tokens are decoded before any tool fires).
+fields) and `SHOW_THINKING` is on (default), streaming shows it as **italics**
+above the answer (live edits would reset Telegram’s expandable UI). The
+**final** message uses an expandable italic blockquote. Separate from
+model-side think control:
+
+| Knob | What it does |
+|------|----------------|
+| `SHOW_THINKING=true\|false` | Render CoT in the Telegram bubble (default on; needs `STREAM_REPLIES`) |
+| `LLM_REASONING_EFFORT=none` | Ask the model not to generate CoT (Ollama/Qwen; native default) |
 
 Tool calls append a trace **inline** in the reply body (between prose chunks),
 so a slow multi-tool turn shows motion without wiping earlier text.
@@ -141,11 +147,13 @@ You rode 21mi.
 ```
 
 ```env
-TOOL_TRACE=full   # named tool traces with timings
+SHOW_THINKING=true   # expandable CoT box (Gemini / thinking models)
+TOOL_TRACE=full      # named tool traces with timings
 ```
 
-CoT (when enabled) stays in the expandable italic block above; traces ride with
-the conversation so a later tool failure cannot erase the earlier answer.
+CoT (when `SHOW_THINKING=true`) stays in the expandable italic block above;
+traces ride with the conversation so a later tool failure cannot erase the
+earlier answer.
 Timings also land in the journal (`model call` / `tool done` / `turn perf`) —
 see [deploy-native.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-native.md#latency-measure-before-tuning).
 

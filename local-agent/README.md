@@ -245,7 +245,8 @@ Set in `.env` (copy from [`.env.example`](.env.example)). Secrets are never comm
 | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | — | Override all three to swap chat to xAI/Ollama/etc. |
 | `TELEGRAM_BOT_TOKEN` | ✅ | From [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_ALLOWED_USERS` | ✅ | Comma-separated numeric user IDs — the entire auth model; empty fails boot |
-| `STREAM_REPLIES` | — | `true` = Telegram edit-in-place streaming (default `false`) |
+| `STREAM_REPLIES` | — | Telegram edit-in-place streaming (default `true`) |
+| `SHOW_THINKING` | — | CoT in the bubble (default `true`; needs `STREAM_REPLIES`) |
 | `MEMORY_*`, `HISTORY_*`, `TOOL_*`, `CRON_*` | — | gantry runtime knobs — see [ai-gantry §5.1](https://github.com/shotah/ai-gantry#51-environment-variables) |
 | `SPARK_QTY` / `SPARK_*` | — | Opt-in spark-of-life presence pings (`4-6`, window hours). Empty qty = off. See [docs/cron.md](../docs/cron.md#spark-of-life-opt-in); native: [deploy/README.md](deploy/README.md#spark-of-life-opt-in) |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | — | Strava API app (see [Workout coaching](#workout-coaching-strava)) |

@@ -72,7 +72,14 @@ type Config struct {
 	SparkPrompt            string `env:"SPARK_PROMPT" envDefault:""`
 	SparkSkipRecentMinutes int    `env:"SPARK_SKIP_RECENT_MINUTES" envDefault:"15"`
 
-	StreamReplies bool `env:"STREAM_REPLIES" envDefault:"false"`
+	StreamReplies bool `env:"STREAM_REPLIES" envDefault:"true"`
+
+	// ShowThinking controls whether chain-of-thought is rendered in the Telegram
+	// stream bubble (live italics → final expandable blockquote). On by default;
+	// set false for a quieter bubble. Pair with LLM_REASONING_EFFORT=none on
+	// slow local models so CoT is not generated (and therefore not shown).
+	// Needs STREAM_REPLIES=true. Does not change model-side think on/off.
+	ShowThinking bool `env:"SHOW_THINKING" envDefault:"true"`
 
 	// ToolTrace controls user-visible tool activity when STREAM_REPLIES is on.
 	// compact = Making Calls: ✓, ✗ (default); full = → name / ✓ timing lines;

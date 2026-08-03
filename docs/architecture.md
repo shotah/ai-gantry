@@ -239,7 +239,7 @@ Handle” — Telegram chat/user id is stored with the job from the scheduling t
 
 ## Streaming replies (Milestone 7)
 
-Opt-in: `STREAM_REPLIES=true`. Channel attaches a `ReplyWriter`; agent uses
+Default on: `STREAM_REPLIES=true`. Channel attaches a `ReplyWriter`; agent uses
 `provider.CompleteStream` when available.
 
 ```mermaid

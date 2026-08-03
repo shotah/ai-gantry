@@ -507,20 +507,55 @@ tools_prefix = "garm"
 	}
 }
 
-func TestHost_BootFail(t *testing.T) {
+func TestHost_BootSoftSkipsFailedServer(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "broken"
+command = "unused"
+
+[[server]]
+name = "ok"
+command = "unused"
+`)
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(_ context.Context, spec mcp.ServerSpec, _ io.Writer) (mcp.Conn, error) {
+			if spec.Name == "broken" {
+				return nil, fmt.Errorf("cannot spawn")
+			}
+			return &fakeConn{tools: []mcp.Tool{{OriginalName: "ping"}}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Start should fail-soft, got %v", err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+	if host.ToolCount() != 1 {
+		t.Fatalf("tools=%d want 1 (broken skipped)", host.ToolCount())
+	}
+	if host.Tools()[0].Name != "ok__ping" {
+		t.Fatalf("got %q", host.Tools()[0].Name)
+	}
+}
+
+func TestHost_BootSoftAllFailedStillStarts(t *testing.T) {
 	path := writeManifest(t, `
 [[server]]
 name = "demo"
 command = "unused"
 `)
-	_, err := mcp.Start(context.Background(), mcp.Options{
+	host, err := mcp.Start(context.Background(), mcp.Options{
 		ManifestPath: path,
 		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
 			return nil, fmt.Errorf("cannot spawn")
 		},
 	})
-	if err == nil || !strings.Contains(err.Error(), "boot server") {
-		t.Fatalf("err = %v", err)
+	if err != nil {
+		t.Fatalf("Start should fail-soft even if all servers fail, got %v", err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+	if host.ToolCount() != 0 {
+		t.Fatalf("tools=%d want 0", host.ToolCount())
 	}
 }
 

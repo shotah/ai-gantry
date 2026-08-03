@@ -88,7 +88,7 @@ streams.
 
 ## Streaming replies to the user
 
-**Pick:** Milestone 7 — shipped, opt-in via `STREAM_REPLIES=true` (default off).
+**Pick:** Milestone 7 — shipped; default on via `STREAM_REPLIES=true` (set `false` for a single final bubble).
 
 Streaming *to Telegram* is channel-layer work (send placeholder, throttled
 `editMessageText`). MCP streaming tool results into the gantry is a different

@@ -65,7 +65,10 @@ type managedServer struct {
 	conn Conn
 }
 
-// Start loads the manifest, connects every server (fail-fast), and lists tools.
+// Start loads the manifest, connects every server, and lists tools.
+// Per-server connect failures are logged and skipped (fail-soft): one missing
+// API key or broken binary must not take down the whole agent. Manifest load
+// errors still fail Start.
 func Start(ctx context.Context, opts Options) (*Host, error) {
 	log := opts.Logger
 	if log == nil {
@@ -94,13 +97,19 @@ func Start(ctx context.Context, opts Options) (*Host, error) {
 		tools:          make(map[string]*Tool),
 	}
 
+	var failed int
 	for _, spec := range manifest.Servers {
 		if err := h.connectServer(ctx, spec); err != nil {
-			_ = h.Close()
-			return nil, fmt.Errorf("mcp: boot server %q: %w", spec.Name, err)
+			failed++
+			h.log.Error("mcp server boot skipped", "server", spec.Name, "err", err)
+			continue
 		}
 	}
-	h.log.Info("mcp host ready", "servers", len(h.servers), "tools", len(h.tools))
+	h.log.Info("mcp host ready",
+		"servers", len(h.servers),
+		"tools", len(h.tools),
+		"skipped", failed,
+	)
 	return h, nil
 }
 

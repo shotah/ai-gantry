@@ -209,6 +209,51 @@ func TestEditStream_FinishThinkingOnlyNoDuplicate(t *testing.T) {
 	}
 }
 
+// SHOW_THINKING=false: CoT is still received but must not appear in the bubble.
+func TestEditStream_ShowThinkingOffHidesCoT(t *testing.T) {
+	prevFlush := streamFlushEvery
+	streamFlushEvery = time.Hour
+	t.Cleanup(func() { streamFlushEvery = prevFlush })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		method := strings.TrimPrefix(r.URL.Path, "/bot"+testBotToken+"/")
+		_, _ = io.ReadAll(r.Body)
+		switch method {
+		case "sendMessage":
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":7,"date":1,"chat":{"id":1,"type":"private"}}}`))
+		case "editMessageText":
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":7,"date":1,"chat":{"id":1,"type":"private"},"text":"x"}}`))
+		default:
+			t.Errorf("unexpected method %q", method)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	b, err := bot.New(testBotToken, bot.WithServerURL(srv.URL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := newEditStream(b, 1, 0, 4000)
+	stream.showThinking = false
+	ctx := context.Background()
+	if err := stream.UpdateThinking(ctx, "secret plan", "visible answer"); err != nil {
+		t.Fatal(err)
+	}
+	waitMsgID(t, stream)
+	if err := stream.Finish(ctx, "visible answer"); err != nil {
+		t.Fatal(err)
+	}
+	stream.mu.Lock()
+	flushed := stream.lastFlushed
+	stream.mu.Unlock()
+	if strings.Contains(flushed, "secret plan") || strings.Contains(flushed, "<blockquote") || strings.Contains(flushed, "<i>") {
+		t.Fatalf("CoT leaked with SHOW_THINKING=false: %q", flushed)
+	}
+	if !strings.Contains(flushed, "visible answer") {
+		t.Fatalf("answer missing: %q", flushed)
+	}
+}
+
 // Tool loop: iteration 2 streams a fresh CoT. Earlier reasoning must be
 // archived and survive into the final collapsible, not erased mid-turn.
 func TestEditStream_ThinkingAccumulatesAcrossIterations(t *testing.T) {

@@ -64,7 +64,7 @@ Everything is env or a mount. Boot is fail-fast: missing required env → exit 1
 | Memory | `MEMORY_ENABLED`, `MEMORY_BACKEND` (`builtin`\|`mcp:<name>`), `MEMORY_CONSOLIDATE_MINUTES` |
 | Cron | `CRON_ENABLED`, `CRON_TZ`, `CRON_MAX_JOBS`, `CRON_TICK_SECONDS` |
 | Spark of life | `SPARK_QTY` (empty=off), `SPARK_START_HOUR`, `SPARK_END_HOUR`, `SPARK_PROMPT`, `SPARK_SKIP_RECENT_MINUTES` |
-| Stream | `STREAM_REPLIES` (`false` default; Telegram edit / stdio tokens) |
+| Stream | `STREAM_REPLIES` (`true` default; Telegram edit / stdio tokens) |
 | Ops | `LOG_LEVEL` |
 
 Full table lives in the [root readme](../readme.md#51-environment-variables).

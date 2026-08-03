@@ -49,11 +49,14 @@ func TestBuildStreamDisplay_FinalExpandable(t *testing.T) {
 
 func TestBuildStreamDisplay_DedupesPromotedThinking(t *testing.T) {
 	same := "Sleep score 78 — solid deep sleep."
-	text, html := buildStreamDisplay(same, same, 4096, true)
-	if html {
-		t.Fatal("expected plain when thinking == content")
+	text, useHTML := buildStreamDisplay(same, same, 4096, true)
+	if !useHTML {
+		t.Fatal("final plain answer still uses HTML parse mode after MD convert")
 	}
-	if text != same {
+	if strings.Contains(text, "<blockquote") || strings.Contains(text, "<i>") {
+		t.Fatalf("promoted thinking must not render as CoT box: %q", text)
+	}
+	if !strings.Contains(text, same) {
 		t.Fatalf("text=%q", text)
 	}
 }

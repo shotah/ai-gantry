@@ -250,7 +250,8 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `CRON_TZ` | no | `UTC` (IANA, e.g. `America/Los_Angeles`) |
 | `CRON_MAX_JOBS` | no | `50` |
 | `CRON_TICK_SECONDS` | no | `15` |
-| `STREAM_REPLIES` | no | `false` (Telegram edit-in-place / stdio token stream) |
+| `STREAM_REPLIES` | no | `true` (Telegram edit-in-place / stdio token stream) |
+| `SHOW_THINKING` | no | `true` (Telegram CoT italics → expandable blockquote; needs `STREAM_REPLIES`; independent of `LLM_REASONING_EFFORT`) |
 | `TOOL_TRACE` | no | `compact` (`compact` = `Making Calls: ✓, ✗`; `full` = → name / ✓ timing; `off` = hide; needs `STREAM_REPLIES`) |
 | `COALESCE_SETTLE_MS` | no | `2000` (quiet ms after a bubble **interrupts a running turn**, before one joined turn; a lone message never waits; `0` = off) |
 | `SPINUP_NOTICE_MS` | no | `4000` (post “working on it” after this much model silence; the first turn after start posts at once; needs `STREAM_REPLIES`; `0` = off) |
@@ -496,7 +497,7 @@ live in **[docs/choices.md](docs/choices.md)**.
 1. **Name: ai-gantry 🏗️** — frame that holds tools; binary `gantry`.
 2. **Token counting: estimates** (chars/4), labeled as estimates.
 3. **Memory: builtin SQLite, replaceable** via `MEMORY_BACKEND=mcp:<name>`.
-4. **Streaming replies: opt-in** (`STREAM_REPLIES=true`; edit-in-place where the channel supports it).
+4. **Streaming replies: on by default** (`STREAM_REPLIES=true`; edit-in-place where the channel supports it; set `false` for a single final bubble).
 5. **Channel auth: allowlist only** — empty allowlist fails boot (Telegram / Discord / Slack).
 6. **Runtime image: distroless/static-debian12:nonroot** — MCP children static too.
 7. **Logs on stderr** — stdout stays clean for the stdio REPL.

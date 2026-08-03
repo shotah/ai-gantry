@@ -10,6 +10,7 @@ require (
 	github.com/openai/openai-go/v3 v3.44.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/slack-go/slack v0.27.0
+	github.com/yuin/goldmark v1.8.5
 	modernc.org/sqlite v1.54.0
 )
 

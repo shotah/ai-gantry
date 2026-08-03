@@ -33,7 +33,7 @@ DISCORD_ALLOWED_USERS=123456789012345678   # comma-separated snowflakes
 | Auth | Allowlist by user snowflake — others are logged and dropped |
 | Commands | Same text commands as Telegram (`/new`, `/cancel`, `/status`, `/tools`) |
 | Cron push | DMs allowlisted users via stored DM channel id |
-| Streaming | Opt-in `STREAM_REPLIES=true` — send placeholder, then edit in place |
+| Streaming | Default on (`STREAM_REPLIES=true`) — send placeholder, then edit in place |
 | Attachments | Image attachments → vision; reply markdown/`https` images as embeds; `data:` as file upload |
 
 ## Notes
