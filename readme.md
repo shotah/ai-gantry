@@ -4,6 +4,8 @@
   <img src="assets/banner.svg" alt="ai-gantry — the frame that holds the tools" width="100%">
 </p>
 
+<!-- Hub uses docs/dockerhub.md + assets/banner.png (SVG/mermaid break on Docker Hub). -->
+
 <p align="center">
   <a href="https://github.com/shotah/ai-gantry/actions/workflows/ci.yml"><img src="https://github.com/shotah/ai-gantry/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/shotah/ai-gantry/actions/workflows/docker.yml"><img src="https://github.com/shotah/ai-gantry/actions/workflows/docker.yml/badge.svg" alt="Docker"></a>
@@ -15,9 +17,10 @@
 > **gantry** *(n.)* — the rigid frame in a CNC machine or crane that holds and
 > positions tools. The frame does nothing by itself; the tools do everything.
 
-**A personal agent you can actually own** — one static Go binary, one persona,
-one model, MCP tools you choose, chat that only dials *out* (Telegram, Discord,
-or Slack). No dashboard. No config UI. **No open ports. Ever.**
+**A personal agent you can actually own.** One Distroless Go binary. One
+persona. One OpenAI-compat model. MCP tools you choose. Chat that only dials
+*out* (Telegram, Discord, or Slack). No dashboard. No config UI.
+**No open ports. Ever.**
 
 ```text
 static binary + persona + mcp.toml + any OpenAI-compat LLM  →  outbound chat
@@ -26,33 +29,61 @@ static binary + persona + mcp.toml + any OpenAI-compat LLM  →  outbound chat
 Chat, memory, and cron work with **zero MCP servers**. Tools are optional
 binaries on `PATH` (or baked into an image) — the frame stays out of the way.
 
+### Pull it (fastest hello)
+
+Images publish on every `main` push and every `v*` tag to
+[Docker Hub](https://hub.docker.com/r/shotah/ai-gantry) and GHCR:
+
+| Tag | Meaning |
+| --- | --- |
+| `shotah/ai-gantry:latest` | Latest release |
+| `shotah/ai-gantry:edge` | `main` (moving) |
+| `shotah/ai-gantry:0.x.y` | Pinned release |
+| `ghcr.io/shotah/ai-gantry:…` | Same tags on GHCR |
+
+```bash
+docker pull shotah/ai-gantry:latest
+docker run --rm shotah/ai-gantry:latest version
+```
+
+Wire Telegram + Gemini with the compose example (Hub image by default — no
+local build): **[docs/deploy-docker.md](docs/deploy-docker.md)** →
+[`examples/personal-assistant/`](examples/personal-assistant/).
+
+### Kernel vs appliance
+
 | | **Kernel** (`gantry`) | **Appliance** ([`local-agent/`](local-agent/)) |
 | --- | --- | --- |
 | What | Runtime only — env + mounts | Kernel + Workspace / Strava / Garmin / Cast / YT Music / search |
-| Run it | Binary, systemd, or Distroless image | Native Linux + Ollama, or Docker compose |
+| Run it | **Hub image**, binary, or systemd | Native Linux + Ollama, or Docker compose |
 | Start here if | You want a tiny host you control | You want a full life-stack assistant |
 
 > **In production** as a native appliance (Telegram + local Qwen via Ollama +
-> MCP). Same kernel also runs under Docker with Gemini/Grok. Not a demo
+> MCP). Same kernel ships on Hub for cloud LLMs (Gemini/Grok). Not a demo
 > scaffold — a binary with real deploy stories.
 
 ### Who this is for
 
-You want a **self-hosted assistant** with a clear security story (outbound-only,
-allowlist), **inspectable memory** (`sqlite3` on a file you own), and **MCP as
-the only plugin surface** — not another multi-agent platform.
+Self-hosters and local-LLM operators who want an **outbound-only** assistant,
+**inspectable** SQLite memory, and **MCP as the only plugin surface** — not
+another multi-agent platform.
 
-**Pick gantry** when you want small, boring, and shippable.  
-**Pick something else** (OpenClaw-style stacks, LangGraph apps, SaaS agents)
-when you need a web UI, team workspace, multi-agent routing, or pairing flows.
-We deliberately don't build those.
+| Pick **gantry** when… | Pick something else when… |
+| --- | --- |
+| You want small, boring, shippable | You need a web UI or team workspace |
+| Allowlist + no inbound ports is the security story | You need WhatsApp / Teams inbound webhooks |
+| Local models must finish tool turns | You want multi-agent routing / pairing flows |
+| Env + mounts is enough config | You want a dashboard or no-code canvas |
+
+Longer ICP / competition / evangelism notes:
+**[docs/positioning.md](docs/positioning.md)**.
 
 | Status | Channel | Notes |
 | --- | --- | --- |
 | **Shipped** | Telegram (default) | Fastest hello path; long-poll |
 | **Shipped** | Discord | DMs; Gateway WS — [docs/discord.md](docs/discord.md) |
 | **Shipped** | Slack | Socket Mode only — [docs/slack.md](docs/slack.md) |
-| **Planned** | Signal | Sidecar (`signal-cli`); not a Bot API — [todo.md](todo.md) |
+| **Planned** | Signal | Sidecar (`signal-cli`); not a Bot API |
 | **Won’t** | WhatsApp / Teams / Messenger webhooks | Need inbound ports — breaks the model |
 
 One `CHANNEL` per process. Allowlist only; no pairing.
@@ -83,13 +114,13 @@ Details: [docs/mcp.md](docs/mcp.md) · [docs/deploy-native.md](docs/deploy-nativ
 
 | Path | When | Doc |
 | --- | --- | --- |
-| **Native + local model** *(featured)* | Linux mini-PC, Ollama/Qwen, systemd | **[docs/deploy-native.md](docs/deploy-native.md)** → [`local-agent/deploy/`](local-agent/deploy/) |
-| **Docker + cloud LLM** | Hub/compose, Gemini hello in minutes | **[docs/deploy-docker.md](docs/deploy-docker.md)** → [`examples/personal-assistant/`](examples/personal-assistant/) |
+| **Docker Hub + cloud LLM** *(fastest)* | Pull `shotah/ai-gantry`, Gemini hello in minutes | **[docs/deploy-docker.md](docs/deploy-docker.md)** → [`examples/personal-assistant/`](examples/personal-assistant/) |
+| **Native + local model** | Linux mini-PC, Ollama/Qwen, systemd | **[docs/deploy-native.md](docs/deploy-native.md)** → [`local-agent/deploy/`](local-agent/deploy/) |
 | **REPL** | Hack on the binary | `make init && make run` (`CHANNEL=stdio`) |
 
 Full life-stack (tools + auth helpers): **[local-agent/](local-agent/)**.  
-Cookbook: **[examples/README.md](examples/README.md)**. Design / security /
-MCP: **[docs/](docs/)**. Follow-ups: **[todo.md](todo.md)**.
+Cookbook: **[examples/README.md](examples/README.md)**. Positioning /
+design / security / MCP: **[docs/](docs/)**.
 
 ---
 
@@ -102,7 +133,8 @@ allowlist to friends.
 ## 1. Problem statement
 
 Platform agent stacks drift toward multi-agent products: multiple providers,
-dashboards, console features, config UI. Our deployment model is the opposite:
+dashboards, console features, config UI. Our deployment model is the opposite
+(pitch + ICP: [docs/positioning.md](docs/positioning.md)):
 
 ```text
 process = persona + model + MCP set + data dir
@@ -488,6 +520,11 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
 - Release: `make release` (or `BUMP=minor|major` / `TAG=vX.Y.Z`) bumps
   `VERSION`, tags, and pushes; `.github/workflows/release.yml` runs GoReleaser
   on `v*` tags (same flow as the other shotah MCP repos).
+- Images: `.github/workflows/docker.yml` pushes multi-arch Distroless to
+  `shotah/ai-gantry` (Hub) and `ghcr.io/shotah/ai-gantry` — `:edge` on `main`,
+  `:latest` + semver on `v*` tags. Hub overview syncs from
+  [`docs/dockerhub.md`](docs/dockerhub.md) (PNG banner; root readme is too
+  large / SVG-heavy for Hub).
 
 ## 10. Decisions
 

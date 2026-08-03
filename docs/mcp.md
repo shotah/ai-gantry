@@ -270,7 +270,7 @@ make run
 ```bash
 make example-pa
 # edit examples/personal-assistant/.env and mcp.toml
-docker compose -f examples/personal-assistant/compose.yml up -d --build
+docker compose -f examples/personal-assistant/compose.yml up -d
 ```
 
 MCP servers stay commented until you grant them. Same `/tools` / `/status`

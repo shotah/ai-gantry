@@ -1,13 +1,14 @@
 # ai-gantry docs
 
 Operator-oriented design notes for the runtime. The [root readme](../readme.md)
-is the product contract and milestone checklist; these pages go deeper.
+is the public pitch + product contract; these pages go deeper.
 
 | Doc | What it covers |
 | --- | --- |
-| [../todo.md](../todo.md) | Open follow-ups only |
-| [deploy-native.md](deploy-native.md) | **Featured:** Linux systemd + Ollama/Qwen, local-model hardening |
-| [deploy-docker.md](deploy-docker.md) | Distroless compose / Hub, Gemini hello path |
+| [positioning.md](positioning.md) | ICP, competition, Docker Hub story, when (not) to add a site |
+| [dockerhub.md](dockerhub.md) | **Hub overview** synced by CI (keep lean; PNG banner) |
+| [deploy-docker.md](deploy-docker.md) | **Fastest hello:** pull `shotah/ai-gantry` from Hub, Gemini compose |
+| [deploy-native.md](deploy-native.md) | Linux systemd + Ollama/Qwen, local-model hardening |
 | [mcp.md](mcp.md) | MCP host: `{server}__{tool}` naming, underscore alias, suggestions, local REPL |
 | [mcp-naming.md](mcp-naming.md) | **Shared** tool naming contract for all shotah MCP packages (Qwen / closest-match) |
 | [discord.md](discord.md) | Discord Gateway channel (DMs, allowlist, no ports) |
@@ -22,6 +23,7 @@ is the product contract and milestone checklist; these pages go deeper.
 | [memory.md](memory.md) | Hand-inspect / fix builtin SQLite memory with `sqlite3` |
 | [cron.md](cron.md) | Schedule tools, timezone, inspect jobs, overlap policy |
 
-Start with **deploy-native** or **deploy-docker** for a running bot;
-**architecture** for the code; **mcp** before wiring tools; **security** before
-exposing an allowlist with real tool credentials.
+Start with **deploy-docker** (Hub pull) or **deploy-native** for a running bot;
+**positioning** for who/why; **architecture** for the code; **mcp** before
+wiring tools; **security** before exposing an allowlist with real tool
+credentials.

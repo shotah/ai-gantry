@@ -10,8 +10,9 @@ process = persona + model + MCP set + data dir
 ```
 
 Want another LLM or persona? Another process. ai-gantry is the kernel that
-does exactly that — nothing else. Deploy shapes:
-[deploy-native.md](deploy-native.md) · [deploy-docker.md](deploy-docker.md).
+does exactly that — nothing else. Pitch / ICP: [positioning.md](positioning.md).
+Deploy shapes: [deploy-docker.md](deploy-docker.md) (Hub) ·
+[deploy-native.md](deploy-native.md).
 
 ## Principles
 

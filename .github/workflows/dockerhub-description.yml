@@ -1,4 +1,9 @@
-# Sync GitHub readme.md → Docker Hub full description + short blurb.
+# Sync docs/dockerhub.md → Docker Hub overview + short description.
+#
+# Hub quirks (why not the root readme):
+#   - Overview capped at ~25KB (root readme is larger and gets truncated)
+#   - SVG / mermaid / relative asset paths often fail to render
+#   - Categories are set in the Hub UI (not via this action) — see docs/dockerhub.md
 #
 # Secrets:
 #   DOCKER_HUB_USERNAME      — Hub username (e.g. shotah), not email
@@ -13,8 +18,8 @@ on:
   push:
     branches: [main]
     paths:
-      - readme.md
-      - README.md
+      - docs/dockerhub.md
+      - assets/banner.png
       - .github/workflows/dockerhub-description.yml
   workflow_dispatch:
 
@@ -23,22 +28,10 @@ permissions:
 
 jobs:
   dockerhub:
-    name: Publish Hub README
+    name: Publish Hub overview
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Resolve readme path
-        id: readme
-        run: |
-          if [[ -f readme.md ]]; then
-            echo "path=./readme.md" >> "$GITHUB_OUTPUT"
-          elif [[ -f README.md ]]; then
-            echo "path=./README.md" >> "$GITHUB_OUTPUT"
-          else
-            echo "No readme.md / README.md found" >&2
-            exit 1
-          fi
 
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v5
@@ -46,6 +39,7 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
           repository: shotah/ai-gantry
-          readme-filepath: ${{ steps.readme.outputs.path }}
-          short-description: Distroless Go agent runtime — one persona, one model, MCP tools. Telegram default.
+          readme-filepath: ./docs/dockerhub.md
+          # Max 100 chars — shows in Hub search / docker search
+          short-description: Outbound-only personal agent — Distroless Go, MCP tools, Telegram/Discord/Slack. No open ports.
           enable-url-completion: true

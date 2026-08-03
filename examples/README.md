@@ -27,7 +27,10 @@ Slash commands: `/new` `/cancel` `/status` `/tools` `/quit`.
 
 ---
 
-## Path B — Telegram bot (kernel image)
+## Path B — Telegram bot (Docker Hub kernel)
+
+Compose pulls [`shotah/ai-gantry:latest`](https://hub.docker.com/r/shotah/ai-gantry)
+by default — no local build.
 
 ```bash
 make example-pa    # seed examples/personal-assistant/persona + .env
@@ -36,11 +39,12 @@ make example-pa    # seed examples/personal-assistant/persona + .env
 #   TELEGRAM_BOT_TOKEN=...
 #   TELEGRAM_ALLOWED_USERS=123456789
 
-docker compose -f examples/personal-assistant/compose.yml up -d --build
+docker compose -f examples/personal-assistant/compose.yml up -d
 docker compose -f examples/personal-assistant/compose.yml logs -f
 ```
 
-Full walkthrough: **[personal-assistant/README.md](personal-assistant/README.md)**.
+Full walkthrough: **[personal-assistant/README.md](personal-assistant/README.md)** ·
+**[docs/deploy-docker.md](../docs/deploy-docker.md)**.
 
 ---
 

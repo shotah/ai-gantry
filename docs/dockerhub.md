@@ -1,0 +1,151 @@
+# ai-gantry
+
+![ai-gantry — the frame that holds the tools](https://raw.githubusercontent.com/shotah/ai-gantry/main/assets/banner.png)
+
+**A personal agent you can actually own.** One Distroless Go binary. One persona.
+One OpenAI-compat model. MCP tools you choose. Chat that only dials *out*
+(Telegram, Discord, or Slack). No dashboard. No config UI. **No open ports. Ever.**
+
+```text
+static binary + persona + mcp.toml + any OpenAI-compat LLM  →  outbound chat
+```
+
+Chat, memory, and cron work with **zero MCP servers**. Tools are optional
+binaries on `PATH` (or baked into a richer image).
+
+Source, full contract, security notes:
+[github.com/shotah/ai-gantry](https://github.com/shotah/ai-gantry)
+
+---
+
+## Quick start
+
+```bash
+docker pull shotah/ai-gantry:latest
+docker run --rm shotah/ai-gantry:latest version
+```
+
+Telegram + Gemini hello (compose mounts persona / data; **this image**, no local
+build):
+
+```bash
+git clone https://github.com/shotah/ai-gantry.git && cd ai-gantry
+make example-pa
+# edit examples/personal-assistant/.env
+#   GEMINI_API_KEY=...
+#   TELEGRAM_BOT_TOKEN=...
+#   TELEGRAM_ALLOWED_USERS=<numeric id>
+
+docker compose -f examples/personal-assistant/compose.yml up -d
+docker compose -f examples/personal-assistant/compose.yml logs -f
+```
+
+Walkthrough: [docs/deploy-docker.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-docker.md)
+
+---
+
+## Tags
+
+| Tag | Meaning |
+| --- | --- |
+| `latest` | Latest release |
+| `edge` | Tip of `main` (moving) |
+| `0.x.y` / `0.x` | Pinned release (prefer for production) |
+| `sha-<commit>` | Exact CI build |
+
+Also on GHCR: `ghcr.io/shotah/ai-gantry` (same tags). Multi-arch: `linux/amd64`,
+`linux/arm64`.
+
+---
+
+## What this image is
+
+- **Kernel only** — Distroless `static-debian12:nonroot`, no shell
+- Entrypoint: `gantry` (`run` | `status` | `version` | …)
+- Healthcheck: `["CMD","/usr/local/bin/gantry","status"]` (exit code; **no port**)
+- Config: env + bind mounts (`PERSONA_DIR`, `MCP_MANIFEST`, `DATA_DIR`)
+- Channels: Telegram (default), Discord, Slack, or `stdio`
+
+MCP tool binaries are **not** baked in. Grant tools by baking/mounting static
+binaries + uncommenting `mcp.toml`, or use the fuller
+[local-agent](https://github.com/shotah/ai-gantry/tree/main/local-agent)
+appliance.
+
+---
+
+## Minimal compose
+
+```yaml
+services:
+  gantry:
+    image: shotah/ai-gantry:latest
+    env_file: .env
+    environment:
+      LLM_BASE_URL: https://generativelanguage.googleapis.com/v1beta/openai
+      LLM_API_KEY: ${GEMINI_API_KEY}
+      LLM_MODEL: gemini-3.5-flash
+      CHANNEL: telegram
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_ALLOWED_USERS: ${TELEGRAM_ALLOWED_USERS}
+      PERSONA_DIR: /persona
+      DATA_DIR: /data
+      MCP_MANIFEST: /etc/gantry/mcp.toml
+    volumes:
+      - ./persona:/persona:ro
+      - ./mcp.toml:/etc/gantry/mcp.toml:ro
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/gantry", "status"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+```
+
+Nothing publishes a host port. The bot dials out to Telegram / the LLM only.
+
+---
+
+## Who it’s for
+
+Self-hosters and local-LLM operators who want an **outbound-only** assistant,
+**inspectable** SQLite memory, and **MCP as the only plugin surface**.
+
+| Pick this image when… | Pick something else when… |
+| --- | --- |
+| You want small, boring, shippable | You need a web UI or team workspace |
+| Allowlist + no inbound ports | You need WhatsApp / Teams webhooks |
+| Env + mounts is enough config | You want a dashboard or no-code canvas |
+
+Positioning: [docs/positioning.md](https://github.com/shotah/ai-gantry/blob/main/docs/positioning.md)
+
+---
+
+## Docs
+
+| Topic | Link |
+| --- | --- |
+| Docker deploy | [deploy-docker.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-docker.md) |
+| Native + Ollama | [deploy-native.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-native.md) |
+| MCP host | [mcp.md](https://github.com/shotah/ai-gantry/blob/main/docs/mcp.md) |
+| Security | [security.md](https://github.com/shotah/ai-gantry/blob/main/docs/security.md) |
+| Full contract | [readme.md](https://github.com/shotah/ai-gantry/blob/main/readme.md) |
+
+License: MIT — [LICENSE](https://github.com/shotah/ai-gantry/blob/main/LICENSE)
+
+---
+
+## Hub metadata (maintainers)
+
+This file is what CI publishes to the Docker Hub **overview**
+(`.github/workflows/dockerhub-description.yml`). Keep it pull-first and under
+Hub’s ~25KB cap. Do **not** paste the full root `readme.md` here.
+
+**Categories** (Hub UI only — pencil under the short description, max 3):
+
+1. **Machine learning & AI**
+2. **Developer tools**
+3. **Security** *(outbound-only / allowlist story)*
+
+**Short description** is set by the same workflow (≤100 chars). Banner must be
+**PNG** with an absolute `raw.githubusercontent.com` URL — Hub does not render
+our SVG reliably.

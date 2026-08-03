@@ -1,12 +1,22 @@
-# Deploy: Docker (compose / Hub)
+# Deploy: Docker (Hub / compose)
 
 Run gantry as a **distroless container**: outbound chat only, mounts for
 persona + `mcp.toml` + data. Fastest path when you want a cloud
 OpenAI-compatible LLM (Gemini is the cookbook default) without installing a
 local model host.
 
-Kernel contract (env, mounts, MCP): [root readme](../readme.md). Tool naming:
-[mcp.md](mcp.md). Full life-stack appliance: [local-agent/](../local-agent/).
+**Published images** (CI on every `main` push and `v*` tag):
+
+| Registry | Image |
+| --- | --- |
+| [Docker Hub](https://hub.docker.com/r/shotah/ai-gantry) | `shotah/ai-gantry:latest` / `:edge` / `:0.x.y` |
+| GHCR | `ghcr.io/shotah/ai-gantry:…` (same tags) |
+
+`:latest` = latest release tag · `:edge` = `main` · pin `:0.x.y` for production.
+
+Kernel contract (env, mounts, MCP): [root readme](../readme.md). Why Hub is the
+stranger path: [positioning.md](positioning.md). Tool naming: [mcp.md](mcp.md).
+Full life-stack appliance: [local-agent/](../local-agent/).
 
 ```mermaid
 flowchart LR
@@ -21,7 +31,7 @@ flowchart LR
 
 ---
 
-## Hello in five minutes (no tools)
+## Hello in five minutes (pull from Hub, no tools)
 
 **Telegram + Gemini.** You need: Docker, a
 [Gemini API key](https://aistudio.google.com/apikey), a bot token from
@@ -29,21 +39,25 @@ flowchart LR
 [@userinfobot](https://t.me/userinfobot)).
 
 ```bash
+docker pull shotah/ai-gantry:latest
+docker run --rm shotah/ai-gantry:latest version
+
 git clone https://github.com/shotah/ai-gantry.git && cd ai-gantry
 make example-pa
 # edit examples/personal-assistant/.env — GEMINI_API_KEY, TELEGRAM_BOT_TOKEN,
 # TELEGRAM_ALLOWED_USERS (numeric id)
 
-docker compose -f examples/personal-assistant/compose.yml up -d --build
+# compose defaults to image: shotah/ai-gantry:latest (no local build)
+docker compose -f examples/personal-assistant/compose.yml up -d
 docker compose -f examples/personal-assistant/compose.yml logs -f
 ```
 
 Message the bot → `/status` → `/new`. Memory and cron work immediately; MCP
 servers stay commented until you want tools.
 
-Prefer the published image? Set `image: shotah/ai-gantry:latest` in that compose
-file and drop the `build:` block (`:edge` / `:0.x.y` also on Hub +
-`ghcr.io/shotah/ai-gantry`).
+Developing the kernel from this checkout? In
+`examples/personal-assistant/compose.yml`, comment `image:` and uncomment the
+`build:` block, then `docker compose … up -d --build`.
 
 ### Discord / Slack (same compose)
 
@@ -59,7 +73,7 @@ DISCORD_ALLOWED_USERS=123456789012345678
 ```
 
 ```bash
-docker compose -f examples/personal-assistant/compose.yml up -d --build
+docker compose -f examples/personal-assistant/compose.yml up -d
 ```
 
 ---
@@ -69,7 +83,7 @@ docker compose -f examples/personal-assistant/compose.yml up -d --build
 ```yaml
 services:
   gantry:
-    image: gantry:local            # or shotah/ai-gantry:latest
+    image: shotah/ai-gantry:latest   # or :edge / :0.x.y
     env_file: .env
     volumes:
       - ./deploy/persona:/persona:ro
@@ -102,9 +116,9 @@ See [local-agent/README.md](../local-agent/README.md) and
 
 ## When to prefer Docker
 
-| Prefer Docker when… | Prefer [native](deploy-native.md) when… |
+| Prefer Docker / Hub when… | Prefer [native](deploy-native.md) when… |
 | --- | --- |
-| You want Hub image + compose in minutes | You want Ollama/Qwen on metal (no container tax) |
+| You want `docker pull` + compose in minutes | You want Ollama/Qwen on metal (no container tax) |
 | Cloud LLM (Gemini/Grok) is fine | Local model + systemd on a mini-PC |
 | Distroless sandbox is the grant story | Host PATH + `/opt/gantry` tree is enough |
 

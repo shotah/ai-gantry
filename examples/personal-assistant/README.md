@@ -24,7 +24,8 @@ personal-assistant/
 
 ## Setup (5 minutes)
 
-From the **ai-gantry repo root**:
+Pulls [`shotah/ai-gantry:latest`](https://hub.docker.com/r/shotah/ai-gantry)
+by default (no local kernel build). From the **ai-gantry repo root**:
 
 ```bash
 make example-pa    # seeds persona/*.md + .env (skips existing)
@@ -33,9 +34,12 @@ make example-pa    # seeds persona/*.md + .env (skips existing)
 #   TELEGRAM_BOT_TOKEN=...
 #   TELEGRAM_ALLOWED_USERS=123456789
 
-docker compose -f examples/personal-assistant/compose.yml up -d --build
+docker compose -f examples/personal-assistant/compose.yml up -d
 docker compose -f examples/personal-assistant/compose.yml logs -f
 ```
+
+To build the kernel from this checkout instead, uncomment the `build:` block in
+`compose.yml` and run `… up -d --build`.
 
 Message the bot. First checks:
 
@@ -58,7 +62,7 @@ DISCORD_BOT_TOKEN=...
 DISCORD_ALLOWED_USERS=123456789012345678
 ```
 
-Then `docker compose -f examples/personal-assistant/compose.yml up -d --build`
+Then `docker compose -f examples/personal-assistant/compose.yml up -d`
 and DM the bot.
 
 ### Local REPL instead of Telegram
