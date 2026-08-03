@@ -90,8 +90,25 @@ func TestMarkdownToTelegramHTML_TableNoHTMLTable(t *testing.T) {
 	if strings.Contains(got, "<table") || strings.Contains(got, "<td") {
 		t.Fatalf("telegram-illegal table tags: %q", got)
 	}
-	if !strings.Contains(got, "<pre>") || !strings.Contains(got, "1 | 2") {
-		t.Fatalf("expected preformatted table: %q", got)
+	if strings.Contains(got, "<pre>") {
+		t.Fatalf("tables should not use <pre>: %q", got)
+	}
+	if !strings.Contains(got, "<b>A | B</b>") || !strings.Contains(got, "1 | 2") {
+		t.Fatalf("expected pipe-separated table: %q", got)
+	}
+}
+
+func TestMarkdownToTelegramHTML_TablePreservesLinks(t *testing.T) {
+	in := "| Car | Link |\n| --- | --- |\n| Sport | [View Sport](https://example.com/sport) |"
+	got := markdownToTelegramHTML(in)
+	if strings.Contains(got, "<pre>") {
+		t.Fatalf("tables must not use <pre> (links cannot nest): %q", got)
+	}
+	if !strings.Contains(got, `<a href="https://example.com/sport">View Sport</a>`) {
+		t.Fatalf("expected clickable link preserved: %q", got)
+	}
+	if !strings.Contains(got, "Sport | ") {
+		t.Fatalf("expected pipe-separated row: %q", got)
 	}
 }
 

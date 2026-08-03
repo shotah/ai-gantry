@@ -79,7 +79,7 @@ func (r *tgHTMLRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) 
 
 	reg.Register(east.KindStrikethrough, r.renderStrikethrough)
 	reg.Register(east.KindTaskCheckBox, r.renderTaskCheckBox)
-	reg.Register(east.KindTable, r.renderTableAsPre)
+	reg.Register(east.KindTable, r.renderTable)
 	reg.Register(east.KindTableHeader, r.renderPassthrough)
 	reg.Register(east.KindTableRow, r.renderTableRow)
 	reg.Register(east.KindTableCell, r.renderTableCell)
@@ -382,31 +382,29 @@ func (r *tgHTMLRenderer) renderTaskCheckBox(w util.BufWriter, _ []byte, node ast
 	return ast.WalkContinue, nil
 }
 
-// Tables become a monospace block — Telegram has no table tags.
-func (r *tgHTMLRenderer) renderTableAsPre(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+// Tables: Telegram has no <table> tags, and <pre> cannot nest <a>, so we emit
+// pipe-separated rows with real HTML (links stay tappable).
+func (r *tgHTMLRenderer) renderTable(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
 	if !entering {
 		return ast.WalkContinue, nil
 	}
 	var rows []string
 	for row := node.FirstChild(); row != nil; row = row.NextSibling() {
+		// TableHeader's children are cells (not a nested TableRow).
 		if row.Kind() == east.KindTableHeader {
-			for r := row.FirstChild(); r != nil; r = r.NextSibling() {
-				rows = append(rows, tableRowText(source, r))
-			}
+			rows = append(rows, "<b>"+tableRowHTML(source, row)+"</b>")
 			continue
 		}
 		if row.Kind() == east.KindTableRow {
-			rows = append(rows, tableRowText(source, row))
+			rows = append(rows, tableRowHTML(source, row))
 		}
 	}
 	if len(rows) == 0 {
 		return ast.WalkSkipChildren, nil
 	}
-	_, _ = w.WriteString("<pre>")
-	_, _ = w.WriteString(html.EscapeString(strings.Join(rows, "\n")))
-	_, _ = w.WriteString("</pre>")
+	_, _ = w.WriteString(strings.Join(rows, "\n"))
 	if node.NextSibling() != nil {
-		_ = w.WriteByte('\n')
+		_, _ = w.WriteString("\n\n")
 	}
 	return ast.WalkSkipChildren, nil
 }
@@ -419,22 +417,88 @@ func (r *tgHTMLRenderer) renderTableCell(util.BufWriter, []byte, ast.Node, bool)
 	return ast.WalkContinue, nil
 }
 
-func tableRowText(source []byte, row ast.Node) string {
+func tableRowHTML(source []byte, row ast.Node) string {
 	var cells []string
 	for c := row.FirstChild(); c != nil; c = c.NextSibling() {
-		cells = append(cells, strings.TrimSpace(tableCellText(source, c)))
+		cells = append(cells, strings.TrimSpace(tableCellHTML(source, c)))
 	}
 	return strings.Join(cells, " | ")
 }
 
-func tableCellText(source []byte, cell ast.Node) string {
+func tableCellHTML(source []byte, cell ast.Node) string {
 	var b strings.Builder
 	_ = ast.Walk(cell, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-		if t, ok := n.(*ast.Text); ok {
-			b.Write(t.Segment.Value(source))
+		switch n := n.(type) {
+		case *ast.Text:
+			if entering {
+				b.WriteString(html.EscapeString(string(n.Segment.Value(source))))
+				if n.HardLineBreak() || n.SoftLineBreak() {
+					b.WriteByte('\n')
+				}
+			}
+		case *ast.String:
+			if entering {
+				b.WriteString(html.EscapeString(string(n.Value)))
+			}
+		case *ast.Link:
+			dest := string(n.Destination)
+			safe := dest != "" && !isDangerousURL(dest)
+			if entering {
+				if safe {
+					b.WriteString(`<a href="`)
+					b.WriteString(html.EscapeString(dest))
+					b.WriteString(`">`)
+				}
+			} else if safe {
+				b.WriteString("</a>")
+			}
+		case *ast.AutoLink:
+			if !entering {
+				return ast.WalkContinue, nil
+			}
+			label := n.Label(source)
+			url := string(label)
+			if n.AutoLinkType == ast.AutoLinkEmail {
+				url = "mailto:" + url
+			}
+			if isDangerousURL(url) {
+				b.WriteString(html.EscapeString(string(label)))
+			} else {
+				b.WriteString(`<a href="`)
+				b.WriteString(html.EscapeString(url))
+				b.WriteString(`">`)
+				b.WriteString(html.EscapeString(string(label)))
+				b.WriteString("</a>")
+			}
+			return ast.WalkSkipChildren, nil
+		case *ast.Emphasis:
+			tag := "i"
+			if n.Level >= 2 {
+				tag = "b"
+			}
+			if entering {
+				b.WriteString("<" + tag + ">")
+			} else {
+				b.WriteString("</" + tag + ">")
+			}
+		case *ast.CodeSpan:
+			if !entering {
+				return ast.WalkContinue, nil
+			}
+			b.WriteString("<code>")
+			for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+				if t, ok := c.(*ast.Text); ok {
+					b.WriteString(html.EscapeString(string(t.Segment.Value(source))))
+				}
+			}
+			b.WriteString("</code>")
+			return ast.WalkSkipChildren, nil
+		case *east.Strikethrough:
+			if entering {
+				b.WriteString("<s>")
+			} else {
+				b.WriteString("</s>")
+			}
 		}
 		return ast.WalkContinue, nil
 	})

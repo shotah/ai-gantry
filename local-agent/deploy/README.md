@@ -60,7 +60,7 @@ Model pin: set `NATIVE_LLM_MODEL=qwen3.6:35b-a3b` in `.env`, then
 
 ### Spark of life (opt-in)
 
-Random presence pings (jokes / check-ins). **Off unless `SPARK_QTY` is set** in
+Random presence pings (short authentic check-ins). **Off unless `SPARK_QTY` is set** in
 `.env`. `make remote-native-env` copies `SPARK_*` into `deploy/gantry.env` when
 qty is set; otherwise those keys are omitted.
 

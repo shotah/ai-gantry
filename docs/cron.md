@@ -15,7 +15,7 @@ stdio). Pure-MCP cron cannot deliver outbound chat by itself.
 | `SPARK_QTY` | _(empty)_ | **Opt-in** spark-of-life. Empty = off. `5` or `4-6` (random count/day) |
 | `SPARK_START_HOUR` | `6` | Local window start (inclusive), used when spark is on |
 | `SPARK_END_HOUR` | `21` | Local window end (exclusive), e.g. 21 → last ping before 9pm |
-| `SPARK_PROMPT` | _(built-in joke/check-in)_ | One prompt, or one per line (`\n`) — random pick per ping |
+| `SPARK_PROMPT` | _(built-in check-in pool)_ | One prompt, or one per line (`\n`) — random pick per ping |
 | `SPARK_SKIP_RECENT_MINUTES` | `15` | Skip/defer if the human messaged within this many minutes |
 
 ## Builtin tools
@@ -46,8 +46,8 @@ At 5pm daily: summarize calendar + work email for the past 8 hours.
 
 ## Spark of life (opt-in)
 
-Random presence pings — jokes / silly questions / short moral support — not
-ops digests. **Off unless `SPARK_QTY` is set.**
+Random presence pings — short authentic check-ins, not ops digests.
+**Off unless `SPARK_QTY` is set.**
 
 On Telegram, boot auto-binds a spark **planner** per allowlisted DM (`chat_id` =
 user id) and seeds that day's pings. Other channels: `cron_schedule`
@@ -67,7 +67,7 @@ SPARK_QTY=4-6
 SPARK_START_HOUR=6
 SPARK_END_HOUR=21
 # Optional: one prompt, or one variant per line (random pick per ping):
-# SPARK_PROMPT=Tell a short dad joke.\nAsk a silly would-you-rather.\nOne warm check-in sentence.
+# SPARK_PROMPT=Generate a short Spark of Life check-in. Keep it under 3 sentences. No tools. …
 # SPARK_SKIP_RECENT_MINUTES=15
 ```
 

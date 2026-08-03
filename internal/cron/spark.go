@@ -18,16 +18,14 @@ const KindSparkPing = "spark_ping"
 // DefaultSparkPrompt is used when SPARK_PROMPT is empty but spark is enabled.
 // One variant per line; PickSparkPrompt chooses randomly at fire time.
 const DefaultSparkPrompt = "" +
-	"Tell a short dad joke. No tools. No calendar/ops. 1–3 sentences.\n" +
-	"Ask a silly would-you-rather. No tools. No calendar/ops. 1–3 sentences.\n" +
-	"Drop a warm one-liner check-in — present, not preachy. No tools. 1–3 sentences.\n" +
-	"Share a tiny absurd observation about the day. No tools. 1–3 sentences.\n" +
-	"Offer a playful conspiracy about coffee, socks, or wifi. No tools. 1–3 sentences.\n" +
-	"Ask one fun hypothetical (desert island, time travel, talking animals). No tools. 1–3 sentences.\n" +
-	"Send a light lab-energy nudge — curious, not a coach lecture. No tools. 1–3 sentences.\n" +
-	"Misquote a movie for comic effect, then correct yourself. No tools. 1–3 sentences.\n" +
-	"Two truths and a lie — make them ridiculous. No tools. 1–3 sentences.\n" +
-	"Invent a terrible product name and pitch it in one breath. No tools. 1–3 sentences."
+	"Share a fascinating, hyper-specific lab-energy curiosity — biometric, recovery, focus, or craft. No tools. Under 3 sentences. No dad jokes or canned games.\n" +
+	"Offer a sharp, dry observation about tech or everyday friction. No tools. Under 3 sentences. Present, not preachy.\n" +
+	"Drop a slightly sarcastic take on outdoor culture or training habits. No tools. Under 3 sentences. Authentic, not a template game.\n" +
+	"Send a raw midday check-in with one concrete, non-generic insight. No tools. Under 3 sentences. Skip jokes and internet games.\n" +
+	"Notice something oddly specific about modern work or tools, then land it lightly. No tools. Under 3 sentences.\n" +
+	"Share one athletic-recovery or focus insight that feels researched, not motivational-poster. No tools. Under 3 sentences.\n" +
+	"Make a dry, present observation about weather, place, or the weirdness of being online all day. No tools. Under 3 sentences.\n" +
+	"Offer a curious craft or systems thought — specific enough to feel real. No tools. Under 3 sentences. No would-you-rathers or two-truths."
 
 // ParseSparkPrompts splits a prompt pool on newlines (literal \n in env is expanded).
 // Empty input → default pool. One line → single prompt (commas/colons fine).
