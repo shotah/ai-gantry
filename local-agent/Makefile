@@ -53,7 +53,13 @@ else
   REMOTE_NATIVE := bash scripts/remote-native.sh
 endif
 
-.PHONY: help env env-force dirs init persona persona-force build up down restart logs ps status shell clean \
+# linux gantry binary staged for Dockerfile COPY (.cache/docker-gantry).
+DOCKER_GANTRY_GOOS ?= linux
+DOCKER_GANTRY_GOARCH ?= amd64
+DOCKER_GANTRY_BIN := .cache/docker-gantry
+REPO_ROOT := $(abspath ..)
+
+.PHONY: help env env-force dirs init persona persona-force prepare-docker-gantry build up down restart logs ps status shell clean \
         strava-auth garmin-auth google-auth google-mcp-import youtube-auth \
         youtube-whoami youtube-probe ytmusic-auth ytmusic-whoami ytmusic-probe \
         garmin-sync strava-sync youtube-sync ytmusic-sync google-sync secrets-sync secrets-migrate \
@@ -140,10 +146,10 @@ help: ## Show available commands
 	@echo.
 	@echo   Native remote (binary + systemd + Ollama — no Docker)
 	@echo   ----------------------------------------------------
-	@echo     # DEPLOY_HOST=/opt/gantry box; optional NATIVE_DOCKER_HOST=old TIM
+	@echo     # DEPLOY_HOST=/opt/gantry box
 	@echo     remote-native-env      Write deploy/gantry.env from .env (Ollama)
 	@echo     remote-native-check    SSH + ollama + gantry user
-	@echo     remote-native-fetch    Download gantry release (+ docker-cp tools)
+	@echo     remote-native-fetch    Download gantry + MCP tools (gantry tools-fetch)
 	@echo     remote-native-sync     Stage under /tmp/gantry-native on host
 	@echo     remote-native-install  sudo install.sh + enable unit
 	@echo     remote-native-up       systemctl start gantry
@@ -203,10 +209,32 @@ init: env dirs persona ## First-time setup: .env, data dir, persona
 	@echo Guides: docs/telegram.md   docs/google-workspace.md   docs/deploy.md
 	@echo.
 
-build: ## Build image (distroless/static + gantry + MCP tool binaries)
+prepare-docker-gantry: ## Cross-build linux gantry into .cache/docker-gantry (Dockerfile input)
+ifeq ($(OS),Windows_NT)
+	powershell -NoProfile -Command "\
+	  New-Item -ItemType Directory -Force -Path '.cache' | Out-Null; \
+	  $$prevCgo = $$env:CGO_ENABLED; $$prevGoos = $$env:GOOS; $$prevGoarch = $$env:GOARCH; \
+	  $$env:CGO_ENABLED = '0'; $$env:GOOS = '$(DOCKER_GANTRY_GOOS)'; $$env:GOARCH = '$(DOCKER_GANTRY_GOARCH)'; \
+	  try { \
+	    Push-Location '$(REPO_ROOT)'; \
+	    go build -trimpath -ldflags '-s -w' -o '$(CURDIR)/$(DOCKER_GANTRY_BIN)' ./cmd/gantry; \
+	    if ($$LASTEXITCODE -ne 0) { throw 'go build failed' } \
+	  } finally { \
+	    Pop-Location; \
+	    $$env:CGO_ENABLED = $$prevCgo; $$env:GOOS = $$prevGoos; $$env:GOARCH = $$prevGoarch \
+	  }; \
+	  Write-Host 'Staged $(DOCKER_GANTRY_BIN) ($(DOCKER_GANTRY_GOOS)/$(DOCKER_GANTRY_GOARCH))'"
+else
+	mkdir -p .cache
+	cd "$(REPO_ROOT)" && CGO_ENABLED=0 GOOS=$(DOCKER_GANTRY_GOOS) GOARCH=$(DOCKER_GANTRY_GOARCH) \
+		go build -trimpath -ldflags '-s -w' -o "$(CURDIR)/$(DOCKER_GANTRY_BIN)" ./cmd/gantry
+	@echo Staged $(DOCKER_GANTRY_BIN) ($(DOCKER_GANTRY_GOOS)/$(DOCKER_GANTRY_GOARCH))
+endif
+
+build: prepare-docker-gantry ## Build image (distroless/static + gantry + MCP tools via tools-fetch)
 	$(COMPOSE) build --build-arg TOOLS_CACHEBUST=$(TOOLS_CACHEBUST) $(SERVICE)
 
-up: ## Start gantry daemon locally (build if needed; no published ports)
+up: prepare-docker-gantry ## Start gantry daemon locally (build if needed; no published ports)
 	$(COMPOSE) build --build-arg TOOLS_CACHEBUST=$(TOOLS_CACHEBUST) $(SERVICE)
 	$(COMPOSE) up -d $(SERVICE)
 
@@ -274,24 +302,27 @@ define PUSH_SECRET_IF_REMOTE
 endef
 endif
 
+# Auth runs against the local appliance image (gantry + MCP bins on PATH).
+# Do not pass --build here: the Dockerfile needs `.cache/docker-gantry` from
+# `make build` / `prepare-docker-gantry`. Re-auth should not re-fetch every tool.
 strava-auth: ## One-time Strava OAuth via gantry auth (see docs/strava.md)
 	@echo Opening Strava OAuth. A URL will be printed below — open it in your browser and approve.
-	$(COMPOSE) run --rm --build -p 19876:19876 --entrypoint /usr/local/bin/gantry $(SERVICE) auth strava
+	@echo If the image is missing: make build
+	$(COMPOSE) run --rm -p 19876:19876 --entrypoint /usr/local/bin/gantry $(SERVICE) auth strava
 	$(call PUSH_SECRET_IF_REMOTE,strava)
 
 garmin-auth: ## Garmin login via gantry auth; clears stale session first (see docs/garmin.md)
 	@echo Clearing stale data/.config/garmin/session.json if present...
 	-$(RM_GARMIN_SESSION)
 	@echo Garmin interactive login (email / password / MFA). Session lands in data/.config/garmin/.
-	$(COMPOSE) run --rm --build -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth garmin
+	@echo If the image is missing: make build
+	$(COMPOSE) run --rm -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth garmin
 	$(call PUSH_SECRET_IF_REMOTE,garmin)
 
-# No --build here: compose run --build without TOOLS_CACHEBUST can revive a
-# cached pre-v1 youtube-go-mcp that only reads YTMUSIC_* (auth then looks empty).
 youtube-auth: ## YouTube OAuth via gantry auth (mcp.toml auth_args; see docs/youtube.md)
 	@echo Needs YOUTUBE_OAUTH_CLIENT_ID / YOUTUBE_OAUTH_CLIENT_SECRET in .env
 	@echo Approve as the Google account that owns your YouTube likes/playlists (incognito helps).
-	@echo See docs/youtube.md. Run make build first if the image is missing/stale.
+	@echo See docs/youtube.md. If the image is missing: make build
 	$(COMPOSE) run --rm -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth youtube
 	$(call PUSH_SECRET_IF_REMOTE,youtube)
 
@@ -326,7 +357,7 @@ endif
 remote-check: ## Test SSH + Docker on DEPLOY_HOST
 	$(REMOTE) check
 
-remote-sync: persona ## Copy compose/.env/mcp.toml/persona to server (does not sync data volume)
+remote-sync: persona prepare-docker-gantry ## scp compose/.env/mcp.toml/persona + staged gantry (NOT secrets)
 	$(REMOTE) sync
 
 remote-up: ## docker compose up -d on server
@@ -362,7 +393,7 @@ remote-native-env: ## Write deploy/gantry.env from .env (Ollama LLM_*)
 remote-native-check: ## SSH + ollama + /opt/gantry probe
 	$(REMOTE_NATIVE) check
 
-remote-native-fetch: ## Download gantry release; optional docker-cp MCP tools
+remote-native-fetch: ## Download gantry release + MCP tools (gantry tools-fetch)
 	$(REMOTE_NATIVE) fetch
 
 remote-native-sync: ## Stage binary/env/unit under /tmp/gantry-native
@@ -401,5 +432,5 @@ remote-native-deploy-dev: ## env + local linux build + sync + install + start (s
 	@echo Dev native deploy done (working-tree binary). logs: make remote-native-logs
 	@echo.
 
-remote-native-deploy-dev-quick: ## like deploy-dev but reuse host MCP bins (no GitHub tools-plan)
+remote-native-deploy-dev-quick: ## like deploy-dev but reuse host MCP bins (no GitHub tools-fetch)
 	$(MAKE) remote-native-deploy-dev NATIVE_SKIP_TOOLS=1

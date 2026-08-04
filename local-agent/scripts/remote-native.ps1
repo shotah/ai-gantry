@@ -64,8 +64,6 @@ $deployPath = if ($envMap['DEPLOY_PATH']) { $envMap['DEPLOY_PATH'] } else { '/op
 $sshPort = if ($envMap['DEPLOY_SSH_PORT']) { $envMap['DEPLOY_SSH_PORT'] } else { '22' }
 $key = $envMap['DEPLOY_SSH_KEY']
 $gantryVersion = if ($envMap['GANTRY_VERSION']) { $envMap['GANTRY_VERSION'] } else { 'latest' }
-$dockerHost = $envMap['NATIVE_DOCKER_HOST']
-$dockerContainer = if ($envMap['NATIVE_DOCKER_CONTAINER']) { $envMap['NATIVE_DOCKER_CONTAINER'] } else { 'gantry' }
 $DefaultLlmModel = 'qwen3.6:35b-a3b'
 if (-not $SkipTools) {
   $v = $envMap['NATIVE_SKIP_TOOLS']
@@ -261,24 +259,8 @@ function Build-GantryDev {
   Write-Host "Built $out"
 }
 
-function Get-McpToolsPlan {
-  # Inventory from mcp.toml via gantry tools-plan (download_url + all commands).
-  # Hits GitHub when download_tag=latest — use -SkipTools / Get-McpCommandsFromToml for iterates.
-  $repoRoot = Split-Path -Parent $Root
-  $manifest = Join-Path $Root 'mcp.toml'
-  if (-not (Test-Path $manifest)) { throw "Missing $manifest" }
-  Push-Location $repoRoot
-  try {
-    $json = & go run ./cmd/gantry tools-plan --manifest $manifest --os linux --arch amd64
-    if ($LASTEXITCODE -ne 0) { throw "gantry tools-plan failed ($LASTEXITCODE)" }
-  } finally {
-    Pop-Location
-  }
-  return ($json | ConvertFrom-Json)
-}
-
 function Get-McpCommandsFromToml {
-  # command = "…" lines only — no GitHub / tools-plan.
+  # command = "…" lines only — no GitHub / tools-fetch.
   $manifest = Join-Path $Root 'mcp.toml'
   if (-not (Test-Path $manifest)) { throw "Missing $manifest" }
   $cmds = [System.Collections.Generic.List[string]]::new()
@@ -291,118 +273,28 @@ function Get-McpCommandsFromToml {
 }
 
 function Fetch-McpDownloadTools {
-  # GET every mcp.toml server with download_url into .cache/native/bin.
-  # Skip when the versioned archive + extracted binary are already cached
-  # (download_tag=latest still refreshes when the resolved filename changes).
-  $plan = Get-McpToolsPlan
-  if (-not $plan.downloads -or $plan.downloads.Count -lt 1) {
-    Write-Host "mcp.toml: no download_url servers - skipping tool fetch"
-    return
-  }
+  # gantry tools-fetch owns resolve + download + extract + prune.
+  # Skips when the versioned archive + binary are already cached; download_tag=latest
+  # refreshes when the resolved filename/tag changes.
+  $repoRoot = Split-Path -Parent $Root
+  $manifest = Join-Path $Root 'mcp.toml'
+  if (-not (Test-Path $manifest)) { throw "Missing $manifest" }
   $binDir = Join-Path $Cache 'bin'
   New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-  $headers = @{ 'User-Agent' = 'ai-gantry-remote-native' }
-  foreach ($d in $plan.downloads) {
-    $url = [string]$d.url
-    $file = [string]$d.filename
-    if (-not $file) { $file = Split-Path -Leaf ([uri]$url).AbsolutePath }
-    $tarball = Join-Path $Cache $file
-    $dest = Join-Path $binDir $d.command
-    if ((Test-Path -LiteralPath $tarball) -and (Test-Path -LiteralPath $dest)) {
-      Write-Host "Skip $($d.name): already have $file -> bin/$($d.command)"
-      continue
-    }
-    if (-not (Test-Path -LiteralPath $tarball)) {
-      Write-Host "Fetching $($d.name) ($($d.command)) from $url"
-      Invoke-WebRequest -Uri $url -OutFile $tarball -UseBasicParsing -Headers $headers
-    } else {
-      Write-Host "Reusing cached archive $file for $($d.name)"
-    }
-    $extract = Join-Path $Cache ("extract-" + $d.command)
-    if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
-    New-Item -ItemType Directory -Force -Path $extract | Out-Null
-    tar -xzf $tarball -C $extract
-    $bin = Join-Path $extract $d.command
-    if (-not (Test-Path $bin)) { throw "archive missing $($d.command) ($file)" }
-    Copy-Item $bin $dest -Force
-    Write-Host "Cached $($d.command) -> .cache/native/bin/$($d.command)"
+  Push-Location $repoRoot
+  try {
+    Write-Host "gantry tools-fetch -> $binDir"
+    & go run ./cmd/gantry tools-fetch `
+      --manifest $manifest `
+      --os linux `
+      --arch amd64 `
+      --outdir $binDir `
+      --cache $Cache `
+      --prune
+    if ($LASTEXITCODE -ne 0) { throw "gantry tools-fetch failed ($LASTEXITCODE)" }
+  } finally {
+    Pop-Location
   }
-  $wanted = @(
-    @($plan.downloads | ForEach-Object { [string]$_.command }) + @($plan.commands)
-  ) | Where-Object { $_ } | Select-Object -Unique
-  Prune-CachedToolBins -Wanted $wanted
-}
-
-function Prune-CachedToolBins {
-  param([string[]]$Wanted)
-  $binDir = Join-Path $Cache 'bin'
-  if (-not (Test-Path $binDir)) { return }
-  $keep = @{}
-  foreach ($name in $Wanted) {
-    if ($name) { $keep[$name] = $true }
-  }
-  Get-ChildItem $binDir -File | ForEach-Object {
-    if ($keep.ContainsKey($_.Name)) { return }
-    Write-Host "Pruning stale cache bin/$($_.Name) (not in mcp.toml)"
-    Remove-Item -LiteralPath $_.FullName -Force
-  }
-}
-
-function Fetch-ToolsFromDocker {
-  # Optional one-time bootstrap from a *separate* Docker TIM host.
-  # Native DEPLOY_HOST has no Docker — leave NATIVE_DOCKER_HOST unset.
-  # Command list comes from mcp.toml (gantry tools-plan), not a hardcoded array.
-  if (-not $dockerHost) {
-    Write-Host "NATIVE_DOCKER_HOST unset - skipping MCP tool extract (using mcp.toml download_url + host /opt/gantry/bin)"
-    return
-  }
-  if ($dockerHost -eq $hostName) {
-    Write-Host "NATIVE_DOCKER_HOST equals DEPLOY_HOST ($dockerHost) - skipping docker extract (native host)"
-    return
-  }
-  $plan = Get-McpToolsPlan
-  $tools = @($plan.commands)
-  if ($tools.Count -lt 1) {
-    Write-Host "mcp.toml: no server commands - skipping docker extract"
-    return
-  }
-  $binDir = Join-Path $Cache 'bin'
-  New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-  $remoteTmp = '/tmp/gantry-docker-bin'
-  $dockerUser = if ($envMap['NATIVE_DOCKER_USER']) { $envMap['NATIVE_DOCKER_USER'] } else { $user }
-  Write-Host "Optional: extracting MCP tools from docker:$dockerContainer on $dockerHost"
-  $extractSh = @"
-set -e
-command -v docker >/dev/null || { echo 'docker not installed on this host'; exit 1; }
-rm -rf $remoteTmp
-mkdir -p $remoteTmp
-for b in $($tools -join ' '); do
-  docker cp ${dockerContainer}:/usr/local/bin/`$b $remoteTmp/`$b
-done
-chmod a+x $remoteTmp/*
-ls -la $remoteTmp
-"@
-  $extractLocal = Join-Path $Cache 'extract-tools.sh'
-  # UTF-8 no BOM - bash on Linux rejects BOM as a bad interpreter line
-  [System.IO.File]::WriteAllText($extractLocal, ($extractSh -replace "`r`n", "`n"))
-  & $ScpExe @scpArgs $extractLocal "${dockerUser}@${dockerHost}:/tmp/extract-gantry-tools.sh"
-  if ($LASTEXITCODE -ne 0) {
-    Write-Warning "scp extract script to $dockerHost failed - continuing without docker tools"
-    return
-  }
-  & $SshExe @sshArgs "${dockerUser}@${dockerHost}" "bash /tmp/extract-gantry-tools.sh"
-  if ($LASTEXITCODE -ne 0) {
-    Write-Warning "docker tool extract failed on $dockerHost - continuing (release gantry still deploys)"
-    return
-  }
-  & $ScpExe @scpArgs -r "${dockerUser}@${dockerHost}:${remoteTmp}/." "$binDir/"
-  if ($LASTEXITCODE -ne 0) {
-    Write-Warning "scp tools from $dockerHost failed - continuing without docker tools"
-    return
-  }
-  # Never overwrite the GitHub release gantry with a docker copy.
-  Remove-Item (Join-Path $binDir 'gantry') -ErrorAction SilentlyContinue
-  Write-Host "Tools cached under .cache/native/bin"
 }
 
 function Sync-Stage {
@@ -429,9 +321,8 @@ function Sync-Stage {
   if (Test-Path $mcp) { & $ScpExe @scpArgs $mcp "${target}:${StageRemote}/mcp.toml" }
 
   if (-not $SkipTools) {
-    # Commands from mcp.toml only (no GitHub). Fetch already resolved archives into cache.
+    # Commands from mcp.toml only. tools-fetch already pruned + installed into cache.
     $wantedBins = @(Get-McpCommandsFromToml | Where-Object { $_ })
-    Prune-CachedToolBins -Wanted $wantedBins
     $binDir = Join-Path $Cache 'bin'
     foreach ($name in $wantedBins) {
       $src = Join-Path $binDir $name
@@ -487,7 +378,6 @@ switch ($Action) {
   'fetch' {
     Fetch-GantryBinary
     Fetch-McpDownloadTools
-    Fetch-ToolsFromDocker
   }
   'build-dev' { Build-GantryDev }
   'sync' { Sync-Stage }
@@ -501,7 +391,6 @@ switch ($Action) {
     Ensure-NativeEnv
     Fetch-GantryBinary
     Fetch-McpDownloadTools
-    Fetch-ToolsFromDocker
     Sync-Stage
     Install-Remote -Restart
     Write-Host "Deployed. Message TIM on Telegram; logs: make remote-native-logs"

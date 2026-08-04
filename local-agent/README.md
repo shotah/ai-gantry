@@ -138,7 +138,7 @@ make init          # copy .env.example → .env, make ./data, seed persona/*.md
 #   TELEGRAM_BOT_TOKEN=...            # from @BotFather
 #   TELEGRAM_ALLOWED_USERS=123456789 # your numeric Telegram id
 
-make build         # image = distroless/static + gantry + MCP tool binaries
+make build         # image = distroless/static + gantry + MCP tools (tools-fetch)
 make up            # start the daemon (no ports)
 make logs          # watch it connect, then message your bot
 ```
@@ -255,14 +255,11 @@ Set in `.env` (copy from [`.env.example`](.env.example)). Secrets are never comm
 | `SPARK_QTY` / `SPARK_*` | — | Opt-in spark-of-life presence pings (`4-6`, window hours). Empty qty = off. See [docs/cron.md](../docs/cron.md#spark-of-life-opt-in); native: [deploy/README.md](deploy/README.md#spark-of-life-opt-in) |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | — | Strava API app (see [Workout coaching](#workout-coaching-strava)) |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `USER_GOOGLE_EMAIL` | — | Google Workspace MCP OAuth (see [docs/google-workspace.md](docs/google-workspace.md)) |
-| `GANTRY_VERSION` | — | shotah/ai-gantry release baked into the image (default pinned in `Dockerfile`) |
+| `GANTRY_VERSION` | — | shotah/ai-gantry release for native fetch (`make remote-native-fetch`) |
 | `GANTRY_IMAGE` | — | Local tag after build (default `gantry-local-agent:local`) |
-| `STRAVA_MCP_VERSION` / `GARMIN_MCP_VERSION` / `GEMINI_SEARCH_MCP_VERSION` / `GOOGLE_MCP_VERSION` | — | Tool build pins (defaults in `Dockerfile`) |
-| `MCP_BEAM_VERSION` / `YOUTUBE_GO_MCP_VERSION` | — | shotah tool releases (`latest` default; pin `vX.Y.Z` to freeze) |
-| `MCP_GO_MATH_VERSION` | — | mcp-go-math release (Dockerfile default `v0.0.2`) |
-| `SERPAPI_API_KEY` / `FLIGHTS_SEARCH_MCP_VERSION` | — | Flights MCP (SerpAPI); see [docs/flights.md](docs/flights.md) |
-| `RENTCAST_API_KEY` / `RENTALS_SEARCH_MCP_VERSION` | — | Rentals MCP (RentCast); see [docs/rentals.md](docs/rentals.md) |
-| `MARKETCHECK_API_KEY` / `CARS_SEARCH_MCP_VERSION` | — | Cars MCP (MarketCheck); see [docs/cars.md](docs/cars.md) |
+| `SERPAPI_API_KEY` | — | Flights MCP (SerpAPI); see [docs/flights.md](docs/flights.md) |
+| `RENTCAST_API_KEY` | — | Rentals MCP (RentCast); see [docs/rentals.md](docs/rentals.md) |
+| `MARKETCHECK_API_KEY` | — | Cars MCP (MarketCheck); see [docs/cars.md](docs/cars.md) |
 | `NETWORK_MODE` | Cast | `host` for Cast mDNS on Linux (default `bridge`) |
 | `GANTRY_UID` / `GANTRY_GID` | server | Match the server login user (`id -u` / `id -g`) |
 | `DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_PATH` / `DEPLOY_SSH_PORT` / `DEPLOY_SSH_KEY` | remote | SSH deploy target (see [docs/deploy.md](docs/deploy.md)) |

@@ -32,15 +32,12 @@ DEPLOY_USER=ubuntu
 DEPLOY_PATH=/opt/gantry
 DEPLOY_SSH_KEY=...
 
-# optional: one-time MCP tools from a *separate* Docker TIM (not DEPLOY_HOST)
-# NATIVE_DOCKER_HOST=old-docker-host.example.com
-
 make remote-native-env      # write deploy/gantry.env from .env (Ollama defaults)
 make remote-native-check
-make remote-native-deploy   # fetch GitHub release → scp stage → sudo install → start
+make remote-native-deploy   # gantry release + tools-fetch → scp stage → sudo install → start
 make remote-native-logs
 
-# Dev loop (no release): cross-build this checkout → scp → install → restart
+# Dev loop (no release): cross-build this checkout → tools-fetch → scp → install → restart
 make remote-native-deploy-dev
 
 # Quick iterate (gantry + persona + env only — leave /opt/gantry/bin alone; no GitHub)
@@ -48,10 +45,11 @@ make remote-native-deploy-dev-quick
 # or: NATIVE_SKIP_TOOLS=1 make remote-native-deploy-dev
 ```
 
-`download_tag=latest` in `mcp.toml` calls the GitHub API on tool fetch and can
-403 when unauthenticated rate limits trip. Use **deploy-dev-quick** for kernel/persona
-loops; run a full `deploy-dev` / `remote-native-fetch` when you need new MCP binaries.
-Optional: set `GITHUB_TOKEN` in the environment to raise the API limit.
+MCP binaries come from `mcp.toml` `download_*` via `gantry tools-fetch` (skip when
+the resolved archive is already cached). `download_tag=latest` calls the GitHub
+API and can 403 when unauthenticated rate limits trip. Use **deploy-dev-quick**
+for kernel/persona loops; run a full `deploy-dev` / `remote-native-fetch` when
+you need new MCP binaries. Optional: set `GITHUB_TOKEN` to raise the API limit.
 
 Model pin: set `NATIVE_LLM_MODEL=qwen3.6:35b-a3b` in `.env`, then
 `make remote-native-env` (rewrites `deploy/gantry.env`). Deploy / deploy-dev

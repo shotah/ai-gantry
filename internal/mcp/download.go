@@ -14,7 +14,7 @@ import (
 )
 
 // DownloadConfigured reports whether this server declares a binary URL for
-// native/docker bake scripts. Ignored by the runtime host.
+// `gantry tools-fetch`. Ignored by the runtime host.
 func (s ServerSpec) DownloadConfigured() bool {
 	return strings.TrimSpace(s.DownloadURL) != ""
 }

@@ -1,6 +1,6 @@
 ﻿# local-agent on ai-gantry — Gemini + Telegram (Telegram polls outbound).
 # No ports, no gateway, no dashboard: the healthcheck is an exit code.
-# Image: distroless/static + gantry + google-mcp + strava + garmin + gemini-search + mcp-beam + youtube-go-mcp + mcp-go-math + flights-search-mcp + rentals-search-mcp + cars-search-mcp.
+# Image: distroless/static + gantry + MCP tools from mcp.toml (`gantry tools-fetch`).
 # Docs: docs/telegram.md, docs/google-workspace.md, docs/strava.md, docs/garmin.md, docs/web-search.md, docs/cast.md, docs/youtube.md, docs/math.md, docs/flights.md, docs/rentals.md, docs/cars.md
 # Cast mDNS: set NETWORK_MODE=host in .env on the Linux home server (docs/cast.md).
 
@@ -8,21 +8,8 @@ services:
   gantry:
     build:
       context: .
-      # Defaults live once in the Dockerfile (ARG ...). Listing the names here
-      # (no values) forwards an override from .env / the environment when set,
-      # and otherwise falls back to the Dockerfile default.
       args:
-        - GANTRY_VERSION
-        - STRAVA_MCP_VERSION
-        - GARMIN_MCP_VERSION
-        - GEMINI_SEARCH_MCP_VERSION
-        - GOOGLE_MCP_VERSION
-        - MCP_BEAM_VERSION
-        - YOUTUBE_GO_MCP_VERSION
-        - MCP_GO_MATH_VERSION
-        - FLIGHTS_SEARCH_MCP_VERSION
-        - RENTALS_SEARCH_MCP_VERSION
-        - CARS_SEARCH_MCP_VERSION
+        # Busts tools-fetch so download_tag=latest re-resolves (make build sets this).
         - TOOLS_CACHEBUST
     image: ${GANTRY_IMAGE:-gantry-local-agent:local}
     container_name: gantry

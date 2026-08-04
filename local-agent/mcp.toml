@@ -1,16 +1,17 @@
 # MCP server manifest for local-agent (mounted read-only at /etc/gantry/mcp.toml).
 # Being listed here IS the grant — no bundles layer. Tools reach the model as
-# {server}__{tool}. Binaries are baked into the image by the Dockerfile; auth
-# material lives under data/.config/* (Docker + native).
+# {server}__{tool}. Binaries are installed by `gantry tools-fetch` (Docker bake +
+# native); auth material lives under data/.config/* (Docker + native).
 #
 # Optional auth_* : `gantry auth <name>` runs auth_command (default: command)
 # with auth_args. Omit when the package has no auth entrypoint.
 #
-# Optional download_url + download_tag : native deploy (`make remote-native-fetch`)
-# GETs the archive into /opt/gantry/bin. Placeholders: {os} {arch} {tag} {version}
-# (version = tag without leading "v"). Set download_tag once — or "latest" to
-# resolve the current GitHub release at `gantry tools-plan` time (handy while
-# testing; pin a tag for reproducible deploys). `gantry tools-plan` lists these.
+# Optional download_url + download_tag : `gantry tools-fetch` GETs the archive
+# into --outdir (native: /opt/gantry/bin; Docker: /usr/local/bin). Placeholders:
+# {os} {arch} {tag} {version} (version = tag without leading "v"). Set
+# download_tag once — or "latest" to resolve the current GitHub release at
+# fetch time (handy while testing; pin a tag for reproducible deploys).
+# `gantry tools-plan` prints the resolved inventory without downloading.
 
 # Google MCP (shotah/google-mcp) — docs/google-workspace.md
 # Server id "google" → tools like google__calendar_list_events.

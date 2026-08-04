@@ -3,7 +3,8 @@
 //	gantry run         — start the daemon (default)
 //	gantry init        — scaffold persona + mcp.toml from examples/
 //	gantry auth        — run an MCP server's declared auth flow (mcp.toml)
-//	gantry tools-plan  — JSON release/command inventory from mcp.toml (deploy)
+//	gantry tools-plan  — JSON release/command inventory from mcp.toml
+//	gantry tools-fetch — download + install MCP binaries from mcp.toml
 //	gantry status      — exit-code healthcheck (Docker healthcheck)
 //	gantry version     — build info
 package main
@@ -35,6 +36,8 @@ func main() {
 		os.Exit(authCmd())
 	case "tools-plan":
 		os.Exit(toolsPlanCmd())
+	case "tools-fetch":
+		os.Exit(toolsFetchCmd())
 	case "status":
 		os.Exit(status())
 	case "version":
@@ -55,13 +58,14 @@ Usage:
   gantry [run]        Start the daemon (default)
   gantry init         Scaffold persona + mcp.toml (+ .env.example) from embedded templates
   gantry auth         Run MCP auth flows declared in mcp.toml (gantry auth [server])
-  gantry tools-plan   JSON MCP binary inventory from mcp.toml (native/docker bake)
+  gantry tools-plan   JSON MCP binary inventory from mcp.toml
+  gantry tools-fetch  Download + install MCP binaries declared in mcp.toml
   gantry status       Exit 0 if healthy (Docker healthcheck)
   gantry version      Print build info
   gantry help         Show this help
 
-init / auth / tools-plan env (optional):
+init / auth / tools-* env (optional):
   PERSONA_DIR    default deploy/persona
-  MCP_MANIFEST   default deploy/mcp.toml (auth/tools-plan default: mcp.toml)
+  MCP_MANIFEST   default deploy/mcp.toml (auth/tools-* default: mcp.toml)
 `)
 }

@@ -11,6 +11,8 @@ Makefile
 .env
 Dockerfile
 mcp.toml
+# linux/amd64 gantry for Dockerfile (make prepare-docker-gantry)
+.cache/docker-gantry
 # Live persona (gitignored) — synced when present after `make persona`
 # Canonical set: SOUL / RULES / USER / TOOLS (remote-sync removes obsolete names)
 persona/SOUL.md

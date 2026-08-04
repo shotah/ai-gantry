@@ -325,10 +325,10 @@ download_tag = "latest"
 download_url = "https://github.com/shotah/go-strava-mcp/releases/download/{tag}/strava-mcp_{version}_{os}_{arch}.tar.gz"
 ```
 
-`download_url` + `download_tag` are for native deploy (`gantry tools-plan` /
-`make remote-native-fetch`): placeholders `{os}` `{arch}` `{tag}` `{version}`
-(`version` = tag without leading `v`). Omit them when binaries are already on
-`PATH` (e.g. Docker bake). Optional `auth_command` / `auth_args` drive
+`download_url` + `download_tag` feed `gantry tools-fetch` (native deploy and
+Docker bake): placeholders `{os}` `{arch}` `{tag}` `{version}` (`version` =
+tag without leading `v`). `gantry tools-plan` prints the resolved inventory
+without downloading. Optional `auth_command` / `auth_args` drive
 `gantry auth <name>`.
 
 Listed servers still **start**; `tools` / `exclude` only filter what is

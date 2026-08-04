@@ -9,7 +9,8 @@ import (
 	"github.com/shotah/ai-gantry/internal/mcp"
 )
 
-// toolsPlanCmd prints a JSON plan of MCP binaries from mcp.toml for deploy scripts.
+// toolsPlanCmd prints a JSON plan of MCP binaries from mcp.toml (inspect / CI).
+// Prefer `gantry tools-fetch` to download and install.
 //
 //	gantry tools-plan [--manifest path] [--os linux] [--arch amd64]
 //
@@ -17,9 +18,8 @@ import (
 //
 //	{"commands":["…"],"downloads":[{"name","command","url","filename"},…]}
 //
-// Servers with download_url are listed under downloads (native fetch).
+// Servers with download_url are listed under downloads.
 // download_tag=latest is resolved via the GitHub API (optional GITHUB_TOKEN).
-// commands lists every server command (docker-cp inventory).
 func toolsPlanCmd() int {
 	manifest := strings.TrimSpace(os.Getenv("MCP_MANIFEST"))
 	if manifest == "" {
@@ -51,10 +51,12 @@ func toolsPlanCmd() int {
 			}
 			goarch = args[i]
 		case "-h", "--help":
-			fmt.Fprint(os.Stderr, `gantry tools-plan — JSON inventory from mcp.toml for native/docker bake
+			fmt.Fprint(os.Stderr, `gantry tools-plan — JSON inventory from mcp.toml
 
 Usage:
   gantry tools-plan [--manifest path] [--os linux] [--arch amd64]
+
+Install binaries with: gantry tools-fetch --outdir DIR
 
 Env:
   MCP_MANIFEST   default mcp.toml

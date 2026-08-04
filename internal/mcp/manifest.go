@@ -28,14 +28,14 @@ type ServerSpec struct {
 	AuthCommand string   `toml:"auth_command"`
 	AuthArgs    []string `toml:"auth_args"`
 
-	// DownloadURL is an optional HTTP(S) URL of a binary archive for native
-	// deploy (`make remote-native-fetch`). Ignored by the runtime host.
-	// Source-agnostic (GitHub, GitLab, S3, …).
+	// DownloadURL is an optional HTTP(S) URL of a binary archive for
+	// `gantry tools-fetch` (native deploy + Docker bake). Ignored by the
+	// runtime host. Source-agnostic (GitHub, GitLab, S3, …).
 	// Placeholders: {os} {arch}; with DownloadTag: {tag} {version}.
 	DownloadURL string `toml:"download_url"`
 	// DownloadTag pins a release tag once (e.g. "v0.0.2") for {tag}/{version}
 	// in DownloadURL. Use "latest" to resolve the current GitHub release at
-	// `gantry tools-plan` / native-fetch time (testing convenience).
+	// `gantry tools-fetch` / `tools-plan` time (testing convenience).
 	DownloadTag string `toml:"download_tag"`
 }
 
