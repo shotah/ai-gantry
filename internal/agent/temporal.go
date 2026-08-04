@@ -6,9 +6,11 @@ import (
 )
 
 // temporalAnchor returns a fresh per-turn clock note for the model.
-// Not persisted in session history — regenerated on every Handle.
-// ISO dates for today/tomorrow and the numeric UTC offset are spelled out so
-// small local models don't fumble date math or default tool timestamps to Zulu.
+// Appended as a footer after the user message (not a header before it) so the
+// model reads intent first; not persisted in session history — regenerated on
+// every Handle. ISO dates for today/tomorrow and the numeric UTC offset are
+// spelled out so small local models don't fumble date math or default tool
+// timestamps to Zulu.
 func temporalAnchor(now time.Time, tzName string) string {
 	if tzName == "" {
 		tzName = now.Location().String()

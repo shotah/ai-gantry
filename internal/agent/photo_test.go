@@ -28,9 +28,16 @@ func TestAgent_Handle_PhotoVision(t *testing.T) {
 	if len(fc.last.Messages) == 0 {
 		t.Fatal("no messages")
 	}
-	last := fc.last.Messages[len(fc.last.Messages)-1]
-	if last.Content != "[photo]" || len(last.ImageURLs) != 1 {
-		t.Fatalf("%+v", last)
+	var photo *provider.Message
+	for i := range fc.last.Messages {
+		m := &fc.last.Messages[i]
+		if m.Role == provider.RoleUser && m.Content == "[photo]" {
+			photo = m
+			break
+		}
+	}
+	if photo == nil || len(photo.ImageURLs) != 1 {
+		t.Fatalf("missing photo user message: %+v", fc.last.Messages)
 	}
 }
 

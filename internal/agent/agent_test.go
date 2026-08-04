@@ -125,20 +125,23 @@ func TestAgent_Handle_MemoryHydration(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(last.Messages) < 4 {
-		t.Fatalf("want persona + memory + anchor + user, got %d", len(last.Messages))
+		t.Fatalf("want persona + memory + user + anchor, got %d", len(last.Messages))
 	}
 	if !strings.Contains(last.Messages[0].Content, "Persona files") {
 		t.Fatalf("persona missing precedence note: %q", last.Messages[0].Content)
 	}
-	// Hydration is volatile per-turn content: it must sit AFTER history (here,
-	// directly before the temporal anchor + user message) so the stable prompt
-	// prefix is cacheable across turns.
+	// Hydration is volatile per-turn content: it must sit AFTER history so the
+	// stable prompt prefix is cacheable across turns. Temporal clock is a
+	// footer after the user message (intent first, clock as reference).
 	n := len(last.Messages)
 	if !strings.Contains(last.Messages[n-3].Content, "[memory]") {
-		t.Fatalf("missing hydration before anchor: %q", last.Messages[n-3].Content)
+		t.Fatalf("missing hydration before user: %q", last.Messages[n-3].Content)
 	}
-	if !strings.Contains(last.Messages[n-2].Content, "[current time]") {
-		t.Fatalf("missing temporal anchor: %q", last.Messages[n-2].Content)
+	if last.Messages[n-2].Role != provider.RoleUser {
+		t.Fatalf("want user before temporal footer, got %q", last.Messages[n-2].Role)
+	}
+	if !strings.Contains(last.Messages[n-1].Content, "[current time]") {
+		t.Fatalf("missing temporal footer: %q", last.Messages[n-1].Content)
 	}
 }
 
@@ -379,15 +382,18 @@ func TestAgent_Handle_PersonaAndHistory(t *testing.T) {
 	if reply != "hi back" {
 		t.Fatalf("reply = %q", reply)
 	}
-	// persona + temporal anchor + user
+	// persona + user + temporal footer
 	if len(last.Messages) != 3 {
 		t.Fatalf("messages = %d, want 3", len(last.Messages))
 	}
-	if !strings.Contains(last.Messages[1].Content, "[current time]") {
-		t.Fatalf("missing temporal anchor: %q", last.Messages[1].Content)
+	if last.Messages[1].Role != provider.RoleUser {
+		t.Fatalf("want user before temporal footer, got %q", last.Messages[1].Role)
 	}
-	if !strings.Contains(last.Messages[1].Content, "America/Los_Angeles") {
-		t.Fatalf("temporal missing tz: %q", last.Messages[1].Content)
+	if !strings.Contains(last.Messages[2].Content, "[current time]") {
+		t.Fatalf("missing temporal footer: %q", last.Messages[2].Content)
+	}
+	if !strings.Contains(last.Messages[2].Content, "America/Los_Angeles") {
+		t.Fatalf("temporal missing tz: %q", last.Messages[2].Content)
 	}
 	// Anchor must not be persisted into session history.
 	stored, err := hist.Messages(context.Background(), "s1")

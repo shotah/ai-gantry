@@ -302,11 +302,6 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			})
 		}
 	}
-	// Fresh each turn (not stored in history) so "what time is it?" tracks reality.
-	messages = append(messages, provider.Message{
-		Role:    provider.RoleSystem,
-		Content: temporalAnchor(time.Now().In(a.loc), a.tzName),
-	})
 	userMsg := provider.Message{
 		Role:    provider.RoleUser,
 		Content: storeText,
@@ -317,6 +312,13 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		}
 	}
 	messages = append(messages, userMsg)
+	// Clock footer (not stored in history): after the user turn so the model
+	// reads intent first. Leading with [current time] primed calendar/tool
+	// fixation on small local models. Fresh each turn for "what time is it?".
+	messages = append(messages, provider.Message{
+		Role:    provider.RoleSystem,
+		Content: temporalAnchor(time.Now().In(a.loc), a.tzName),
+	})
 
 	var toolDefs []provider.ToolDef
 	if a.tools != nil {
