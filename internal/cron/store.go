@@ -165,14 +165,15 @@ func (s *Store) Due(ctx context.Context, now time.Time, limit int) ([]Job, error
 	if limit < 1 {
 		limit = 10
 	}
+	// Spark planners first so they CancelSparkPings before overdue leftovers Claim.
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, prompt, kind, expr, timezone, next_run_at,
 		       session_id, user_id, chat_id, thread_id,
 		       enabled, running, created_at, updated_at, last_run_at, last_error
 		FROM cron_job
 		WHERE enabled = 1 AND running = 0 AND next_run_at <= ?
-		ORDER BY next_run_at ASC
-		LIMIT ?`, now.UTC().Format(time.RFC3339Nano), limit)
+		ORDER BY CASE WHEN kind = ? THEN 0 ELSE 1 END, next_run_at ASC
+		LIMIT ?`, now.UTC().Format(time.RFC3339Nano), KindSpark, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -296,9 +297,10 @@ func (s *Store) ScheduleSparkPings(ctx context.Context, prompt string, delivery 
 	return n, nil
 }
 
-// EnsureSpark creates/refreshes the daily planner and seeds today's ping jobs.
-// The planner's next_run is always tomorrow's window start so boot-seeding today
-// is not overwritten when the planner wakes at today's start.
+// EnsureSpark creates/refreshes the daily planner and seeds today's ping jobs
+// at most once per local day. Reboots do not compound: once the planner already
+// points at tomorrow (today was seeded), we only prune stale leftovers from
+// prior days. The daily planner also CancelSparkPings before each new seed.
 func (s *Store) EnsureSpark(ctx context.Context, prompt string, template Parsed, delivery Delivery) (Job, bool, error) {
 	loc, err := loadTZ(template.Timezone)
 	if err != nil {
@@ -313,58 +315,94 @@ func (s *Store) EnsureSpark(ctx context.Context, prompt string, template Parsed,
 	}
 	now := time.Now().In(loc)
 	startToday := windowStart(now, spec.StartHour, loc)
+	tomorrowStart := startToday.Add(24 * time.Hour).UTC()
 	// Seed remaining day now; planner wakes tomorrow (not today's start).
 	template.Kind = KindSpark
 	template.Expr = FormatSparkExpr(spec)
-	template.NextRun = startToday.Add(24 * time.Hour).UTC()
+	template.NextRun = tomorrowStart
 	template.Timezone = loc.String()
 
 	existing, ok, err := s.FindSpark(ctx, delivery.SessionID)
 	if err != nil {
 		return Job{}, false, err
 	}
-	created := false
-	if ok {
-		if existing.Prompt == prompt && existing.Expr == template.Expr {
-			pending, err := s.countSparkPings(ctx, delivery.SessionID)
-			if err != nil {
-				return Job{}, false, err
-			}
-			if pending > 0 {
-				return existing, false, nil
-			}
-		} else {
-			if err := s.Cancel(ctx, existing.ID); err != nil {
-				return Job{}, false, err
-			}
-			_, _ = s.CancelSparkPings(ctx, delivery.SessionID)
-			ok = false
+	if ok && (existing.Prompt != prompt || existing.Expr != template.Expr) {
+		if err := s.Cancel(ctx, existing.ID); err != nil {
+			return Job{}, false, err
 		}
+		_, _ = s.CancelSparkPings(ctx, delivery.SessionID)
+		ok = false
 	}
-	var job Job
+
 	if !ok {
-		job, err = s.Schedule(ctx, prompt, template, delivery)
+		job, err := s.Schedule(ctx, prompt, template, delivery)
 		if err != nil {
 			return Job{}, false, err
 		}
-		created = true
-	} else {
-		job = existing
-		if err := s.setNextRun(ctx, job.ID, template.NextRun); err != nil {
-			return Job{}, false, err
+		_ = s.disableExtraSparkPlanners(ctx, delivery.SessionID, job.ID)
+		if err := s.seedSparkDay(ctx, prompt, spec, delivery, loc); err != nil {
+			return job, true, err
 		}
-		job.NextRunAt = template.NextRun
+		return job, true, nil
 	}
 
+	job := existing
+	_ = s.disableExtraSparkPlanners(ctx, delivery.SessionID, job.ID)
+
+	// Drop leftovers from previous days so they cannot fire alongside today's plan.
+	if _, err := s.CancelStaleSparkPings(ctx, delivery.SessionID, startToday); err != nil {
+		return Job{}, false, err
+	}
+
+	// Already planned today (next wake is tomorrow or later): do not reseed.
+	// This is what prevented "pending==0 on restart → another full roll".
+	if !job.NextRunAt.Before(tomorrowStart) {
+		return job, false, nil
+	}
+
+	// Planner still due for today (e.g. process was down at window start):
+	// seed remaining day once and advance planner to tomorrow.
+	if err := s.setNextRun(ctx, job.ID, template.NextRun); err != nil {
+		return Job{}, false, err
+	}
+	job.NextRunAt = template.NextRun
+	if err := s.seedSparkDay(ctx, prompt, spec, delivery, loc); err != nil {
+		return job, false, err
+	}
+	return job, false, nil
+}
+
+func (s *Store) seedSparkDay(ctx context.Context, prompt string, spec SparkSpec, delivery Delivery, loc *time.Location) error {
 	_, _ = s.CancelSparkPings(ctx, delivery.SessionID)
 	_, times, err := PlanSparkDayTimes(spec, loc, time.Now())
 	if err != nil {
-		return job, created, err
+		return err
 	}
-	if _, err := s.ScheduleSparkPings(ctx, prompt, delivery, loc.String(), times); err != nil {
-		return job, created, err
+	_, err = s.ScheduleSparkPings(ctx, prompt, delivery, loc.String(), times)
+	return err
+}
+
+// CancelStaleSparkPings disables pending spark_ping jobs scheduled before `before`
+// (typically today's local window start), so prior-day leftovers cannot compound.
+func (s *Store) CancelStaleSparkPings(ctx context.Context, sessionID string, before time.Time) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ?
+		WHERE enabled = 1 AND kind = ? AND session_id = ? AND next_run_at < ?`,
+		time.Now().UTC().Format(time.RFC3339Nano), KindSparkPing, sessionID, before.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return 0, err
 	}
-	return job, created, nil
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+// disableExtraSparkPlanners keeps a single enabled spark planner per session.
+func (s *Store) disableExtraSparkPlanners(ctx context.Context, sessionID string, keepID int64) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ?
+		WHERE enabled = 1 AND kind = ? AND session_id = ? AND id != ?`,
+		time.Now().UTC().Format(time.RFC3339Nano), KindSpark, sessionID, keepID)
+	return err
 }
 
 func (s *Store) setNextRun(ctx context.Context, id int64, next time.Time) error {
@@ -373,14 +411,6 @@ func (s *Store) setNextRun(ctx context.Context, id int64, next time.Time) error 
 		UPDATE cron_job SET next_run_at = ?, updated_at = ? WHERE id = ?`,
 		next.UTC().Format(time.RFC3339Nano), now, id)
 	return err
-}
-
-func (s *Store) countSparkPings(ctx context.Context, sessionID string) (int, error) {
-	var n int
-	err := s.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM cron_job
-		WHERE enabled = 1 AND kind = ? AND session_id = ?`, KindSparkPing, sessionID).Scan(&n)
-	return n, err
 }
 
 // Get loads one job.

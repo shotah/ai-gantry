@@ -116,7 +116,14 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 		if err != nil {
 			return "", err
 		}
-		job, err := t.Store.Schedule(ctx, prompt, parsed, delivery)
+		// Spark planners must go through EnsureSpark so reboots / re-schedules
+		// cannot stack a second daily planner or compound ping jobs.
+		var job Job
+		if parsed.Kind == KindSpark {
+			job, _, err = t.Store.EnsureSpark(ctx, prompt, parsed, delivery)
+		} else {
+			job, err = t.Store.Schedule(ctx, prompt, parsed, delivery)
+		}
 		if err != nil {
 			return "", err
 		}

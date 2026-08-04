@@ -58,7 +58,10 @@ How it works:
 1. A daily `spark` planner wakes at window start (and on boot for the remaining day).
 2. It rolls qty in `[min, max]` and inserts that many one-shot `spark_ping` jobs,
    spaced across the remaining window so the day stays balanced and the minimum is hit.
-3. Each ping picks one line from `SPARK_PROMPT` (if multi-line) and runs the agent;
+3. Before each seed (planner wake or boot catch-up), pending `spark_ping` rows for that
+   session are cancelled — prior-day leftovers and restarts do **not** compound.
+   Once today is planned (planner `next_run` is tomorrow), reboot does not roll a second set.
+4. Each ping picks one line from `SPARK_PROMPT` (if multi-line) and runs the agent;
    if the human messaged within `SPARK_SKIP_RECENT_MINUTES`, that ping is deferred
    once, then dropped if still chatting.
 
