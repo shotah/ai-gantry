@@ -50,6 +50,16 @@ exclude = ["calendar_*", "*_calendar", "*_calendar_*"]
 download_tag = "latest"
 download_url = "https://github.com/shotah/go-garmin/releases/download/{tag}/garmin_{version}_{os}_{arch}.tar.gz"
 
+# Google Health / Fitbit+Pixel Watch (shotah/google-health-mcp) — docs/google-health.md
+# Core tier. Same tool nouns as garmin; host prefix disambiguates (ghealth__sleep_get).
+# Auth via gantry auth ghealth (or make ghealth-auth).
+[[server]]
+name = "ghealth"
+command = "google-health-mcp"
+auth_args = ["auth"]
+download_tag = "latest"
+download_url = "https://github.com/shotah/google-health-mcp/releases/download/{tag}/google-health-mcp_{version}_{os}_{arch}.tar.gz"
+
 # Web search via Gemini Grounding (shotah/mcp-gemini-search) — docs/web-search.md
 # Binary name stays mcp-gemini-google-search (goreleaser project_name).
 [[server]]

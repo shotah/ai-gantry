@@ -86,12 +86,12 @@ case "$ACTION" in
     echo "Cleaning obsolete persona files on remote (if present)"
     remote "cd '$DEPLOY_PATH/persona' 2>/dev/null && rm -f IDENTITY.md AGENTS.md MEMORY.md HEARTBEAT.md BOOTSTRAP.md || true"
     echo "Synced to $TARGET:$DEPLOY_PATH"
-    echo "Note: data/.config secrets are NOT in remote-deploy. Use make garmin-sync / strava-sync / youtube-sync / google-sync"
+    echo "Note: data/.config secrets are NOT in remote-deploy. Use make garmin-sync / strava-sync / ghealth-sync / youtube-sync / google-sync"
     ;;
   sync-secret)
     name="$(echo "${1:-}" | tr '[:upper:]' '[:lower:]')"
     shift || true
-    [[ -n "$name" ]] || { echo "Usage: $0 sync-secret <garmin|strava|youtube|ytmusic|google|all>"; exit 1; }
+    [[ -n "$name" ]] || { echo "Usage: $0 sync-secret <garmin|strava|ghealth|youtube|ytmusic|google|all>"; exit 1; }
 
     paths=()
     while IFS= read -r line; do

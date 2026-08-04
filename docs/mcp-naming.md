@@ -4,9 +4,9 @@ Canonical contract for **shotah** MCP binaries consumed by ai-gantry (and any
 host that prefixes `{server}__{tool}`). Sibling packages should link here from
 their `TODO.md` / README rather than inventing a local dialect.
 
-**Audience:** authors of google-mcp, go-garmin, go-strava-mcp, youtube-go-mcp,
-mcp-beam, mcp-go-math, mcp-gemini-search, flights-search-mcp, rentals-search-mcp,
-cars-search-mcp, and future MCPs.
+**Audience:** authors of google-mcp, go-garmin, google-health-mcp, go-strava-mcp,
+youtube-go-mcp, mcp-beam, mcp-go-math, mcp-gemini-search, flights-search-mcp,
+rentals-search-mcp, cars-search-mcp, and future MCPs.
 **Why it matters:** small models (Qwen) and host closest-match repair pick tools
 by **name tokens + description**. Synonyms and double prefixes break matching.
 
@@ -105,6 +105,7 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
 | `google` | `calendar_list_events` | `google__calendar_list_events` |
 | `google-search` | `web_search` | `google-search__web_search` |
 | `garmin` | `sleep_get`, `activities_list` | `garmin__sleep_get` |
+| `ghealth` | `sleep_get`, `activities_list`, `hrv_get` | `ghealth__sleep_get` |
 | `strava` | `activities_list` | `strava__activities_list` |
 | `youtube` | `videos_search`, `library_list_liked_videos` | `youtube__videos_search` |
 | `cast` | `devices_list`, `youtube_beam_video` | `cast__devices_list` |

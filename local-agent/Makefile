@@ -60,9 +60,9 @@ DOCKER_GANTRY_BIN := .cache/docker-gantry
 REPO_ROOT := $(abspath ..)
 
 .PHONY: help env env-force dirs init persona persona-force prepare-docker-gantry build up down restart logs ps status shell clean \
-        strava-auth garmin-auth google-auth google-mcp-import youtube-auth \
+        strava-auth garmin-auth ghealth-auth google-auth google-mcp-import youtube-auth \
         youtube-whoami youtube-probe ytmusic-auth ytmusic-whoami ytmusic-probe \
-        garmin-sync strava-sync youtube-sync ytmusic-sync google-sync secrets-sync secrets-migrate \
+        garmin-sync strava-sync ghealth-sync youtube-sync ytmusic-sync google-sync secrets-sync secrets-migrate \
         remote-check remote-sync remote-up remote-down remote-restart remote-logs remote-ps remote-status \
         remote-ssh remote-deploy \
         remote-native-env remote-native-check remote-native-fetch remote-native-sync remote-native-install \
@@ -118,6 +118,7 @@ help: ## Show available commands
 	@echo     clean                  Same as down (keeps ./data)
 	@echo     strava-auth            One-time Strava OAuth; writes data/.config/strava/tokens.json
 	@echo     garmin-auth            One-time Garmin login; writes data/.config/garmin/session.json
+	@echo     ghealth-auth           Google Health OAuth; writes data/.config/ghealth/tokens.json
 	@echo     google-auth            One-time Google OAuth; writes data/.config/google-mcp/credentials
 	@echo     google-mcp-import      Legacy: import gws export into google-mcp (prefer google-auth)
 	@echo     youtube-auth           YouTube OAuth -^> data/.config/youtube/oauth.json (mcp.toml)
@@ -125,6 +126,7 @@ help: ## Show available commands
 	@echo     youtube-probe          Data API probe (likes / channel / playlists)
 	@echo     garmin-sync            Push data/.config/garmin to DEPLOY_HOST (not part of remote-deploy)
 	@echo     strava-sync            Push data/.config/strava to DEPLOY_HOST
+	@echo     ghealth-sync           Push data/.config/ghealth to DEPLOY_HOST
 	@echo     youtube-sync           Push data/.config/youtube to DEPLOY_HOST
 	@echo     google-sync            Push Google Workspace creds to DEPLOY_HOST
 	@echo     secrets-sync           Push all secret groups to DEPLOY_HOST
@@ -268,6 +270,9 @@ garmin-sync: ## Push data/.config/garmin/session.json to DEPLOY_HOST
 strava-sync: ## Push data/.config/strava/tokens.json to DEPLOY_HOST
 	$(REMOTE) sync-secret strava
 
+ghealth-sync: ## Push data/.config/ghealth/tokens.json to DEPLOY_HOST
+	$(REMOTE) sync-secret ghealth
+
 youtube-sync: ## Push data/.config/youtube/oauth.json to DEPLOY_HOST
 	$(REMOTE) sync-secret youtube
 
@@ -318,6 +323,13 @@ garmin-auth: ## Garmin login via gantry auth; clears stale session first (see do
 	@echo If the image is missing: make build
 	$(COMPOSE) run --rm -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth garmin
 	$(call PUSH_SECRET_IF_REMOTE,garmin)
+
+ghealth-auth: ## Google Health OAuth via gantry auth (see docs/google-health.md)
+	@echo Needs GOOGLE_HEALTH_CLIENT_ID / GOOGLE_HEALTH_CLIENT_SECRET in .env
+	@echo Opening Google Health OAuth. Approve readonly Google Health scopes in the browser.
+	@echo If the image is missing: make build
+	$(COMPOSE) run --rm -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth ghealth
+	$(call PUSH_SECRET_IF_REMOTE,ghealth)
 
 youtube-auth: ## YouTube OAuth via gantry auth (mcp.toml auth_args; see docs/youtube.md)
 	@echo Needs YOUTUBE_OAUTH_CLIENT_ID / YOUTUBE_OAUTH_CLIENT_SECRET in .env

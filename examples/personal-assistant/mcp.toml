@@ -32,6 +32,14 @@
 # command = "garmin"
 # args = ["mcp", "--tool-tier", "core"]
 
+# --- Google Health / Fitbit+Pixel Watch (shotah/google-health-mcp) -----------
+# [[server]]
+# name = "ghealth"
+# command = "google-health-mcp"
+# auth_args = ["auth"]
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/google-health-mcp/releases/download/{tag}/google-health-mcp_{version}_{os}_{arch}.tar.gz"
+
 # --- Web search via Gemini grounding (shotah/mcp-gemini-search) --------------
 # [[server]]
 # name = "google-search"

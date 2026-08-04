@@ -223,6 +223,7 @@ Everything lives in [`./docs`](docs). Start with Telegram, add the rest as neede
 | 🗂️ **[docs/google-workspace.md](docs/google-workspace.md)** | Go MCP (`google-mcp`), `make google-auth` / `gantry auth google` | Gmail / Calendar / Docs / Sheets / Tasks |
 | 🏃 **[docs/strava.md](docs/strava.md)** | Strava API app, `strava-mcp` OAuth, token mount, MCP wiring | Workout summaries & training nudges |
 | ⌚ **[docs/garmin.md](docs/garmin.md)** | go-garmin MCP, `make garmin-auth`, sleep / weight / readiness | Physiological recovery + scale weight |
+| ⌚ **[docs/google-health.md](docs/google-health.md)** | google-health-mcp, `make ghealth-auth`, Fitbit / Pixel Watch | Same recovery recipes via `ghealth__…` |
 | 📺 **[docs/cast.md](docs/cast.md)** | mcp-beam (Go) release, host networking, `cast__youtube_beam_video` / pause / volume | House Chromecast / Nest / DLNA |
 | 📺 **[docs/youtube.md](docs/youtube.md)** | youtube-go-mcp v1+ (Go), Data API v3 OAuth, search / playlists / liked | YouTube → `videoId` → Cast |
 | 🧮 **[docs/math.md](docs/math.md)** | mcp-go-math (Go), `evaluate` + `convert` | Non-trivial arithmetic / unit conversion |
@@ -378,7 +379,7 @@ make help            # full grouped list
 | `up` / `down` / `restart` | `remote-sync` — scp compose/.env/mcp.toml/persona (not secrets) |
 | `logs` / `ps` / `status` | `remote-up` / `remote-down` / `remote-restart` |
 | `shell` — alpine with ./data (sqlite) | `remote-logs` / `remote-ps` / `remote-status` |
-| `strava-auth` / `garmin-auth` / `google-auth` / `youtube-auth` | `remote-ssh [CMD='…']` — run on server |
+| `strava-auth` / `garmin-auth` / `ghealth-auth` / `google-auth` / `youtube-auth` | `remote-ssh [CMD='…']` — run on server |
 
 ---
 

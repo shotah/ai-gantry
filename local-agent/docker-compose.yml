@@ -60,6 +60,10 @@ services:
       STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID:-}
       STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET:-}
       STRAVA_TOKEN_PATH: /data/.config/strava/tokens.json
+      # Google Health MCP (Fitbit / Pixel Watch) — docs/google-health.md
+      GOOGLE_HEALTH_CLIENT_ID: ${GOOGLE_HEALTH_CLIENT_ID:-}
+      GOOGLE_HEALTH_CLIENT_SECRET: ${GOOGLE_HEALTH_CLIENT_SECRET:-}
+      GOOGLE_HEALTH_TOKEN_PATH: /data/.config/ghealth/tokens.json
       # Garmin MCP: no email/password env — session.json on the mount (docs/garmin.md).
       # Cast MCP (mcp-beam): no API keys. Optional knobs in docs/cast.md.
       MCP_BEAM_LOG_LEVEL: ${MCP_BEAM_LOG_LEVEL:-info}
@@ -81,7 +85,7 @@ services:
       # MCP server manifest — the one structured config file
       - ./mcp.toml:/etc/gantry/mcp.toml:ro
       # gantry.db + MCP tool state under data/.config/* (same layout as native /opt/gantry/data).
-      # Auth writes: make google-auth | strava-auth | garmin-auth | youtube-auth
+      # Auth writes: make google-auth | strava-auth | garmin-auth | ghealth-auth | youtube-auth
       - ./data:/data
     mem_limit: 1g
     cpus: 4.0
