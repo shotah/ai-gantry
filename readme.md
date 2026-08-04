@@ -119,6 +119,8 @@ Details: [docs/mcp.md](docs/mcp.md) · [docs/deploy-native.md](docs/deploy-nativ
 | **REPL** | Hack on the binary | `make init && make run` (`CHANNEL=stdio`) |
 
 Full life-stack (tools + auth helpers): **[local-agent/](local-agent/)**.  
+MCP browser login (Google / Strava / …): auth on the machine with your browser —
+**[docs/deploy-docker.md § MCP tool auth](docs/deploy-docker.md#mcp-tool-auth-browser-oauth)**.  
 Cookbook: **[examples/README.md](examples/README.md)**. Positioning /
 design / security / MCP: **[docs/](docs/)**.
 
@@ -329,7 +331,8 @@ download_url = "https://github.com/shotah/go-strava-mcp/releases/download/{tag}/
 Docker bake): placeholders `{os}` `{arch}` `{tag}` `{version}` (`version` =
 tag without leading `v`). `gantry tools-plan` prints the resolved inventory
 without downloading. Optional `auth_command` / `auth_args` drive
-`gantry auth <name>`.
+`gantry auth <name>` — for browser OAuth, run that on the machine with your
+browser ([deploy-docker § MCP tool auth](docs/deploy-docker.md#mcp-tool-auth-browser-oauth)).
 
 Listed servers still **start**; `tools` / `exclude` only filter what is
 **published** to the model (boot logs `tools_listed` vs `tools_published`).

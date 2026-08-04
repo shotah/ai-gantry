@@ -7,7 +7,7 @@ is the public pitch + product contract; these pages go deeper.
 | --- | --- |
 | [positioning.md](positioning.md) | ICP, competition, Docker Hub story, when (not) to add a site |
 | [dockerhub.md](dockerhub.md) | **Hub overview** synced by CI (keep lean; PNG banner) |
-| [deploy-docker.md](deploy-docker.md) | **Fastest hello:** pull `shotah/ai-gantry` from Hub, Gemini compose |
+| [deploy-docker.md](deploy-docker.md) | **Fastest hello:** Hub pull + compose; **MCP browser auth** (Google/Strava) |
 | [deploy-native.md](deploy-native.md) | Linux systemd + Ollama/Qwen, local-model hardening |
 | [mcp.md](mcp.md) | MCP host: `{server}__{tool}` naming, underscore alias, suggestions, local REPL |
 | [mcp-naming.md](mcp-naming.md) | **Shared** tool naming contract for all shotah MCP packages (Qwen / closest-match) |

@@ -378,7 +378,11 @@ make help            # full grouped list
 | `up` / `down` / `restart` | `remote-sync` — scp compose/.env/mcp.toml/persona (not secrets) |
 | `logs` / `ps` / `status` | `remote-up` / `remote-down` / `remote-restart` |
 | `shell` — alpine with ./data (sqlite) | `remote-logs` / `remote-ps` / `remote-status` |
+<<<<<<< Updated upstream
 | `strava-auth` / `garmin-auth` / `google-auth` / `youtube-auth` | `remote-ssh [CMD='…']` — run on server |
+=======
+| `*-auth` — browser/TTY login on **this** machine ([deploy-docker](../docs/deploy-docker.md#mcp-tool-auth-browser-oauth)) | `*-sync` / `secrets-sync` — push tokens; `remote-ssh` |
+>>>>>>> Stashed changes
 
 ---
 

@@ -65,33 +65,33 @@ so `strava-mcp` prints the authorization URL instead — you open it on your hos
 approve, and the callback is forwarded back into the container.
 
 ```bash
-make strava-auth
-# equivalent: docker compose run --rm -p 19876:19876 --entrypoint gantry gantry auth strava
-# native:     gantry auth strava
+make build          # once, if the appliance image is missing
+make strava-auth    # prints a URL → approve in browser
+# native (no Docker): gantry auth strava
 ```
 
-That wraps the throwaway container (builds the image if needed, publishes the
-callback port, runs `strava-mcp auth`). The raw equivalent, if you're not using
-`make`:
+Run this **on the machine with your browser**. Strava’s redirect is
+`http://localhost:19876/callback` — it will not complete if you only SSH to a
+headless host.
+
+Equivalent Compose:
 
 ```bash
-docker compose run --rm --build -p 19876:19876 --entrypoint gantry gantry auth strava
+docker compose run --rm -p 127.0.0.1:19876:19876 \
+  --entrypoint /usr/local/bin/gantry gantry auth strava
 ```
 
 1. It prints `Open this URL in your browser: https://www.strava.com/oauth/authorize?...`
-2. Open that URL in your browser, approve access.
-3. Strava redirects to `http://localhost:19876/callback`; the `-p 19876:19876`
-   mapping forwards it into the container, which captures the code and prints
-   `Authenticated as <Your Name>!`.
+2. Open that URL, approve access.
+3. Strava redirects to `http://localhost:19876/callback`; Compose forwards it
+   into the container and you should see `Authenticated as <Your Name>!`.
 
-That writes `secrets/strava/tokens.json` (gitignored, mounted at
-`/data/.config/strava`). `strava-mcp` refreshes the access token
-automatically from here on.
+That writes `data/.config/strava/tokens.json` (gitignored). When `DEPLOY_HOST`
+is set, `make strava-auth` auto-pushes tokens to the server. The callback has a
+2-minute timeout — have the browser ready.
 
-> `--entrypoint strava-mcp` swaps the image's default `gantry` entrypoint for
-> the tool binary. `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, and
-> `STRAVA_TOKEN_PATH` already come from `.env` / `docker-compose.yml`. The
-> callback has a 2-minute timeout, so have the browser ready.
+Overview of all MCP browser logins:
+[docs/deploy-docker.md § MCP tool auth](../../docs/deploy-docker.md#mcp-tool-auth-browser-oauth).
 
 <details>
 <summary>Alternative: run the binary directly (macOS / Linux / WSL)</summary>

@@ -114,6 +114,50 @@ See [local-agent/README.md](../local-agent/README.md) and
 
 ---
 
+## MCP tool auth (browser OAuth)
+
+Chat works with **zero** MCP servers. When you grant tools that need a browser
+login (Google Workspace, Strava, …), authorize **once on the machine that has
+your browser** — usually the laptop running Docker Desktop — then copy tokens
+to the server if the agent runs elsewhere.
+
+```bash
+cd local-agent
+make build                 # once: image includes MCP tools (tools-fetch)
+make google-auth           # browser → http://localhost:4100/…
+make ghealth-auth          # browser → http://127.0.0.1:4101/…
+make strava-auth           # browser → http://localhost:19876/…
+# also: make garmin-auth | youtube-auth | …
+```
+
+What to expect:
+
+1. A URL prints in the terminal (the container cannot open your browser).
+2. Open it, approve access.
+3. The provider redirects to `http://localhost:<port>/…` on **this** machine;
+   Compose publishes that port into the auth container.
+4. Tokens land under `data/.config/…`. If `DEPLOY_HOST` is set, Make pushes
+   them to the server automatically.
+
+| Tool | Make target | Redirect (OAuth client) |
+| --- | --- | --- |
+| Google Workspace | `make google-auth` | `http://localhost:4100/oauth2callback` |
+| Google Health | `make ghealth-auth` | `http://127.0.0.1:4101/oauth2callback` |
+| Strava | `make strava-auth` | callback domain `localhost` (port 19876) |
+| YouTube | `make youtube-auth` | device flow (no localhost callback) |
+| Garmin | `make garmin-auth` | interactive TTY (no browser callback) |
+
+**Do not** run Google/Strava auth over SSH on a headless box — the browser
+callback is `localhost` on *your* PC. Auth locally, then sync secrets (or use
+the Make targets above with `DEPLOY_HOST` set).
+
+Per-tool setup: [google-workspace](../local-agent/docs/google-workspace.md) ·
+[google-health](../local-agent/docs/google-health.md) ·
+[strava](../local-agent/docs/strava.md) · [youtube](../local-agent/docs/youtube.md) ·
+[garmin](../local-agent/docs/garmin.md).
+
+---
+
 ## When to prefer Docker
 
 | Prefer Docker / Hub when… | Prefer [native](deploy-native.md) when… |

@@ -308,7 +308,7 @@ endif
 strava-auth: ## One-time Strava OAuth via gantry auth (see docs/strava.md)
 	@echo Opening Strava OAuth. A URL will be printed below — open it in your browser and approve.
 	@echo If the image is missing: make build
-	$(COMPOSE) run --rm -p 19876:19876 --entrypoint /usr/local/bin/gantry $(SERVICE) auth strava
+	$(COMPOSE) run --rm -p 127.0.0.1:19876:19876 --entrypoint /usr/local/bin/gantry $(SERVICE) auth strava
 	$(call PUSH_SECRET_IF_REMOTE,strava)
 
 garmin-auth: ## Garmin login via gantry auth; clears stale session first (see docs/garmin.md)
@@ -319,6 +319,17 @@ garmin-auth: ## Garmin login via gantry auth; clears stale session first (see do
 	$(COMPOSE) run --rm -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth garmin
 	$(call PUSH_SECRET_IF_REMOTE,garmin)
 
+<<<<<<< Updated upstream
+=======
+ghealth-auth: ## Google Health OAuth via gantry auth (see docs/google-health.md)
+	@echo Needs GOOGLE_HEALTH_CLIENT_ID / GOOGLE_HEALTH_CLIENT_SECRET in .env
+	@echo Opening Google Health OAuth. Approve readonly Google Health scopes in the browser.
+	@echo OAuth client redirect: http://127.0.0.1:4101/oauth2callback
+	@echo If the image is missing: make build
+	$(COMPOSE) run --rm -p 127.0.0.1:4101:4101 --entrypoint /usr/local/bin/gantry $(SERVICE) auth ghealth
+	$(call PUSH_SECRET_IF_REMOTE,ghealth)
+
+>>>>>>> Stashed changes
 youtube-auth: ## YouTube OAuth via gantry auth (mcp.toml auth_args; see docs/youtube.md)
 	@echo Needs YOUTUBE_OAUTH_CLIENT_ID / YOUTUBE_OAUTH_CLIENT_SECRET in .env
 	@echo Approve as the Google account that owns your YouTube likes/playlists (incognito helps).
@@ -336,12 +347,11 @@ ytmusic-auth: youtube-auth ## Deprecated alias for youtube-auth
 ytmusic-whoami: youtube-whoami ## Deprecated alias for youtube-whoami
 ytmusic-probe: youtube-probe ## Deprecated alias for youtube-probe
 
-google-auth: ## Google Workspace OAuth; writes data/.config/google-mcp (see docs/google-workspace.md)
-ifeq ($(OS),Windows_NT)
-	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/google-auth.ps1
-else
-	bash scripts/google-auth.sh
-endif
+google-auth: ## One-time Google OAuth via gantry auth (see docs/google-workspace.md)
+	@echo Opening Google OAuth. A URL will be printed below — open it in your browser and approve.
+	@echo OAuth client redirect: http://localhost:4100/oauth2callback
+	@echo If the image is missing: make build
+	$(COMPOSE) run --rm -p 127.0.0.1:4100:4100 --entrypoint /usr/local/bin/gantry $(SERVICE) auth google
 	$(call PUSH_SECRET_IF_REMOTE,google)
 
 google-mcp-import: ## Legacy: import gws export into data/.config/google-mcp (prefer make google-auth)

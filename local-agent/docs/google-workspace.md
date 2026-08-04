@@ -68,30 +68,35 @@ USER_GOOGLE_EMAIL=you@gmail.com
 
 ## 2. Authorize
 
-Prefer the binary’s own CLI (also wired as `gantry auth google` via `auth_args`):
+Run this **on the machine with your browser** (Docker Desktop laptop is fine).
+The OAuth redirect is `http://localhost:4100/…` — it cannot complete on a
+headless server over SSH.
 
 ```bash
-# on a host with google-mcp + env loaded
-google-mcp auth
-# or: gantry auth google
+make build          # once, if the appliance image is missing
+make google-auth    # prints a URL → approve in browser → tokens under data/.config/
 ```
 
-Workstation helper (Python throwaway container — same credential path):
+Equivalent:
 
 ```bash
-make google-auth
+docker compose run --rm -p 127.0.0.1:4100:4100 \
+  --entrypoint /usr/local/bin/gantry gantry auth google
 ```
 
 Writes `data/.config/google-mcp/credentials/<you@email>.json`. When
 `DEPLOY_HOST` is set, `make google-auth` auto-runs **`make google-sync`**.
 
 ```bash
-make google-sync              # push credentials → DEPLOY_PATH
+make google-sync              # push credentials → DEPLOY_PATH (if you auth'd elsewhere)
 ```
 
 Send **`/new`** in Telegram so LOCAL_AGENT drops any stale auth habit.
 
 Access tokens refresh automatically from the stored `refresh_token`.
+
+Overview of all MCP browser logins:
+[docs/deploy-docker.md § MCP tool auth](../../docs/deploy-docker.md#mcp-tool-auth-browser-oauth).
 
 ---
 
