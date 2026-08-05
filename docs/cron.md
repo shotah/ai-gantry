@@ -24,7 +24,7 @@ stdio). Pure-MCP cron cannot deliver outbound chat by itself.
 | --- | --- |
 | `cron_schedule` | Create a job bound to the current chat/session |
 | `cron_list` | List active jobs |
-| `cron_cancel` | Disable by id |
+| `cron_cancel` | Disable by id (spark planner also cancels pending `spark_ping` rows) |
 
 ### `when` / `repeat`
 
@@ -55,7 +55,8 @@ user id) and seeds that day's pings. Other channels: `cron_schedule`
 
 How it works:
 
-1. A daily `spark` planner wakes at window start (and on boot for the remaining day).
+1. A daily `spark` planner is seeded on boot for the remaining day, then wakes again at
+   **tomorrow's** window start (not a second roll for today once `next_run` is tomorrow).
 2. It rolls qty in `[min, max]` and inserts that many one-shot `spark_ping` jobs,
    spaced across the remaining window so the day stays balanced and the minimum is hit.
 3. Before each seed (planner wake or boot catch-up), pending `spark_ping` rows for that
@@ -64,6 +65,7 @@ How it works:
 4. Each ping picks one line from `SPARK_PROMPT` (if multi-line) and runs the agent;
    if the human messaged within `SPARK_SKIP_RECENT_MINUTES`, that ping is deferred
    once, then dropped if still chatting.
+5. Cancelling the spark planner (`cron_cancel`) also disables pending pings for that session.
 
 ```env
 SPARK_QTY=4-6
@@ -98,6 +100,10 @@ UPDATE cron_job SET enabled = 0, running = 0 WHERE id = 3;
 
 Jobs run **serially** on the poller. A job sets `running=1` while the agent
 turn executes; due rows that are still running are skipped until `Finish`.
+
+On runner boot, any leftover `running=1` flags (crash/OOM mid-turn) are cleared so
+jobs become due again. `Finish` / `Defer` only apply while `running=1` and never
+re-enable a job that was cancelled mid-flight.
 
 One-shot jobs disable after a successful (or failed) fire. Daily/every advance
 `next_run_at`. Push failures are recorded in `last_error`.

@@ -11,7 +11,12 @@ import (
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
-const defaultConsolidateBatch = 20
+const (
+	defaultConsolidateBatch = 20
+	maxConsolidateAttempts  = 3
+	consolidatedDone        = 1
+	consolidatedQuarantine  = 2
+)
 
 // Consolidator runs the cheap "sleep cycle" over unconsolidated episodes.
 // Builtin backend only.
@@ -39,6 +44,8 @@ func (c *Consolidator) Start(ctx context.Context) {
 	}
 
 	log.Info("memory consolidator started", "interval", c.Interval.String(), "batch", batch)
+	// One pass on boot so restarts do not wait a full interval.
+	c.Pass(ctx)
 	ticker := time.NewTicker(c.Interval)
 	defer ticker.Stop()
 
@@ -80,6 +87,12 @@ func (c *Consolidator) runPass(ctx context.Context, log *slog.Logger, batch int)
 		return
 	}
 
+	ids := episodeIDs(episodes)
+	allowed := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		allowed[id] = true
+	}
+
 	prompt := buildConsolidatePrompt(episodes)
 	res, err := c.Completer.Complete(ctx, provider.Request{
 		Messages: []provider.Message{
@@ -95,56 +108,28 @@ func (c *Consolidator) runPass(ctx context.Context, log *slog.Logger, batch int)
 	items, err := parseConsolidateJSON(res.Content)
 	if err != nil {
 		log.Warn("memory consolidate parse failed", "err", err, "raw", truncate(res.Content, 200))
-		// Still mark episodes so a bad model reply doesn't spin forever.
-		ids := episodeIDs(episodes)
-		if markErr := c.Store.MarkConsolidated(ctx, ids); markErr != nil {
-			log.Warn("memory consolidate mark failed", "err", markErr)
+		if qerr := c.Store.RecordConsolidateFailure(ctx, ids, maxConsolidateAttempts); qerr != nil {
+			log.Warn("memory consolidate failure record failed", "err", qerr)
 		}
 		return
 	}
 
-	for _, item := range items {
-		kind := strings.ToLower(strings.TrimSpace(item.Kind))
-		if kind == "" {
-			kind = KindFact
-		}
-		if err := ValidateKind(kind); err != nil {
-			continue
-		}
-		if kind == KindEpisode {
-			continue // consolidator promotes out of episodes
-		}
-		subject := strings.TrimSpace(item.Subject)
-		content := strings.TrimSpace(item.Content)
-		if subject == "" || content == "" {
-			continue
-		}
-		neu, err := c.Store.StoreConsolidated(ctx, kind, subject, content)
-		if err != nil {
-			log.Warn("memory consolidate store failed", "err", err)
-			continue
-		}
-		for _, oldID := range item.Supersedes {
-			if oldID > 0 {
-				_ = c.Store.Supersede(ctx, oldID, neu.ID)
-			}
-		}
-	}
-
-	if err := c.Store.MarkConsolidated(ctx, episodeIDs(episodes)); err != nil {
-		log.Warn("memory consolidate mark failed", "err", err)
+	stored, err := c.Store.ApplyConsolidation(ctx, ids, items, allowed)
+	if err != nil {
+		log.Warn("memory consolidate apply failed", "err", err)
 		return
 	}
 	log.Info("memory consolidate pass",
 		"episodes", len(episodes),
 		"extracted", len(items),
+		"stored", stored,
 	)
 }
 
 const consolidateSystem = `You consolidate episodic memories into durable structured rows.
 Reply with ONLY a JSON array (no markdown). Each element:
 {"kind":"fact|preference|person|insight","subject":"...","content":"...","supersedes":[id,...]}
-Deduplicate: if a new row replaces an older memory id, list that id in supersedes.
+Deduplicate: if a new row replaces an older memory id from this batch, list that id in supersedes.
 If nothing durable, return [].
 Keep content atomic (one statement). Do not invent facts not implied by episodes.`
 
@@ -167,7 +152,7 @@ func buildConsolidatePrompt(episodes []Entry) string {
 func parseConsolidateJSON(raw string) ([]consolidateItem, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return nil, nil
+		return nil, fmt.Errorf("empty consolidator reply")
 	}
 	// Strip optional ```json fences
 	if strings.HasPrefix(raw, "```") {
@@ -178,6 +163,9 @@ func parseConsolidateJSON(raw string) ([]consolidateItem, error) {
 			raw = raw[:i]
 		}
 		raw = strings.TrimSpace(raw)
+	}
+	if raw == "" {
+		return nil, fmt.Errorf("empty consolidator reply after fence strip")
 	}
 	var items []consolidateItem
 	if err := json.Unmarshal([]byte(raw), &items); err != nil {
@@ -199,4 +187,89 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// ApplyConsolidation stores durable rows and marks episodes in one transaction.
+// allowedSupersede restricts supersede targets to the prompted episode batch.
+func (b *Builtin) ApplyConsolidation(ctx context.Context, episodeIDs []int64, items []consolidateItem, allowedSupersede map[int64]bool) (int, error) {
+	tx, err := b.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	stored := 0
+	for _, item := range items {
+		kind := strings.ToLower(strings.TrimSpace(item.Kind))
+		if kind == "" {
+			kind = KindFact
+		}
+		if err := ValidateKind(kind); err != nil {
+			continue
+		}
+		if kind == KindEpisode {
+			continue
+		}
+		subject := strings.TrimSpace(item.Subject)
+		content := strings.TrimSpace(item.Content)
+		if subject == "" || content == "" {
+			continue
+		}
+		res, err := tx.ExecContext(ctx, `
+			INSERT INTO memory (kind, subject, content, source, confidence, created_at, updated_at, consolidated)
+			VALUES (?, ?, ?, ?, 1.0, ?, ?, 1)`,
+			kind, subject, content, SourceConsolidation, now, now,
+		)
+		if err != nil {
+			return 0, err
+		}
+		newID, _ := res.LastInsertId()
+		stored++
+		for _, oldID := range item.Supersedes {
+			if oldID <= 0 || !allowedSupersede[oldID] {
+				continue
+			}
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE memory SET superseded_by = ?, updated_at = ? WHERE id = ?`,
+				newID, now, oldID); err != nil {
+				return 0, err
+			}
+		}
+	}
+
+	for _, id := range episodeIDs {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE memory SET consolidated = ?, updated_at = ? WHERE id = ?`,
+			consolidatedDone, now, id); err != nil {
+			return 0, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return stored, nil
+}
+
+// RecordConsolidateFailure bumps attempts; quarantines after maxAttempts.
+func (b *Builtin) RecordConsolidateFailure(ctx context.Context, ids []int64, maxAttempts int) error {
+	if maxAttempts < 1 {
+		maxAttempts = maxConsolidateAttempts
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	for _, id := range ids {
+		if _, err := b.db.ExecContext(ctx, `
+			UPDATE memory SET
+				consolidate_attempts = consolidate_attempts + 1,
+				consolidated = CASE
+					WHEN consolidate_attempts + 1 >= ? THEN ?
+					ELSE consolidated
+				END,
+				updated_at = ?
+			WHERE id = ? AND consolidated = 0`,
+			maxAttempts, consolidatedQuarantine, now, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }

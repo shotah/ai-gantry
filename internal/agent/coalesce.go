@@ -106,15 +106,15 @@ func (a *Agent) coalesceAccept(ctx context.Context, msg channel.Message) (channe
 	s := a.coalesceSession(msg.SessionID)
 
 	s.mu.Lock()
-	text, images, interrupted := a.interruptTurn(msg.SessionID)
+	text, images, interrupted := a.interruptTurnForCoalesce(msg.SessionID)
 	if !interrupted && len(s.parts) == 0 {
-		// Fast path. A bubble arriving mid-turn still gets merged, because
-		// interruptTurn hands back the running turn's user text.
-		// (Two bubbles landing in the microseconds before runTurn registers the
-		// turn run as two serialized turns rather than one joined turn — the
-		// session lock keeps that correct, just not merged.)
-		s.mu.Unlock()
-		return msg, true, nil
+		// Fast path when idle. Mid-turn after tools have started also lands here
+		// (interrupt refused): buffer+settle so the new bubble runs after the
+		// current turn without cancelling paid MCP search calls.
+		if _, _, inFlight := a.turnPeek(msg.SessionID); !inFlight {
+			s.mu.Unlock()
+			return msg, true, nil
+		}
 	}
 	if interrupted {
 		a.log.Info("coalesce interrupt", "session_id", msg.SessionID)

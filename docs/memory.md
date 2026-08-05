@@ -30,7 +30,8 @@ PRAGMA journal_mode;   -- expect wal
 SELECT id, kind, subject, content, source, created_at, expires_at, superseded_by, consolidated
 FROM memory
 WHERE superseded_by IS NULL
-  AND (expires_at IS NULL OR expires_at > datetime('now'))
+  AND NOT (kind = 'episode' AND consolidated != 0)
+  AND (expires_at IS NULL OR expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 ORDER BY updated_at DESC
 LIMIT 50;
 ```
@@ -66,7 +67,9 @@ FTS triggers keep `memory_fts` in sync on insert/update/delete.
 | `episode` | 30 days | raw notes; consolidator reads these |
 | `fact` / `preference` / `person` / `insight` | none | durable; hydrated into the prompt |
 
-`consolidated = 1` means the consolidator already processed that episode.
+`consolidated = 1` means the consolidator already processed that episode (hidden from
+hydrate/recall). `consolidated = 2` is quarantined after repeated parse failures.
+`MEMORY_CONSOLIDATE_MINUTES` only runs for `MEMORY_BACKEND=builtin`.
 
 ## Session vs memory
 

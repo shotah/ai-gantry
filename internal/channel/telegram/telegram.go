@@ -226,6 +226,13 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 		})
 		return
 	}
+	// Cancel/coalesce supersede returns "" — do not promote tool-trace placeholders.
+	if reply == "" && stream != nil && stream.Started() {
+		if err := stream.Discard(ctx); err != nil {
+			c.log.Warn("telegram stream discard failed", "err", err, "session_id", msg.SessionID)
+		}
+		return
+	}
 	if stream != nil && stream.Started() {
 		urls, rest := channel.ExtractImageURLs(reply)
 		if err := stream.Finish(ctx, rest); err != nil {

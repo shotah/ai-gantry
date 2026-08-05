@@ -321,7 +321,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	})
 
 	var toolDefs []provider.ToolDef
-	if a.tools != nil {
+	if a.tools != nil && !channel.NoToolsFrom(ctx) {
 		toolDefs = a.tools.Tools()
 	}
 	shape.schemas = mcp.EstimateToolSchemaTokens(toolDefs)
@@ -333,7 +333,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		"est_tokens", estTokens(messages)+shape.schemas,
 	)
 
-	reply, err := a.runLoop(turnCtx, messages, toolDefs, shape)
+	reply, err := a.runLoop(turnCtx, msg.SessionID, messages, toolDefs, shape)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return "", nil
@@ -362,7 +362,7 @@ type promptShape struct {
 	schemas   int // est tokens in the tool schema block
 }
 
-func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDefs []provider.ToolDef, shape promptShape) (string, error) {
+func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provider.Message, toolDefs []provider.ToolDef, shape promptShape) (string, error) {
 	streamer, canStream := a.completer.(provider.Streamer)
 	writer, hasWriter := channel.ReplyWriterFrom(ctx)
 	progress, hasProgress := channel.ProgressWriterFrom(ctx)
@@ -549,6 +549,7 @@ func (a *Agent) runLoop(ctx context.Context, messages []provider.Message, toolDe
 		})
 
 		compactHeader := false
+		a.markToolsStarted(sessionID)
 		for _, call := range res.ToolCalls {
 			a.log.Info("tool call",
 				"name", call.Name,

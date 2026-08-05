@@ -100,6 +100,8 @@ func (b *Builtin) migrate() error {
 			return fmt.Errorf("memory: migrate: %w", err)
 		}
 	}
+	// Additive column for consolidator retry/quarantine (ignore if already present).
+	_, _ = b.db.Exec(`ALTER TABLE memory ADD COLUMN consolidate_attempts INTEGER NOT NULL DEFAULT 0`)
 	return nil
 }
 
@@ -209,16 +211,27 @@ func (b *Builtin) Hydrate(ctx context.Context, query string, limit int) ([]Entry
 		}
 	}
 
-	durable, err := b.listDurable(ctx, limit)
+	// Reserve ~1/3 of slots for query-relevant hits so durable rows cannot starve FTS.
+	durableCap := limit
+	queryCap := 0
+	if q := strings.TrimSpace(query); q != "" {
+		queryCap = limit / 3
+		if queryCap < 1 {
+			queryCap = 1
+		}
+		durableCap = limit - queryCap
+		if durableCap < 1 {
+			durableCap = 1
+			queryCap = limit - 1
+		}
+	}
+	durable, err := b.listDurable(ctx, durableCap)
 	if err != nil {
 		return nil, err
 	}
 	add(durable)
-	if len(out) >= limit {
-		return out[:limit], nil
-	}
-	if q := strings.TrimSpace(query); q != "" {
-		hits, err := b.search(ctx, q, limit)
+	if queryCap > 0 {
+		hits, err := b.search(ctx, strings.TrimSpace(query), queryCap+len(out))
 		if err != nil {
 			return nil, err
 		}
@@ -239,9 +252,10 @@ func (b *Builtin) ListUnconsolidatedEpisodes(ctx context.Context, limit int) ([]
 		SELECT id, kind, subject, content, source, confidence, created_at, updated_at, expires_at, superseded_by
 		FROM memory
 		WHERE kind = ? AND consolidated = 0 AND superseded_by IS NULL
+		  AND consolidate_attempts < ?
 		  AND (expires_at IS NULL OR expires_at > ?)
 		ORDER BY created_at ASC
-		LIMIT ?`, KindEpisode, time.Now().UTC().Format(time.RFC3339Nano), limit)
+		LIMIT ?`, KindEpisode, maxConsolidateAttempts, time.Now().UTC().Format(time.RFC3339Nano), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -295,9 +309,10 @@ func (b *Builtin) listActive(ctx context.Context, limit int) ([]Entry, error) {
 		SELECT id, kind, subject, content, source, confidence, created_at, updated_at, expires_at, superseded_by
 		FROM memory
 		WHERE superseded_by IS NULL
+		  AND NOT (kind = ? AND consolidated != 0)
 		  AND (expires_at IS NULL OR expires_at > ?)
 		ORDER BY updated_at DESC
-		LIMIT ?`, now, limit)
+		LIMIT ?`, KindEpisode, now, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -311,12 +326,17 @@ func (b *Builtin) listDurable(ctx context.Context, limit int) ([]Entry, error) {
 		SELECT id, kind, subject, content, source, confidence, created_at, updated_at, expires_at, superseded_by
 		FROM memory
 		WHERE superseded_by IS NULL
-		  AND kind IN (?, ?, ?)
+		  AND kind IN (?, ?, ?, ?)
 		  AND (expires_at IS NULL OR expires_at > ?)
 		ORDER BY
-			CASE kind WHEN 'preference' THEN 0 WHEN 'person' THEN 1 ELSE 2 END,
+			CASE kind
+				WHEN 'preference' THEN 0
+				WHEN 'person' THEN 1
+				WHEN 'fact' THEN 2
+				ELSE 3
+			END,
 			updated_at DESC
-		LIMIT ?`, KindPreference, KindPerson, KindFact, now, limit)
+		LIMIT ?`, KindPreference, KindPerson, KindFact, KindInsight, now, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -334,9 +354,10 @@ func (b *Builtin) search(ctx context.Context, query string, limit int) ([]Entry,
 		JOIN memory m ON m.id = memory_fts.rowid
 		WHERE memory_fts MATCH ?
 		  AND m.superseded_by IS NULL
+		  AND NOT (m.kind = ? AND m.consolidated != 0)
 		  AND (m.expires_at IS NULL OR m.expires_at > ?)
 		ORDER BY rank, m.updated_at DESC
-		LIMIT ?`, fts, now, limit)
+		LIMIT ?`, fts, KindEpisode, now, limit)
 	if err != nil {
 		return b.searchLike(ctx, query, now, limit)
 	}
@@ -350,10 +371,11 @@ func (b *Builtin) searchLike(ctx context.Context, query, now string, limit int) 
 		SELECT id, kind, subject, content, source, confidence, created_at, updated_at, expires_at, superseded_by
 		FROM memory
 		WHERE superseded_by IS NULL
+		  AND NOT (kind = ? AND consolidated != 0)
 		  AND (expires_at IS NULL OR expires_at > ?)
 		  AND (subject LIKE ? OR content LIKE ?)
 		ORDER BY updated_at DESC
-		LIMIT ?`, now, like, like, limit)
+		LIMIT ?`, KindEpisode, now, like, like, limit)
 	if err != nil {
 		return nil, fmt.Errorf("memory: search: %w", err)
 	}

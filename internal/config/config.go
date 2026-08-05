@@ -50,7 +50,7 @@ type Config struct {
 
 	HistoryMaxMessages int `env:"HISTORY_MAX_MESSAGES" envDefault:"200"`
 	HistoryMaxTokens   int `env:"HISTORY_MAX_TOKENS" envDefault:"128000"` // estimated (chars/4)
-	ToolResultMaxChars int `env:"TOOL_RESULT_MAX_CHARS" envDefault:"16000"`
+	ToolResultMaxChars int `env:"TOOL_RESULT_MAX_CHARS" envDefault:"6000"`
 	ToolMaxIterations  int `env:"TOOL_MAX_ITERATIONS" envDefault:"20"`
 	// ToolSchemaMaxTokens is an optional hard cap on estimated tool-schema tokens
 	// (chars/4 of name+description+parameters). 0 = log estimate only.

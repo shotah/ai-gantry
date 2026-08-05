@@ -138,6 +138,10 @@ func run() int {
 			memBackend = adapter
 			hideServer = server
 			logger.Info("memory ready", "backend", "mcp", "server", server)
+			if cfg.MemoryConsolidateMinutes > 0 {
+				logger.Warn("MEMORY_CONSOLIDATE_MINUTES ignored for MCP memory backend (builtin consolidator only)",
+					"minutes", cfg.MemoryConsolidateMinutes, "server", server)
+			}
 		default:
 			logger.Error("memory backend unsupported", "backend", cfg.MemoryBackend)
 			return 1

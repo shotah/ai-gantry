@@ -72,3 +72,20 @@ func TestAdvanceNext(t *testing.T) {
 		t.Fatal("expected bad timezone error")
 	}
 }
+
+func TestAdvanceNext_DailyDSTCalendarDay(t *testing.T) {
+	loc, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// US spring forward 2026-03-08: 02:00 → 03:00. Calendar +1 day must keep wall hour.
+	from := time.Date(2026, 3, 8, 6, 0, 0, 0, loc)
+	next, _, ok, err := cron.AdvanceNext(cron.KindDaily, "06:00", "America/Los_Angeles", from)
+	if err != nil || !ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	got := next.In(loc)
+	if got.Day() != 9 || got.Hour() != 6 {
+		t.Fatalf("want Mon 06:00 local after spring forward, got %s", got.Format(time.RFC3339))
+	}
+}

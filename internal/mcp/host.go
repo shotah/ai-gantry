@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -164,6 +165,9 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 	}
 	text, err := h.callOnce(ctx, tool, args)
 	if err != nil {
+		if !isRestartableMCPError(err) {
+			return "", err
+		}
 		h.log.Warn("mcp tool call failed; attempting restart", "tool", resolved, "server", tool.Server, "err", err)
 		if rerr := h.restartServer(ctx, tool.Server); rerr != nil {
 			return "", fmt.Errorf("mcp: call %q failed: %v (restart: %w)", resolved, err, rerr)
@@ -179,6 +183,31 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 		}
 	}
 	return Truncate(text, h.resultMaxChars), nil
+}
+
+// isRestartableMCPError reports transport-death failures worth a reconnect.
+// Cancel/deadline and ordinary tool/arg errors must not tear down the server.
+func isRestartableMCPError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, needle := range []string{
+		"eof",
+		"broken pipe",
+		"connection reset",
+		"not connected",
+		"use of closed network connection",
+		"use of closed",
+	} {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 // resolve looks up a tool by exact prefixed name, then by a common local-model
@@ -293,6 +322,7 @@ func (h *Host) suggest(toolName string) (string, []string) {
 	prefix, _, hasPrefix := strings.Cut(toolName, "__")
 	near := h.nearestLocked(toolName)
 	var names []string
+	const maxHintTools = 12
 	if hasPrefix {
 		for name := range h.tools {
 			if strings.HasPrefix(name, prefix+"__") {
@@ -301,8 +331,9 @@ func (h *Host) suggest(toolName string) (string, []string) {
 		}
 		if len(names) > 0 {
 			sort.Strings(names)
-			hint := fmt.Sprintf("no such tool; valid %s tools are: %s — if this was the wrong integration, use another server prefix; otherwise retry with one of these exact names",
-				prefix, strings.Join(names, ", "))
+			shown, extra := clipToolNames(names, maxHintTools)
+			hint := fmt.Sprintf("no such tool; valid %s tools include: %s%s — if this was the wrong integration, use another server prefix; otherwise retry with one of these exact names",
+				prefix, strings.Join(shown, ", "), extra)
 			return hint, near
 		}
 		// Prefix miss that is only underscore-vs-hyphen: still list that
@@ -316,8 +347,9 @@ func (h *Host) suggest(toolName string) (string, []string) {
 			}
 			if len(names) > 0 {
 				sort.Strings(names)
-				hint := fmt.Sprintf("no such tool or server prefix %q (did you mean %q?); valid %s tools are: %s — if this was the wrong integration, use another server prefix; otherwise retry with one of these exact names",
-					prefix, altPrefix, altPrefix, strings.Join(names, ", "))
+				shown, extra := clipToolNames(names, maxHintTools)
+				hint := fmt.Sprintf("no such tool or server prefix %q (did you mean %q?); valid %s tools include: %s%s — if this was the wrong integration, use another server prefix; otherwise retry with one of these exact names",
+					prefix, altPrefix, altPrefix, strings.Join(shown, ", "), extra)
 				return hint, near
 			}
 		}
@@ -339,6 +371,13 @@ func (h *Host) suggest(toolName string) (string, []string) {
 			strings.Join(near, ", "), prefixes), near
 	}
 	return "no such tool or server prefix; " + prefixes, nil
+}
+
+func clipToolNames(names []string, limit int) (shown []string, extra string) {
+	if limit < 1 || len(names) <= limit {
+		return names, ""
+	}
+	return names[:limit], fmt.Sprintf(" (+%d more)", len(names)-limit)
 }
 
 // maxToolSuggestions bounds the hint: a long list is just more to hallucinate from.

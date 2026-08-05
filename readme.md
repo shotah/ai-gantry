@@ -274,7 +274,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `MCP_MANIFEST` | no | `/etc/gantry/mcp.toml` |
 | `HISTORY_MAX_MESSAGES` | no | `200` |
 | `HISTORY_MAX_TOKENS` | no | `128000` |
-| `TOOL_RESULT_MAX_CHARS` | no | `16000` |
+| `TOOL_RESULT_MAX_CHARS` | no | `6000` |
 | `TOOL_MAX_ITERATIONS` | no | `20` |
 | `TOOL_SCHEMA_MAX_TOKENS` | no | `0` (log estimate only; `>0` = hard fail if over) |
 | `MEMORY_ENABLED` | no | `true` |
@@ -444,16 +444,17 @@ worse than no memory. The model stores deliberately; the consolidator promotes.
 
 ### 7.3 Consolidation (the Google idea)
 
-A timer job (default 30 min, `0` disables) runs a cheap pass with the same LLM:
+A timer job (default 30 min, `0` disables) runs a bounded pass with the **chat**
+LLM (same `LLM_*` Completer — no separate consolidator model):
 
-1. Read unconsolidated `episode` rows + recent session summaries.
-2. Extract durable `fact`/`preference`/`person` rows; link duplicates via
-   `superseded_by`; flag contradictions with persona files for the human
-   instead of overwriting.
-3. Write `insight` rows for cross-cutting patterns ("trains Tue/Thu, skips
-   when traveling").
+1. Read unconsolidated `episode` rows (batch of 20).
+2. Extract durable `fact`/`preference`/`person`/`insight` rows; optional
+   `supersedes` links are limited to IDs in that batch.
+3. On bad/empty model JSON, bump attempts and retry; quarantine after 3 failures
+   (never mark success on parse fail). Explicit `[]` marks the batch done.
 
-Cheap model, bounded batch, fully skippable. This is our "sleep cycle."
+Builtin backend only (`MEMORY_BACKEND=mcp:…` skips consolidator and logs a warn).
+Fully skippable via `MEMORY_CONSOLIDATE_MINUTES=0`. This is our "sleep cycle."
 
 ### 7.4 Read path (hydration)
 

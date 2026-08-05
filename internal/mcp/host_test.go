@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -21,9 +22,12 @@ import (
 )
 
 type fakeConn struct {
-	tools []mcp.Tool
-	calls int
-	fail  bool
+	tools      []mcp.Tool
+	calls      int
+	fail       bool
+	failErr    error // when fail; default restartable EOF
+	blockUntil <-chan struct{}
+	closed     bool
 }
 
 func (f *fakeConn) ListTools(context.Context) ([]mcp.Tool, error) {
@@ -32,17 +36,30 @@ func (f *fakeConn) ListTools(context.Context) ([]mcp.Tool, error) {
 	return out, nil
 }
 
-func (f *fakeConn) CallTool(_ context.Context, name string, args map[string]any) (string, error) {
+func (f *fakeConn) CallTool(ctx context.Context, name string, args map[string]any) (string, error) {
 	f.calls++
+	if f.blockUntil != nil {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-f.blockUntil:
+		}
+	}
 	if f.fail {
 		f.fail = false
-		return "", fmt.Errorf("boom")
+		if f.failErr != nil {
+			return "", f.failErr
+		}
+		return "", fmt.Errorf("EOF")
 	}
 	b, _ := json.Marshal(args)
 	return name + ":" + string(b), nil
 }
 
-func (f *fakeConn) Close() error { return nil }
+func (f *fakeConn) Close() error {
+	f.closed = true
+	return nil
+}
 
 func writeManifest(t *testing.T, servers string) string {
 	t.Helper()
@@ -80,7 +97,7 @@ command = "unused"
 	}
 	for _, want := range []string{
 		`unknown tool "google-workspace__get_calendar_event"`,
-		"valid google-workspace tools are",
+		"valid google-workspace tools include",
 		"google-workspace__get_events",
 		"google-workspace__list_calendars",
 	} {
@@ -160,7 +177,7 @@ command = "unused"
 	if err == nil {
 		t.Fatal("want error, not a cross-server repair")
 	}
-	if !strings.Contains(err.Error(), "valid garmin tools are") {
+	if !strings.Contains(err.Error(), "valid garmin tools include") {
 		t.Fatalf("err = %v, want the garmin catalog", err)
 	}
 }
@@ -214,7 +231,7 @@ command = "unused"
 	if !errors.As(err, &unknown) {
 		t.Fatalf("err is %T, want *mcp.UnknownToolError", err)
 	}
-	if !strings.Contains(unknown.Hint, "valid strava tools are") {
+	if !strings.Contains(unknown.Hint, "valid strava tools include") {
 		t.Fatalf("hint should still list the strava catalog: %s", unknown.Hint)
 	}
 	for _, c := range unknown.Candidates {
@@ -409,7 +426,7 @@ command = "unused"
 	for _, want := range []string{
 		`unknown tool "google_search__google_search"`,
 		`did you mean "google-search"?`,
-		"valid google-search tools are",
+		"valid google-search tools include",
 		"google-search__web_search",
 	} {
 		if !strings.Contains(err.Error(), want) {
@@ -691,3 +708,80 @@ func (a *sdkAdapter) CallTool(ctx context.Context, name string, arguments map[st
 }
 
 func (a *sdkAdapter) Close() error { return a.session.Close() }
+
+func TestHost_CancelDoesNotRestart(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "demo"
+command = "unused"
+`)
+	conn := &fakeConn{tools: []mcp.Tool{{OriginalName: "echo", InputSchema: map[string]any{"type": "object"}}}}
+	dials := 0
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
+			dials++
+			return conn, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	conn.blockUntil = make(chan struct{}) // never closed; wait on ctx only
+	go func() {
+		close(started)
+		_, _ = host.Call(ctx, "demo__echo", json.RawMessage(`{}`))
+	}()
+	<-started
+	// Give CallTool a moment to enter the block.
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) && conn.calls < 1 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if dials != 1 {
+		t.Fatalf("dials=%d want 1 (no restart on cancel)", dials)
+	}
+	if conn.closed {
+		t.Fatal("cancel must not Close the MCP connection")
+	}
+}
+
+func TestHost_NonTransportErrorDoesNotRestart(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "demo"
+command = "unused"
+`)
+	conn := &fakeConn{
+		tools:   []mcp.Tool{{OriginalName: "echo", InputSchema: map[string]any{"type": "object"}}},
+		fail:    true,
+		failErr: fmt.Errorf("invalid argument: bad date"),
+	}
+	dials := 0
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
+			dials++
+			return conn, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	_, err = host.Call(context.Background(), "demo__echo", json.RawMessage(`{}`))
+	if err == nil || !strings.Contains(err.Error(), "invalid argument") {
+		t.Fatalf("err=%v", err)
+	}
+	if dials != 1 {
+		t.Fatalf("dials=%d want 1 (no restart on arg error)", dials)
+	}
+}

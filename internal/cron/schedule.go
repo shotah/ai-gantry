@@ -113,7 +113,7 @@ func parseAbsolute(when string, loc *time.Location, now time.Time) (time.Time, e
 		}
 		cand := time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), t.Second(), 0, loc)
 		if !cand.After(now) {
-			cand = cand.Add(24 * time.Hour)
+			cand = addOneCalendarDay(cand)
 		}
 		return cand, nil
 	}
@@ -126,7 +126,7 @@ func dailyAt(t time.Time, loc *time.Location, now time.Time) (Parsed, error) {
 	expr := fmt.Sprintf("%02d:%02d", t.Hour(), t.Minute())
 	next := time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, loc)
 	if !next.After(now) {
-		next = next.Add(24 * time.Hour)
+		next = addOneCalendarDay(next)
 	}
 	return Parsed{Kind: KindDaily, Expr: expr, NextRun: next.UTC(), Timezone: loc.String()}, nil
 }
@@ -151,7 +151,7 @@ func AdvanceNext(kind, expr, tz string, from time.Time) (next time.Time, newExpr
 		m, _ := strconv.Atoi(parts[1])
 		next = time.Date(from.Year(), from.Month(), from.Day(), h, m, 0, 0, loc)
 		if !next.After(from) {
-			next = next.Add(24 * time.Hour)
+			next = addOneCalendarDay(next)
 		}
 		return next.UTC(), "", true, nil
 	case KindEvery:

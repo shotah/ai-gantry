@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/shotah/ai-gantry/internal/provider"
 )
@@ -25,6 +24,12 @@ Merge the dropped turns into the prior summary. Keep it short (one tight paragra
 Preserve durable facts, preferences, open tasks, and names. Drop chitchat.
 Reply with ONLY the updated summary text — no markdown fences, no preamble.`
 
+const (
+	maxFoldMsgChars   = 1200
+	maxFoldTotalChars = 12000
+	maxSummaryChars   = 2000
+)
+
 // Fold returns an updated summary paragraph.
 func (s *LLMSummarizer) Fold(ctx context.Context, prior string, dropped []Message) (string, error) {
 	if s == nil || s.Completer == nil {
@@ -36,14 +41,18 @@ func (s *LLMSummarizer) Fold(ctx context.Context, prior string, dropped []Messag
 	var b strings.Builder
 	if strings.TrimSpace(prior) != "" {
 		b.WriteString("Prior summary:\n")
-		b.WriteString(strings.TrimSpace(prior))
+		b.WriteString(clipRunes(strings.TrimSpace(prior), maxSummaryChars))
 		b.WriteString("\n\n")
 	}
 	b.WriteString("Dropped turns:\n")
 	for _, m := range dropped {
+		if b.Len() >= maxFoldTotalChars {
+			b.WriteString("…[additional dropped turns omitted]\n")
+			break
+		}
 		b.WriteString(m.Role)
 		b.WriteString(": ")
-		b.WriteString(m.Content)
+		b.WriteString(clipRunes(m.Content, maxFoldMsgChars))
 		b.WriteByte('\n')
 	}
 	res, err := s.Completer.Complete(ctx, provider.Request{
@@ -59,7 +68,18 @@ func (s *LLMSummarizer) Fold(ctx context.Context, prior string, dropped []Messag
 	if out == "" {
 		return prior, fmt.Errorf("session: empty summary from model")
 	}
-	return out, nil
+	return clipRunes(out, maxSummaryChars), nil
+}
+
+func clipRunes(s string, limit int) string {
+	if limit < 1 || len(s) <= limit {
+		return s
+	}
+	// Prefer rune-safe trim when possible; byte trim is fine for fold budgets.
+	if limit > 1 {
+		return s[:limit-1] + "…"
+	}
+	return s
 }
 
 // Summary returns the rolling summary for sessionID (empty if none).
@@ -74,18 +94,4 @@ func (s *Store) Summary(ctx context.Context, sessionID string) (string, error) {
 		return "", fmt.Errorf("session: summary: %w", err)
 	}
 	return summary, nil
-}
-
-func (s *Store) setSummary(ctx context.Context, sessionID, summary string) error {
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO session (id, summary, updated_at) VALUES (?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			summary = excluded.summary,
-			updated_at = excluded.updated_at`,
-		sessionID, summary, now)
-	if err != nil {
-		return fmt.Errorf("session: set summary: %w", err)
-	}
-	return nil
 }

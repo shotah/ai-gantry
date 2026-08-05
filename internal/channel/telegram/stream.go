@@ -387,6 +387,32 @@ func (s *editStream) noteRateLimit(err error) {
 	slog.Warn("telegram stream cooling down", "retry_after", wait.String())
 }
 
+// Discard drops a started placeholder (cancel/coalesce empty reply) instead of
+// promoting tool-trace body into a final bubble.
+func (s *editStream) Discard(ctx context.Context) error {
+	s.stopFlusher()
+	s.mu.Lock()
+	msgID := s.msgID
+	s.status = ""
+	s.body = ""
+	s.answer = ""
+	s.thinking = ""
+	s.thinkingLog = ""
+	s.pending = ""
+	s.latest = ""
+	s.started = false
+	s.msgID = 0
+	s.mu.Unlock()
+	if msgID == 0 {
+		return nil
+	}
+	_, err := s.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+		ChatID:    s.chatID,
+		MessageID: msgID,
+	})
+	return err
+}
+
 func (s *editStream) Finish(ctx context.Context, final string) error {
 	s.mu.Lock()
 	// The status line is a waiting indicator — never part of the final bubble,

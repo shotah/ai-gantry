@@ -145,7 +145,7 @@ func PlanSparkPlannerNext(spec SparkSpec, loc *time.Location, now time.Time) tim
 	if now.Before(startToday) {
 		return startToday.UTC()
 	}
-	return startToday.Add(24 * time.Hour).UTC()
+	return addOneCalendarDay(startToday).UTC()
 }
 
 // PlanSparkDayTimes rolls qty in [min,max] and picks that many times spread across

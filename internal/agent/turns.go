@@ -9,11 +9,12 @@ import (
 
 // turnSlot tracks one in-flight model turn so /cancel (or coalesce) can interrupt it.
 type turnSlot struct {
-	id          uint64
-	cancel      context.CancelFunc
-	interrupted bool
-	userText    string
-	images      []channel.Image
+	id           uint64
+	cancel       context.CancelFunc
+	interrupted  bool
+	toolsStarted bool // coalesce will not interrupt after the first tool call
+	userText     string
+	images       []channel.Image
 }
 
 type sessionGate struct {
@@ -49,6 +50,46 @@ func (a *Agent) interruptTurn(sessionID string) (text string, images []channel.I
 	a.turnMu.Unlock()
 	cancel()
 	return text, images, true
+}
+
+// interruptTurnForCoalesce is like interruptTurn but refuses once tools have
+// started, so mid-turn bubbles cannot re-burn SerpAPI/RentCast/etc.
+func (a *Agent) interruptTurnForCoalesce(sessionID string) (text string, images []channel.Image, ok bool) {
+	a.turnMu.Lock()
+	t, found := a.turns[sessionID]
+	if !found {
+		a.turnMu.Unlock()
+		return "", nil, false
+	}
+	if t.toolsStarted {
+		a.turnMu.Unlock()
+		return "", nil, false
+	}
+	t.interrupted = true
+	text = t.userText
+	images = append([]channel.Image(nil), t.images...)
+	cancel := t.cancel
+	a.turnMu.Unlock()
+	cancel()
+	return text, images, true
+}
+
+func (a *Agent) markToolsStarted(sessionID string) {
+	a.turnMu.Lock()
+	defer a.turnMu.Unlock()
+	if t, ok := a.turns[sessionID]; ok {
+		t.toolsStarted = true
+	}
+}
+
+func (a *Agent) turnPeek(sessionID string) (toolsStarted bool, userText string, inFlight bool) {
+	a.turnMu.Lock()
+	defer a.turnMu.Unlock()
+	t, ok := a.turns[sessionID]
+	if !ok {
+		return false, "", false
+	}
+	return t.toolsStarted, t.userText, true
 }
 
 // lockSession serializes normal turns (and slash commands other than /cancel)

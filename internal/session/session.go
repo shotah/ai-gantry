@@ -22,8 +22,9 @@ const (
 
 // Message is one persisted conversation turn.
 type Message struct {
-	Role    string
-	Content string
+	Role      string
+	Content   string
+	CreatedAt string // set when trimming so fold-failure restore keeps order
 }
 
 // Store is a SQLite-backed session history.
@@ -172,28 +173,39 @@ func (s *Store) Append(ctx context.Context, sessionID string, msgs ...Message) e
 		}
 	}
 
-	dropped, err := s.trimTx(ctx, tx, sessionID)
+	dropped, dropIDs, err := s.planTrimTx(ctx, tx, sessionID)
 	if err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("session: commit: %w", err)
+
+	if len(dropIDs) > 0 {
+		if s.summarizer != nil {
+			var prior string
+			err := tx.QueryRowContext(ctx, `SELECT summary FROM session WHERE id = ?`, sessionID).Scan(&prior)
+			if err != nil && err != sql.ErrNoRows {
+				return fmt.Errorf("session: summary: %w", err)
+			}
+			next, err := s.summarizer.Fold(ctx, prior, dropped)
+			if err != nil {
+				// Keep history intact when fold fails — do not delete without a summary.
+				slog.Warn("session summary fold failed; skipping trim", "session_id", sessionID, "err", err)
+			} else {
+				if err := s.deleteMessageIDs(ctx, tx, dropIDs); err != nil {
+					return err
+				}
+				if _, err := tx.ExecContext(ctx, `
+					UPDATE session SET summary = ?, updated_at = ? WHERE id = ?`,
+					next, now, sessionID); err != nil {
+					return fmt.Errorf("session: set summary: %w", err)
+				}
+			}
+		} else if err := s.deleteMessageIDs(ctx, tx, dropIDs); err != nil {
+			return err
+		}
 	}
 
-	if len(dropped) > 0 && s.summarizer != nil {
-		prior, err := s.Summary(ctx, sessionID)
-		if err != nil {
-			return err
-		}
-		next, err := s.summarizer.Fold(ctx, prior, dropped)
-		if err != nil {
-			// Trim already committed; keep going with prior summary.
-			slog.Warn("session summary fold failed", "session_id", sessionID, "err", err)
-			return nil
-		}
-		if err := s.setSummary(ctx, sessionID, next); err != nil {
-			return err
-		}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("session: commit: %w", err)
 	}
 	return nil
 }
@@ -241,8 +253,12 @@ func (s *Store) UserActiveSince(ctx context.Context, sessionID string, since tim
 	return !t.Before(since.UTC()), nil
 }
 
-func (s *Store) trimTx(ctx context.Context, tx *sql.Tx, sessionID string) ([]Message, error) {
+// planTrimTx returns oldest messages that would be removed to satisfy bounds
+// without deleting them yet (so fold can fail safely).
+func (s *Store) planTrimTx(ctx context.Context, tx *sql.Tx, sessionID string) ([]Message, []int64, error) {
 	var dropped []Message
+	var ids []int64
+	var skipChars int
 	for {
 		var count int
 		var chars int
@@ -250,14 +266,15 @@ func (s *Store) trimTx(ctx context.Context, tx *sql.Tx, sessionID string) ([]Mes
 			SELECT COUNT(*), COALESCE(SUM(LENGTH(content)), 0)
 			FROM session_message WHERE session_id = ?`, sessionID).Scan(&count, &chars)
 		if err != nil {
-			return dropped, fmt.Errorf("session: trim stats: %w", err)
+			return nil, nil, fmt.Errorf("session: trim stats: %w", err)
 		}
-		est := (chars + 3) / 4
-		if count <= s.maxMessages && est <= s.maxEstTokens {
-			return dropped, nil
+		remain := count - len(ids)
+		est := (chars - skipChars + 3) / 4
+		if remain <= s.maxMessages && est <= s.maxEstTokens {
+			return dropped, ids, nil
 		}
-		if count <= 2 {
-			return dropped, nil // keep a minimal tail
+		if remain <= 2 {
+			return dropped, ids, nil
 		}
 
 		var id int64
@@ -266,23 +283,26 @@ func (s *Store) trimTx(ctx context.Context, tx *sql.Tx, sessionID string) ([]Mes
 			SELECT id, role, content FROM session_message
 			WHERE session_id = ?
 			ORDER BY id ASC
-			LIMIT 1`, sessionID).Scan(&id, &m.Role, &m.Content)
+			LIMIT 1 OFFSET ?`, sessionID, len(ids)).Scan(&id, &m.Role, &m.Content)
 		if err == sql.ErrNoRows {
-			return dropped, nil
+			return dropped, ids, nil
 		}
 		if err != nil {
-			return dropped, fmt.Errorf("session: trim peek: %w", err)
+			return nil, nil, fmt.Errorf("session: trim peek: %w", err)
 		}
-		res, err := tx.ExecContext(ctx, `DELETE FROM session_message WHERE id = ?`, id)
-		if err != nil {
-			return dropped, fmt.Errorf("session: trim delete: %w", err)
-		}
-		n, _ := res.RowsAffected()
-		if n == 0 {
-			return dropped, nil
-		}
+		ids = append(ids, id)
+		skipChars += len(m.Content)
 		dropped = append(dropped, m)
 	}
+}
+
+func (s *Store) deleteMessageIDs(ctx context.Context, tx *sql.Tx, ids []int64) error {
+	for _, id := range ids {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM session_message WHERE id = ?`, id); err != nil {
+			return fmt.Errorf("session: trim delete: %w", err)
+		}
+	}
+	return nil
 }
 
 // EstTokens returns the chars/4 token estimate for messages.

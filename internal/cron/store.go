@@ -115,9 +115,9 @@ func (s *Store) Schedule(ctx context.Context, prompt string, p Parsed, delivery 
 			session_id, user_id, chat_id, thread_id,
 			enabled, running, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)`,
-		prompt, p.Kind, p.Expr, p.Timezone, p.NextRun.UTC().Format(time.RFC3339Nano),
+		prompt, p.Kind, p.Expr, p.Timezone, formatCronTime(p.NextRun.UTC()),
 		delivery.SessionID, delivery.UserID, delivery.ChatID, delivery.ThreadID,
-		now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano),
+		formatCronTime(now), formatCronTime(now),
 	)
 	if err != nil {
 		return Job{}, fmt.Errorf("cron: insert: %w", err)
@@ -128,16 +128,26 @@ func (s *Store) Schedule(ctx context.Context, prompt string, p Parsed, delivery 
 
 // List returns enabled jobs (and optionally disabled) newest first.
 func (s *Store) List(ctx context.Context, includeDisabled bool) ([]Job, error) {
+	return s.ListSession(ctx, "", includeDisabled)
+}
+
+// ListSession returns jobs for sessionID (empty sessionID = all sessions).
+func (s *Store) ListSession(ctx context.Context, sessionID string, includeDisabled bool) ([]Job, error) {
 	q := `
 		SELECT id, prompt, kind, expr, timezone, next_run_at,
 		       session_id, user_id, chat_id, thread_id,
 		       enabled, running, created_at, updated_at, last_run_at, last_error
-		FROM cron_job`
+		FROM cron_job WHERE 1=1`
+	args := []any{}
 	if !includeDisabled {
-		q += ` WHERE enabled = 1`
+		q += ` AND enabled = 1`
+	}
+	if sessionID != "" {
+		q += ` AND session_id = ?`
+		args = append(args, sessionID)
 	}
 	q += ` ORDER BY id DESC LIMIT 100`
-	rows, err := s.db.QueryContext(ctx, q)
+	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -145,17 +155,41 @@ func (s *Store) List(ctx context.Context, includeDisabled bool) ([]Job, error) {
 	return scanJobs(rows)
 }
 
-// Cancel disables a job by id.
+// ClearStaleRunning resets running=1 left by a crash/OOM so Due can see jobs again.
+// Call once at runner boot.
+func (s *Store) ClearStaleRunning(ctx context.Context) (int64, error) {
+	now := formatCronTime(time.Now().UTC())
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE cron_job SET running = 0, updated_at = ? WHERE running = 1`, now)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+// Cancel disables a job by id. If the job is a spark planner, pending spark_ping
+// rows for that session are cancelled too.
 func (s *Store) Cancel(ctx context.Context, id int64) error {
+	job, err := s.Get(ctx, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("cron: job %d not found", id)
+		}
+		return err
+	}
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ? WHERE id = ?`,
-		time.Now().UTC().Format(time.RFC3339Nano), id)
+		formatCronTime(time.Now().UTC()), id)
 	if err != nil {
 		return err
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
 		return fmt.Errorf("cron: job %d not found", id)
+	}
+	if job.Kind == KindSpark {
+		_, _ = s.CancelSparkPings(ctx, job.SessionID)
 	}
 	return nil
 }
@@ -173,7 +207,7 @@ func (s *Store) Due(ctx context.Context, now time.Time, limit int) ([]Job, error
 		FROM cron_job
 		WHERE enabled = 1 AND running = 0 AND next_run_at <= ?
 		ORDER BY CASE WHEN kind = ? THEN 0 ELSE 1 END, next_run_at ASC
-		LIMIT ?`, now.UTC().Format(time.RFC3339Nano), KindSpark, limit)
+		LIMIT ?`, formatCronTime(now.UTC()), KindSpark, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +220,7 @@ func (s *Store) Claim(ctx context.Context, id int64, now time.Time) (bool, error
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE cron_job SET running = 1, updated_at = ?
 		WHERE id = ? AND enabled = 1 AND running = 0 AND next_run_at <= ?`,
-		now.UTC().Format(time.RFC3339Nano), id, now.UTC().Format(time.RFC3339Nano))
+		formatCronTime(now.UTC()), id, formatCronTime(now.UTC()))
 	if err != nil {
 		return false, err
 	}
@@ -195,6 +229,8 @@ func (s *Store) Claim(ctx context.Context, id int64, now time.Time) (bool, error
 }
 
 // Finish clears running and either disables (once) or advances next_run.
+// Cancel-safe: only updates rows still running=1, and never re-enables a job
+// that was disabled mid-flight (CASE keeps enabled=0).
 func (s *Store) Finish(ctx context.Context, job Job, runErr error) error {
 	now := time.Now().UTC()
 	errText := ""
@@ -208,32 +244,33 @@ func (s *Store) Finish(ctx context.Context, job Job, runErr error) error {
 	if err != nil {
 		again = false
 	}
-	enabled := 1
-	nextStr := now.Format(time.RFC3339Nano)
+	wantEnabled := 1
+	nextStr := formatCronTime(now)
 	expr := job.Expr
 	if again {
-		nextStr = next.Format(time.RFC3339Nano)
+		nextStr = formatCronTime(next)
 		if newExpr != "" {
 			expr = newExpr
 		}
 	} else {
-		enabled = 0
+		wantEnabled = 0
 	}
 	_, err = s.db.ExecContext(ctx, `
 		UPDATE cron_job SET
 			running = 0,
-			enabled = ?,
+			enabled = CASE WHEN enabled = 0 THEN 0 ELSE ? END,
 			expr = ?,
 			next_run_at = ?,
 			last_run_at = ?,
 			last_error = ?,
 			updated_at = ?
-		WHERE id = ?`,
-		enabled, expr, nextStr, now.Format(time.RFC3339Nano), errText, now.Format(time.RFC3339Nano), job.ID)
+		WHERE id = ? AND running = 1`,
+		wantEnabled, expr, nextStr, formatCronTime(now), errText, formatCronTime(now), job.ID)
 	return err
 }
 
 // Defer clears running and moves next_run_at forward without finishing the job.
+// Only applies while the job is still claimed (running=1), so Cancel wins races.
 func (s *Store) Defer(ctx context.Context, id int64, until time.Time, reason string) error {
 	if len(reason) > 500 {
 		reason = reason[:500]
@@ -245,8 +282,8 @@ func (s *Store) Defer(ctx context.Context, id int64, until time.Time, reason str
 			next_run_at = ?,
 			last_error = ?,
 			updated_at = ?
-		WHERE id = ?`,
-		until.UTC().Format(time.RFC3339Nano), reason, now.Format(time.RFC3339Nano), id)
+		WHERE id = ? AND running = 1`,
+		formatCronTime(until.UTC()), reason, formatCronTime(now), id)
 	return err
 }
 
@@ -274,7 +311,7 @@ func (s *Store) CancelSparkPings(ctx context.Context, sessionID string) (int64, 
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ?
 		WHERE enabled = 1 AND kind = ? AND session_id = ?`,
-		time.Now().UTC().Format(time.RFC3339Nano), KindSparkPing, sessionID)
+		formatCronTime(time.Now().UTC()), KindSparkPing, sessionID)
 	if err != nil {
 		return 0, err
 	}
@@ -315,7 +352,7 @@ func (s *Store) EnsureSpark(ctx context.Context, prompt string, template Parsed,
 	}
 	now := time.Now().In(loc)
 	startToday := windowStart(now, spec.StartHour, loc)
-	tomorrowStart := startToday.Add(24 * time.Hour).UTC()
+	tomorrowStart := addOneCalendarDay(startToday).UTC()
 	// Seed remaining day now; planner wakes tomorrow (not today's start).
 	template.Kind = KindSpark
 	template.Expr = FormatSparkExpr(spec)
@@ -388,7 +425,7 @@ func (s *Store) CancelStaleSparkPings(ctx context.Context, sessionID string, bef
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ?
 		WHERE enabled = 1 AND kind = ? AND session_id = ? AND next_run_at < ?`,
-		time.Now().UTC().Format(time.RFC3339Nano), KindSparkPing, sessionID, before.UTC().Format(time.RFC3339Nano))
+		formatCronTime(time.Now().UTC()), KindSparkPing, sessionID, formatCronTime(before.UTC()))
 	if err != nil {
 		return 0, err
 	}
@@ -401,16 +438,33 @@ func (s *Store) disableExtraSparkPlanners(ctx context.Context, sessionID string,
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ?
 		WHERE enabled = 1 AND kind = ? AND session_id = ? AND id != ?`,
-		time.Now().UTC().Format(time.RFC3339Nano), KindSpark, sessionID, keepID)
+		formatCronTime(time.Now().UTC()), KindSpark, sessionID, keepID)
 	return err
 }
 
 func (s *Store) setNextRun(ctx context.Context, id int64, next time.Time) error {
-	now := time.Now().UTC().Format(time.RFC3339Nano)
+	now := formatCronTime(time.Now().UTC())
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE cron_job SET next_run_at = ?, updated_at = ? WHERE id = ?`,
-		next.UTC().Format(time.RFC3339Nano), now, id)
+		formatCronTime(next.UTC()), now, id)
 	return err
+}
+
+// formatCronTime uses fixed 9-digit nanos so lexicographic <= matches instant order.
+func formatCronTime(t time.Time) string {
+	return t.UTC().Format("2006-01-02T15:04:05.000000000Z")
+}
+
+func parseCronTime(s string) (time.Time, error) {
+	if t, err := time.Parse("2006-01-02T15:04:05.000000000Z", s); err == nil {
+		return t, nil
+	}
+	return time.Parse(time.RFC3339Nano, s)
+}
+
+// addOneCalendarDay advances by one civil day in t's location (DST-safe vs Add(24h)).
+func addOneCalendarDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day()+1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
 }
 
 // Get loads one job.
@@ -441,11 +495,11 @@ func scanJob(row scannable) (Job, error) {
 	}
 	j.Enabled = enabled != 0
 	j.Running = running != 0
-	j.NextRunAt, _ = time.Parse(time.RFC3339Nano, next)
-	j.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
-	j.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updated)
+	j.NextRunAt, _ = parseCronTime(next)
+	j.CreatedAt, _ = parseCronTime(created)
+	j.UpdatedAt, _ = parseCronTime(updated)
 	if last.Valid {
-		t, err := time.Parse(time.RFC3339Nano, last.String)
+		t, err := parseCronTime(last.String)
 		if err == nil {
 			j.LastRunAt = &t
 		}

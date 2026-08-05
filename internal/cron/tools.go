@@ -131,7 +131,12 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 			job.ID, job.Kind, job.NextRunAt.UTC().Format(time.RFC3339), job.Timezone), nil
 
 	case ToolList:
-		jobs, err := t.Store.List(ctx, false)
+		delivery, ok := DeliveryFrom(ctx)
+		sessionID := ""
+		if ok {
+			sessionID = delivery.SessionID
+		}
+		jobs, err := t.Store.ListSession(ctx, sessionID, false)
 		if err != nil {
 			return "", err
 		}
@@ -149,6 +154,16 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 		id, err := asInt64(args["id"])
 		if err != nil {
 			return "", err
+		}
+		delivery, ok := DeliveryFrom(ctx)
+		if ok && delivery.SessionID != "" {
+			job, err := t.Store.Get(ctx, id)
+			if err != nil {
+				return "", err
+			}
+			if job.SessionID != delivery.SessionID {
+				return "", fmt.Errorf("cron: job %d not in this session", id)
+			}
 		}
 		if err := t.Store.Cancel(ctx, id); err != nil {
 			return "", err

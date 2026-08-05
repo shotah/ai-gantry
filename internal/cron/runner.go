@@ -47,6 +47,11 @@ func (r *Runner) Start(ctx context.Context) {
 	if interval <= 0 {
 		interval = DefaultTick
 	}
+	if n, err := r.Store.ClearStaleRunning(ctx); err != nil {
+		log.Warn("cron clear stale running failed", "err", err)
+	} else if n > 0 {
+		log.Info("cron cleared stale running flags", "count", n)
+	}
 	log.Info("cron runner started", "interval", interval.String())
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -121,9 +126,11 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 
 	prefix := "[cron] Scheduled job — do the following and reply with the result for the user:\n\n"
 	prompt := job.Prompt
+	handleCtx := ctx
 	if job.Kind == KindSparkPing {
 		prefix = "[cron] Spark of life — check in with the human now:\n\n"
 		prompt = PickSparkPrompt(job.Prompt)
+		handleCtx = channel.WithNoTools(ctx)
 	}
 	text := prefix + prompt
 	msg := channel.Message{
@@ -133,7 +140,7 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 		ThreadID:  job.ThreadID,
 		Text:      text,
 	}
-	reply, err := r.Handle(ctx, msg)
+	reply, err := r.Handle(handleCtx, msg)
 	if err != nil {
 		log.Warn("cron job handle failed", "id", job.ID, "err", err)
 		_ = r.Store.Finish(ctx, job, err)

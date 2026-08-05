@@ -52,14 +52,159 @@ func TestConsolidator_ExtractsAndMarks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := false
+	foundPref := false
 	for _, h := range hits {
 		if h.Kind == memory.KindPreference && h.Source == memory.SourceConsolidation {
-			found = true
+			foundPref = true
+		}
+		if h.ID == ep.ID {
+			t.Fatalf("consolidated episode %d should not appear in recall", ep.ID)
 		}
 	}
-	if !found {
+	if !foundPref {
 		t.Fatalf("expected consolidated preference, got %#v", hits)
+	}
+}
+
+func TestConsolidator_ParseFailDoesNotMark(t *testing.T) {
+	ctx := context.Background()
+	b, err := memory.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = b.Close() })
+	ep, err := b.Store(ctx, memory.KindEpisode, "chris", "keep me")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &memory.Consolidator{
+		Store:     b,
+		Completer: &consolidateCompleter{body: strings.Repeat("not-json-", 40)},
+		BatchSize: 10,
+	}
+	c.Pass(ctx)
+	list, err := b.ListUnconsolidatedEpisodes(ctx, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].ID != ep.ID {
+		t.Fatalf("parse fail must leave episode unconsolidated, got %#v", list)
+	}
+}
+
+func TestConsolidator_EmptyReplyDoesNotMark(t *testing.T) {
+	ctx := context.Background()
+	b, err := memory.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = b.Close() })
+	if _, err := b.Store(ctx, memory.KindEpisode, "chris", "empty reply case"); err != nil {
+		t.Fatal(err)
+	}
+	c := &memory.Consolidator{
+		Store:     b,
+		Completer: &consolidateCompleter{body: "   "},
+		BatchSize: 10,
+	}
+	c.Pass(ctx)
+	list, err := b.ListUnconsolidatedEpisodes(ctx, 20)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("empty reply must not mark, list=%#v err=%v", list, err)
+	}
+}
+
+func TestConsolidator_ExplicitEmptyArrayMarks(t *testing.T) {
+	ctx := context.Background()
+	b, err := memory.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = b.Close() })
+	if _, err := b.Store(ctx, memory.KindEpisode, "chris", "chitchat only"); err != nil {
+		t.Fatal(err)
+	}
+	c := &memory.Consolidator{
+		Store:     b,
+		Completer: &consolidateCompleter{body: `[]`},
+		BatchSize: 10,
+	}
+	c.Pass(ctx)
+	list, err := b.ListUnconsolidatedEpisodes(ctx, 20)
+	if err != nil || len(list) != 0 {
+		t.Fatalf("explicit [] should mark consolidated, list=%#v err=%v", list, err)
+	}
+}
+
+func TestConsolidator_QuarantinesAfterMaxFailures(t *testing.T) {
+	ctx := context.Background()
+	b, err := memory.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = b.Close() })
+	ep, err := b.Store(ctx, memory.KindEpisode, "chris", "poison")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &memory.Consolidator{
+		Store:     b,
+		Completer: &consolidateCompleter{body: "not-json"},
+		BatchSize: 10,
+	}
+	for i := 0; i < 3; i++ {
+		c.Pass(ctx)
+	}
+	list, err := b.ListUnconsolidatedEpisodes(ctx, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("after max failures episode should quarantine out of list, got %#v", list)
+	}
+	// Still in DB but not recalled as active episode.
+	hits, err := b.Recall(ctx, "poison", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range hits {
+		if h.ID == ep.ID {
+			t.Fatalf("quarantined episode should not hydrate/recall")
+		}
+	}
+}
+
+func TestConsolidator_SupersedesOnlyBatchIDs(t *testing.T) {
+	ctx := context.Background()
+	b, err := memory.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = b.Close() })
+	keep, err := b.Store(ctx, memory.KindFact, "chris", "keep this fact")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ep, err := b.Store(ctx, memory.KindEpisode, "chris", "new note")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := `[{"kind":"fact","subject":"chris","content":"new note","supersedes":[` +
+		strconv.FormatInt(keep.ID, 10) + `,` + strconv.FormatInt(ep.ID, 10) + `]}]`
+	c := &memory.Consolidator{
+		Store:     b,
+		Completer: &consolidateCompleter{body: body},
+		BatchSize: 10,
+	}
+	c.Pass(ctx)
+	got, err := b.Recall(ctx, "keep this fact", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range got {
+		if h.ID == keep.ID && h.SupersededBy != nil {
+			t.Fatal("hallucinated supersede must not hide durable fact outside batch")
+		}
 	}
 }
 
@@ -103,20 +248,23 @@ func TestConsolidator_StartAndFencedJSON(t *testing.T) {
 		c.Start(runCtx)
 		close(done)
 	}()
-	time.Sleep(50 * time.Millisecond)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		list, err := b.ListUnconsolidatedEpisodes(ctx, 20)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) == 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	cancel()
 	select {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("Start did not stop")
 	}
-
-	// Bad long JSON exercises parse failure + truncate in the warn path.
-	if _, err := b.Store(ctx, memory.KindEpisode, "chris", "another episode"); err != nil {
-		t.Fatal(err)
-	}
-	c.Completer = &consolidateCompleter{body: strings.Repeat("not-json-", 40)}
-	c.Pass(ctx)
 }
 
 func TestTools_ForgetStringID(t *testing.T) {

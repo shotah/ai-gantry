@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -250,6 +251,93 @@ func TestCoalesce_CancelClearsPending(t *testing.T) {
 	time.Sleep(2 * settle) // the settle timer would have fired by now
 	if n := calls.Load(); n != 1 {
 		t.Fatalf("model calls = %d, want 1 (only the interrupted turn)", n)
+	}
+}
+
+type slowTools struct {
+	defs    []provider.ToolDef
+	started chan struct{}
+	calls   *atomic.Int32
+}
+
+func (s *slowTools) Tools() []provider.ToolDef { return s.defs }
+
+func (s *slowTools) ToolCount() int { return len(s.defs) }
+
+func (s *slowTools) Call(_ context.Context, _ string, _ json.RawMessage) (string, error) {
+	s.calls.Add(1)
+	select {
+	case <-s.started:
+	default:
+		close(s.started)
+	}
+	time.Sleep(150 * time.Millisecond)
+	return `{"ok":true}`, nil
+}
+
+func TestCoalesce_DoesNotInterruptAfterTools(t *testing.T) {
+	toolStarted := make(chan struct{})
+	var toolCalls atomic.Int32
+	tools := &slowTools{
+		defs:    []provider.ToolDef{{Name: "search__q", Parameters: map[string]any{"type": "object"}}},
+		started: toolStarted,
+		calls:   &toolCalls,
+	}
+	var n atomic.Int32
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		i := n.Add(1)
+		if i == 1 {
+			return &provider.Result{ToolCalls: []provider.ToolCall{
+				{ID: "c1", Name: "search__q", Arguments: `{}`},
+			}}, nil
+		}
+		if i == 2 {
+			return &provider.Result{Content: "first done"}, nil
+		}
+		var user string
+		for j := len(req.Messages) - 1; j >= 0; j-- {
+			if req.Messages[j].Role == provider.RoleUser {
+				user = req.Messages[j].Content
+				break
+			}
+		}
+		return &provider.Result{Content: "second:" + user}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Completer:      fc,
+		Sessions:       newMemHistory(),
+		Tools:          tools,
+		Model:          "m",
+		CoalesceSettle: 40 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	firstDone := make(chan struct{})
+	var firstReply string
+	go func() {
+		defer close(firstDone)
+		firstReply, _ = a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "search flights"})
+	}()
+	select {
+	case <-toolStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("tool did not start")
+	}
+	secondReply, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "also check returns"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-firstDone
+	if firstReply != "first done" {
+		t.Fatalf("first turn should complete without coalesce cancel, got %q", firstReply)
+	}
+	if toolCalls.Load() != 1 {
+		t.Fatalf("toolCalls=%d want 1 (no reburn)", toolCalls.Load())
+	}
+	if !strings.Contains(secondReply, "also check returns") {
+		t.Fatalf("second reply=%q", secondReply)
 	}
 }
 

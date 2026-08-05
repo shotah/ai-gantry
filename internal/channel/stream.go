@@ -4,6 +4,26 @@ import "context"
 
 type replyWriterKey struct{}
 
+type noToolsKey struct{}
+
+// WithNoTools marks the context so the agent omits tool schemas and calls.
+// Used for spark_ping presence turns ("No tools" must be enforced, not prompt-only).
+func WithNoTools(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noToolsKey{}, true)
+}
+
+// NoToolsFrom reports whether WithNoTools was set on ctx.
+func NoToolsFrom(ctx context.Context) bool {
+	v, _ := ctx.Value(noToolsKey{}).(bool)
+	return v
+}
+
+// Discarder is an optional ReplyWriter that can drop a placeholder bubble
+// (cancel/coalesce empty reply) instead of promoting progress into a final message.
+type Discarder interface {
+	Discard(ctx context.Context) error
+}
+
 // ReplyWriter updates a progressive outbound reply (Telegram edit / stdio).
 type ReplyWriter interface {
 	// Update replaces the visible reply with fullText so far.

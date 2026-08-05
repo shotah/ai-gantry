@@ -44,8 +44,8 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if cfg.HistoryMaxTokens != 128000 {
 		t.Errorf("HistoryMaxTokens = %d, want 128000", cfg.HistoryMaxTokens)
 	}
-	if cfg.ToolResultMaxChars != 16000 {
-		t.Errorf("ToolResultMaxChars = %d, want 16000", cfg.ToolResultMaxChars)
+	if cfg.ToolResultMaxChars != 6000 {
+		t.Errorf("ToolResultMaxChars = %d, want 6000", cfg.ToolResultMaxChars)
 	}
 	if cfg.ToolMaxIterations != 20 {
 		t.Errorf("ToolMaxIterations = %d, want 20", cfg.ToolMaxIterations)
