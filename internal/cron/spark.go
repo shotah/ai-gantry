@@ -131,9 +131,6 @@ func FormatSparkExpr(s SparkSpec) string {
 	return fmt.Sprintf("%d-%d@%02d-%02d", s.Min, s.Max, s.StartHour, s.EndHour)
 }
 
-// TemplateExpr is an alias for FormatSparkExpr (API compat with EnsureSpark).
-func (s SparkSpec) TemplateExpr() string { return FormatSparkExpr(s) }
-
 // PlanSparkPlannerNext returns when the daily planner should next wake
 // (start of window today if still before it, otherwise tomorrow's start).
 func PlanSparkPlannerNext(spec SparkSpec, loc *time.Location, now time.Time) time.Time {
@@ -266,14 +263,6 @@ func ParseSparkSchedule(when string, startHour, endHour int, loc *time.Location,
 		NextRun:  PlanSparkPlannerNext(spec, loc, now),
 		Timezone: loc.String(),
 	}, nil
-}
-
-// InSparkWindow reports whether t is inside [start, end) on that local day.
-func InSparkWindow(spec SparkSpec, t time.Time, loc *time.Location) bool {
-	t = t.In(loc)
-	start := windowStart(t, spec.StartHour, loc)
-	end := windowStart(t, spec.EndHour, loc)
-	return !t.Before(start) && t.Before(end)
 }
 
 // SparkPingParsed builds a one-shot spark ping at t.
