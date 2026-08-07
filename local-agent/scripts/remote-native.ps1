@@ -174,7 +174,13 @@ function Write-NativeEnv {
     'LOG_LEVEL=info',
     "TZ=$tz",
     "CRON_TZ=$tz",
-    'CRON_ENABLED=true'
+    # Pass through from .env — do not hardcode. gemma3 rejects tool schemas; SAM
+    # labs set TOOLS_ENABLED=false (and usually MEMORY/CRON off too).
+    "TOOLS_ENABLED=$(if ($src.ContainsKey('TOOLS_ENABLED')) { $src['TOOLS_ENABLED'] } else { 'true' })",
+    "MEMORY_ENABLED=$(if ($src.ContainsKey('MEMORY_ENABLED')) { $src['MEMORY_ENABLED'] } else { 'true' })",
+    "MEMORY_BACKEND=$(if ($src['MEMORY_BACKEND']) { $src['MEMORY_BACKEND'] } else { 'builtin' })",
+    "MEMORY_CONSOLIDATE_MINUTES=$(if ($src.ContainsKey('MEMORY_CONSOLIDATE_MINUTES')) { $src['MEMORY_CONSOLIDATE_MINUTES'] } else { '30' })",
+    "CRON_ENABLED=$(if ($src.ContainsKey('CRON_ENABLED')) { $src['CRON_ENABLED'] } else { 'true' })"
   ))
   # Spark of life — opt-in; only emit when SPARK_QTY is set in .env
   if ($src['SPARK_QTY']) {

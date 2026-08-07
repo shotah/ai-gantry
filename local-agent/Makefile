@@ -319,8 +319,6 @@ garmin-auth: ## Garmin login via gantry auth; clears stale session first (see do
 	$(COMPOSE) run --rm -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth garmin
 	$(call PUSH_SECRET_IF_REMOTE,garmin)
 
-<<<<<<< Updated upstream
-=======
 ghealth-auth: ## Google Health OAuth via gantry auth (see docs/google-health.md)
 	@echo Needs GOOGLE_HEALTH_CLIENT_ID / GOOGLE_HEALTH_CLIENT_SECRET in .env
 	@echo Opening Google Health OAuth. Approve readonly Google Health scopes in the browser.
@@ -329,7 +327,6 @@ ghealth-auth: ## Google Health OAuth via gantry auth (see docs/google-health.md)
 	$(COMPOSE) run --rm -p 127.0.0.1:4101:4101 --entrypoint /usr/local/bin/gantry $(SERVICE) auth ghealth
 	$(call PUSH_SECRET_IF_REMOTE,ghealth)
 
->>>>>>> Stashed changes
 youtube-auth: ## YouTube OAuth via gantry auth (mcp.toml auth_args; see docs/youtube.md)
 	@echo Needs YOUTUBE_OAUTH_CLIENT_ID / YOUTUBE_OAUTH_CLIENT_SECRET in .env
 	@echo Approve as the Google account that owns your YouTube likes/playlists (incognito helps).

@@ -56,6 +56,12 @@ type Config struct {
 	// (chars/4 of name+description+parameters). 0 = log estimate only.
 	ToolSchemaMaxTokens int `env:"TOOL_SCHEMA_MAX_TOKENS" envDefault:"0"`
 
+	// ToolsEnabled controls whether tool schemas are sent to the model.
+	// false omits MCP, memory_*, and cron_* tools from every completion — required
+	// for models that reject tools (e.g. Ollama gemma3). Memory/cron backends may
+	// still start; only the agent tool surface is cleared.
+	ToolsEnabled bool `env:"TOOLS_ENABLED" envDefault:"true"`
+
 	MemoryEnabled            bool   `env:"MEMORY_ENABLED" envDefault:"true"`
 	MemoryBackend            string `env:"MEMORY_BACKEND" envDefault:"builtin"`
 	MemoryConsolidateMinutes int    `env:"MEMORY_CONSOLIDATE_MINUTES" envDefault:"30"` // 0 = off

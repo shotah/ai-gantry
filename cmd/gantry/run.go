@@ -183,25 +183,31 @@ func run() int {
 		logger.Info("cron ready", "tz", cfg.CronTZ, "max_jobs", cfg.CronMaxJobs)
 	}
 
-	budget := mcp.EstimateSchemaBudget(tools.Tools())
-	logger.Info("tool schema estimate",
-		"tools", budget.Tools,
-		"est_tokens", budget.EstTokens,
-		"max_tokens", cfg.ToolSchemaMaxTokens,
-	)
-	for _, s := range budget.ByServer {
-		logger.Info("tool schema by server",
-			"server", s.Server,
-			"tools", s.Tools,
-			"est_tokens", s.EstTokens,
-		)
-	}
-	if cfg.ToolSchemaMaxTokens > 0 && budget.EstTokens > cfg.ToolSchemaMaxTokens {
-		logger.Error("tool schema exceeds TOOL_SCHEMA_MAX_TOKENS",
+	agentTools := tools
+	if !cfg.ToolsEnabled {
+		agentTools = nil
+		logger.Info("tools disabled (TOOLS_ENABLED=false); omitting tool schemas from model requests")
+	} else {
+		budget := mcp.EstimateSchemaBudget(tools.Tools())
+		logger.Info("tool schema estimate",
+			"tools", budget.Tools,
 			"est_tokens", budget.EstTokens,
 			"max_tokens", cfg.ToolSchemaMaxTokens,
 		)
-		return 1
+		for _, s := range budget.ByServer {
+			logger.Info("tool schema by server",
+				"server", s.Server,
+				"tools", s.Tools,
+				"est_tokens", s.EstTokens,
+			)
+		}
+		if cfg.ToolSchemaMaxTokens > 0 && budget.EstTokens > cfg.ToolSchemaMaxTokens {
+			logger.Error("tool schema exceeds TOOL_SCHEMA_MAX_TOKENS",
+				"est_tokens", budget.EstTokens,
+				"max_tokens", cfg.ToolSchemaMaxTokens,
+			)
+			return 1
+		}
 	}
 
 	tzLoc := time.UTC
@@ -214,7 +220,7 @@ func run() int {
 		Persona:        personaText,
 		Completer:      completer,
 		Sessions:       sessions,
-		Tools:          tools,
+		Tools:          agentTools,
 		Memory:         memBackend,
 		Model:          cfg.LLMModel,
 		MaxToolIters:   cfg.ToolMaxIterations,

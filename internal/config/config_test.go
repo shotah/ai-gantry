@@ -50,6 +50,9 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if cfg.ToolMaxIterations != 20 {
 		t.Errorf("ToolMaxIterations = %d, want 20", cfg.ToolMaxIterations)
 	}
+	if !cfg.ToolsEnabled {
+		t.Error("ToolsEnabled = false, want true")
+	}
 	if !cfg.MemoryEnabled {
 		t.Error("MemoryEnabled = false, want true")
 	}
