@@ -183,7 +183,8 @@ bot:  strava: authorized ✓ (tokens → data/.strava/)
 - [x] State/verifier lives in a pending file next to MCP tokens (10 min TTL;
       `/auth <server>` restarts) — not in a long-lived process
 - [x] **Never** prompt for passwords in chat — Garmin's session login stays
-      `make garmin-auth` + sync; `/auth garmin` should say exactly that
+      `make garmin-auth` + sync still works; chat `/auth garmin` uses env
+      creds + MFA paste (see docs/auth.md)
 - [x] Rejected: outbound tunnel (cloudflared / tailscale funnel) for a real
       callback — works, but adds a running dependency and violates the
       spirit; the static page keeps "no server, no port" literal

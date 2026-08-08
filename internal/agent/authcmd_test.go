@@ -13,7 +13,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/channel"
 )
 
-func TestAgent_AuthListAndGarminRefuse(t *testing.T) {
+func TestAgent_AuthListAndGarminMFAHint(t *testing.T) {
 	dir := t.TempDir()
 	manifest := filepath.Join(dir, "mcp.toml")
 	if err := os.WriteFile(manifest, []byte(`
@@ -44,19 +44,17 @@ auth_args = ["login"]
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(list, "strava") || !strings.Contains(list, "garmin") || !strings.Contains(list, "TTY only") {
+	if !strings.Contains(list, "strava") || !strings.Contains(list, "garmin") {
 		t.Fatalf("list = %q", list)
+	}
+	if !strings.Contains(list, "GARMIN_EMAIL") || !strings.Contains(list, "MFA") {
+		t.Fatalf("want garmin MFA hint, got %q", list)
+	}
+	if strings.Contains(list, "TTY only") {
+		t.Fatalf("garmin should no longer be TTY-only: %q", list)
 	}
 	if !strings.Contains(list, agent.AuthGuideURL) {
 		t.Fatalf("missing guide: %q", list)
-	}
-
-	refuse, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "/auth garmin"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(refuse, "not supported") || !strings.Contains(strings.ToLower(refuse), "password") {
-		t.Fatalf("refuse = %q", refuse)
 	}
 }
 

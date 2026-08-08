@@ -14,7 +14,7 @@ Full design notes: [slash_commands_todo.md](../slash_commands_todo.md) § `/auth
 | --- | --- | --- |
 | **Auth-code paste + PKCE** | `google`, `strava`, `ghealth` | Open URL → approve → copy `code` from catch page → paste into chat |
 | **Device flow** | `youtube` | Open URL → enter the short code → `/auth youtube wait` |
-| **TTY only** | `garmin` | Never in chat — `make garmin-auth` (email/password/MFA) |
+| **MFA paste** | `garmin` | Creds in `.env` → `/auth garmin` → email code → `/auth garmin <code>` |
 
 ---
 
@@ -110,18 +110,20 @@ Localhost interactive auth (`gantry auth <server>` / `make *-auth`) is
 /auth ghealth <code>
 /auth youtube               # device: URL + user_code
 /auth youtube wait          # finish device poll → tokens
-/auth garmin                # refused — use make garmin-auth
+/auth garmin                # start login (GARMIN_EMAIL/PASSWORD); may ask for MFA
+/auth garmin <code>         # paste MFA code from email → session.json
 ```
 
-PKCE verifier/state (or device_code) lives in a pending file next to that
-MCP's tokens, not in the gantry process. Restarting `/auth <server>` replaces
-it. Pending files expire (~10 min PKCE, ~15 min device).
+PKCE verifier/state (or device_code / Garmin MFA cookies) lives in a pending
+file next to that MCP's tokens, not in the gantry process. Restarting
+`/auth <server>` replaces it. Pending files expire (~10 min PKCE/MFA, ~15 min
+device).
 
 ---
 
 ## MCP CLI contract (for authors)
 
-Additive subcommands next to interactive `auth`:
+Additive subcommands next to interactive `auth` / `login`:
 
 | Chat | MCP argv (after `auth_args`) |
 | --- | --- |
@@ -133,15 +135,28 @@ Additive subcommands next to interactive `auth`:
 | `/auth ghealth <code>` | `exchange <code>` |
 | `/auth youtube` | `--start` |
 | `/auth youtube wait` | `--wait` |
+| `/auth garmin` | `url` |
+| `/auth garmin <code>` | `exchange <code>` |
 
-Stdout shape (forwarded into Telegram):
+Stdout shape (PKCE / MFA — forwarded into Telegram):
 
 ```text
-open <url>
+open <url>   # or: garmin: MFA required (email) — check your email/app …
 then paste the code: /auth <server> <code>
 guide: https://github.com/shotah/ai-gantry/blob/main/docs/auth.md
 ```
 
+### Garmin (MFA paste)
+
+Put credentials on the box only (never in chat):
+
+```env
+GARMIN_EMAIL=you@example.com
+GARMIN_PASSWORD=…
+```
+
+Then `/auth garmin` → if Garmin sends MFA, paste `/auth garmin <code>`.
+Laptop TTY `make garmin-auth` / `garmin login` still works.
 ---
 
 ## Laptop path (still preferred when you have a browser nearby)
@@ -164,4 +179,5 @@ See [deploy-docker.md § MCP tool auth](deploy-docker.md#mcp-tool-auth-browser-o
 - Only `TELEGRAM_ALLOWED_USERS` can run `/auth`.
 - PKCE: a code alone (in chat history) is useless without the verifier on disk.
 - Codes are single-use and short-lived; never log them at info level.
-- Never paste Garmin (or any) passwords into chat.
+- Never paste Garmin (or any) **passwords** into chat — only MFA codes after
+  `/auth garmin`. Keep `GARMIN_EMAIL` / `GARMIN_PASSWORD` in `.env` on the box.

@@ -52,19 +52,33 @@ listed in `mcp.toml` = granted):
 
 ---
 
-## 1. Optional `.env` pin
+## 1. Optional `.env`
 
-**No Garmin email/password in `.env`.** The image downloads the
-[shotah/go-garmin](https://github.com/shotah/go-garmin/releases) release
-binary (default `v0.1.2`). Override only to bump:
+Chat `/auth garmin` needs credentials on the box (never paste them in Telegram):
 
 ```env
-# GARMIN_MCP_VERSION=v0.1.2
+GARMIN_EMAIL=you@example.com
+GARMIN_PASSWORD=…
+# GARMIN_MCP_VERSION=v0.1.2   # optional pin of the release binary
 ```
+
+Laptop-only TTY auth (`make garmin-auth`) does **not** require these env vars.
 
 ---
 
-## 2. Authorize once (`make garmin-auth`)
+## 2. Authorize
+
+**Headless / phone (when de-authed):** with `GARMIN_EMAIL` / `GARMIN_PASSWORD` set
+on the host:
+
+```text
+/auth garmin              # triggers login; Garmin emails an MFA code
+/auth garmin <code>       # finishes → session.json
+```
+
+Full guide: **[docs/auth.md](../../docs/auth.md)**.
+
+**Laptop (interactive TTY):**
 
 ```bash
 make garmin-auth
@@ -77,12 +91,13 @@ docker compose run --rm --build -it --entrypoint garmin gantry login
 ```
 
 1. Enter Garmin Connect **email**, **password**, and **MFA** if prompted.
-2. On success: `Login successful.` and `secrets/garmin/session.json` on the host
+2. On success: `Login successful.` and `data/.config/garmin/session.json` on the host
    (mounted at `/data/.config/garmin`).
 
 No published ports (unlike Strava’s OAuth callback). Re-run if the session
 expires — `make garmin-auth` deletes any existing `session.json` first so a
-stale “already logged in” file doesn’t block refresh.
+stale “already logged in” file doesn’t block refresh. Chat `/auth garmin` can
+re-auth without a laptop when env creds are present.
 
 If `.env` has `DEPLOY_HOST`, `make garmin-auth` also runs **`make garmin-sync`**
 and pushes `session.json` to the server. `remote-deploy` does **not** copy
@@ -164,8 +179,8 @@ endpoint). Bouldering often shows attempts via `CLIMB_ATTEMPTED` status instead.
 |---|---|
 | LOCAL_AGENT doesn’t see Garmin tools | Check the `[[server]]` entry in `mcp.toml`; rebuild so `garmin` is in the image |
 | Boot fails with `mcp: boot server "garmin"` | `make build` / `make remote-deploy`; check `make logs` for the tool's stderr |
-| `not logged in` | `make garmin-auth` (auto `garmin-sync` if `DEPLOY_HOST` set), or `make garmin-sync` |
-| Auth / 401 after weeks | Session expired — re-run `make garmin-auth` (clears stale `session.json` first) |
+| `not logged in` | `/auth garmin` (+ MFA) or `make garmin-auth` |
+| Auth / 401 after weeks | Session expired — `/auth garmin` or `make garmin-auth` |
 | Rate limited (429) | Unofficial Connect API — ask for summaries, don’t poll |
 
 ### `OAuth2 exchange failed: 401` on `make garmin-auth`
@@ -196,11 +211,11 @@ mobile SSO + **DI** tokens (`diauth…/di-oauth2-service/oauth/token`), same ide
 | | Strava | Garmin (go-garmin) |
 |---|---|---|
 | App registration | Strava API app + client id/secret in `.env` | None |
-| Secrets in `.env` | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` | **None** (optional `GARMIN_MCP_VERSION`) |
-| One-shot auth | Browser OAuth + port `19876` | Interactive `garmin login` (TTY) |
+| Secrets in `.env` | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` | Optional `GARMIN_EMAIL` / `GARMIN_PASSWORD` for chat `/auth` |
+| One-shot auth | Browser OAuth + port `19876` | TTY `garmin login` **or** chat MFA paste |
 | Persisted artifact | `secrets/strava/tokens.json` | `secrets/garmin/session.json` |
 | Make target | `make strava-auth` | `make garmin-auth` |
-| Runtime env | client id/secret + `STRAVA_TOKEN_PATH` | mount + `HOME` only |
+| Runtime env | client id/secret + `STRAVA_TOKEN_PATH` | mount + `HOME`; email/password for chat re-auth |
 
 ---
 

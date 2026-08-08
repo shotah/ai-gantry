@@ -60,7 +60,10 @@ services:
       STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID:-}
       STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET:-}
       STRAVA_TOKEN_PATH: /data/.config/strava/tokens.json
-      # Garmin MCP: no email/password env — session.json on the mount (docs/garmin.md).
+      # Garmin MCP: session.json on the mount; optional chat MFA needs email/password
+      # (docs/garmin.md, docs/auth.md). Never put passwords in Telegram.
+      GARMIN_EMAIL: ${GARMIN_EMAIL:-}
+      GARMIN_PASSWORD: ${GARMIN_PASSWORD:-}
       # Cast MCP (mcp-beam): no API keys. Optional knobs in docs/cast.md.
       MCP_BEAM_LOG_LEVEL: ${MCP_BEAM_LOG_LEVEL:-info}
       # YouTube Data API v3 MCP (youtube-go-mcp v1+) — docs/youtube.md

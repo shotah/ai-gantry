@@ -145,7 +145,7 @@ What to expect:
 | Google Health | `make ghealth-auth` | `http://127.0.0.1:4101/oauth2callback` |
 | Strava | `make strava-auth` | callback domain `localhost` (port 19876) |
 | YouTube | `make youtube-auth` | device flow (no localhost callback) |
-| Garmin | `make garmin-auth` | interactive TTY (no browser callback) |
+| Garmin | `make garmin-auth` or `/auth garmin` | TTY login, or chat MFA with `GARMIN_EMAIL`/`PASSWORD` |
 
 **Do not** run Google/Strava auth over SSH on a headless box — the browser
 callback is `localhost` on *your* PC. Auth locally, then sync secrets (or use

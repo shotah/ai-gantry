@@ -202,6 +202,8 @@ function Write-NativeEnv {
     "STRAVA_CLIENT_ID=$($src['STRAVA_CLIENT_ID'])",
     "STRAVA_CLIENT_SECRET=$($src['STRAVA_CLIENT_SECRET'])",
     'STRAVA_TOKEN_PATH=/opt/gantry/data/.config/strava/tokens.json',
+    "GARMIN_EMAIL=$($src['GARMIN_EMAIL'])",
+    "GARMIN_PASSWORD=$($src['GARMIN_PASSWORD'])",
     'YOUTUBE_OAUTH_PATH=/opt/gantry/data/.config/youtube/oauth.json',
     "YOUTUBE_OAUTH_CLIENT_ID=$(if ($src['YOUTUBE_OAUTH_CLIENT_ID']) { $src['YOUTUBE_OAUTH_CLIENT_ID'] } else { $src['YOUTUBE_OAUTH_CLIENT_ID'] })",
     "YOUTUBE_OAUTH_CLIENT_SECRET=$(if ($src['YOUTUBE_OAUTH_CLIENT_SECRET']) { $src['YOUTUBE_OAUTH_CLIENT_SECRET'] } else { $src['YOUTUBE_OAUTH_CLIENT_SECRET'] })",

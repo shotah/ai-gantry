@@ -12,11 +12,6 @@ import (
 // AuthGuideURL is linked from /auth replies when the operator needs the full guide.
 const AuthGuideURL = "https://github.com/shotah/ai-gantry/blob/main/docs/auth.md"
 
-const garminChatAuthRefuse = `garmin: chat OAuth is not supported — Garmin uses interactive email/password/MFA.
-Run make garmin-auth (or gantry auth garmin on a TTY), then sync tokens.
-Never paste passwords in chat.
-guide: ` + AuthGuideURL
-
 // parseAuthCommand recognizes /auth with optional server and code/wait args.
 // Unlike parseCommand, this allows multi-field messages.
 func parseAuthCommand(text string) (server, arg string, ok bool) {
@@ -62,9 +57,6 @@ func (a *Agent) handleAuth(ctx context.Context, server, arg string) (string, err
 	if !spec.AuthConfigured() {
 		return fmt.Sprintf("auth: server %q has no auth_command/auth_args\n\n%s", server, formatAuthServerList(m)), nil
 	}
-	if msg := chatAuthBlocked(spec); msg != "" {
-		return msg, nil
-	}
 
 	extra, err := chatAuthExtra(spec, arg)
 	if err != nil {
@@ -107,10 +99,11 @@ func formatAuthServerList(m *mcp.Manifest) string {
 	}
 	for _, s := range servers {
 		note := ""
-		if chatAuthBlocked(s) != "" {
-			note = "  (TTY only — not chat)"
-		} else if isDeviceAuth(s) {
+		switch {
+		case isDeviceAuth(s):
 			note = "  (device flow: /auth " + s.Name + " then /auth " + s.Name + " wait)"
+		case isGarminAuth(s):
+			note = "  (MFA: /auth garmin then /auth garmin <code>; needs GARMIN_EMAIL/PASSWORD)"
 		}
 		fmt.Fprintf(&b, "  %s%s\n", s.Name, note)
 	}
@@ -118,19 +111,15 @@ func formatAuthServerList(m *mcp.Manifest) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func chatAuthBlocked(spec mcp.ServerSpec) string {
+func isGarminAuth(spec mcp.ServerSpec) bool {
 	if strings.EqualFold(spec.Name, "garmin") {
-		return garminChatAuthRefuse
+		return true
 	}
 	_, args, ok := spec.AuthCmd()
 	if !ok {
-		return ""
+		return false
 	}
-	// go-garmin: auth_args = ["login"] — password/MFA on stdin.
-	if len(args) == 1 && args[0] == "login" {
-		return garminChatAuthRefuse
-	}
-	return ""
+	return len(args) == 1 && args[0] == "login"
 }
 
 func isDeviceAuth(spec mcp.ServerSpec) bool {
