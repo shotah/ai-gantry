@@ -98,7 +98,13 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 		Commands: []models.BotCommand{
 			{Command: "new", Description: "Reset conversation session"},
 			{Command: "cancel", Description: "Cancel the in-flight reply / tool loop"},
-			{Command: "status", Description: "Show uptime, model, history"},
+			{Command: "status", Description: "Uptime, model, history, tools, turns"},
+			{Command: "tools", Description: "Prefixed tool catalog"},
+			{Command: "perf", Description: "Last turns' timing split"},
+			{Command: "memstats", Description: "Memory row counts and consolidation"},
+			{Command: "toolstats", Description: "Per-tool call ledger since boot"},
+			{Command: "auth", Description: "Remote OAuth (URL / paste code)"},
+			{Command: "help", Description: "List commands"},
 		},
 	}); err != nil {
 		c.log.Warn("telegram: setMyCommands failed", "err", err)

@@ -65,7 +65,9 @@ No approval step — if the allowlist is right, it just replies.
 | `/auth` | Remote OAuth without a port — URL then paste code ([auth guide](https://github.com/shotah/ai-gantry/blob/main/docs/auth.md)) |
 | `/help` | One-line list of commands |
 
-Register the same list with BotFather (`/setcommands`) so Telegram autocompletes them:
+Gantry calls Telegram `setMyCommands` on every bot start, so the `/` menu
+updates itself after you redeploy — no BotFather pass per bot. Manual
+`/setcommands` in BotFather is optional (override / debugging only):
 
 ```text
 new - reset this session
