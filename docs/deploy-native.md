@@ -59,7 +59,7 @@ make remote-native-deploy   # release binary → install → systemctl start
 make remote-native-deploy-dev
 ```
 
-Host layout, secrets under `data/.config/`, cutover from Docker TIM:
+Host layout, secrets under `data/.config/`, cutover from Docker SAM:
 **[local-agent/deploy/README.md](../local-agent/deploy/README.md)**.
 
 Minimal `LLM_*` for Ollama on the same machine:
@@ -75,7 +75,7 @@ LLM_MODEL=qwen3.6:35b-a3b
 ## How gantry tackles local-model rough edges
 
 Small / thinking models (Qwen) are great offline brains but messy with tools.
-The kernel hardens the loop so Tim finishes multi-step turns:
+The kernel hardens the loop so SAM finishes multi-step turns:
 
 | Failure mode | What gantry does |
 | --- | --- |
@@ -97,7 +97,8 @@ Open follow-ups (token truncation, eval harness): [native_plan_todo.md](../nativ
 On a local model, "slow" is almost never decode speed. Decode is steady; the
 wait is **prefill** (persona + tool schemas + history re-evaluated) and
 **thinking tokens spent before the first tool call**. Both are visible in the
-journal — `gantry` logs every turn:
+journal — `gantry` logs every turn (full command reference for memory / GPU /
+timing: [observability.md](observability.md)):
 
 ```bash
 journalctl -u gantry -f | grep -E 'model call|tool done|turn perf'

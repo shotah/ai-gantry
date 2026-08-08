@@ -1,23 +1,24 @@
-# SAM — native Beelink OCR / vision lab
+# SAM — native Beelink agent / vision lab
 
-**Tim** stays on **gantry-fleet** (Docker + Gemini) for day-to-day.
+**SAM** stays on **gantry-fleet** (Docker + Gemini) for day-to-day.
 **SAM** (`@sam_ai_agent_test_bot`) runs from **this** `local-agent/` tree on the
-Beelink via systemd + Ollama **`gemma3:12b`** (Google, US — vision/OCR).
+Beelink via systemd + Ollama **`gemma4:12b`** (Google, US — vision + tools).
 
-> Model constraints for this lab:
-> - Need a **US-origin** vendor (Meta / Google / IBM / …) — not Qwen.
-> - `llama3.2-vision` fails on Ollama ≥0.30 (`unknown architecture: mllama`).
-> - Practical US swap on current Ollama: **Gemma 3** (Google). Alt: `llava:13b`
->   (UW–Madison / Microsoft lineage) or IBM `granite3.2-vision` if you prefer.
-> - **`gemma3:12b` does not support tools.** Ollama returns 400 if the chat
->   request includes any tool schemas — including gantry’s built-in
->   `memory_*` / `cron_*` and any MCP. Set **`TOOLS_ENABLED=false`** (hard
->   omit). Also keep `mcp.toml` empty, `MEMORY_ENABLED=false`, and
->   `CRON_ENABLED=false` so leftover Tim cron jobs do not fire.
+> Current mode: **agent** (lean MCP: google, google-search, garmin, strava, math).
+>
+> Model notes:
+> - **US-origin** vendor (Meta / Google / IBM / …) — not Qwen for this lab pin.
+> - `gemma4:12b` supports tools + vision. Prior OCR-only pin used
+>   `TOOLS_ENABLED=false` + empty `mcp.toml` (also true for `gemma3:12b`, which
+>   rejects tool schemas entirely).
+> - Lean catalog on purpose — full SAM surface is in `mcp.full.toml` (often too
+>   heavy for 12B schema following).
+> - Optional heavier MoE: `gemma4:26b` (~3.8B active). Dense `gemma4:31b` /
+>   Qwen 27B usually too slow on the SER10 890M.
 
 ```text
 Laptop (this repo)  --make remote-native-*-->  Beelink /opt/gantry
-Telegram @sam_ai_agent_test_bot  <-->  gantry  <-->  Ollama vision
+Telegram @sam_ai_agent_test_bot  <-->  gantry  <-->  Ollama + MCP
 ```
 
 ---
@@ -25,41 +26,22 @@ Telegram @sam_ai_agent_test_bot  <-->  gantry  <-->  Ollama vision
 ## One-time on the Beelink (SSH)
 
 ```bash
-# Ollama already installed? skip install.
-# Need a recent build (Beelink was on 0.32.x — fine for gemma3).
 ollama --version
-
-# US vision model (Google Gemma 3 — multimodal)
-ollama pull gemma3:12b
-
-# Optional: more quality on 87GB RAM
-# ollama pull gemma3:27b
-# Alt US lineage: ollama pull llava:13b
-
-# Sanity (text-only; photo test is via Telegram after deploy)
-ollama run gemma3:12b "Say hi in one sentence."
-
-# Drop broken / unused pulls:
-# ollama rm llama3.2-vision:11b
-# ollama rm qwen2.5vl:7b
-
-ls -la /opt/gantry
+ollama pull gemma4:12b
+ollama run gemma4:12b "Say hi in one sentence."
 ollama list
 ```
 
-**Kill leftover native Tim** (he often comes back after reboot if still enabled).
-Tim day-to-day is on the Mini/fleet — this box should only run SAM:
+**Kill leftover native SAM** if he still owns this box — SAM day-to-day is on
+the Mini/fleet:
 
 ```bash
 sudo systemctl stop gantry
 sudo systemctl disable gantry
-sudo systemctl status gantry --no-pager || true
-# confirm nothing is still bound to the old bot:
 ps aux | grep -E '[g]antry' || echo 'no gantry process'
 ```
 
-Then deploy SAM (laptop `make remote-native-deploy-dev`), which re-enables the
-unit under the SAM Telegram token + vision model.
+Then deploy SAM from the laptop (below).
 
 ---
 
@@ -68,39 +50,58 @@ unit under the SAM Telegram token + vision model.
 ```powershell
 cd C:\workspace\ai-gantry\local-agent
 
-# 1) Confirm .env: SAM bot token, TELEGRAM_ALLOWED_USERS, NATIVE_LLM_MODEL,
-#    DEPLOY_HOST = Beelink IP (not the Mini).
+# 1) Confirm .env: SAM token, NATIVE_LLM_MODEL=gemma4:12b, TOOLS_ENABLED=true,
+#    GEMINI_* + Google OAuth + USER_GOOGLE_EMAIL, DEPLOY_HOST = Beelink.
 
-# 2) Write deploy/gantry.env from .env (Ollama LLM_* + SAM Telegram)
+# 2) Rewrite deploy/gantry.env from .env
 make remote-native-env
 
 # 3) SSH / Ollama / gantry user probe
 make remote-native-check
 
-# 4) Ship binary + lean mcp.toml + persona (dev loop from this tree)
+# 4) Ship binary + mcp.toml + persona
+# Full (refresh MCP bins from GitHub):
 make remote-native-deploy-dev
-
-# Or release binary instead of local cross-build:
-# make remote-native-deploy
+# Quick (reuse /opt/gantry/bin — preferred if tools already installed):
+make remote-native-deploy-dev-quick
 
 # 5) Watch
 make remote-native-logs
 ```
 
-Quick persona/env-only iterate (reuse MCP bins on host):
+---
 
-```powershell
-make remote-native-deploy-dev-quick
+## Ollama performance (Beelink iGPU)
+
+`deploy/ollama-gantry.conf` ships as a systemd drop-in. Agent defaults:
+
+- `OLLAMA_CONTEXT_LENGTH=49152` (was 16k in OCR-only mode)
+- `OLLAMA_FLASH_ATTENTION=1` + `OLLAMA_KV_CACHE_TYPE=q8_0`
+
+```bash
+systemctl cat ollama | grep -E 'CONTEXT|FLASH|KV_CACHE|KEEP_ALIVE'
+ollama ps
 ```
 
 ---
 
-## Telegram smoke test
+## Telegram smoke tests (agent)
 
-1. Open `t.me/sam_ai_agent_test_bot` and `/start` (must be allowlisted user).
-2. Send a **photo** of a receipt/form with caption:
-   `OCR this — return JSON {merchant, date, total, lines[]}`.
-3. Expect structured text from the vision model (no OCR MCP required).
+1. `/start` on `t.me/sam_ai_agent_test_bot` (allowlisted), then `/new`.
+2. `/tools` — expect `google__…`, `google-search__web_search`, `garmin__…`, etc.
+3. Calendar: “What’s on my calendar tomorrow?”
+4. Search: “Search the web for Seattle weather this weekend.”
+5. Garmin: “How did I sleep last night?”
+6. Auth fails → on host: `gantry auth google` / `gantry auth garmin` (creds under
+   `/opt/gantry/data/.config/`).
+
+---
+
+## OCR-only mode (previous)
+
+Empty `mcp.toml`, `TOOLS_ENABLED=false`, `MEMORY_ENABLED=false`,
+`CRON_ENABLED=false`, `OLLAMA_CONTEXT_LENGTH=16384`, OCR-heavy persona.
+Restore from git history / prior chat if you need that lab again.
 
 ---
 
@@ -108,18 +109,18 @@ make remote-native-deploy-dev-quick
 
 | Artifact | Role |
 | --- | --- |
-| `.env` | SAM (this tree) |
-| `.env.tim-gemini.bak` | Prior Tim Gemini local-agent env |
-| `mcp.toml` | Empty (gemma3 rejects tools) |
-| `mcp.full.toml` | Archived Tim-scale MCP list |
+| `.env` | SAM agent lab (this tree) |
+| `.env.SAM-gemini.bak` | Prior SAM Gemini local-agent env |
+| `mcp.toml` | Lean agent catalog |
+| `mcp.full.toml` | Full SAM-scale MCP list |
 
-Restore full tools later only with a **tools-capable** model: set `TOOLS_ENABLED=true`,
-`copy mcp.full.toml mcp.toml`, re-enable `MEMORY_ENABLED` / `CRON_ENABLED`, then
-`make remote-native-env` and redeploy.
+Widen tools: copy entries from `mcp.full.toml` into `mcp.toml`, then
+`make remote-native-env` and redeploy. Expect weaker tool-picking on 12B as the
+catalog grows.
 
 ---
 
 ## Security
 
 Bot tokens and API keys in chat history should be treated as exposed — rotate
-the SAM bot token via BotFather if this transcript is shared. Do not commit `.env`.
+if this transcript is shared. Do not commit `.env`.

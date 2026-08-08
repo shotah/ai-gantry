@@ -29,6 +29,13 @@ static binary + persona + mcp.toml + any OpenAI-compat LLM  →  outbound chat
 Chat, memory, and cron work with **zero MCP servers**. Tools are optional
 binaries on `PATH` (or baked into an image) — the frame stays out of the way.
 
+The whole kernel is ~12k lines of Go — small enough to read in an afternoon,
+small enough to actually trust. It was hardened in production against
+**small local models** (Qwen on Ollama on a mini-PC) as much as cloud
+Flash: the loop assumes a small model *will* misspell a tool name, park its
+answer in chain-of-thought, or print a tool call as plain text — and repairs
+each of those instead of erroring the turn.
+
 ### Pull it (fastest hello)
 
 Images publish on every `main` push and every `v*` tag to
@@ -88,11 +95,19 @@ Longer ICP / competition / evangelism notes:
 
 One `CHANNEL` per process. Allowlist only; no pairing.
 
-### Why it stays sharp
+### Hardened for small local models
 
-Platform stacks tax every turn: huge tool catalogs, embedding round-trips,
-gateways, dashboards. Gantry refuses that tax — and hardens the loop for
-**local models** that invent tool names or park answers in CoT.
+Most agent stacks are tuned against frontier cloud models and quietly assume
+tool calling just works. Gantry is hardened where 4–30B local models actually
+fail — and refuses the platform tax (huge tool catalogs, embedding
+round-trips, gateways, dashboards) that makes small models worse at picking
+tools in the first place.
+
+The same levers pay for themselves on frontier models: tool schemas, history,
+and tool results are re-billed on **every** turn, so a filtered tool surface,
+bounded history, and truncated results cut prompt tokens and latency — and
+name repair turns would-be failed rounds into completed calls instead of
+another billed retry.
 
 | Lever | What we do | Why it matters |
 | --- | --- | --- |
@@ -105,6 +120,13 @@ gateways, dashboards. Gantry refuses that tax — and hardens the loop for
 | Memory | SQLite + FTS5 in-process | No embedding API before every reply |
 | Runtime | One static binary (systemd *or* Distroless) | No Node/Bun/gateway in the path |
 | Gemini 3 | Preserves `thought_signature` on tool rounds | Cloud multi-step turns don't 400 |
+
+The same discipline runs through the MCP fleet: every tool server is a static
+Go binary with one contract — stdio transport, an auth subcommand for the
+one-time browser/TTY login, GoReleaser releases that `gantry tools-fetch` can
+pin — and every tool reaches the model under one uniform `{server}__{tool}`
+name. One convention for the model to learn; one repair path when a small
+model bends it.
 
 Details: [docs/mcp.md](docs/mcp.md) · [docs/deploy-native.md](docs/deploy-native.md).
 
@@ -167,18 +189,7 @@ kernel that does exactly that and nothing else.
    delete with `sqlite3`, not opaque embedding blobs. Persona files always
    outrank recalled memory.
 
-## 3. Non-goals
-
-- Web dashboard, gateway, REST/WS API, pairing
-- Multi-agent, multi-provider, model routing/fallback chains
-- Multi-channel in one process; inbound-port chat (WhatsApp Cloud, Teams,
-  Messenger webhooks) — see channel table under [Who this is for](#who-this-is-for)
-- Built-in web search, built-in workspace tools (those are MCP binaries)
-- Vector database service (see memory design — SQLite is the store)
-- Sandboxing/risk-profile machinery (the host or Distroless container is the
-  sandbox; we run full-autonomy with an allowlist)
-
-## 4. Architecture
+## 3. Architecture
 
 ```mermaid
 flowchart LR
@@ -200,7 +211,7 @@ flowchart LR
 
 Deploy shapes: [native](docs/deploy-native.md) · [Docker](docs/deploy-docker.md).
 
-### 4.1 Process model
+### 3.1 Process model
 
 One OS process. Goroutines:
 
@@ -209,12 +220,12 @@ One OS process. Goroutines:
 | channel poller | Telegram `getUpdates` long-poll, allowlist filter |
 | agent loop | per-message: assemble prompt → model → tool calls → reply |
 | MCP supervisors | one per server: spawn, health, restart w/ backoff |
-| memory consolidator | optional timer job (see §7) |
+| memory consolidator | optional timer job (see §6) |
 
 No goroutine talks to the network inbound. Healthcheck is `gantry status`
 (exit-code) reading a heartbeat row in SQLite — no port needed.
 
-### 4.2 Package layout (single module)
+### 3.2 Package layout (single module)
 
 ```text
 cmd/gantry/          main: run | init | auth | status | version
@@ -232,7 +243,7 @@ internal/cron/       scheduled turns → agent → channel push
 ```
 (Diagrams + sequences: [docs/architecture.md](docs/architecture.md).)
 
-### 4.3 Dependencies (import over write)
+### 3.3 Dependencies (import over write)
 
 | Concern | Library | Why |
 | --- | --- | --- |
@@ -248,11 +259,11 @@ One provider implementation (OpenAI-compatible) is deliberate: Gemini, Grok,
 and local models all speak it. Model identity is just `LLM_BASE_URL` +
 `LLM_MODEL` + `LLM_API_KEY`. No provider registry.
 
-## 5. Configuration contract
+## 4. Configuration contract
 
 Everything is env or a mount. No config UI, no `config set`, no sync step.
 
-### 5.1 Environment variables
+### 4.1 Environment variables
 
 | Var | Required | Example / default |
 | --- | --- | --- |
@@ -262,7 +273,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `LLM_MAX_TOKENS` | no | `4096` (completion output cap; `0` = provider default) |
 | `TELEGRAM_BOT_TOKEN` | yes (telegram) | — |
 | `TELEGRAM_ALLOWED_USERS` | yes (telegram) | `123456789,987654321` (numeric IDs; **allowlist only — no pairing**) |
-| `TELEGRAM_ERROR_REPORTING` | no | `off` (`off`\|`error`\|`warn` — tee slog into the Tim chat as expandable HTML) |
+| `TELEGRAM_ERROR_REPORTING` | no | `off` (`off`\|`error`\|`warn` — tee slog into the SAM chat as expandable HTML) |
 | `DISCORD_BOT_TOKEN` | yes (discord) | — |
 | `DISCORD_ALLOWED_USERS` | yes (discord) | snowflake user IDs; **allowlist only** — see [docs/discord.md](docs/discord.md) |
 | `SLACK_BOT_TOKEN` | yes (slack) | `xoxb-…` bot token |
@@ -278,7 +289,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `TOOL_MAX_ITERATIONS` | no | `20` |
 | `TOOL_SCHEMA_MAX_TOKENS` | no | `0` (log estimate only; `>0` = hard fail if over) |
 | `MEMORY_ENABLED` | no | `true` |
-| `MEMORY_BACKEND` | no | `builtin` (or `mcp:<server-name>`, see §7 / §10) |
+| `MEMORY_BACKEND` | no | `builtin` (or `mcp:<server-name>`, see §6 / §9) |
 | `MEMORY_CONSOLIDATE_MINUTES` | no | `30` (`0` = off; builtin backend only) |
 | `CRON_ENABLED` | no | `true` |
 | `CRON_TZ` | no | `UTC` (IANA, e.g. `America/Los_Angeles`) |
@@ -294,7 +305,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 Boot is fail-fast: missing required env = clear error + exit 1. No partial
 starts, no interactive setup.
 
-### 5.2 MCP manifest (the one file)
+### 4.2 MCP manifest (the one file)
 
 Lists of processes don't fit env vars; this is the single structured file,
 mounted read-only. TOML, minimal:
@@ -351,7 +362,7 @@ and on hard misses returns a model-facing suggestion naming the closest real
 tools. Full contract, `/tools` REPL workflow, and why:
 **[docs/mcp.md](docs/mcp.md)**.
 
-### 5.3 Host layout
+### 4.3 Host layout
 
 Same three directories whether Docker bind-mounts them or systemd points at
 `/opt/gantry/…`:
@@ -365,12 +376,12 @@ Same three directories whether Docker bind-mounts them or systemd points at
 Compose sample + Hub hello: [docs/deploy-docker.md](docs/deploy-docker.md).  
 systemd + Ollama: [docs/deploy-native.md](docs/deploy-native.md).
 
-## 6. The agent loop (context management)
+## 5. The agent loop (context management)
 
 This is the part that earns its keep. Keep it boring and bounded:
 
 1. **Assemble prompt**: persona markdown (concat, fixed order) + memory
-   hydration block (§7.4) + session history (bounded) + user message.
+   hydration block (§6.4) + session history (bounded) + user message.
 2. **Call model** with MCP tool schemas (loaded eagerly at boot; refreshed on
    server restart).
 3. **Tool iteration**: execute calls via MCP host (repair unambiguous prefix
@@ -391,7 +402,7 @@ Bounding rules:
 
 - Hard cap `HISTORY_MAX_MESSAGES`; drop oldest turns past `HISTORY_MAX_TOKENS`.
   Token counts are chars/4 **estimates** and are labeled as such everywhere
-  they surface (logs, `/status`) — see §10. Persona + last N turns are
+  they surface (logs, `/status`) — see §9. Persona + last N turns are
   always protected.
 - When history is trimmed, dropped turns fold into a persistent per-session
   `summary` paragraph via the same LLM (one string — not a framework). The
@@ -400,7 +411,7 @@ Bounding rules:
   `[tool gmail.search: N chars, truncated]`.
 - `/new` wipes the session (memory untouched).
 
-## 7. Memory design
+## 6. Memory design
 
 Direction taken from Google's Always-On Memory Agent (2026): **no embeddings,
 no vector DB — an LLM writes structured rows into SQLite and a background job
@@ -408,7 +419,7 @@ consolidates them.** At personal-agent scale, structured + FTS5 beats ANN
 search and stays greppable/deletable. (Meta/OpenAI memory products converge on
 the same shape: typed facts + episodic notes + periodic distillation.)
 
-### 7.1 Store
+### 6.1 Store
 
 One SQLite file `$DATA_DIR/gantry.db` (WAL mode), pure-Go driver:
 
@@ -431,7 +442,7 @@ CREATE TABLE session (...);        -- bounded history + rolling summary
 CREATE TABLE heartbeat (...);      -- for `gantry status`
 ```
 
-### 7.2 Write path
+### 6.2 Write path
 
 The model gets three built-in tools (the only non-MCP tools in the gantry):
 
@@ -442,7 +453,7 @@ The model gets three built-in tools (the only non-MCP tools in the gantry):
 Auto-save is **off by default**. Auto-saved hallucinations (wrong emails) are
 worse than no memory. The model stores deliberately; the consolidator promotes.
 
-### 7.3 Consolidation (the Google idea)
+### 6.3 Consolidation (the Google idea)
 
 A timer job (default 30 min, `0` disables) runs a bounded pass with the **chat**
 LLM (same `LLM_*` Completer — no separate consolidator model):
@@ -456,7 +467,7 @@ LLM (same `LLM_*` Completer — no separate consolidator model):
 Builtin backend only (`MEMORY_BACKEND=mcp:…` skips consolidator and logs a warn).
 Fully skippable via `MEMORY_CONSOLIDATE_MINUTES=0`. This is our "sleep cycle."
 
-### 7.4 Read path (hydration)
+### 6.4 Read path (hydration)
 
 At session start and on `memory_recall`, hydrate at most ~30 rows:
 active facts/preferences (non-expired, non-superseded) + FTS5 hits for the
@@ -471,7 +482,7 @@ current message, rendered as a compact block:
 **Persona precedence is law**: anything in `USER.md` outranks memory;
 contradictions get surfaced, not obeyed.
 
-### 7.5 Why not vectors / cloud vector storage
+### 6.5 Why not vectors / cloud vector storage
 
 - One user, one process: recall corpus is hundreds–thousands of rows, not
   millions. FTS5 + recency + kind filters is enough and is debuggable.
@@ -483,13 +494,24 @@ contradictions get surfaced, not obeyed.
   later. If recall quality ever demonstrably hurts, add it then — behind the
   same `memory_recall` interface, no design change.
 
-## 8. Ops surface
+## 7. Ops surface
+
+**The chat is the console.** A dashboard is a second interface — its own
+auth, its own port (banned here), its own deploy story — and it isn't with
+you when a turn feels slow. The chat already is: allowlisted, on your phone,
+and the exact place the question comes up. So ops lives in slash commands
+and the tool trace in the reply bubble, and host-level questions (RAM/VRAM,
+GPU residency) stay one `ssh` away
+([docs/observability.md](docs/observability.md)) instead of becoming a web
+UI. ChatOps is not a compromise for an agent — it is the point.
 
 - `gantry run` — the daemon (default)
 - `gantry status` — exit-code healthcheck (reads `heartbeat` row in `$DATA_DIR/gantry.db`)
 - `gantry version` — build info
 - Logs: JSON `slog` to stderr (`journalctl` native, `docker logs` in compose).
-- Telegram/stdio slash commands: `/new` (session reset), `/cancel` (halt in-flight turn), `/status`, `/tools`; unix `SIGHUP` reloads persona.
+- Consumption & timing without a dashboard — RAM/VRAM (`ollama ps`, not `top`),
+  per-turn `jq` recipes, `docker stats`: **[docs/observability.md](docs/observability.md)**.
+- Telegram/stdio slash commands: `/new` (session reset), `/cancel` (halt in-flight turn), `/status`, `/tools`, `/perf`, `/memstats`, `/toolstats`, `/auth`, `/help`; unix `SIGHUP` reloads persona.
 - **Multi-bubble (interrupt → coalesce → settle):** a lone message runs at once;
   a follow-up sent while a turn is running cancels the current loop, joins the
   bubbles into one user message, waits `COALESCE_SETTLE_MS` (default **2000**)
@@ -510,7 +532,7 @@ contradictions get surfaced, not obeyed.
 
 That's the entire ops/UI story. No port is opened by the gantry, ever.
 
-## 9. Build & packaging
+## 8. Build & packaging
 
 - Go ≥ 1.26, single module, `CGO_ENABLED=0`, `-trimpath -ldflags="-s -w"`.
 - Targets: `linux/amd64`, `linux/arm64`.
@@ -530,7 +552,7 @@ That's the entire ops/UI story. No port is opened by the gantry, ever.
   [`docs/dockerhub.md`](docs/dockerhub.md) (PNG banner; root readme is too
   large / SVG-heavy for Hub).
 
-## 10. Decisions
+## 9. Decisions
 
 Locked choices are summarized here; full rationale and rejected alternatives
 live in **[docs/choices.md](docs/choices.md)**.

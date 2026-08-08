@@ -89,7 +89,7 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
    `training_calendar_*` (or exclude it from lean/core tiers).
 
 9. **Lean catalogs for agent hosts**
-   Prefer `--tool-tier core` / presets / `exclude` so Tim’s published set stays
+   Prefer `--tool-tier core` / presets / `exclude` so SAM’s published set stays
    small. Fat schemas starve local models even when names are perfect.
 
 10. **Tests lock names**

@@ -2,7 +2,10 @@ package mcp_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/shotah/ai-gantry/internal/mcp"
@@ -62,5 +65,45 @@ command = "mcp-beam"
 	s, ok := mcp.FindServer(m, "garmin")
 	if !ok || !s.AuthConfigured() {
 		t.Fatal("garmin missing")
+	}
+}
+
+func TestRunAuthOutput(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "stub.go")
+	out := filepath.Join(dir, "stub")
+	if runtime.GOOS == "windows" {
+		out += ".exe"
+	}
+	if err := os.WriteFile(src, []byte(`package main
+import ("fmt"; "os")
+func main() {
+  if len(os.Args) > 2 && os.Args[2] == "url" {
+    fmt.Println("open https://x.test")
+    return
+  }
+  fmt.Fprintln(os.Stderr, "bad")
+  os.Exit(1)
+}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	build := exec.Command("go", "build", "-o", out, src)
+	if b, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, b)
+	}
+
+	spec := mcp.ServerSpec{Name: "demo", Command: out, AuthArgs: []string{"auth"}}
+	stdout, _, err := mcp.RunAuthOutput(t.Context(), spec, []string{"url"})
+	if err != nil || !strings.Contains(stdout, "open https://x.test") {
+		t.Fatalf("stdout=%q err=%v", stdout, err)
+	}
+
+	_, stderr, err := mcp.RunAuthOutput(t.Context(), spec, []string{"nope"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(stderr, "bad") && !strings.Contains(err.Error(), "bad") {
+		t.Fatalf("stderr=%q err=%v", stderr, err)
 	}
 }

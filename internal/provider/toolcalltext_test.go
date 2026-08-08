@@ -109,7 +109,7 @@ func TestParseToolCallText_Rejects(t *testing.T) {
 		"You rode 21mi yesterday.",
 		`{"protein":180,"carbs":220}`,           // JSON, but no name
 		`{"name":"","arguments":{}}`,            // empty name
-		`{"nickname":"tim","arguments":{}}`,     // name-ish key that is not name
+		`{"nickname":"SAM","arguments":{}}`,     // name-ish key that is not name
 		"{\"name\":\"x\", \"arguments\": {oops", // unbalanced
 		// Real answer that mentions a tool and includes unrelated JSON — do not hijack.
 		`I already used google__calendar_list_events earlier. Macros: {"protein":180,"carbs":220}`,

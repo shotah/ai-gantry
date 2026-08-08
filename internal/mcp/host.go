@@ -59,6 +59,8 @@ type Host struct {
 	mu      sync.RWMutex
 	servers map[string]*managedServer
 	tools   map[string]*Tool // prefixed name → tool
+
+	stats callStatsState
 }
 
 type managedServer struct {
@@ -97,6 +99,7 @@ func Start(ctx context.Context, opts Options) (*Host, error) {
 		servers:        make(map[string]*managedServer, len(manifest.Servers)),
 		tools:          make(map[string]*Tool),
 	}
+	h.initCallStats()
 
 	var failed int
 	for _, spec := range manifest.Servers {
@@ -151,9 +154,11 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 	tool, resolved, ok := h.resolve(toolName)
 	if !ok {
 		hint, candidates := h.suggest(toolName)
+		h.recordUnknownTool(len(candidates) > 0)
 		return "", &UnknownToolError{Name: toolName, Hint: hint, Candidates: candidates}
 	}
 	if resolved != toolName {
+		h.recordPrefixAlias()
 		h.log.Info("mcp tool name aliased", "requested", toolName, "resolved", resolved)
 	}
 
@@ -163,25 +168,31 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 			return "", fmt.Errorf("mcp: invalid arguments for %q: %w", toolName, err)
 		}
 	}
+	start := time.Now()
 	text, err := h.callOnce(ctx, tool, args)
 	if err != nil {
 		if !isRestartableMCPError(err) {
+			h.recordToolCall(resolved, time.Since(start), true)
 			return "", err
 		}
 		h.log.Warn("mcp tool call failed; attempting restart", "tool", resolved, "server", tool.Server, "err", err)
 		if rerr := h.restartServer(ctx, tool.Server); rerr != nil {
+			h.recordToolCall(resolved, time.Since(start), true)
 			return "", fmt.Errorf("mcp: call %q failed: %v (restart: %w)", resolved, err, rerr)
 		}
 		// Tool map may have changed; re-resolve (keep alias rules).
 		tool, _, ok = h.resolve(toolName)
 		if !ok {
+			h.recordToolCall(resolved, time.Since(start), true)
 			return "", fmt.Errorf("mcp: tool %q missing after restart", toolName)
 		}
 		text, err = h.callOnce(ctx, tool, args)
 		if err != nil {
+			h.recordToolCall(resolved, time.Since(start), true)
 			return "", err
 		}
 	}
+	h.recordToolCall(resolved, time.Since(start), false)
 	return Truncate(text, h.resultMaxChars), nil
 }
 

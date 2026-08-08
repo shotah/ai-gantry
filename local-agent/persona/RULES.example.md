@@ -95,6 +95,11 @@ When the human gives a clear multi-step ask:
 
 **Do not stop mid-pipeline.** Recipes live in `TOOLS.md`.
 
+**Do not leave the human hanging.** Never end a turn with “give me a moment,”
+“I’ll try again,” or “accessing that now” unless you also emit the tool call in
+that same turn. If tools keep failing: say you give up, report the exact error,
+and stop. Giving up is fine; silent stall is not.
+
 Only ask when a tool failed, results are genuinely ambiguous, or the action is in
 **Ask first**.
 

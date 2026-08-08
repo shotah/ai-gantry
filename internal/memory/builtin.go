@@ -113,6 +113,82 @@ func (b *Builtin) Close() error {
 	return b.db.Close()
 }
 
+// StatsSnapshot is the /memstats view of the builtin store.
+type StatsSnapshot struct {
+	Total       int
+	ByKind      map[string]int
+	Active      int
+	Expired     int
+	Superseded  int
+	Backlog     int // unconsolidated episodes still eligible
+	Quarantined int // episodes past the consolidate attempt limit
+	DBBytes     int64
+}
+
+// Stats returns row counts, consolidation backlog, and an estimated DB size.
+func (b *Builtin) Stats(ctx context.Context) (StatsSnapshot, error) {
+	if b == nil || b.db == nil {
+		return StatsSnapshot{}, fmt.Errorf("memory: nil store")
+	}
+	snap := StatsSnapshot{ByKind: make(map[string]int)}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+
+	rows, err := b.db.QueryContext(ctx, `SELECT kind, COUNT(*) FROM memory GROUP BY kind`)
+	if err != nil {
+		return StatsSnapshot{}, fmt.Errorf("memory: stats kind: %w", err)
+	}
+	for rows.Next() {
+		var kind string
+		var n int
+		if err := rows.Scan(&kind, &n); err != nil {
+			_ = rows.Close()
+			return StatsSnapshot{}, err
+		}
+		snap.ByKind[kind] = n
+		snap.Total += n
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return StatsSnapshot{}, err
+	}
+	_ = rows.Close()
+
+	if err := b.db.QueryRowContext(ctx, `
+		SELECT
+			COALESCE(SUM(CASE WHEN superseded_by IS NOT NULL THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN superseded_by IS NULL
+				AND expires_at IS NOT NULL AND expires_at <= ? THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN superseded_by IS NULL
+				AND (expires_at IS NULL OR expires_at > ?) THEN 1 ELSE 0 END), 0)
+		FROM memory`, now, now).Scan(&snap.Superseded, &snap.Expired, &snap.Active); err != nil {
+		return StatsSnapshot{}, fmt.Errorf("memory: stats state: %w", err)
+	}
+
+	if err := b.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM memory
+		WHERE kind = ? AND consolidated = 0 AND superseded_by IS NULL
+		  AND consolidate_attempts < ?`,
+		KindEpisode, maxConsolidateAttempts).Scan(&snap.Backlog); err != nil {
+		return StatsSnapshot{}, fmt.Errorf("memory: stats backlog: %w", err)
+	}
+	if err := b.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM memory
+		WHERE kind = ? AND (consolidated = ? OR consolidate_attempts >= ?)`,
+		KindEpisode, consolidatedQuarantine, maxConsolidateAttempts).Scan(&snap.Quarantined); err != nil {
+		return StatsSnapshot{}, fmt.Errorf("memory: stats quarantine: %w", err)
+	}
+
+	var pageCount, pageSize int64
+	if err := b.db.QueryRowContext(ctx, `PRAGMA page_count`).Scan(&pageCount); err != nil {
+		return StatsSnapshot{}, fmt.Errorf("memory: page_count: %w", err)
+	}
+	if err := b.db.QueryRowContext(ctx, `PRAGMA page_size`).Scan(&pageSize); err != nil {
+		return StatsSnapshot{}, fmt.Errorf("memory: page_size: %w", err)
+	}
+	snap.DBBytes = pageCount * pageSize
+	return snap, nil
+}
+
 // Store inserts one atomic memory row.
 func (b *Builtin) Store(ctx context.Context, kind, subject, content string) (Entry, error) {
 	kind = strings.ToLower(strings.TrimSpace(kind))

@@ -38,7 +38,7 @@ tasks**, core tier, edit capability (~23 tools). Drive tools are **not** loaded
 | “Read / update that Sheet” | `google__sheets_read_values` / `google__sheets_modify_values` |
 
 Tiny models can starve harder with `--preset lean` (gmail + calendar only).
-Add `drive` only if TIM needs file search/share/upload.
+Add `drive` only if SAM needs file search/share/upload.
 
 Upstream naming notes: [shotah/google-mcp TODO](https://github.com/shotah/google-mcp/blob/main/TODO.md).
 

@@ -1,6 +1,6 @@
 # native_plan — TODO (local Qwen/Ollama quality pass)
 
-Follow-ups for the native deployment (Tim: Ubuntu + Ollama + Qwen3.5-35B-A3B).
+Follow-ups for the native deployment (SAM: Ubuntu + Ollama + Qwen3.5-35B-A3B).
 Shipped so far: prompt-cache-friendly message order, keep-alive override, tool
 trim (79→62), ISO dates in temporal anchor, unknown-tool suggestions,
 underscore→hyphen prefix alias on MCP `Call`, think-stall nudge, thinking
@@ -60,7 +60,7 @@ in thinking → ERROR). Remaining gaps:
       what you have, no more tools"
 - [x] **Printed tool calls** (Jul 28, seen in the wild): after the prose nudge,
       Qwen answered with `{"name":"garmin__get_daily_activity","parameters":{…}}`
-      as *content* and gantry sent that JSON to Telegram as Tim's reply. Now
+      as *content* and gantry sent that JSON to Telegram as SAM's reply. Now
       parsed back into a real call and executed (bare / fenced / `<tool_call>`
       tags / embedded in prose; `arguments`|`parameters`|`args`|`input`). Requires
       a tool-shaped name so a JSON answer is never hijacked
@@ -90,14 +90,14 @@ Shipped (config + visibility, do the eval on top of these):
 - [x] Tool-call trace in the Telegram bubble — perceived latency, not real
 - [x] **Prompt cache was never hitting:** `mcp.Host.Tools()` iterated a map, so
       the 13.5k-token schema block (63% of the prompt, leading the system
-      message) was reshuffled every turn. Sorted by name → measured on tim:
+      message) was reshuffled every turn. Sorted by name → measured on SAM:
       warm turn 74.5s → 15.6s, `first_token_ms` 68.8s → 8.6s. The tell was
       iteration 2 of a turn prefilling in 1.8s (same order) while iteration 1
       of the next turn took 68s
 - [x] `volatile_est_tokens` / `hydration_est_tokens` logging — `first_token_ms`
       tracks the re-evaluated tail, not the total prompt
 
-Measured on tim once the cache was hitting (18.4s turn, ~25.8k context):
+Measured on SAM once the cache was hitting (18.4s turn, ~25.8k context):
 
 | Phase | Cost | Rate |
 | --- | --- | --- |
@@ -135,7 +135,7 @@ Remaining options, cheapest first:
 | Prompt-side: "act first, think less" persona line for tool turns | free | try before anything structural |
 | `qwen3.6:35b-a3b` / `qwen3.6:27b` / smaller instruct for tool selection | pull + eval | same family, faster decode |
 | Two-model router: small model picks tool + args, 35B composes reply | code | biggest win if selection is the bottleneck; adds real complexity |
-| Function-calling-tuned model as the single brain | pull + eval | risks losing Tim's voice; needs persona regression check |
+| Function-calling-tuned model as the single brain | pull + eval | risks losing SAM's voice; needs persona regression check |
 
 - [ ] Define a 10-prompt eval script (calendar day query, strava summary,
       math, multi-tool chain) with expected tool calls; time-to-first-token +
@@ -156,7 +156,7 @@ Qwen does arithmetic in CoT and gets it wrong; a calculator tool ends that.
       [shotah/mcp-go-math](https://github.com/shotah/mcp-go-math) `v0.0.2`
       (`evaluate` + `convert`); Dockerfile pin + `download_url` in mcp.toml
       (source-agnostic; `gantry tools-plan` → native fetch)
-- [ ] Deploy to Tim (`make remote-native-deploy-dev`) and smoke
+- [ ] Deploy to SAM (`make remote-native-deploy-dev`) and smoke
       `math__expression_evaluate`
 
 ## P1 — Errors → Telegram (red collapsed box)
@@ -165,7 +165,7 @@ Viable: yes. Telegram has no red styling, but `🔴 <b>gantry ERROR</b>` +
 `<blockquote expandable>` gives exactly "collapsed box I click to open" — same
 mechanism as the thinking display.
 
-**Design (slog handler → same Tim DM):**
+**Design (slog handler → same SAM DM):**
 
 - `slog.Handler` wrapper that tees `ERROR` (and optionally `WARN`) records into
   the existing Telegram chat as HTML: emoji header + expandable blockquote

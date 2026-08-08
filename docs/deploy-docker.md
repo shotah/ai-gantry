@@ -151,6 +151,10 @@ What to expect:
 callback is `localhost` on *your* PC. Auth locally, then sync secrets (or use
 the Make targets above with `DEPLOY_HOST` set).
 
+**Remote / headless alternative:** chat `/auth <server>` (PKCE paste or device
+flow) — see **[auth.md](auth.md)**. No inbound ports; tokens land on the box
+running gantry.
+
 Per-tool setup: [google-workspace](../local-agent/docs/google-workspace.md) ·
 [google-health](../local-agent/docs/google-health.md) ·
 [strava](../local-agent/docs/strava.md) · [youtube](../local-agent/docs/youtube.md) ·

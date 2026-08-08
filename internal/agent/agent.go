@@ -72,6 +72,10 @@ type Options struct {
 	// without model output. The first turn of the process posts immediately
 	// instead of waiting. 0 disables both notices.
 	SpinupNotice time.Duration
+	// Consolidator is optional; /memstats reads last_run from it when set.
+	Consolidator *memory.Consolidator
+	// MCPManifest is the path to mcp.toml for /auth (chat OAuth). Empty disables /auth.
+	MCPManifest string
 }
 
 // Agent runs the prompt → model → (tools) → reply loop.
@@ -103,6 +107,13 @@ type Agent struct {
 
 	spinupNotice time.Duration
 	warmed       atomic.Bool // set once any model call has returned
+
+	perf *perfRing
+
+	// consolidator is optional; used by /memstats for last_run (builtin only).
+	consolidator *memory.Consolidator
+
+	mcpManifest string
 }
 
 // New creates an Agent. Completer and Sessions are required.
@@ -154,6 +165,9 @@ func New(opts Options) (*Agent, error) {
 		tzName:         tzName,
 		coalesceSettle: opts.CoalesceSettle,
 		spinupNotice:   opts.SpinupNotice,
+		consolidator:   opts.Consolidator,
+		mcpManifest:    strings.TrimSpace(opts.MCPManifest),
+		perf:           newPerfRing(started),
 	}
 	a.initTurns()
 	a.SetPersona(opts.Persona)
@@ -202,6 +216,13 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		return "nothing in progress to cancel", nil
 	}
 
+	// /auth accepts args (/auth strava <code>) so it cannot use parseCommand.
+	if server, arg, ok := parseAuthCommand(text); ok {
+		unlock := a.lockSession(msg.SessionID)
+		defer unlock()
+		return a.handleAuth(ctx, server, arg)
+	}
+
 	if cmd, ok := parseCommand(text); ok {
 		switch cmd {
 		case "/new", "/clear":
@@ -220,6 +241,22 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			unlock := a.lockSession(msg.SessionID)
 			defer unlock()
 			return a.listTools(), nil
+		case "/perf":
+			unlock := a.lockSession(msg.SessionID)
+			defer unlock()
+			return a.formatPerf(), nil
+		case "/memstats":
+			unlock := a.lockSession(msg.SessionID)
+			defer unlock()
+			return a.formatMemStats(ctx), nil
+		case "/toolstats":
+			unlock := a.lockSession(msg.SessionID)
+			defer unlock()
+			return a.formatToolStats(), nil
+		case "/help":
+			unlock := a.lockSession(msg.SessionID)
+			defer unlock()
+			return helpText, nil
 		}
 	}
 
@@ -333,7 +370,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		"est_tokens", estTokens(messages)+shape.schemas,
 	)
 
-	reply, err := a.runLoop(turnCtx, msg.SessionID, messages, toolDefs, shape)
+	reply, err := a.runLoop(turnCtx, msg.SessionID, messages, toolDefs, shape, turnSource(text))
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return "", nil
@@ -362,7 +399,7 @@ type promptShape struct {
 	schemas   int // est tokens in the tool schema block
 }
 
-func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provider.Message, toolDefs []provider.ToolDef, shape promptShape) (string, error) {
+func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provider.Message, toolDefs []provider.ToolDef, shape promptShape, source string) (string, error) {
 	streamer, canStream := a.completer.(provider.Streamer)
 	writer, hasWriter := channel.ReplyWriterFrom(ctx)
 	progress, hasProgress := channel.ProgressWriterFrom(ctx)
@@ -375,14 +412,31 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 	turnStart := time.Now()
 	iters := 0
 	var modelTime, toolTime time.Duration
+	var firstTokenMS int64
+	var volatileEst int
+	cold := !a.warmed.Load()
 	defer func() {
+		totalMS := time.Since(turnStart).Milliseconds()
 		a.log.Info("turn perf",
 			"iterations", iters,
 			"model_ms", modelTime.Milliseconds(),
 			"tool_ms", toolTime.Milliseconds(),
-			"total_ms", time.Since(turnStart).Milliseconds(),
+			"total_ms", totalMS,
 			"hydration_est_tokens", shape.hydration,
 		)
+		if a.perf != nil {
+			a.perf.append(perfRecord{
+				when:         turnStart,
+				totalMS:      totalMS,
+				modelMS:      modelTime.Milliseconds(),
+				toolMS:       toolTime.Milliseconds(),
+				iters:        iters,
+				firstTokenMS: firstTokenMS,
+				volatileEst:  volatileEst,
+				source:       source,
+				cold:         cold,
+			})
+		}
 	}()
 
 	// Names to force on the next call, set when a tool name failed to resolve.
@@ -438,6 +492,12 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 			return "", err
 		}
 		a.warmed.Store(true)
+		if iter == 0 {
+			volatileEst = volatileTokens
+			if !firstTokenAt.IsZero() {
+				firstTokenMS = firstTokenAt.Sub(callStart).Milliseconds()
+			}
+		}
 		perf := []any{
 			"iteration", iter + 1,
 			"dur_ms", callDur.Milliseconds(),
@@ -516,25 +576,47 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 			}
 			// Prose that promises a tool ("I'll pull…", mentions server__tool)
 			// or falsely claims one already ran ("I've created…") without any
-			// tool_calls this turn — common Qwen failure. Nudge once before
-			// tools; after tools, accept the text as the answer.
-			if !sawTools && !nudged && (promisesToolCall(res.Content, res.Thinking) || claimsToolSuccess(res.Content)) {
+			// tool_calls this turn — common small-model failure. Nudge once
+			// before tools. After tools, only catch deferrals ("give me a
+			// moment…") that leave the human hanging — giving up is fine;
+			// stalling is not. (Do not use promisesToolCall after tools: a
+			// honest "google__sheets_… failed" final answer contains "__".)
+			preToolTheater := !sawTools && (promisesToolCall(res.Content, res.Thinking) || claimsToolSuccess(res.Content))
+			deferral := sawTools && defersPendingWork(res.Content)
+			if (preToolTheater || deferral) && !nudged {
 				a.log.Warn("model narrated tool action in prose without calling",
 					"chars", len(res.Content),
 					"iteration", iter+1,
+					"saw_tools", sawTools,
+					"deferral", deferral,
 				)
 				nudged = true
 				messages = append(messages, provider.Message{
 					Role:    provider.RoleAssistant,
 					Content: res.Content,
 				})
+				nudge := "[system] You described or claimed a tool action, but no tool call was made — nothing actually happened. " +
+					"Emit the real tool call now using the exact name from the tools list. " +
+					"Do not narrate and never report results you did not receive from a tool."
+				if deferral {
+					nudge = "[system] You said you would continue (try again / one moment / access next), but no tool call was made — the human is left hanging. " +
+						"Act now: emit the real tool call using the exact name from the tools list, " +
+						"OR give a final answer that reports the tool error and stops. Giving up is fine. " +
+						"Do not ask for a moment or promise another attempt without calling a tool."
+				}
 				messages = append(messages, provider.Message{
-					Role: provider.RoleSystem,
-					Content: "[system] You described or claimed a tool action, but no tool call was made — nothing actually happened. " +
-						"Emit the real tool call now using the exact name from the tools list. " +
-						"Do not narrate and never report results you did not receive from a tool.",
+					Role:    provider.RoleSystem,
+					Content: nudge,
 				})
 				continue
+			}
+			if deferral && nudged {
+				// Second stall after nudge — don't ship "give me a moment" as the reply.
+				a.log.Warn("model deferred again after nudge; forcing give-up",
+					"chars", len(res.Content),
+					"iteration", iter+1,
+				)
+				return "I couldn't finish that — tools failed and I stalled instead of retrying or giving up clearly. Please try again.", nil
 			}
 			return res.Content, nil
 		}
@@ -634,11 +716,19 @@ func (a *Agent) status(ctx context.Context, sessionID string) (string, error) {
 	if a.tools != nil {
 		budget = mcp.EstimateSchemaBudget(a.tools.Tools())
 	}
-	uptime := time.Since(a.startedAt).Truncate(time.Second)
-	return fmt.Sprintf(
-		"uptime=%s model=%s history_messages=%d history_est_tokens=%d tools=%d schema_est_tokens=%d",
-		uptime, a.model, n, histEst, budget.Tools, budget.EstTokens,
-	), nil
+	uptime := formatUptime(time.Since(a.startedAt))
+	var turns uint64
+	if a.perf != nil {
+		turns = a.perf.turnCount()
+	}
+	line := fmt.Sprintf(
+		"uptime=%s model=%s history_messages=%d history_est_tokens=%d tools=%d schema_est_tokens=%d turns=%d",
+		uptime, a.model, n, histEst, budget.Tools, budget.EstTokens, turns,
+	)
+	if mb, ok := selfRSSMB(); ok {
+		line += fmt.Sprintf(" rss_mb=%d", mb)
+	}
+	return line, nil
 }
 
 func (a *Agent) listTools() string {
@@ -863,8 +953,35 @@ func promisesToolCall(content, thinking string) bool {
 	cues := []string{
 		"let me pull", "let me call", "let me query", "let me fetch", "let me check",
 		"i'll pull", "i'll call", "i'll query", "i'll fetch", "i'll check", "i'll use",
+		"i'll try", "i will try", "i'm going to try", "i am going to try",
 		"i will call", "i will pull", "i will query", "going to call", "about to call",
+		"going to access", "i'll access", "i am going to access", "i'm going to access",
 		"query body battery", "call this function", "calling the", "call the tool",
+	}
+	for _, cue := range cues {
+		if strings.Contains(text, cue) {
+			return true
+		}
+	}
+	return defersPendingWork(content) || defersPendingWork(thinking)
+}
+
+// defersPendingWork reports hanging / "one moment" deferral prose — the model
+// ends the turn promising more work without emitting tool_calls. Used after
+// tools have already run so "I'll try that ID now…" cannot be the final reply.
+func defersPendingWork(content string) bool {
+	text := strings.ToLower(content)
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	cues := []string{
+		"give me one moment", "give me a moment", "give me a second", "give me a minute",
+		"one moment while", "just a moment", "one sec while", "hang tight",
+		"hold on while i", "stand by while", "bear with me",
+		"i'll try again", "i will try again", "let me try again", "trying again now",
+		"i am going to try", "i'm going to try", "going to try to access",
+		"i am going to access", "i'm going to access", "going to access that",
+		"while i confirm", "while i check the connection", "confirm the connection",
 	}
 	for _, cue := range cues {
 		if strings.Contains(text, cue) {

@@ -174,8 +174,8 @@ function Write-NativeEnv {
     'LOG_LEVEL=info',
     "TZ=$tz",
     "CRON_TZ=$tz",
-    # Pass through from .env — do not hardcode. gemma3 rejects tool schemas; SAM
-    # labs set TOOLS_ENABLED=false (and usually MEMORY/CRON off too).
+    # Pass through from .env — do not hardcode. SAM OCR labs set
+    # TOOLS_ENABLED=false (and usually MEMORY/CRON off too).
     "TOOLS_ENABLED=$(if ($src.ContainsKey('TOOLS_ENABLED')) { $src['TOOLS_ENABLED'] } else { 'true' })",
     "MEMORY_ENABLED=$(if ($src.ContainsKey('MEMORY_ENABLED')) { $src['MEMORY_ENABLED'] } else { 'true' })",
     "MEMORY_BACKEND=$(if ($src['MEMORY_BACKEND']) { $src['MEMORY_BACKEND'] } else { 'builtin' })",
@@ -399,7 +399,7 @@ switch ($Action) {
     Fetch-McpDownloadTools
     Sync-Stage
     Install-Remote -Restart
-    Write-Host "Deployed. Message TIM on Telegram; logs: make remote-native-logs"
+    Write-Host "Deployed. Message SAM on Telegram; logs: make remote-native-logs"
   }
   'deploy-dev' {
     Ensure-NativeEnv

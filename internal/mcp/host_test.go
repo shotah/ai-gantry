@@ -785,3 +785,76 @@ command = "unused"
 		t.Fatalf("dials=%d want 1 (no restart on arg error)", dials)
 	}
 }
+
+func TestHost_CallStats(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "google-search"
+command = "unused"
+
+[[server]]
+name = "slow"
+command = "unused"
+`)
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(_ context.Context, spec mcp.ServerSpec, _ io.Writer) (mcp.Conn, error) {
+			switch spec.Name {
+			case "google-search":
+				return &fakeConn{tools: []mcp.Tool{{OriginalName: "web_search"}}}, nil
+			case "slow":
+				return &fakeConn{
+					tools:   []mcp.Tool{{OriginalName: "work"}},
+					fail:    true,
+					failErr: fmt.Errorf("invalid argument: nope"),
+				}, nil
+			default:
+				return nil, fmt.Errorf("unknown %s", spec.Name)
+			}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	empty := host.CallStats()
+	if empty.TotalCalls != 0 {
+		t.Fatalf("empty stats = %#v", empty)
+	}
+
+	_, _ = host.Call(context.Background(), "google-search__web_search", json.RawMessage(`{}`))
+	_, _ = host.Call(context.Background(), "google_search__web_search", json.RawMessage(`{}`)) // alias
+	_, _ = host.Call(context.Background(), "slow__work", json.RawMessage(`{}`))                // error
+	_, _ = host.Call(context.Background(), "bogus__thing", nil)                                // unknown
+
+	stats := host.CallStats()
+	if stats.TotalCalls != 3 {
+		t.Fatalf("totalCalls=%d want 3", stats.TotalCalls)
+	}
+	if stats.PrefixAlias != 1 {
+		t.Fatalf("prefixAlias=%d want 1", stats.PrefixAlias)
+	}
+	if stats.UnknownTool < 1 {
+		t.Fatalf("unknownTool=%d", stats.UnknownTool)
+	}
+	if len(stats.ByTool) < 2 {
+		t.Fatalf("byTool=%#v", stats.ByTool)
+	}
+	// Sorted by total duration desc — both tools present; slow has the error.
+	var slow, search *mcp.ToolCallStat
+	for i := range stats.ByTool {
+		switch stats.ByTool[i].Name {
+		case "slow__work":
+			slow = &stats.ByTool[i]
+		case "google-search__web_search":
+			search = &stats.ByTool[i]
+		}
+	}
+	if search == nil || search.Calls != 2 || search.Errors != 0 {
+		t.Fatalf("search=%#v", search)
+	}
+	if slow == nil || slow.Calls != 1 || slow.Errors != 1 {
+		t.Fatalf("slow=%#v", slow)
+	}
+}

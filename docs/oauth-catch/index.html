@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OAuth code — paste into your bot</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --accent: #3d8bfd;
+      --ok: #3dd68c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(ellipse at top, #1a2740 0%, var(--bg) 55%);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    main {
+      width: min(32rem, 100%);
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1.75rem 1.5rem;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 0.5rem; font-weight: 600; }
+    p { color: var(--muted); line-height: 1.45; margin: 0 0 1rem; }
+    .code {
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.95rem;
+      word-break: break-all;
+      background: #0c1018;
+      border: 1px solid #2a3548;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin: 0 0 1rem;
+      min-height: 3rem;
+    }
+    .row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 8px;
+      padding: 0.65rem 1.1rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.secondary { background: #2a3548; color: var(--text); }
+    .status { margin-top: 0.85rem; min-height: 1.25rem; color: var(--ok); font-size: 0.9rem; }
+    .err { color: #ff7b72; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Authorization code</h1>
+    <p>
+      Copy this code and paste it into your chat bot as
+      <code>/auth &lt;server&gt; &lt;code&gt;</code>.
+      This page stores nothing — it only shows what the provider put in the URL.
+    </p>
+    <div id="code" class="code" aria-live="polite">Looking for <code>?code=</code>…</div>
+    <div class="row">
+      <button type="button" id="copy" disabled>Copy code</button>
+      <button type="button" class="secondary" id="clear" disabled>Clear from URL</button>
+    </div>
+    <div id="status" class="status"></div>
+    <p style="margin-top:1.25rem;margin-bottom:0;font-size:0.85rem;">
+      Guide:
+      <a href="https://github.com/shotah/ai-gantry/blob/main/docs/auth.md">docs/auth.md</a>
+    </p>
+  </main>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var code = params.get("code") || "";
+      var err = params.get("error") || "";
+      var el = document.getElementById("code");
+      var status = document.getElementById("status");
+      var copyBtn = document.getElementById("copy");
+      var clearBtn = document.getElementById("clear");
+
+      if (err) {
+        el.textContent = "";
+        status.className = "status err";
+        status.textContent = "Provider error: " + err + (params.get("error_description") ? " — " + params.get("error_description") : "");
+        return;
+      }
+      if (!code) {
+        el.textContent = "No code in this URL. Start again with /auth <server> in your bot.";
+        return;
+      }
+      el.textContent = code;
+      copyBtn.disabled = false;
+      clearBtn.disabled = false;
+
+      copyBtn.addEventListener("click", function () {
+        navigator.clipboard.writeText(code).then(function () {
+          status.className = "status";
+          status.textContent = "Copied — paste into the bot now.";
+        }).catch(function () {
+          status.className = "status err";
+          status.textContent = "Copy failed — select the code manually.";
+        });
+      });
+
+      clearBtn.addEventListener("click", function () {
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        status.className = "status";
+        status.textContent = "Query string cleared from the address bar.";
+      });
+
+      // Best-effort: strip code from history after a moment so a shared screen is safer.
+      setTimeout(function () {
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }, 500);
+    })();
+  </script>
+</body>
+</html>

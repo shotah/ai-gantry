@@ -57,8 +57,27 @@ No approval step — if the allowlist is right, it just replies.
 | --- | --- |
 | `/new` | Clear **this sender's** conversation history and start a fresh session |
 | `/cancel` | Cancel the **in-flight** reply / tool loop for this chat (does not undo tools that already finished) |
-| `/status` | Uptime, model, history + **schema** estimated tokens, tool count |
+| `/status` | Uptime, model, history + **schema** estimated tokens, tool count, turns, RSS (Linux) |
 | `/tools` | Prefixed catalog + `schema_est_tokens` total and per-server breakdown |
+| `/perf` | Last ~12 turns' timing split (`model` / `tool` / `first_token` / `volatile`) |
+| `/memstats` | Memory row counts, decay state, consolidation backlog |
+| `/toolstats` | Per-tool call ledger since boot (avg/max, repairs) |
+| `/auth` | Remote OAuth without a port — URL then paste code ([auth guide](https://github.com/shotah/ai-gantry/blob/main/docs/auth.md)) |
+| `/help` | One-line list of commands |
+
+Register the same list with BotFather (`/setcommands`) so Telegram autocompletes them:
+
+```text
+new - reset this session
+cancel - stop the in-flight turn
+status - uptime, model, history, tools
+tools - prefixed tool catalog
+perf - last turns' timing split
+memstats - memory health
+toolstats - per-tool call ledger
+auth - remote OAuth (see docs/auth.md)
+help - list commands
+```
 
 Use **`/cancel`** when a turn is stuck on tools or you want to abort mid-reply, then send
 the corrected ask. Use **`/new`** when LOCAL_AGENT dumps huge JSON/transcripts, loops on
@@ -69,7 +88,7 @@ broken deploy — reset and ask one concrete thing again.
 
 A single message starts work **immediately** — no settle delay. Coalescing only
 engages once there is something to interrupt, so a follow-up bubble that lands
-while Tim is still working causes gantry to:
+while SAM is still working causes gantry to:
 
 1. **Interrupt** the in-flight turn (same plumbing as `/cancel`)
 2. **Coalesce** the interrupted text with the new bubble(s)
@@ -92,7 +111,7 @@ something, so a slow prefill shows nothing but the typing dot. `SPINUP_NOTICE_MS
   (often a prompt-cache miss).
 
 Either line is a waiting indicator, not part of the answer: the reply replaces it
-the moment Tim starts talking, and it never survives into the finished bubble
+the moment SAM starts talking, and it never survives into the finished bubble
 (tool traces still do). A fast turn never shows one at all. Set `0` to disable.
 
 ---
@@ -100,7 +119,7 @@ the moment Tim starts talking, and it never survives into the finished bubble
 ## Session bounds
 
 gantry keeps the prompt bounded with env knobs (defaults are sane; all in
-[ai-gantry §5.1](https://github.com/shotah/ai-gantry#51-environment-variables)):
+[ai-gantry §4.1](https://github.com/shotah/ai-gantry#41-environment-variables)):
 
 - `HISTORY_MAX_MESSAGES=200` — hard message cap
 - `HISTORY_MAX_TOKENS=128000` — estimated (chars/4); oldest turns drop first
@@ -160,7 +179,7 @@ see [deploy-native.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy
 ### Error reporting (ops alerts)
 
 When you're remote and can't watch `journalctl`, tee slog failures into the
-same Tim chat as a collapsed HTML box:
+same SAM chat as a collapsed HTML box:
 
 ```env
 TELEGRAM_ERROR_REPORTING=error   # off | error | warn

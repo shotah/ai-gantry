@@ -1,5 +1,5 @@
 [Unit]
-Description=ai-gantry personal agent (TIM)
+Description=ai-gantry personal agent
 Documentation=https://github.com/shotah/ai-gantry
 After=network-online.target ollama.service
 Wants=network-online.target

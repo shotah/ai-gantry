@@ -8,7 +8,9 @@ is the public pitch + product contract; these pages go deeper.
 | [positioning.md](positioning.md) | ICP, competition, Docker Hub story, when (not) to add a site |
 | [dockerhub.md](dockerhub.md) | **Hub overview** synced by CI (keep lean; PNG banner) |
 | [deploy-docker.md](deploy-docker.md) | **Fastest hello:** Hub pull + compose; **MCP browser auth** (Google/Strava) |
+| [auth.md](auth.md) | **Chat `/auth`** remote OAuth (PKCE paste + device flow); catch page |
 | [deploy-native.md](deploy-native.md) | Linux systemd + Ollama/Qwen, local-model hardening |
+| [observability.md](observability.md) | Memory/GPU/timing commands: `ollama ps`, per-turn log recipes, `docker stats` |
 | [mcp.md](mcp.md) | MCP host: `{server}__{tool}` naming, underscore alias, suggestions, local REPL |
 | [mcp-naming.md](mcp-naming.md) | **Shared** tool naming contract for all shotah MCP packages (Qwen / closest-match) |
 | [discord.md](discord.md) | Discord Gateway channel (DMs, allowlist, no ports) |

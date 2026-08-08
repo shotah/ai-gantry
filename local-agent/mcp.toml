@@ -1,4 +1,44 @@
-# SAM vision/OCR lab — intentionally empty.
-# gemma3:12b (Ollama) returns 400 if the request includes ANY tool schemas.
-# Keep MEMORY_ENABLED=false and CRON_ENABLED=false in .env for the same reason.
-# Full Tim stack archived as mcp.full.toml.
+# SAM agent lab on gemma4:12b — lean catalog (schema size matters).
+# Full SAM stack archived as mcp.full.toml (flights/rentals/cars/cast/youtube).
+
+# Google MCP (shotah/google-mcp) — docs/google-workspace.md
+[[server]]
+name = "google"
+command = "google-mcp"
+args = ["--preset", "everyday"]
+auth_args = ["auth"]
+download_tag = "latest"
+download_url = "https://github.com/shotah/google-mcp/releases/download/{tag}/google-mcp_{version}_{os}_{arch}.tar.gz"
+
+# Strava workouts (shotah/go-strava-mcp) — docs/strava.md
+[[server]]
+name = "strava"
+command = "strava-mcp"
+auth_args = ["auth"]
+exclude = ["utility_*"]
+download_tag = "latest"
+download_url = "https://github.com/shotah/go-strava-mcp/releases/download/{tag}/strava-mcp_{version}_{os}_{arch}.tar.gz"
+
+# Garmin sleep / body battery / weight (shotah/go-garmin) — docs/garmin.md
+[[server]]
+name = "garmin"
+command = "garmin"
+args = ["mcp", "--tool-tier", "core"]
+auth_args = ["login"]
+exclude = ["calendar_*", "*_calendar", "*_calendar_*"]
+download_tag = "latest"
+download_url = "https://github.com/shotah/go-garmin/releases/download/{tag}/garmin_{version}_{os}_{arch}.tar.gz"
+
+# Web search via Gemini Grounding (shotah/mcp-gemini-search) — docs/web-search.md
+[[server]]
+name = "google-search"
+command = "mcp-gemini-google-search"
+download_tag = "latest"
+download_url = "https://github.com/shotah/mcp-gemini-search/releases/download/{tag}/mcp-gemini-google-search_{version}_{os}_{arch}.tar.gz"
+
+# Calculator (shotah/mcp-go-math) — docs/math.md
+[[server]]
+name = "math"
+command = "mcp-go-math"
+download_tag = "latest"
+download_url = "https://github.com/shotah/mcp-go-math/releases/download/{tag}/mcp-go-math_{version}_{os}_{arch}.tar.gz"

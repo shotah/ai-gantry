@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -44,6 +45,37 @@ func RunAuth(ctx context.Context, spec ServerSpec, extraArgs []string) error {
 		return fmt.Errorf("mcp: auth %q (%s): %w", spec.Name, strings.Join(append([]string{command}, args...), " "), err)
 	}
 	return nil
+}
+
+// RunAuthOutput runs the auth subprocess capturing stdout/stderr (no TTY inherit).
+// Used by chat /auth so the reply can include the authorize URL or confirmation.
+func RunAuthOutput(ctx context.Context, spec ServerSpec, extraArgs []string) (stdout, stderr string, err error) {
+	command, args, ok := spec.AuthCmd()
+	if !ok {
+		return "", "", fmt.Errorf("mcp: server %q has no auth_command/auth_args", spec.Name)
+	}
+	args = ExpandAuthArgs(args)
+	if len(extraArgs) > 0 {
+		args = append(args, extraArgs...)
+	}
+
+	cmd := exec.CommandContext(ctx, command, args...) //nolint:gosec // G204: from operator mcp.toml
+	cmd.Env = append(os.Environ(), spec.Env...)
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+	// No stdin — chat auth must not block on interactive prompts.
+	runErr := cmd.Run()
+	stdout = strings.TrimSpace(outBuf.String())
+	stderr = strings.TrimSpace(errBuf.String())
+	if runErr != nil {
+		msg := stderr
+		if msg == "" {
+			msg = runErr.Error()
+		}
+		return stdout, stderr, fmt.Errorf("mcp: auth %q: %s", spec.Name, msg)
+	}
+	return stdout, stderr, nil
 }
 
 // AuthServers returns servers that declare an auth flow, in manifest order.

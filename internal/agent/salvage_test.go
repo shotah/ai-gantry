@@ -13,7 +13,7 @@ import (
 
 // Observed on Qwen after a tool-call nudge: it printed the call as JSON with a
 // "parameters" key and no tool_calls, and gantry shipped that JSON to Telegram as
-// Tim's reply. The call must be executed instead — and since the printed name was
+// SAM's reply. The call must be executed instead — and since the printed name was
 // not real either, the failure has to chain into the constrained retry.
 func TestAgent_PrintedToolCallIsExecutedNotSpoken(t *testing.T) {
 	printed := "{\n  \"name\": \"garmin__get_daily_activity\",\n  \"parameters\": {\n    \"date\": \"2026-07-28\"\n  }\n}"

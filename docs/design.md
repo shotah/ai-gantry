@@ -68,7 +68,7 @@ Everything is env or a mount. Boot is fail-fast: missing required env → exit 1
 | Stream | `STREAM_REPLIES` (`true` default; Telegram edit / stdio tokens) |
 | Ops | `LOG_LEVEL` |
 
-Full table lives in the [root readme](../readme.md#51-environment-variables).
+Full table lives in the [root readme](../readme.md#41-environment-variables).
 
 ### MCP manifest
 
@@ -142,7 +142,7 @@ recalled rows. Contradictions should be surfaced to the user, not obeyed.
 | `gantry version` | Build ldflags |
 | SIGTERM / Interrupt | Stop channel → drain in-flight turn → close MCP → close DB |
 | Logs | JSON `slog` on stderr (`docker logs`) |
-| Chat cmds | `/new`, `/cancel`, `/status`, `/tools` (SIGHUP reloads persona on unix) |
+| Chat cmds | `/new`, `/cancel`, `/status`, `/tools`, `/perf`, `/memstats`, `/toolstats`, `/auth`, `/help` (SIGHUP reloads persona on unix) |
 | Multi-bubble | Interrupt + coalesce + settle (`COALESCE_SETTLE_MS`, default 2s) |
 | Photos | Telegram inbound → multimodal user turn; outbound `SendPhoto` for image URLs in reply |
 

@@ -57,6 +57,14 @@ func (c Composite) Call(ctx context.Context, name string, arguments json.RawMess
 	return c.Other.Call(ctx, name, arguments)
 }
 
+// CallStats forwards MCP call accounting when Other exposes it (mcp.Host).
+func (c Composite) CallStats() mcp.CallStats {
+	if s, ok := c.Other.(interface{ CallStats() mcp.CallStats }); ok {
+		return s.CallStats()
+	}
+	return mcp.CallStats{}
+}
+
 func isHiddenMemoryTool(server, name string) bool {
 	for _, t := range []string{ToolStore, ToolRecall, ToolForget} {
 		pref, err := mcp.PrefixedName(server, t)

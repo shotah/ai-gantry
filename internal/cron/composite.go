@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
@@ -42,4 +43,12 @@ func (c Composite) Call(ctx context.Context, name string, arguments json.RawMess
 		return "", fmt.Errorf("cron: no tool runner for %q", name)
 	}
 	return c.Other.Call(ctx, name, arguments)
+}
+
+// CallStats forwards MCP call accounting when Other exposes it (mcp.Host / memory.Composite).
+func (c Composite) CallStats() mcp.CallStats {
+	if s, ok := c.Other.(interface{ CallStats() mcp.CallStats }); ok {
+		return s.CallStats()
+	}
+	return mcp.CallStats{}
 }

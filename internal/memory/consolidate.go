@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/provider"
@@ -26,6 +27,10 @@ type Consolidator struct {
 	Interval  time.Duration
 	BatchSize int
 	Logger    *slog.Logger
+
+	mu      sync.Mutex
+	lastRun time.Time
+	lastErr error
 }
 
 // Start runs consolidation passes on Interval until ctx is cancelled.
@@ -77,8 +82,17 @@ func (c *Consolidator) Pass(ctx context.Context) {
 }
 
 func (c *Consolidator) runPass(ctx context.Context, log *slog.Logger, batch int) {
+	var passErr error
+	defer func() {
+		c.mu.Lock()
+		c.lastRun = time.Now()
+		c.lastErr = passErr
+		c.mu.Unlock()
+	}()
+
 	episodes, err := c.Store.ListUnconsolidatedEpisodes(ctx, batch)
 	if err != nil {
+		passErr = err
 		log.Warn("memory consolidate list failed", "err", err)
 		return
 	}
@@ -101,12 +115,14 @@ func (c *Consolidator) runPass(ctx context.Context, log *slog.Logger, batch int)
 		},
 	})
 	if err != nil {
+		passErr = err
 		log.Warn("memory consolidate llm failed", "err", err)
 		return
 	}
 
 	items, err := parseConsolidateJSON(res.Content)
 	if err != nil {
+		passErr = err
 		log.Warn("memory consolidate parse failed", "err", err, "raw", truncate(res.Content, 200))
 		if qerr := c.Store.RecordConsolidateFailure(ctx, ids, maxConsolidateAttempts); qerr != nil {
 			log.Warn("memory consolidate failure record failed", "err", qerr)
@@ -116,6 +132,7 @@ func (c *Consolidator) runPass(ctx context.Context, log *slog.Logger, batch int)
 
 	stored, err := c.Store.ApplyConsolidation(ctx, ids, items, allowed)
 	if err != nil {
+		passErr = err
 		log.Warn("memory consolidate apply failed", "err", err)
 		return
 	}
@@ -124,6 +141,17 @@ func (c *Consolidator) runPass(ctx context.Context, log *slog.Logger, batch int)
 		"extracted", len(items),
 		"stored", stored,
 	)
+}
+
+// LastStatus returns the time and error from the most recent consolidation pass.
+// at.IsZero means no pass has completed yet.
+func (c *Consolidator) LastStatus() (at time.Time, err error) {
+	if c == nil {
+		return time.Time{}, nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lastRun, c.lastErr
 }
 
 const consolidateSystem = `You consolidate episodic memories into durable structured rows.

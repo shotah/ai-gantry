@@ -329,7 +329,7 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 	return c.sendReply(ctx, b, chatID, msg.ThreadID, msg.Text, msg.PhotoURL)
 }
 
-// NotifyHTML drops a pre-formatted HTML alert into the Tim DM (private chat id
+// NotifyHTML drops a pre-formatted HTML alert into the SAM DM (private chat id
 // == allowlisted user id). Used by logfwd — callers must not log failures from
 // this path (loop guard).
 func (c *Channel) NotifyHTML(ctx context.Context, htmlBody string) error {

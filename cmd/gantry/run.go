@@ -116,6 +116,7 @@ func run() int {
 		memBuiltin *memory.Builtin
 		hideServer string
 		tools      agent.Tools = mcpHost
+		consol     *memory.Consolidator
 	)
 
 	if cfg.MemoryEnabled {
@@ -159,7 +160,7 @@ func run() int {
 		}
 
 		if memBuiltin != nil && cfg.MemoryConsolidateMinutes > 0 {
-			consol := &memory.Consolidator{
+			consol = &memory.Consolidator{
 				Store:     memBuiltin,
 				Completer: completer,
 				Interval:  time.Duration(cfg.MemoryConsolidateMinutes) * time.Minute,
@@ -231,6 +232,8 @@ func run() int {
 		TZName:         cfg.CronTZ,
 		CoalesceSettle: time.Duration(cfg.CoalesceSettleMS) * time.Millisecond,
 		SpinupNotice:   time.Duration(cfg.SpinupNoticeMS) * time.Millisecond,
+		Consolidator:   consol,
+		MCPManifest:    cfg.MCPManifest,
 	})
 	if err != nil {
 		logger.Error("agent init failed", "err", err)

@@ -128,7 +128,7 @@ gantry auth youtube
 | `remote-native-deploy-dev` | cross-build working tree → sync → install → start |
 | `remote-native-build-dev` | linux/amd64 → `.cache/native/gantry` only |
 
-## Cutover from Docker TIM
+## Cutover from Docker SAM
 
 1. Stop old container (one Telegram token → one process).
 2. Re-scp a fresh `gantry.db` if the old box kept writing.

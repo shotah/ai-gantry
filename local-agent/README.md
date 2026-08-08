@@ -251,7 +251,7 @@ Set in `.env` (copy from [`.env.example`](.env.example)). Secrets are never comm
 | `TELEGRAM_ALLOWED_USERS` | ✅ | Comma-separated numeric user IDs — the entire auth model; empty fails boot |
 | `STREAM_REPLIES` | — | Telegram edit-in-place streaming (default `true`) |
 | `SHOW_THINKING` | — | CoT in the bubble (default `true`; needs `STREAM_REPLIES`) |
-| `MEMORY_*`, `HISTORY_*`, `TOOL_*`, `CRON_*` | — | gantry runtime knobs — see [ai-gantry §5.1](https://github.com/shotah/ai-gantry#51-environment-variables) |
+| `MEMORY_*`, `HISTORY_*`, `TOOL_*`, `CRON_*` | — | gantry runtime knobs — see [ai-gantry §4.1](https://github.com/shotah/ai-gantry#41-environment-variables) |
 | `SPARK_QTY` / `SPARK_*` | — | Opt-in spark-of-life presence pings (`4-6`, window hours). Empty qty = off. See [docs/cron.md](../docs/cron.md#spark-of-life-opt-in); native: [deploy/README.md](deploy/README.md#spark-of-life-opt-in) |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | — | Strava API app (see [Workout coaching](#workout-coaching-strava)) |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `USER_GOOGLE_EMAIL` | — | Google Workspace MCP OAuth (see [docs/google-workspace.md](docs/google-workspace.md)) |

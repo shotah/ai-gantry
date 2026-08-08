@@ -11,7 +11,7 @@ Status legend: **keep** · **consider** · **do** · **wontfix**
 
 | Item | Decision | Why |
 |------|----------|-----|
-| Pin fleet `download_tag` | **wontfix** | `latest` is deliberate: lower ops, no version-chasing across tim/evie/masaki. Accept non-reproducible fetches. |
+| Pin fleet `download_tag` | **wontfix** | `latest` is deliberate: lower ops, no version-chasing across SAM/evie/masaki. Accept non-reproducible fetches. |
 | MCP download checksums | **wontfix** | Not worth the supply-chain ceremony at personal-fleet scale. |
 | Separate consolidator model | **wontfix** (for now) | Pennies on Flash; consolidator volume is tiny vs tool-loop chat. |
 
@@ -111,7 +111,7 @@ trigger it — but it *is* confused-deputy risk when friends/spam get forwarded 
 
 ### Cost / benefit
 
-Worth it if you forward a lot of untrusted content into Tim. Low priority if inbound
+Worth it if you forward a lot of untrusted content into SAM. Low priority if inbound
 is almost always direct DMs from you / Crystal / Sara.
 
 ---

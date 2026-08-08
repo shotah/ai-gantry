@@ -32,7 +32,7 @@ type Config struct {
 
 	TelegramBotToken     string  `env:"TELEGRAM_BOT_TOKEN"`
 	TelegramAllowedUsers []int64 `env:"TELEGRAM_ALLOWED_USERS" envSeparator:","`
-	// TelegramErrorReporting tees slog ERROR (or WARN+) into the Tim Telegram
+	// TelegramErrorReporting tees slog ERROR (or WARN+) into the SAM Telegram
 	// chat as an expandable HTML alert. off|error|warn. Only when CHANNEL=telegram.
 	TelegramErrorReporting string `env:"TELEGRAM_ERROR_REPORTING" envDefault:"off"`
 

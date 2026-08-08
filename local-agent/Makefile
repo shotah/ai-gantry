@@ -305,10 +305,16 @@ endif
 # Auth runs against the local appliance image (gantry + MCP bins on PATH).
 # Do not pass --build here: the Dockerfile needs `.cache/docker-gantry` from
 # `make build` / `prepare-docker-gantry`. Re-auth should not re-fetch every tool.
+#
+# Match gantry-fleet/scripts/agent.mk: force bridge so -p HOST:CONTAINER works
+# (host networking ignores publish), and --no-deps so a long-running stack
+# does not steal the OAuth callback port.
+strava-auth garmin-auth ghealth-auth youtube-auth google-auth: export NETWORK_MODE := bridge
+
 strava-auth: ## One-time Strava OAuth via gantry auth (see docs/strava.md)
 	@echo Opening Strava OAuth. A URL will be printed below — open it in your browser and approve.
 	@echo If the image is missing: make build
-	$(COMPOSE) run --rm -p 127.0.0.1:19876:19876 --entrypoint /usr/local/bin/gantry $(SERVICE) auth strava
+	$(COMPOSE) run --rm --no-deps -p 127.0.0.1:19876:19876 --entrypoint /usr/local/bin/gantry $(SERVICE) auth strava
 	$(call PUSH_SECRET_IF_REMOTE,strava)
 
 garmin-auth: ## Garmin login via gantry auth; clears stale session first (see docs/garmin.md)
@@ -316,7 +322,7 @@ garmin-auth: ## Garmin login via gantry auth; clears stale session first (see do
 	-$(RM_GARMIN_SESSION)
 	@echo Garmin interactive login (email / password / MFA). Session lands in data/.config/garmin/.
 	@echo If the image is missing: make build
-	$(COMPOSE) run --rm -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth garmin
+	$(COMPOSE) run --rm --no-deps -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth garmin
 	$(call PUSH_SECRET_IF_REMOTE,garmin)
 
 ghealth-auth: ## Google Health OAuth via gantry auth (see docs/google-health.md)
@@ -324,31 +330,35 @@ ghealth-auth: ## Google Health OAuth via gantry auth (see docs/google-health.md)
 	@echo Opening Google Health OAuth. Approve readonly Google Health scopes in the browser.
 	@echo OAuth client redirect: http://127.0.0.1:4101/oauth2callback
 	@echo If the image is missing: make build
-	$(COMPOSE) run --rm -p 127.0.0.1:4101:4101 --entrypoint /usr/local/bin/gantry $(SERVICE) auth ghealth
+	$(COMPOSE) run --rm --no-deps -p 127.0.0.1:4101:4101 --entrypoint /usr/local/bin/gantry $(SERVICE) auth ghealth
 	$(call PUSH_SECRET_IF_REMOTE,ghealth)
 
 youtube-auth: ## YouTube OAuth via gantry auth (mcp.toml auth_args; see docs/youtube.md)
 	@echo Needs YOUTUBE_OAUTH_CLIENT_ID / YOUTUBE_OAUTH_CLIENT_SECRET in .env
 	@echo Approve as the Google account that owns your YouTube likes/playlists (incognito helps).
 	@echo See docs/youtube.md. If the image is missing: make build
-	$(COMPOSE) run --rm -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth youtube
+	$(COMPOSE) run --rm --no-deps -it --entrypoint /usr/local/bin/gantry $(SERVICE) auth youtube
 	$(call PUSH_SECRET_IF_REMOTE,youtube)
 
 youtube-whoami: ## Show token + YouTube channel for data/.config/youtube/oauth.json
-	$(COMPOSE) run --rm --entrypoint youtube-go-mcp $(SERVICE) auth oauth --whoami
+	$(COMPOSE) run --rm --no-deps --entrypoint youtube-go-mcp $(SERVICE) auth oauth --whoami
 
 youtube-probe: ## Data API probe — likes / channel / playlists (needs oauth.json + client id/secret)
-	$(COMPOSE) run --rm --entrypoint youtube-go-mcp $(SERVICE) auth oauth --probe-data-api
+	$(COMPOSE) run --rm --no-deps --entrypoint youtube-go-mcp $(SERVICE) auth oauth --probe-data-api
 
 ytmusic-auth: youtube-auth ## Deprecated alias for youtube-auth
 ytmusic-whoami: youtube-whoami ## Deprecated alias for youtube-whoami
 ytmusic-probe: youtube-probe ## Deprecated alias for youtube-probe
 
+# Google OAuth: google-mcp defaults to :4100 on 0.0.0.0 — just publish it.
+# OAuth client redirect: http://localhost:4100/oauth2callback
+# --user root: Docker Desktop bind-mounts often deny the compose UID (1000) write
+# to ./data on Windows; auth only needs to write credentials once.
 google-auth: ## One-time Google OAuth via gantry auth (see docs/google-workspace.md)
 	@echo Opening Google OAuth. A URL will be printed below — open it in your browser and approve.
 	@echo OAuth client redirect: http://localhost:4100/oauth2callback
 	@echo If the image is missing: make build
-	$(COMPOSE) run --rm -p 127.0.0.1:4100:4100 --entrypoint /usr/local/bin/gantry $(SERVICE) auth google
+	$(COMPOSE) run --rm --no-deps --user root -p 127.0.0.1:4100:4100 --entrypoint /usr/local/bin/gantry $(SERVICE) auth google
 	$(call PUSH_SECRET_IF_REMOTE,google)
 
 google-mcp-import: ## Legacy: import gws export into data/.config/google-mcp (prefer make google-auth)
@@ -427,7 +437,7 @@ remote-native-status: ## gantry status on native host
 remote-native-deploy: ## env + fetch + sync + install + start
 	$(REMOTE_NATIVE) deploy
 	@echo.
-	@echo Native deploy done. Stop the old Docker TIM so only one bot polls Telegram.
+	@echo Native deploy done. Stop the old Docker SAM so only one bot polls Telegram.
 	@echo.
 
 remote-native-build-dev: ## Cross-build linux/amd64 gantry into .cache/native/gantry
