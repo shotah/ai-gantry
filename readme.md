@@ -95,6 +95,23 @@ Longer ICP / competition / evangelism notes:
 
 One `CHANNEL` per process. Allowlist only; no pairing.
 
+### Chat is the console (no dashboard)
+
+Ops and tool login happen **in the same chat** you already use — allowlisted,
+on your phone, zero inbound ports. Telegram refreshes the `/` menu on every
+bot start (`setMyCommands`); type `/help` anytime.
+
+| Command | What it does |
+| --- | --- |
+| `/status` `/perf` `/memstats` `/toolstats` | Session bounds, last-turn timing, memory health, MCP ledger |
+| `/tools` `/new` `/cancel` `/help` | Catalog, reset session, abort in-flight turn |
+| **`/auth`** | **Headless MCP OAuth** — paste a code from a static catch page; no laptop `localhost` callback |
+
+Headless Google / Strava / Health: `/auth google` (etc.) → approve → paste
+code. Laptop still works via `make *-auth`. Guide:
+**[docs/auth.md](docs/auth.md)**. Observability from chat + host:
+**[docs/observability.md](docs/observability.md)**.
+
 ### Hardened for small local models
 
 Most agent stacks are tuned against frontier cloud models and quietly assume
@@ -116,17 +133,16 @@ another billed retry.
 | Think stalls | Promote CoT → reply after tools | Multi-step turns finish instead of ERROR |
 | Printed calls | Parse a tool call written as text and run it | A model that prints `{"name":…}` never speaks JSON at you |
 | Multi-bubble | Interrupt + coalesce + settle (`COALESCE_SETTLE_MS`) | “Strava… wait Garmin… nvm calendar” → one joined turn |
-| Slow turns | Per-turn perf logs + tool trace in the chat bubble | Know whether prefill, thinking, or an MCP is the wait |
+| Slow turns | Per-turn perf logs + `/perf` / tool trace in chat | Know whether prefill, thinking, or an MCP is the wait |
 | Memory | SQLite + FTS5 in-process | No embedding API before every reply |
 | Runtime | One static binary (systemd *or* Distroless) | No Node/Bun/gateway in the path |
 | Gemini 3 | Preserves `thought_signature` on tool rounds | Cloud multi-step turns don't 400 |
 
 The same discipline runs through the MCP fleet: every tool server is a static
-Go binary with one contract — stdio transport, an auth subcommand for the
-one-time browser/TTY login, GoReleaser releases that `gantry tools-fetch` can
-pin — and every tool reaches the model under one uniform `{server}__{tool}`
-name. One convention for the model to learn; one repair path when a small
-model bends it.
+Go binary with one contract — stdio transport, an auth subcommand (CLI *or*
+chat `/auth`), GoReleaser releases that `gantry tools-fetch` can pin — and
+every tool reaches the model under one uniform `{server}__{tool}` name. One
+convention for the model to learn; one repair path when a small model bends it.
 
 Details: [docs/mcp.md](docs/mcp.md) · [docs/deploy-native.md](docs/deploy-native.md).
 
@@ -141,8 +157,9 @@ Details: [docs/mcp.md](docs/mcp.md) · [docs/deploy-native.md](docs/deploy-nativ
 | **REPL** | Hack on the binary | `make init && make run` (`CHANNEL=stdio`) |
 
 Full life-stack (tools + auth helpers): **[local-agent/](local-agent/)**.  
-MCP browser login (Google / Strava / …): auth on the machine with your browser —
-**[docs/deploy-docker.md § MCP tool auth](docs/deploy-docker.md#mcp-tool-auth-browser-oauth)**.  
+**MCP login:** chat `/auth` on a headless box (**[docs/auth.md](docs/auth.md)**),
+or laptop browser callback
+(**[deploy-docker § MCP tool auth](docs/deploy-docker.md#mcp-tool-auth-browser-oauth)**).  
 Cookbook: **[examples/README.md](examples/README.md)**. Positioning /
 design / security / MCP: **[docs/](docs/)**.
 
@@ -511,7 +528,10 @@ UI. ChatOps is not a compromise for an agent — it is the point.
 - Logs: JSON `slog` to stderr (`journalctl` native, `docker logs` in compose).
 - Consumption & timing without a dashboard — RAM/VRAM (`ollama ps`, not `top`),
   per-turn `jq` recipes, `docker stats`: **[docs/observability.md](docs/observability.md)**.
-- Telegram/stdio slash commands: `/new` (session reset), `/cancel` (halt in-flight turn), `/status`, `/tools`, `/perf`, `/memstats`, `/toolstats`, `/auth`, `/help`; unix `SIGHUP` reloads persona.
+- Telegram/stdio slash commands (also in the pitch above): `/new` `/cancel`
+  `/status` `/tools` `/perf` `/memstats` `/toolstats` `/auth` `/help`;
+  Telegram menu is pushed via `setMyCommands` on connect. Unix `SIGHUP`
+  reloads persona. Headless tool OAuth: **[docs/auth.md](docs/auth.md)**.
 - **Multi-bubble (interrupt → coalesce → settle):** a lone message runs at once;
   a follow-up sent while a turn is running cancels the current loop, joins the
   bubbles into one user message, waits `COALESCE_SETTLE_MS` (default **2000**)

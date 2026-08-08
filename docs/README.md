@@ -7,8 +7,8 @@ is the public pitch + product contract; these pages go deeper.
 | --- | --- |
 | [positioning.md](positioning.md) | ICP, competition, Docker Hub story, when (not) to add a site |
 | [dockerhub.md](dockerhub.md) | **Hub overview** synced by CI (keep lean; PNG banner) |
-| [deploy-docker.md](deploy-docker.md) | **Fastest hello:** Hub pull + compose; **MCP browser auth** (Google/Strava) |
-| [auth.md](auth.md) | **Chat `/auth`** remote OAuth (PKCE paste + device flow); catch page |
+| [deploy-docker.md](deploy-docker.md) | **Fastest hello:** Hub pull + compose; MCP auth (chat `/auth` or laptop) |
+| [auth.md](auth.md) | **Chat `/auth`** headless OAuth (PKCE paste + device flow); catch page |
 | [deploy-native.md](deploy-native.md) | Linux systemd + Ollama/Qwen, local-model hardening |
 | [observability.md](observability.md) | Memory/GPU/timing commands: `ollama ps`, per-turn log recipes, `docker stats` |
 | [mcp.md](mcp.md) | MCP host: `{server}__{tool}` naming, underscore alias, suggestions, local REPL |
@@ -26,6 +26,6 @@ is the public pitch + product contract; these pages go deeper.
 | [cron.md](cron.md) | Schedule tools, timezone, inspect jobs, overlap policy |
 
 Start with **deploy-docker** (Hub pull) or **deploy-native** for a running bot;
-**positioning** for who/why; **architecture** for the code; **mcp** before
-wiring tools; **security** before exposing an allowlist with real tool
-credentials.
+**auth** for headless MCP login; **positioning** for who/why; **architecture**
+for the code; **mcp** before wiring tools; **security** before exposing an
+allowlist with real tool credentials.

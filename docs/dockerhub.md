@@ -44,6 +44,21 @@ Walkthrough: [docs/deploy-docker.md](https://github.com/shotah/ai-gantry/blob/ma
 
 ---
 
+## Chat is the console
+
+No dashboard, no inbound ports — ops and MCP login live in Telegram (or
+Discord / Slack / stdio).
+
+| Command | Use it for |
+| --- | --- |
+| `/status` `/perf` `/memstats` `/toolstats` | Health, slow turns, memory, MCP timing |
+| `/tools` `/new` `/cancel` `/help` | Catalog, reset, abort, command list |
+| `/auth` | **Headless OAuth** (Google / Strava / …) — no laptop `localhost` callback |
+
+Guide: [docs/auth.md](https://github.com/shotah/ai-gantry/blob/main/docs/auth.md)
+
+---
+
 ## Tags
 
 | Tag | Meaning |
@@ -125,8 +140,10 @@ Positioning: [docs/positioning.md](https://github.com/shotah/ai-gantry/blob/main
 | Topic | Link |
 | --- | --- |
 | Docker deploy | [deploy-docker.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-docker.md) |
+| Chat `/auth` (headless OAuth) | [auth.md](https://github.com/shotah/ai-gantry/blob/main/docs/auth.md) |
 | Native + Ollama | [deploy-native.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-native.md) |
 | MCP host | [mcp.md](https://github.com/shotah/ai-gantry/blob/main/docs/mcp.md) |
+| Observability | [observability.md](https://github.com/shotah/ai-gantry/blob/main/docs/observability.md) |
 | Security | [security.md](https://github.com/shotah/ai-gantry/blob/main/docs/security.md) |
 | Full contract | [readme.md](https://github.com/shotah/ai-gantry/blob/main/readme.md) |
 
