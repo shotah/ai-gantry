@@ -66,8 +66,11 @@ In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/
    `GOOGLE_OAUTH_CLIENT_SECRET` on the box, then regenerate env / restart.
 4. Keep the Desktop client for laptop-only auth if you prefer separate secrets.
 
-YouTube stays on a **TV / Limited Input** client (device flow). Google Health
-docs already call for a Web client — same catch URI as above.
+YouTube stays on a **TV / Limited Input** client (device flow).
+
+**Google Health** already uses a **Web** client — add the catch URI alongside
+`http://127.0.0.1:4101/oauth2callback` on the same client (same pattern as
+Workspace chat `/auth`).
 
 Scopes for Workspace chat auth must include `openid` +
 `userinfo.email` (current `google-mcp` defaults) or userinfo returns 401 after
@@ -98,12 +101,16 @@ Localhost interactive auth (`gantry auth <server>` / `make *-auth`) is
 ## Chat commands
 
 ```text
-/auth                     # list auth-capable servers
-/auth strava              # print authorize URL (holds PKCE verifier ~10 min)
-/auth strava <code>       # exchange pasted code → tokens on disk
-/auth youtube             # device: URL + user_code
-/auth youtube wait        # finish device poll → tokens
-/auth garmin              # refused — use make garmin-auth
+/auth                       # list auth-capable servers
+/auth google                # print authorize URL (holds PKCE verifier ~10 min)
+/auth google <code>         # exchange pasted code → tokens on disk
+/auth strava                # same PKCE paste flow
+/auth strava <code>
+/auth ghealth               # same PKCE paste flow
+/auth ghealth <code>
+/auth youtube               # device: URL + user_code
+/auth youtube wait          # finish device poll → tokens
+/auth garmin                # refused — use make garmin-auth
 ```
 
 PKCE verifier/state (or device_code) lives in a pending file next to that
@@ -120,6 +127,10 @@ Additive subcommands next to interactive `auth`:
 | --- | --- |
 | `/auth google` | `url` |
 | `/auth google <code>` | `exchange <code>` |
+| `/auth strava` | `url` |
+| `/auth strava <code>` | `exchange <code>` |
+| `/auth ghealth` | `url` |
+| `/auth ghealth <code>` | `exchange <code>` |
 | `/auth youtube` | `--start` |
 | `/auth youtube wait` | `--wait` |
 

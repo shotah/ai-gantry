@@ -43,9 +43,13 @@ Pixel Watch).
 1. Personal GCP project →
    [enable Google Health API](https://console.cloud.google.com/apis/library/health.googleapis.com)
    ([setup](https://developers.google.com/health/setup)).
-2. Create an OAuth **Web** client; authorized redirect URI:
-   `http://127.0.0.1:4101/oauth2callback`
-   (fixed port — distinct from Workspace google-mcp on `:4100`).
+2. Create an OAuth **Web** client; authorized redirect URIs (both if you want
+   laptop + chat):
+   - `http://127.0.0.1:4101/oauth2callback` — laptop `make ghealth-auth`
+     (fixed port; distinct from Workspace google-mcp on `:4100`)
+   - `https://shotah.github.io/ai-gantry/oauth-catch/` — chat `/auth ghealth`
+     (trailing slash matters). Forks: reuse that page or set
+     `GOOGLE_HEALTH_OAUTH_REDIRECT_URI` — see **[docs/auth.md](../../docs/auth.md)**.
 3. Data Access page: request **readonly** scopes (Restricted — testing capped
    ~100 users until verification):
 
@@ -71,7 +75,13 @@ GOOGLE_HEALTH_CLIENT_SECRET=...
 
 ---
 
-## 3. Authorize once (`make ghealth-auth`)
+## 3. Authorize once
+
+**Headless / phone:** `/auth ghealth` in Telegram → open URL → paste
+`/auth ghealth <code>`. Needs the catch URI on the Web client. Full guide:
+**[docs/auth.md](../../docs/auth.md)**.
+
+**Laptop (localhost callback):**
 
 ```bash
 make ghealth-auth
@@ -103,7 +113,8 @@ Boot is fail-soft: missing tokens do **not** block MCP `initialize`.
 
 | Symptom | Fix |
 |---|---|
-| Auth required on data tools | `make ghealth-auth` (or `gantry auth ghealth`) |
+| Auth required on data tools | `/auth ghealth` or `make ghealth-auth` |
 | 401 after weeks | Re-run auth (refresh token revoked / expired) |
+| `redirect_uri_mismatch` on chat auth | Add catch URI to the Web client (see §1 / docs/auth.md) |
 | Empty sleep / HR | Wearable not syncing in Fitbit app; check `ghealth__account_get` |
 | Wrong account | `ghealth__profile_get` shows Fitbit + Google health user ids |
