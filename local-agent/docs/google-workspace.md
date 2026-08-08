@@ -49,11 +49,14 @@ Upstream naming notes: [shotah/google-mcp TODO](https://github.com/shotah/google
 1. [Google Cloud Console](https://console.cloud.google.com/) → project
 2. Enable APIs you need (Gmail, Calendar, Docs, Drive, Sheets, Tasks, …)
 3. OAuth consent (External + your Gmail as test user while in Testing)
-4. Credentials → OAuth client ID → **Desktop app**
-5. Authorized redirect URI (add if prompted):
-   `http://localhost:4100/oauth2callback`
+4. Credentials → OAuth client ID:
+   - **Desktop app** — laptop `make google-auth` (`http://localhost:4100/oauth2callback`)
+   - **Web application** — chat `/auth google` (required for the GitHub Pages
+     catch URI). See **[docs/auth.md](../../docs/auth.md)** for the exact
+     redirect and env wiring. You can use one Web client with both redirect
+     URIs, or keep Desktop + Web as separate clients.
 
-Put into `.env`:
+Put into `.env` (Web client ID/secret if you use chat `/auth`):
 
 ```env
 GOOGLE_OAUTH_CLIENT_ID=….apps.googleusercontent.com
@@ -68,9 +71,12 @@ USER_GOOGLE_EMAIL=you@gmail.com
 
 ## 2. Authorize
 
-Run this **on the machine with your browser** (Docker Desktop laptop is fine).
-The OAuth redirect is `http://localhost:4100/…` — it cannot complete on a
-headless server over SSH.
+**Headless / phone (preferred on a native box):** `/auth google` in Telegram —
+open the URL, copy the code from the catch page, paste
+`/auth google <code>`. Full guide: **[docs/auth.md](../../docs/auth.md)**.
+
+**Laptop (localhost callback):** run this **on the machine with your browser**
+(Docker Desktop is fine). Desktop clients cannot use the Pages catch URI.
 
 ```bash
 make build          # once, if the appliance image is missing

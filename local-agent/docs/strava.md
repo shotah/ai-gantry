@@ -42,8 +42,12 @@ flowchart LR
 ## 1. Create a Strava API app (once)
 
 1. Go to <https://www.strava.com/settings/api>.
-2. Fill in the app (any name/website). Set **Authorization Callback Domain** to
-   `localhost`.
+2. Fill in the app (any name/website). **Authorization Callback Domain** —
+   one hostname only (lists like `localhost; shotah.github.io` fail). Use
+   `shotah.github.io` for chat `/auth strava`. `localhost` stays whitelisted
+   for laptop auth. Forks: your Pages host or `STRAVA_OAUTH_REDIRECT_URI` —
+   see **[docs/auth.md](../../docs/auth.md)**. Chat paste is implemented;
+   smoke-test before relying on it.
 3. Copy the **Client ID** and **Client Secret** into `.env`:
 
 ```env
@@ -55,14 +59,13 @@ STRAVA_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## 2. Authorize once (no local install)
 
-You **don't** need Go, Homebrew, or WSL just for the one-time OAuth handshake —
-the `strava-mcp` binary is already baked into the image (see `Dockerfile`). Run
-its `auth` command in a throwaway container that reuses the compose env and
-mounts `secrets/strava`, so the token lands on your host and survives.
+**Headless / phone:** `/auth strava` in Telegram → open URL → paste
+`/auth strava <code>`. Full guide: **[docs/auth.md](../../docs/auth.md)**.
+(Needs callback domain `shotah.github.io` as above.)
 
-The flow needs a browser and a `localhost` callback. A container has no browser,
-so `strava-mcp` prints the authorization URL instead — you open it on your host,
-approve, and the callback is forwarded back into the container.
+**Laptop (localhost callback):** you **don't** need Go just for OAuth — the
+`strava-mcp` binary is already in the image. Run `auth` in a throwaway
+container that mounts `secrets/strava`.
 
 ```bash
 make build          # once, if the appliance image is missing
