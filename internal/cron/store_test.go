@@ -127,7 +127,8 @@ func TestCancel_SparkPlannerCascadesPings(t *testing.T) {
 	ctx := context.Background()
 	f := openCronFixture(t)
 	delivery := cron.Delivery{SessionID: "spark-s", UserID: "u", ChatID: "1"}
-	parsed, err := cron.ParseSchedule("4-6@06-21", "spark", time.UTC, time.Now().UTC())
+	// Full-day window so EnsureSpark still seeds when CI runs after 21:00 UTC.
+	parsed, err := cron.ParseSchedule("4-6@00-24", "spark", time.UTC, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}

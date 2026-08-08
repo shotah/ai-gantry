@@ -24,7 +24,8 @@ func TestEnsureSpark_DoesNotCompoundOnRestart(t *testing.T) {
 
 	loc := time.UTC
 	now := time.Now().In(loc)
-	parsed, err := cron.ParseSparkSchedule("4-4@06-21", 6, 21, loc, now)
+	// Full-day window so EnsureSpark still seeds when CI runs after 21:00 UTC.
+	parsed, err := cron.ParseSparkSchedule("4-4@00-24", 0, 24, loc, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +87,8 @@ func TestEnsureSpark_PrunesStalePingsFromPriorDay(t *testing.T) {
 
 	loc := time.UTC
 	now := time.Now().In(loc)
-	parsed, err := cron.ParseSparkSchedule("2-2@06-21", 6, 21, loc, now)
+	// Full-day window so EnsureSpark still seeds when CI runs after 21:00 UTC.
+	parsed, err := cron.ParseSparkSchedule("2-2@00-24", 0, 24, loc, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +140,7 @@ func TestEnsureSpark_DisablesDuplicatePlanners(t *testing.T) {
 	}
 
 	loc := time.UTC
-	parsed, err := cron.ParseSparkSchedule("3-3@06-21", 6, 21, loc, time.Now())
+	parsed, err := cron.ParseSparkSchedule("3-3@00-24", 0, 24, loc, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
