@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-# contents:write needed to push the coverage badge to gh-pages on main.
+# contents:write needed to push the coverage badge + oauth-catch page to gh-pages on main.
 permissions:
   contents: write
 
@@ -50,17 +50,18 @@ jobs:
             coverage.out
             coverage.txt
 
-      - name: Create badges directory
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: mkdir -p badges
-
       - name: Generate coverage badge
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
+          mkdir -p badges
           chmod +x scripts/coverage-badge.sh
           ./scripts/coverage-badge.sh coverage.out badges/coverage.svg
 
-      - name: Push badge to gh-pages branch
+      # gh-pages hosts:
+      #   badges/coverage.svg          → coverage badge
+      #   oauth-catch/index.html       → OAuth redirect catch page for chat /auth
+      # URL: https://shotah.github.io/ai-gantry/oauth-catch/
+      - name: Push gh-pages (badge + oauth-catch)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -68,6 +69,7 @@ jobs:
           set -euo pipefail
           REPO="${{ github.repository }}"
           BADGE="${GITHUB_WORKSPACE}/badges/coverage.svg"
+          CATCH="${GITHUB_WORKSPACE}/docs/oauth-catch/index.html"
           WORKDIR=$(mktemp -d)
           cd "$WORKDIR"
           git init
@@ -79,14 +81,20 @@ jobs:
             git checkout -B gh-pages FETCH_HEAD
           else
             git checkout --orphan gh-pages
+            # Orphan branches start with everything staged; clear so we only publish what we copy.
+            git rm -rf . >/dev/null 2>&1 || true
           fi
 
-          mkdir -p badges
+          mkdir -p badges oauth-catch
           cp "$BADGE" badges/coverage.svg
-          git add badges/coverage.svg
+          cp "$CATCH" oauth-catch/index.html
+          # Keep Pages from treating this as a Jekyll site (would ignore some paths).
+          touch .nojekyll
+
+          git add badges/coverage.svg oauth-catch/index.html .nojekyll
           if git diff --staged --quiet; then
-            echo "No badge change; skipping push."
+            echo "No gh-pages change; skipping push."
           else
-            git commit -m "chore: update coverage badge [skip ci]"
+            git commit -m "chore: update gh-pages (badge + oauth-catch) [skip ci]"
             git push origin HEAD:gh-pages
           fi

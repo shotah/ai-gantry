@@ -162,7 +162,7 @@ friends running their own instance on a headless box. Two flows fix it with
 
 ```text
 you:  /auth strava
-bot:  open https://www.strava.com/oauth/authorize?...&redirect_uri=https://shotah.github.io/oauth-catch&code_challenge=...
+bot:  open https://www.strava.com/oauth/authorize?...&redirect_uri=https://shotah.github.io/ai-gantry/oauth-catch/&code_challenge=...
       then paste the code here: /auth strava <code>
 you:  /auth strava 9f3c2e…
 bot:  strava: authorized ✓ (tokens → data/.strava/)
@@ -175,7 +175,7 @@ bot:  strava: authorized ✓ (tokens → data/.strava/)
       hold PKCE verifier/state) and `auth exchange <code>` — per-MCP work
       (google-mcp, go-strava-mcp, google-health-mcp; youtube device start/wait)
 - [x] Static catch page HTML in-repo ([docs/oauth-catch/](docs/oauth-catch/index.html));
-      publish to GitHub Pages (`https://shotah.github.io/oauth-catch/`) and
+      publish to GitHub Pages (`https://shotah.github.io/ai-gantry/oauth-catch/`) and
       register as redirect URI on the Google/Strava/Health apps
 - [x] `case "/auth":` in `Handle`: no code → run `auth url`, post it;
       with code → run `auth exchange`, confirm; unknown server → list

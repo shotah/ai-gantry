@@ -23,11 +23,14 @@ Full design notes: [slash_commands_todo.md](../slash_commands_todo.md) § `/auth
 Authorize URLs use redirect:
 
 ```text
-https://shotah.github.io/oauth-catch/
+https://shotah.github.io/ai-gantry/oauth-catch/
+
 ```
 
 That page is static HTML ([oauth-catch/index.html](oauth-catch/index.html)) —
 it only displays `?code=` with a copy button. No server logic, no tokens.
+CI publishes it to the repo `gh-pages` branch alongside the coverage badge
+(so no separate Pages repo).
 
 Register the same URI on each OAuth client (alongside localhost for the
 laptop flow):
