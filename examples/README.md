@@ -1,76 +1,54 @@
 # examples/
 
-Operator templates and a **usable** personal-assistant skeleton.
+Three **template consumer repositories** for [ai-gantry](https://github.com/shotah/ai-gantry).
+Each directory is shaped like a standalone git repo that **consumes** the published
+kernel (Hub image or release binary) — not a checkout of the kernel itself.
 
-| Path | What it is |
+| Template | Consumes | Supervisor |
+| --- | --- | --- |
+| [`docker/`](docker/) → *gantry-compose* | `shotah/ai-gantry` image | Docker Compose |
+| [`native/`](native/) → *gantry-native* | release binary | systemd |
+| [`hosting/`](hosting/) → *gantry-gce* | Hub image on GCE | Compose + optional Actions |
+
+Also here (kernel scaffolding, not consumer templates):
+
+| Path | Role |
 | --- | --- |
-| [`persona/*.example.md`](persona/) | System-prompt templates (`gantry init` embeds these) |
-| [`mcp.toml.example`](mcp.toml.example) / [`env.example`](env.example) | Embedded by `gantry init` |
-| [`personal-assistant/`](personal-assistant/) | **appliance-style compose stack** — copy, fill `.env`, `docker compose up` |
+| [`persona/*.example.md`](persona/) | Embedded by `gantry init` in the kernel repo |
+| [`mcp.toml.example`](mcp.toml.example) / [`env.example`](env.example) | Same |
 
-Production local-agent (tools + remote deploy) lives in
-**[`../local-agent/`](../local-agent/)**. Deploy styles:
-[native](../docs/deploy-native.md) · [Docker](../docs/deploy-docker.md).
+Production appliance with tools baked in:
+[`../local-agent/`](../local-agent/).
 
----
-
-## Path A — local REPL (fastest)
-
-```bash
-make init          # → deploy/persona + deploy/mcp.toml + .env.example
-cp .env.example .env
-# set LLM_* ; CHANNEL=stdio is fine for make run
-make run           # CHANNEL=stdio PERSONA_DIR=./deploy/persona
+```mermaid
+flowchart LR
+  K[ai-gantry kernel · Hub / releases]
+  K --> D[examples/docker]
+  K --> N[examples/native]
+  K --> H[examples/hosting]
 ```
 
-Slash commands: `/new` `/cancel` `/status` `/tools` `/perf` `/memstats` `/toolstats` `/auth` `/help` `/quit`.
+## Use as a separate repo
 
----
+1. Copy one template directory to a new remote (or publish it as a GitHub template).
+2. `make init` inside that tree — seeds `persona/*.md` and `.env` / `gantry.env`.
+3. Set channel + LLM secrets; follow that template’s README.
 
-## Path B — Telegram bot (Docker Hub kernel)
-
-Compose pulls [`shotah/ai-gantry:latest`](https://hub.docker.com/r/shotah/ai-gantry)
-by default — no local build.
-
-```bash
-make example-pa    # seed examples/personal-assistant/persona + .env
-# edit examples/personal-assistant/.env
-#   GEMINI_API_KEY=...
-#   TELEGRAM_BOT_TOKEN=...
-#   TELEGRAM_ALLOWED_USERS=123456789
-
-docker compose -f examples/personal-assistant/compose.yml up -d
-docker compose -f examples/personal-assistant/compose.yml logs -f
-```
-
-Full walkthrough: **[personal-assistant/README.md](personal-assistant/README.md)** ·
-**[docs/deploy-docker.md](../docs/deploy-docker.md)**.
-
----
-
-## Path C — full local-agent (recommended for real use)
+Inside this monorepo, the same seed helpers exist from the kernel root:
 
 ```bash
-cd local-agent
-make init    # edit .env
-make build && make up
-# remote: set DEPLOY_* then make remote-deploy
+make example-docker
+make example-native
+make example-hosting
 ```
 
-Walkthrough: **[local-agent/README.md](../local-agent/README.md)**. Same gantry contract
-(`PERSONA_DIR`, `MCP_MANIFEST`, `DATA_DIR`); richer image.
+## Pick a template
 
----
+| Goal | Template |
+| --- | --- |
+| Laptop / any Docker host, Gemini + Telegram | [`docker/`](docker/) |
+| Linux mini-PC, Ollama, systemd | [`native/`](native/) |
+| Always-on VM in an existing GCP project | [`hosting/`](hosting/) |
 
-## Persona & MCP rules of thumb
-
-- Concat order: `SOUL` → `RULES` → `USER` → `TOOLS` (then other `*.md`).
-  Missing files are skipped.
-- **Do not commit** filled-in personal `*.md` or `.env`.
-- `mcp.toml`: listed server = may start. Prefer `--tool-tier core` / `tools = […]`
-  so Flash is not fed huge schemas. Boot logs `tools_listed` vs `tools_published`.
-- Data: `$DATA_DIR/gantry.db` holds sessions, memory, cron, heartbeat — survives
-  image rebuilds if the volume mount stays.
-
-Slash commands: `/new`, `/cancel`, `/status`, `/tools`, `/perf`, `/memstats`, `/toolstats`, `/auth`, `/help`. Unix: `kill -HUP <pid>` reloads persona.
-Telegram photos: inbound → vision; outbound `SendPhoto` for image URLs in replies.
+All three share the kernel contract: env + `persona/` + `mcp.toml` +
+`$DATA_DIR/gantry.db`. No inbound app ports — chat channels dial out only.

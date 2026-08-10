@@ -94,8 +94,9 @@ Priority order for strangers:
 1. **Docker Hub pull** — `shotah/ai-gantry:latest` (release) / `:edge` (`main`) /
    `:0.x.y` (pin). No clone required to try the kernel.
    Walkthrough: [deploy-docker.md](deploy-docker.md).
-2. **Compose example** — [`examples/personal-assistant/`](../examples/personal-assistant/)
-   mounts persona + `mcp.toml` + data; Hub image by default.
+2. **Consumer templates** — [`examples/docker/`](../examples/docker/) ·
+   [`examples/hosting/`](../examples/hosting/) · [`examples/native/`](../examples/native/)
+   (standalone repos that pull Hub / releases).
 3. **Native + Ollama** — featured for people who want the full local story:
    [deploy-native.md](deploy-native.md) + [`local-agent/`](../local-agent/).
 4. **GoReleaser binaries** — systemd on metal without Docker.

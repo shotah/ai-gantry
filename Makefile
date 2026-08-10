@@ -46,7 +46,9 @@ help: ## Show available targets
 	@echo   make build          Build gantry into ./bin
 	@echo   make run            Run with CHANNEL=stdio (override: CHANNEL= PERSONA_DIR=)
 	@echo   make init           Scaffold deploy/persona + deploy/mcp.toml via gantry init
-	@echo   make example-pa           Seed examples/personal-assistant (kernel compose)
+	@echo   make example-docker       Seed consumer template examples/docker
+	@echo   make example-native       Seed consumer template examples/native
+	@echo   make example-hosting      Seed consumer template examples/hosting
 	@echo   make local-agent-help     LOCAL_AGENT appliance help (make -C local-agent help)
 	@echo   make test           Run all tests
 	@echo   make test-verbose   Run tests with -v
@@ -85,17 +87,19 @@ run: ## Run gantry (CHANNEL=stdio by default for local REPL)
 init: ## Scaffold deploy/ mounts from embedded examples (gantry init)
 	go run $(CMD) init
 
-.PHONY: example-pa
-example-pa: ## Seed examples/personal-assistant persona + .env for compose
-ifeq ($(OS),Windows_NT)
-	set "PERSONA_DIR=examples/personal-assistant/persona"&& set "MCP_MANIFEST=examples/personal-assistant/mcp.toml"&& go run $(CMD) init
-	@if not exist "examples\personal-assistant\.env" copy /Y "examples\personal-assistant\.env.example" "examples\personal-assistant\.env"
-else
-	PERSONA_DIR=examples/personal-assistant/persona MCP_MANIFEST=examples/personal-assistant/mcp.toml go run $(CMD) init
-	@test -f examples/personal-assistant/.env || cp examples/personal-assistant/.env.example examples/personal-assistant/.env
-endif
-	@echo next: edit examples/personal-assistant/.env then
-	@echo   docker compose -f examples/personal-assistant/compose.yml up -d --build
+.PHONY: example-docker example-pa
+example-docker: ## Seed consumer template examples/docker (make -C … init)
+	$(MAKE) -C examples/docker init
+
+example-pa: example-docker ## Deprecated alias for example-docker
+
+.PHONY: example-native
+example-native: ## Seed consumer template examples/native
+	$(MAKE) -C examples/native init
+
+.PHONY: example-hosting
+example-hosting: ## Seed consumer template examples/hosting (GCP GCE)
+	$(MAKE) -C examples/hosting init
 
 .PHONY: local-agent-help
 local-agent-help: ## Show local-agent appliance Make targets (local-agent/)

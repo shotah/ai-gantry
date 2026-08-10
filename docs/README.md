@@ -16,7 +16,7 @@ is the public pitch + product contract; these pages go deeper.
 | [discord.md](discord.md) | Discord Gateway channel (DMs, allowlist, no ports) |
 | [slack.md](slack.md) | Slack Socket Mode channel (DMs + @mention, no ports) |
 | [milestones.md](milestones.md) | Archived M0–M7 build checklist (shipped) |
-| [../examples/](../examples/) | Cookbook + appliance-style [`personal-assistant/`](../examples/personal-assistant/) compose |
+| [../examples/](../examples/) | Consumer templates: [`docker/`](../examples/docker/) · [`native/`](../examples/native/) · [`hosting/`](../examples/hosting/) |
 | [../local-agent/](../local-agent/) | Full local-agent appliance (MCP tools + remote deploy + auth helpers) |
 | [architecture.md](architecture.md) | Process model, packages, mermaid diagrams + sequences |
 | [design.md](design.md) | Principles, agent loop, memory, config/ops contract |

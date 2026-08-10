@@ -16,8 +16,8 @@
 #   download_tag = "v0.0.2"   # or "latest" (GitHub API at plan time)
 #   download_url = "https://github.com/org/repo/releases/download/{tag}/tool_{version}_{os}_{arch}.tar.gz"
 #
-# Full appliance-style compose + commented servers:
-#   examples/personal-assistant/
+# Consumer Compose template + commented servers:
+#   examples/docker/
 # Production image with binaries baked in:
 #   https://github.com/shotah/docker_open_claw
 

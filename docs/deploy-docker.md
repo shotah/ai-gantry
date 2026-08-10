@@ -43,38 +43,30 @@ docker pull shotah/ai-gantry:latest
 docker run --rm shotah/ai-gantry:latest version
 
 git clone https://github.com/shotah/ai-gantry.git && cd ai-gantry
-make example-pa
-# edit examples/personal-assistant/.env — GEMINI_API_KEY, TELEGRAM_BOT_TOKEN,
-# TELEGRAM_ALLOWED_USERS (numeric id)
-
-# compose defaults to image: shotah/ai-gantry:latest (no local build)
-docker compose -f examples/personal-assistant/compose.yml up -d
-docker compose -f examples/personal-assistant/compose.yml logs -f
+# Consumer template (copy examples/docker to a new repo, or seed in-tree):
+make example-docker
+cd examples/docker
+# set GEMINI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS in .env
+make up
+make logs
 ```
 
 Message the bot → `/status` → `/new`. Memory and cron work immediately; MCP
-servers stay commented until you want tools.
+servers stay commented until tools are granted.
 
-Developing the kernel from this checkout? In
-`examples/personal-assistant/compose.yml`, comment `image:` and uncomment the
-`build:` block, then `docker compose … up -d --build`.
+Always-on GCP VM template: **[examples/hosting/](../examples/hosting/)**.
 
 ### Discord / Slack (same compose)
 
 Swap the channel in `.env` after [discord.md](discord.md) or [slack.md](slack.md):
 
 ```bash
-# examples/personal-assistant/.env
 CHANNEL=discord
 DISCORD_BOT_TOKEN=...
 DISCORD_ALLOWED_USERS=123456789012345678
-# GEMINI_API_KEY=...
-# leave TELEGRAM_* empty
 ```
 
-```bash
-docker compose -f examples/personal-assistant/compose.yml up -d
-```
+Then `make up` from the consumer tree.
 
 ---
 

@@ -1,0 +1,56 @@
+# MCP server manifest — listed = granted (process may start).
+# Mounted at /etc/gantry/mcp.toml. Tool names reach the model as {name}__{tool}.
+#
+# Kernel-only image: leave everything commented until static binaries exist on PATH.
+# Appliance with tools baked in: https://github.com/shotah/ai-gantry/tree/main/local-agent
+#
+# Optional host-side filters (after tools/list):
+#   tools = ["…"]          # allowlist
+#   exclude = ["raw_*"]    # denylist
+#   tools_prefix = "garm"  # override {prefix}__{tool}
+
+# --- Google (shotah/google-mcp) ---------------------------------------------
+# [[server]]
+# name = "google"
+# command = "google-mcp"
+# args = ["--preset", "everyday"]
+# auth_args = ["auth"]
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/google-mcp/releases/download/{tag}/google-mcp_{version}_{os}_{arch}.tar.gz"
+
+# --- Strava workouts (shotah/go-strava-mcp) ----------------------------------
+# [[server]]
+# name = "strava"
+# command = "strava-mcp"
+# auth_args = ["auth"]
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/go-strava-mcp/releases/download/{tag}/strava-mcp_{version}_{os}_{arch}.tar.gz"
+
+# --- Garmin recovery (shotah/go-garmin) — prefer --tool-tier core ------------
+# [[server]]
+# name = "garmin"
+# command = "garmin"
+# args = ["mcp", "--tool-tier", "core"]
+
+# --- Web search via Gemini grounding (shotah/mcp-gemini-search) --------------
+# [[server]]
+# name = "google-search"
+# command = "mcp-gemini-google-search"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/mcp-gemini-search/releases/download/{tag}/mcp-gemini-google-search_{version}_{os}_{arch}.tar.gz"
+
+# --- Chromecast / Nest (shotah/mcp-beam) — often needs network_mode=host -----
+# [[server]]
+# name = "cast"
+# command = "mcp-beam"
+
+# --- YouTube Data API v3 (shotah/youtube-go-mcp) -----------------------------
+# [[server]]
+# name = "youtube"
+# command = "youtube-go-mcp"
+# auth_args = ["auth", "oauth", "--out", "${YOUTUBE_OAUTH_PATH}"]
+#
+# --- Calculator (shotah/mcp-go-math) -----------------------------------------
+# [[server]]
+# name = "math"
+# command = "mcp-go-math"

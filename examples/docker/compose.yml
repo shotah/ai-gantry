@@ -1,24 +1,14 @@
-# appliance-style personal assistant on the published kernel image.
-# Usage (from ai-gantry repo root):
-#   docker compose -f examples/personal-assistant/compose.yml up -d
+# Consumes the published ai-gantry kernel (no kernel source in this repo).
+#   make init && make up
 #
-# No ports. Healthcheck is an exit code. MCP binaries are NOT in this image —
-# uncomment servers in mcp.toml only after you bake/mount static tool binaries
-# (see ../../local-agent/ for the full local-agent image with MCP tools baked in).
+# No ports. Healthcheck is an exit code. MCP binaries are not in this image —
+# uncomment servers in mcp.toml only after static tool binaries are on PATH
+# (custom image FROM shotah/ai-gantry, or the upstream local-agent appliance).
 
 services:
   gantry:
-    # Default: pull the published kernel (CI pushes :latest on tags, :edge on main).
     image: shotah/ai-gantry:latest   # or :edge / :0.x.y / ghcr.io/shotah/ai-gantry:…
-    # To develop from this checkout instead, comment image: above and uncomment:
-    # build:
-    #   context: ../..
-    #   args:
-    #     VERSION: local
-    #     COMMIT: local
-    #     DATE: local
-    # image: gantry:local
-    container_name: gantry-pa
+    container_name: gantry
     restart: unless-stopped
     env_file:
       - path: .env
@@ -27,7 +17,6 @@ services:
       HOME: /data
       TZ: ${TZ:-America/Los_Angeles}
       CRON_TZ: ${TZ:-America/Los_Angeles}
-      # Familiar GEMINI_* keys map onto gantry LLM_* (override LLM_* to swap providers).
       LLM_BASE_URL: ${LLM_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       LLM_API_KEY: ${LLM_API_KEY:-${GEMINI_API_KEY:-}}
       LLM_MODEL: ${LLM_MODEL:-${GEMINI_MODEL:-gemini-3.5-flash}}
@@ -48,7 +37,7 @@ services:
       - ./persona:/persona:ro
       - ./mcp.toml:/etc/gantry/mcp.toml:ro
       - ./data:/data
-      # Optional tool secrets (create dirs as you add MCP servers):
+      # Optional tool secrets:
       # - ./secrets/google-mcp:/data/.config/google-mcp
       # - ./secrets/strava:/data/.config/strava
       # - ./secrets/garmin:/data/.config/garmin

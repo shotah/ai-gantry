@@ -1,0 +1,29 @@
+# MCP server manifest — listed = granted (process may start).
+# Binaries on PATH (/opt/gantry/bin via systemd unit).
+# Fetch: gantry tools-fetch --manifest /opt/gantry/mcp.toml --outdir /opt/gantry/bin
+#
+# Kernel-only: leave everything commented until static binaries exist.
+# Appliance: https://github.com/shotah/ai-gantry/tree/main/local-agent/deploy
+
+# --- Google (shotah/google-mcp) ---------------------------------------------
+# [[server]]
+# name = "google"
+# command = "google-mcp"
+# args = ["--preset", "everyday"]
+# auth_args = ["auth"]
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/google-mcp/releases/download/{tag}/google-mcp_{version}_{os}_{arch}.tar.gz"
+
+# --- Web search via Gemini grounding (shotah/mcp-gemini-search) --------------
+# [[server]]
+# name = "google-search"
+# command = "mcp-gemini-google-search"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/mcp-gemini-search/releases/download/{tag}/mcp-gemini-google-search_{version}_{os}_{arch}.tar.gz"
+
+# --- Calculator (shotah/mcp-go-math) -----------------------------------------
+# [[server]]
+# name = "math"
+# command = "mcp-go-math"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/mcp-go-math/releases/download/{tag}/mcp-go-math_{version}_{os}_{arch}.tar.gz"

@@ -145,9 +145,8 @@ make logs          # watch it connect, then message your bot
 
 That is the whole loop — no config sync step, no pairing. Bot setup details live in **[docs/telegram.md](docs/telegram.md)**.
 
-> **Kernel only?** No MCP bake — use
-> [`examples/personal-assistant/`](../examples/personal-assistant/)
-> (`make example-pa` from repo root) or pull `shotah/ai-gantry`.
+> **Kernel only?** No MCP bake — use the consumer template
+> [`examples/docker/`](../examples/docker/) or pull `shotah/ai-gantry`.
 
 ```bash
 make help          # every target, grouped

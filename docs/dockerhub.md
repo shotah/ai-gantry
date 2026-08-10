@@ -30,14 +30,11 @@ build):
 
 ```bash
 git clone https://github.com/shotah/ai-gantry.git && cd ai-gantry
-make example-pa
-# edit examples/personal-assistant/.env
-#   GEMINI_API_KEY=...
-#   TELEGRAM_BOT_TOKEN=...
-#   TELEGRAM_ALLOWED_USERS=<numeric id>
-
-docker compose -f examples/personal-assistant/compose.yml up -d
-docker compose -f examples/personal-assistant/compose.yml logs -f
+make example-docker
+cd examples/docker
+# set GEMINI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS in .env
+make up
+make logs
 ```
 
 Walkthrough: [docs/deploy-docker.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-docker.md)

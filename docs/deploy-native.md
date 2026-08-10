@@ -6,6 +6,7 @@ next to [Ollama](https://ollama.com) and a local chat model (we use
 binaries on `PATH`.
 
 Kernel contract: [root readme](../readme.md). Tool naming: [mcp.md](mcp.md).
+Consumer template (unit + `install.sh`): [examples/native/](../examples/native/).
 Appliance Make targets / host layout: [local-agent/deploy/README.md](../local-agent/deploy/README.md).
 
 ```mermaid

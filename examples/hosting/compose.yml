@@ -1,0 +1,44 @@
+# Consumes the published ai-gantry kernel on a GCE VM (no kernel source here).
+#   make init   # workstation
+#   docker compose up -d   # on the VM under /opt/gantry-hosting
+#
+# No ports. Healthcheck is an exit code.
+
+services:
+  gantry:
+    image: shotah/ai-gantry:latest   # or :edge / :0.x.y / ghcr.io/shotah/ai-gantry:…
+    container_name: gantry
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOME: /data
+      TZ: ${TZ:-America/Los_Angeles}
+      CRON_TZ: ${TZ:-America/Los_Angeles}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      LLM_API_KEY: ${LLM_API_KEY:-${GEMINI_API_KEY:-}}
+      LLM_MODEL: ${LLM_MODEL:-${GEMINI_MODEL:-gemini-3.5-flash}}
+      CHANNEL: ${CHANNEL:-telegram}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ALLOWED_USERS: ${TELEGRAM_ALLOWED_USERS:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_ALLOWED_USERS: ${DISCORD_ALLOWED_USERS:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      SLACK_ALLOWED_USERS: ${SLACK_ALLOWED_USERS:-}
+      PERSONA_DIR: /persona
+      DATA_DIR: /data
+      MCP_MANIFEST: /etc/gantry/mcp.toml
+      STREAM_REPLIES: ${STREAM_REPLIES:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./persona:/persona:ro
+      - ./mcp.toml:/etc/gantry/mcp.toml:ro
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/gantry", "status"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

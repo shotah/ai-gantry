@@ -268,9 +268,9 @@ make run
 ### B — Personal-assistant compose (kernel + optional MCP)
 
 ```bash
-make example-pa
-# edit examples/personal-assistant/.env and mcp.toml
-docker compose -f examples/personal-assistant/compose.yml up -d
+make example-docker
+cd examples/docker   # set .env + mcp.toml, then:
+make up
 ```
 
 MCP servers stay commented until you grant them. Same `/tools` / `/status`

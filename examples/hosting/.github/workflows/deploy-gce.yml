@@ -1,0 +1,122 @@
+# Redeploy Compose on a GCE VM (consumer repo — does not build the kernel).
+#
+# Auth — configure ONE path:
+#
+#   A) Workload Identity Federation
+#      secrets.GCP_WORKLOAD_IDENTITY_PROVIDER
+#      secrets.GCP_SERVICE_ACCOUNT
+#      vars.GCE_INSTANCE          e.g. gantry
+#      vars.GCE_ZONE              e.g. us-west1-b
+#      vars.GCE_DEPLOY_PATH       optional, default /opt/gantry-hosting
+#      vars.GCE_USE_IAP           optional, "true" → --tunnel-through-iap
+#
+#   B) Plain SSH
+#      secrets.GCE_SSH_KEY        PEM private key
+#      vars.GCE_HOST              external IP or DNS
+#      vars.GCE_SSH_USER          optional, default ubuntu
+#      vars.GCE_DEPLOY_PATH       optional, default /opt/gantry-hosting
+#
+# VM prerequisite: this repo checked out once under GCE_DEPLOY_PATH with .env set.
+name: deploy-gce
+
+on:
+  workflow_dispatch:
+  # Pull on a schedule (cheap; relies on compose image tag :latest / :edge).
+  schedule:
+    - cron: "0 15 * * *"
+  # Optional: fire from another workflow / upstream hook:
+  #   gh api repos/{owner}/{repo}/dispatches -f event_type=gantry-redeploy
+  repository_dispatch:
+    types: [gantry-redeploy]
+
+concurrency:
+  group: deploy-gce
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Pull image on GCE
+    runs-on: ubuntu-latest
+    steps:
+      - name: Choose auth mode
+        id: mode
+        env:
+          WIF: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          SA: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          SSH_KEY: ${{ secrets.GCE_SSH_KEY }}
+          HOST: ${{ vars.GCE_HOST }}
+          INSTANCE: ${{ vars.GCE_INSTANCE }}
+          ZONE: ${{ vars.GCE_ZONE }}
+        run: |
+          if [ -n "$WIF" ] && [ -n "$SA" ] && [ -n "$INSTANCE" ] && [ -n "$ZONE" ]; then
+            echo "mode=wif" >> "$GITHUB_OUTPUT"
+          elif [ -n "$SSH_KEY" ] && [ -n "$HOST" ]; then
+            echo "mode=ssh" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=none" >> "$GITHUB_OUTPUT"
+            echo "::error::Configure WIF (GCP_* + GCE_INSTANCE/ZONE) or SSH (GCE_SSH_KEY + GCE_HOST)"
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        if: steps.mode.outputs.mode == 'wif'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        if: steps.mode.outputs.mode == 'wif'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Compose pull && up (gcloud)
+        if: steps.mode.outputs.mode == 'wif'
+        env:
+          INSTANCE: ${{ vars.GCE_INSTANCE }}
+          ZONE: ${{ vars.GCE_ZONE }}
+          DEPLOY_PATH: ${{ vars.GCE_DEPLOY_PATH }}
+          USE_IAP: ${{ vars.GCE_USE_IAP }}
+        run: |
+          set -euo pipefail
+          DEPLOY_PATH="${DEPLOY_PATH:-/opt/gantry-hosting}"
+          IAP_ARGS=()
+          if [ "${USE_IAP:-}" = "true" ]; then
+            IAP_ARGS+=(--tunnel-through-iap)
+          fi
+          gcloud compute ssh "$INSTANCE" --zone="$ZONE" "${IAP_ARGS[@]}" --command="
+            set -euo pipefail
+            cd '$DEPLOY_PATH'
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker compose exec -T gantry /usr/local/bin/gantry status
+          "
+
+      - name: Start ssh-agent
+        if: steps.mode.outputs.mode == 'ssh'
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.GCE_SSH_KEY }}
+
+      - name: Compose pull && up (ssh)
+        if: steps.mode.outputs.mode == 'ssh'
+        env:
+          HOST: ${{ vars.GCE_HOST }}
+          USER: ${{ vars.GCE_SSH_USER }}
+          DEPLOY_PATH: ${{ vars.GCE_DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          USER="${USER:-ubuntu}"
+          DEPLOY_PATH="${DEPLOY_PATH:-/opt/gantry-hosting}"
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -o StrictHostKeyChecking=accept-new "${USER}@${HOST}" "
+            set -euo pipefail
+            cd '$DEPLOY_PATH'
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker compose exec -T gantry /usr/local/bin/gantry status
+          "
