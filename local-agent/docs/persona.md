@@ -41,6 +41,10 @@ self-notes at boot — look for `self-notes disabled` in the logs. Set
 or wipe `SELF.md` — details in
 [../../docs/troubleshooting.md](../../docs/troubleshooting.md#selfmd--personality-drift).
 
+**Append ≠ distill.** `self_note` only adds a line; `/new` rewrites/dedupes.
+Persona `RULES` / `TOOLS` / `SELF` headers must say so — otherwise models
+re-note the same vibe every few turns until the file fills with duplicates.
+
 Keep tool recipes **out** of SOUL/RULES/USER. Point at `TOOLS.md` instead.
 
 ## Templates vs personal files

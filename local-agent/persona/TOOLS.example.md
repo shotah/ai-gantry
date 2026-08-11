@@ -10,9 +10,6 @@ Wrong args → fix and retry; unknown tool → use the exact name below.
 | Ask about… | Server | Never |
 |---|---|---|
 | Calendar / mail / tasks / docs / sheets | `google__…` | `strava__`, `garmin__` |
-| Flights / fares / Fly America / checkout | `flights__…` | inventing `#flt=` links or claiming you bought a ticket |
-| Apartments / houses / rentals | `rentals__…` | applying, messaging landlords, or retail/commercial leases |
-| Cars / vehicles for sale | `cars__…` | submitting dealer leads, buying for the human, or `rentals__` |
 | Workouts / load | `strava__` / `garmin__` | `google__` |
 | Sleep / recovery | `garmin__` | `strava__` for sleep |
 
@@ -51,31 +48,21 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 
 ## Flights
 
-- **Flights MCP (`flights-search-mcp`, server id `flights`)** — Google Flights via SerpAPI. Search + recommend + checkout handoff. Never purchases tickets.
-- **Exact tools:** `flights__airports_search`, `flights__dates_search`, `flights__offers_search`, `flights__returns_search`, `flights__booking_options_get`, `flights__link_format`, `flights__account_get`
-- **Flow:** city → `airports_search` → optional `dates_search` → `offers_search` → (round-trip: `returns_search`) → **`booking_options_get`** for real checkout (`booking.url` / POST `post_data`)
-- `link_format` / `google_flights_url` are **search** fallbacks only — never invent `#flt=` links
-- **Cabin ≠ refundable:** `travel_class=economy`; refundable at checkout via `booking_options_get(refundable_only=true)`
-- **Airlines:** `include_airlines` / `exclude_airlines` — IATA, `SKYTEAM`/`ONEWORLD`/`STAR_ALLIANCE`, or presets `alaska_partners` / `delta_partners`
-- **Fly America (gov travel hint):** `fly_america=annotate|filter`, `funding=civilian|dod` — marketing-designator heuristic, **not** legal certification
-- Quota: `flights__account_get` (free). Needs `SERPAPI_API_KEY` in `.env`
+- **Flights MCP (`flights-search-mcp`, server id `flights`)** — Google Flights via SerpAPI
+- **Exact tools:** `flights__offers_search`, `flights__dates_search`, `flights__airports_search`, `flights__link_format`, `flights__account_get`
+- City → `airports_search` first; recommend + `google_flights_url` — never claim a ticket was purchased
 
 ## Rentals
 
-- **Rentals MCP (`rentals-search-mcp`, server id `rentals`)** — long-term residential via RentCast. Search + recommend + listing handoff. Never applies or contacts landlords.
-- **Exact tools:** `rentals__areas_resolve`, `rentals__listings_search`, `rentals__listings_get`, `rentals__rent_estimate_get`, `rentals__markets_get`, `rentals__link_format`, `rentals__account_get`
-- **Flow:** optional `areas_resolve` (Seattle neighborhoods) → `listings_search` (`neighborhood` / city+state / zip) → `listings_get` → hand off `listing_url` / contact
-- Fresh inventory: `new_this_week` or `days_old_max`. Soft prefs (`pets_wanted`, etc.) are not API filters — confirm on the listing page
-- Context: `markets_get` (zip) / `rent_estimate_get` (fair rent). `link_format` is a public search fallback only
-- **Not for** retail / office / commercial leases. Quota: ~50 free RentCast req/month — `rentals__account_get` / search `usage` are a **local** counter (dashboard is source of truth). Free: `areas_resolve`, `link_format`, `account_get`. Needs `RENTCAST_API_KEY` in `.env`
+- **Rentals MCP (`rentals-search-mcp`, server id `rentals`)** — long-term apartments/houses via RentCast
+- **Exact tools:** `rentals__listings_search`, `rentals__listings_get`, `rentals__areas_resolve`, `rentals__rent_estimate_get`, `rentals__markets_get`, `rentals__link_format`, `rentals__account_get`
+- Neighborhood → `areas_resolve` then `listings_search`; hand off listing URL — never apply or contact landlords; not for commercial leases
 
 ## Cars
 
-- **Cars MCP (`cars-search-mcp`, server id `cars`)** — MarketCheck inventory. Search + recommend + listing handoff. Never submits leads or purchases.
+- **Cars MCP (`cars-search-mcp`, server id `cars`)** — MarketCheck for-sale inventory
 - **Exact tools:** `cars__listings_search`, `cars__listings_get`, `cars__vin_get`, `cars__markets_get`, `cars__link_format`, `cars__account_get`
-- **Flow:** `listings_search` (zip or city+state, make/model, year/price/miles) → `listings_get` → hand off VDP / dealer URL
-- Context: `vin_get` for a VIN; `markets_get` for fair-price / days-supply style context. `link_format` is a public search fallback only
-- **Not** apartment hunting (`rentals__…`). Quota: MarketCheck free ≈ 500 calls/month — `cars__account_get` / search `usage` are a **local** counter. Needs `MARKETCHECK_API_KEY` in `.env` (native: also `make remote-native-env`)
+- Zip/make/model search → hand off listing URL — never submit dealer leads; not `rentals__`
 
 ## Fitness
 
@@ -128,6 +115,15 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - `memory_store` — confirmed facts **and** `skill/<area>` tool craft (see `RULES.md` Skills); never a new identity for the human; never raw mail/calendar dumps
 - `memory_forget` — delete contradictions with `USER.md` / obsolete skills
 - Before a fiddly tool area: `memory_recall` query `skill/` — reuse your own recipes
+
+## Self-notes (`self_note`)
+
+- **`self_note` APPENDS one `-` line to `SELF.md` — it does not overwrite or distill.**
+- Read the `SELF.md` section already in this prompt first. If the vibe/joke/ritual
+  is already there, **do not call** — paraphrases are still duplicates.
+- One short line only (voice, humor, running jokes, rituals). Not facts about the
+  human (`memory_store`) and not tool recipes (`TOOLS.md` / `skill/`).
+- Full merge/dedupe of `SELF.md` happens only on `/new` — never mid-chat via this tool.
 
 ## Shell
 

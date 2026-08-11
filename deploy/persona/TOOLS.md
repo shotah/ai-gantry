@@ -98,6 +98,15 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - `memory_forget` — delete contradictions with `USER.md` / obsolete skills
 - Before a fiddly tool area: `memory_recall` query `skill/` — reuse your own recipes
 
+## Self-notes (`self_note`)
+
+- **`self_note` APPENDS one `-` line to `SELF.md` — it does not overwrite or distill.**
+- Read the `SELF.md` section already in this prompt first. If the vibe/joke/ritual
+  is already there, **do not call** — paraphrases are still duplicates.
+- One short line only (voice, humor, running jokes, rituals). Not facts about the
+  human (`memory_store`) and not tool recipes (`TOOLS.md` / `skill/`).
+- Full merge/dedupe of `SELF.md` happens only on `/new` — never mid-chat via this tool.
+
 ## Shell
 
 - Prefer MCP/domain tools over shell hacking

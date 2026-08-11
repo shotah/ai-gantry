@@ -94,7 +94,7 @@ func TestTools_Call(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "noted") {
+	if !strings.Contains(out, "appended") {
 		t.Fatalf("out = %q", out)
 	}
 	got, _ := s.Read()

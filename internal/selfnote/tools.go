@@ -16,12 +16,13 @@ const ToolNote = "self_note"
 func ToolDefs() []provider.ToolDef {
 	return []provider.ToolDef{{
 		Name: ToolNote,
-		Description: "Append one short line to your persistent self-notes (SELF.md): your voice, humor, running jokes, games, and rituals worth keeping across session resets. " +
-			"Not for facts about the human — use memory_store for those.",
+		Description: "APPEND one short new line to SELF.md (does not overwrite or distill the file). " +
+			"Only for a vibe/joke/ritual that is NOT already in the SELF.md bullets in your prompt — skip if it is already there or only a paraphrase. " +
+			"Full rewrite/dedupe happens only on /new. Not for facts about the human — use memory_store for those.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"note": map[string]any{"type": "string", "description": "one short line, a dozen words or fewer"},
+				"note": map[string]any{"type": "string", "description": "one NEW short line (dozen words or fewer); skip if already covered in SELF.md"},
 			},
 			"required": []string{"note"},
 		},
@@ -55,7 +56,7 @@ func (t Tools) Call(_ context.Context, name string, arguments json.RawMessage) (
 	if err := t.Store.Append(args.Note); err != nil {
 		return "", err
 	}
-	return "noted — kept in SELF.md across session resets", nil
+	return "appended one line to SELF.md (append-only; /new distill merges later). Skip next time if already listed.", nil
 }
 
 // ToolRunner is the downstream tool set the composite wraps.

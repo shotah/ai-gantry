@@ -22,10 +22,15 @@ const FileName = "SELF.md"
 const MaxChars = 4096
 
 // Header opens a fresh SELF.md so the section is self-describing inside the
-// concatenated persona (and to a human reading the file).
+// concatenated persona (and to a human reading the file). The append-only
+// warning matters: models otherwise treat self_note like a rewrite and spam
+// near-duplicate bullets until /new distill can merge them.
 const Header = "# SELF.md — Who You Are Becoming\n\n" +
-	"Notes you keep about your own voice, humor, and rituals with your human.\n" +
-	"Short additive lines. The operator may prune this file at any time."
+	"> Agent-written file. Cap ~4KB; the operator may prune any line.\n" +
+	">\n" +
+	"> **`self_note` APPENDS one new `-` line — it does NOT overwrite this file.**\n" +
+	"> Do not re-note something already listed below. Skip if the vibe is already here.\n" +
+	"> Only `/new` distill rewrites the whole file (merge/dedupe then)."
 
 // Store reads and writes SELF.md. Safe for concurrent use.
 type Store struct {

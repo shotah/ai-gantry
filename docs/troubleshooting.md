@@ -25,6 +25,8 @@ Open `SELF.md` (or wipe it) when:
 
 - The agent feels wrong after a reset — too clingy, too snarky, off-brand jokes
 - It keeps referencing a game / nickname / bit you are done with
+- **Near-duplicate bullets pile up** (agent treated `self_note` like a rewrite —
+  prune dupes; persona should say append-only + skip-if-already-there)
 - A long tool-heavy or argumentative session just ended (distill may have
   locked in a bad mood)
 - You shared the allowlist with someone else and want a clean slate for them
