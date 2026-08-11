@@ -12,7 +12,7 @@ Upstream docs: [deploy-docker](https://github.com/shotah/ai-gantry/blob/main/doc
 [discord](https://github.com/shotah/ai-gantry/blob/main/docs/discord.md) ·
 [slack](https://github.com/shotah/ai-gantry/blob/main/docs/slack.md).
 
-Sibling templates: [native (systemd)](../native/) · [hosting (GCP GCE)](../hosting/).
+Sibling templates: [native (systemd)](../native/) · [hosting (GCP · AWS)](../hosting/).
 
 ## Layout
 

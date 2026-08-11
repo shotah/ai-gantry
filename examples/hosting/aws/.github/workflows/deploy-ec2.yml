@@ -1,0 +1,122 @@
+# Redeploy Compose on an EC2 instance (consumer repo — does not build the kernel).
+#
+# Auth — configure ONE path:
+#
+#   A) GitHub OIDC → AWS + SSM Run Command
+#      secrets.AWS_ROLE_TO_ASSUME   IAM role trust for this repo
+#      vars.AWS_REGION             e.g. us-west-2
+#      vars.EC2_INSTANCE_ID        e.g. i-0123456789abcdef0
+#      vars.EC2_DEPLOY_PATH        optional, default /opt/gantry-hosting
+#      Instance needs IAM profile with AmazonSSMManagedInstanceCore (+ SSM online).
+#
+#   B) Plain SSH
+#      secrets.EC2_SSH_KEY         PEM private key
+#      vars.EC2_HOST               public DNS or IP
+#      vars.EC2_SSH_USER           optional, default ubuntu
+#      vars.EC2_DEPLOY_PATH        optional, default /opt/gantry-hosting
+#
+# Instance prerequisite: this repo checked out once under EC2_DEPLOY_PATH with .env set.
+name: deploy-ec2
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 15 * * *"
+  repository_dispatch:
+    types: [gantry-redeploy]
+
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Pull image on EC2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Choose auth mode
+        id: mode
+        env:
+          ROLE: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          REGION: ${{ vars.AWS_REGION }}
+          INSTANCE: ${{ vars.EC2_INSTANCE_ID }}
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ${{ vars.EC2_HOST }}
+        run: |
+          if [ -n "$ROLE" ] && [ -n "$REGION" ] && [ -n "$INSTANCE" ]; then
+            echo "mode=ssm" >> "$GITHUB_OUTPUT"
+          elif [ -n "$SSH_KEY" ] && [ -n "$HOST" ]; then
+            echo "mode=ssh" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=none" >> "$GITHUB_OUTPUT"
+            echo "::error::Configure OIDC+SSM (AWS_ROLE_TO_ASSUME + AWS_REGION + EC2_INSTANCE_ID) or SSH (EC2_SSH_KEY + EC2_HOST)"
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        if: steps.mode.outputs.mode == 'ssm'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Compose pull && up (SSM)
+        if: steps.mode.outputs.mode == 'ssm'
+        env:
+          INSTANCE: ${{ vars.EC2_INSTANCE_ID }}
+          DEPLOY_PATH: ${{ vars.EC2_DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          DEPLOY_PATH="${DEPLOY_PATH:-/opt/gantry-hosting}"
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE" \
+            --document-name "AWS-RunShellScript" \
+            --comment "gantry compose pull" \
+            --parameters "commands=[
+              \"set -euo pipefail\",
+              \"cd '$DEPLOY_PATH'\",
+              \"docker compose pull\",
+              \"docker compose up -d --remove-orphans\",
+              \"docker compose exec -T gantry /usr/local/bin/gantry status\"
+            ]" \
+            --query 'Command.CommandId' --output text)
+          echo "SSM command id=$COMMAND_ID"
+          aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "$INSTANCE"
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" --instance-id "$INSTANCE" \
+            --query 'Status' --output text)
+          echo "SSM status=$STATUS"
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" --instance-id "$INSTANCE" \
+            --query '[StandardOutputContent,StandardErrorContent]' --output text
+          test "$STATUS" = "Success"
+
+      - name: Start ssh-agent
+        if: steps.mode.outputs.mode == 'ssh'
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Compose pull && up (ssh)
+        if: steps.mode.outputs.mode == 'ssh'
+        env:
+          HOST: ${{ vars.EC2_HOST }}
+          USER: ${{ vars.EC2_SSH_USER }}
+          DEPLOY_PATH: ${{ vars.EC2_DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          USER="${USER:-ubuntu}"
+          DEPLOY_PATH="${DEPLOY_PATH:-/opt/gantry-hosting}"
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -o StrictHostKeyChecking=accept-new "${USER}@${HOST}" "
+            set -euo pipefail
+            cd '$DEPLOY_PATH'
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker compose exec -T gantry /usr/local/bin/gantry status
+          "

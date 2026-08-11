@@ -1,4 +1,4 @@
-# Consumer-repo helpers. Kernel image: shotah/ai-gantry on a GCE VM.
+# Consumer-repo helpers. Kernel image: shotah/ai-gantry on a GCP GCE VM.
 
 .PHONY: init
 

@@ -95,7 +95,7 @@ Priority order for strangers:
    `:0.x.y` (pin). No clone required to try the kernel.
    Walkthrough: [deploy-docker.md](deploy-docker.md).
 2. **Consumer templates** — [`examples/docker/`](../examples/docker/) ·
-   [`examples/hosting/`](../examples/hosting/) · [`examples/native/`](../examples/native/)
+   [`examples/hosting/`](../examples/hosting/) ([GCP](../examples/hosting/gcp/) · [AWS](../examples/hosting/aws/)) · [`examples/native/`](../examples/native/)
    (standalone repos that pull Hub / releases).
 3. **Native + Ollama** — featured for people who want the full local story:
    [deploy-native.md](deploy-native.md) + [`local-agent/`](../local-agent/).

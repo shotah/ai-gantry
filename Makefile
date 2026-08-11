@@ -48,7 +48,9 @@ help: ## Show available targets
 	@echo   make init           Scaffold deploy/persona + deploy/mcp.toml via gantry init
 	@echo   make example-docker       Seed consumer template examples/docker
 	@echo   make example-native       Seed consumer template examples/native
-	@echo   make example-hosting      Seed consumer template examples/hosting
+	@echo   make example-hosting      List GCP/AWS hosting seed targets
+	@echo   make example-hosting-gcp  Seed examples/hosting/gcp (GCE)
+	@echo   make example-hosting-aws  Seed examples/hosting/aws (EC2)
 	@echo   make local-agent-help     LOCAL_AGENT appliance help (make -C local-agent help)
 	@echo   make test           Run all tests
 	@echo   make test-verbose   Run tests with -v
@@ -97,9 +99,17 @@ example-pa: example-docker ## Deprecated alias for example-docker
 example-native: ## Seed consumer template examples/native
 	$(MAKE) -C examples/native init
 
-.PHONY: example-hosting
-example-hosting: ## Seed consumer template examples/hosting (GCP GCE)
-	$(MAKE) -C examples/hosting init
+.PHONY: example-hosting example-hosting-gcp example-hosting-aws
+example-hosting: ## Print GCP/AWS hosting seed targets
+	@echo Seed a cloud VM consumer template:
+	@echo "  make example-hosting-gcp   # GCE"
+	@echo "  make example-hosting-aws   # EC2"
+
+example-hosting-gcp: ## Seed consumer template examples/hosting/gcp (GCE)
+	$(MAKE) -C examples/hosting/gcp init
+
+example-hosting-aws: ## Seed consumer template examples/hosting/aws (EC2)
+	$(MAKE) -C examples/hosting/aws init
 
 .PHONY: local-agent-help
 local-agent-help: ## Show local-agent appliance Make targets (local-agent/)

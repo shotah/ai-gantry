@@ -1,6 +1,7 @@
 # examples/
 
-Three **template consumer repositories** for [ai-gantry](https://github.com/shotah/ai-gantry).
+Three **template consumer repositories** for [ai-gantry](https://github.com/shotah/ai-gantry)
+(plus cloud VM variants under [`hosting/`](hosting/)).
 Each directory is shaped like a standalone git repo that **consumes** the published
 kernel (Hub image or release binary) — not a checkout of the kernel itself.
 
@@ -8,7 +9,8 @@ kernel (Hub image or release binary) — not a checkout of the kernel itself.
 | --- | --- | --- |
 | [`docker/`](docker/) → *gantry-compose* | `shotah/ai-gantry` image | Docker Compose |
 | [`native/`](native/) → *gantry-native* | release binary | systemd |
-| [`hosting/`](hosting/) → *gantry-gce* | Hub image on GCE | Compose + optional Actions |
+| [`hosting/gcp/`](hosting/gcp/) → *gantry-gce* | Hub image on GCE | Compose + optional Actions |
+| [`hosting/aws/`](hosting/aws/) → *gantry-ec2* | Hub image on EC2 | Compose + optional Actions |
 
 Also here (kernel scaffolding, not consumer templates):
 
@@ -25,7 +27,8 @@ flowchart LR
   K[ai-gantry kernel · Hub / releases]
   K --> D[examples/docker]
   K --> N[examples/native]
-  K --> H[examples/hosting]
+  K --> HG[examples/hosting/gcp]
+  K --> HA[examples/hosting/aws]
 ```
 
 ## Use as a separate repo
@@ -39,7 +42,8 @@ Inside this monorepo, the same seed helpers exist from the kernel root:
 ```bash
 make example-docker
 make example-native
-make example-hosting
+make example-hosting-gcp
+make example-hosting-aws
 ```
 
 ## Pick a template
@@ -48,7 +52,8 @@ make example-hosting
 | --- | --- |
 | Laptop / any Docker host, Gemini + Telegram | [`docker/`](docker/) |
 | Linux mini-PC, Ollama, systemd | [`native/`](native/) |
-| Always-on VM in an existing GCP project | [`hosting/`](hosting/) |
+| Always-on VM in an existing GCP project | [`hosting/gcp/`](hosting/gcp/) |
+| Always-on VM in an existing AWS account | [`hosting/aws/`](hosting/aws/) |
 
-All three share the kernel contract: env + `persona/` + `mcp.toml` +
+All four share the kernel contract: env + `persona/` + `mcp.toml` +
 `$DATA_DIR/gantry.db`. No inbound app ports — chat channels dial out only.

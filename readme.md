@@ -55,7 +55,8 @@ docker run --rm shotah/ai-gantry:latest version
 
 Wire Telegram + Gemini via a **consumer template** (Hub image — no kernel
 checkout): **[docs/deploy-docker.md](docs/deploy-docker.md)** →
-[`examples/docker/`](examples/docker/). GCP VM: [`examples/hosting/`](examples/hosting/).
+[`examples/docker/`](examples/docker/). Cloud VMs: [`examples/hosting/`](examples/hosting/)
+([GCP](examples/hosting/gcp/) · [AWS](examples/hosting/aws/)).
 
 ### Kernel vs appliance
 
@@ -154,7 +155,8 @@ Details: [docs/mcp.md](docs/mcp.md) · [docs/deploy-native.md](docs/deploy-nativ
 | --- | --- | --- |
 | **Docker Hub + cloud LLM** *(fastest)* | Consumer repo + Hub image | **[examples/docker/](examples/docker/)** · [deploy-docker](docs/deploy-docker.md) |
 | **Native + local model** | Consumer repo + release binary + systemd | **[examples/native/](examples/native/)** · [deploy-native](docs/deploy-native.md) |
-| **GCP GCE** | Consumer repo on a small always-on VM | **[examples/hosting/](examples/hosting/)** |
+| **GCP GCE** | Consumer repo on a small always-on VM | **[examples/hosting/gcp/](examples/hosting/gcp/)** |
+| **AWS EC2** | Consumer repo on a small always-on instance | **[examples/hosting/aws/](examples/hosting/aws/)** |
 | **REPL** | Hack on the binary | `make init && make run` (`CHANNEL=stdio`) |
 
 Full life-stack (tools + auth helpers): **[local-agent/](local-agent/)**.  

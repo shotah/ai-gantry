@@ -54,7 +54,8 @@ make logs
 Message the bot → `/status` → `/new`. Memory and cron work immediately; MCP
 servers stay commented until tools are granted.
 
-Always-on GCP VM template: **[examples/hosting/](../examples/hosting/)**.
+Always-on VM templates: **[examples/hosting/](../examples/hosting/)**
+([GCP GCE](../examples/hosting/gcp/) · [AWS EC2](../examples/hosting/aws/)).
 
 ### Discord / Slack (same compose)
 

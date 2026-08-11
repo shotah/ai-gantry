@@ -9,7 +9,7 @@ Default LLM is **Ollama on localhost**; `LLM_*` can point at Gemini/Grok instead
 | Supervisor | systemd → `/opt/gantry` |
 
 Upstream docs: [deploy-native](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-native.md).
-Sibling templates: [compose (Docker)](../docker/) · [hosting (GCP GCE)](../hosting/).
+Sibling templates: [compose (Docker)](../docker/) · [hosting (GCP · AWS)](../hosting/).
 
 ```mermaid
 flowchart LR
