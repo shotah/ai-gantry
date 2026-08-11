@@ -79,7 +79,8 @@ services:
     image: shotah/ai-gantry:latest   # or :edge / :0.x.y
     env_file: .env
     volumes:
-      - ./deploy/persona:/persona:ro
+      # Persona writable for SELF.md (self_note + /new distill). Use :ro only with SELF_NOTES_ENABLED=false.
+      - ./deploy/persona:/persona
       - ./deploy/mcp.toml:/etc/gantry/mcp.toml:ro
       - ./deploy/data:/data        # gantry.db (sessions + memory)
       - ./deploy/secrets:/secrets:ro

@@ -11,9 +11,11 @@ import (
 
 // PreferredOrder is the fixed concat order for well-known persona files.
 // Missing files are skipped. Any other *.md files follow alphabetically.
-// Keep this lean: SOUL (who) → RULES (how) → USER (human) → TOOLS (MCP recipes).
+// Keep this lean: SOUL (who) → SELF (who it's become; agent-written) →
+// RULES (how) → USER (human) → TOOLS (MCP recipes).
 var PreferredOrder = []string{
 	"SOUL.md",
+	"SELF.md",
 	"RULES.md",
 	"USER.md",
 	"TOOLS.md",

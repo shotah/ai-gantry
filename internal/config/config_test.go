@@ -47,8 +47,8 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if cfg.ToolResultMaxChars != 6000 {
 		t.Errorf("ToolResultMaxChars = %d, want 6000", cfg.ToolResultMaxChars)
 	}
-	if cfg.ToolMaxIterations != 20 {
-		t.Errorf("ToolMaxIterations = %d, want 20", cfg.ToolMaxIterations)
+	if cfg.ToolMaxIterations != 10 {
+		t.Errorf("ToolMaxIterations = %d, want 10", cfg.ToolMaxIterations)
 	}
 	if !cfg.ToolsEnabled {
 		t.Error("ToolsEnabled = false, want true")

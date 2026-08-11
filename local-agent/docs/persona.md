@@ -10,7 +10,7 @@ That directory is bind-mounted read-only at `/persona` in the container (Docker)
 or pointed at by `PERSONA_DIR` (native). Files concatenate in a fixed order:
 
 ```text
-SOUL.md → RULES.md → USER.md → TOOLS.md
+SOUL.md → SELF.md → RULES.md → USER.md → TOOLS.md
 ```
 
 Missing files are skipped. Any other `*.md` follows alphabetically (avoid extras
@@ -26,9 +26,20 @@ local models aren’t flooded. Hard tool-discipline (“no lazy tools”) lives 
 | File | Purpose |
 | --- | --- |
 | `SOUL.md` | Who the agent is — name/vibe, OpenClaw-style core truths, lab energy, communication |
+| `SELF.md` | Who the agent has **become** — agent-written (`self_note` tool + distill on `/new`); capped ~4KB; prune freely |
 | `RULES.md` | Operating rules — **no lazy tools**, identity lock, execute bias, safety, memory hygiene |
 | `USER.md` | Who Chris is — **canonical email lives here**, directives, gyms, prefs |
 | `TOOLS.md` | MCP recipes only — exact tool names, Google/fitness/cast/search how-tos |
+
+`SELF.md` is the one agent-writable file (`SELF_NOTES_ENABLED`, default on).
+Compose mounts `./persona` writable so notes can grow; only that file is
+agent-written. Mounting `:ro` (or a read-only host dir) auto-disables
+self-notes at boot — look for `self-notes disabled` in the logs. Set
+`SELF_NOTES_ENABLED=false` if you want a read-only persona on purpose.
+
+**Audit it.** If the agent drifts into tone or rituals you don’t want, prune
+or wipe `SELF.md` — details in
+[../../docs/troubleshooting.md](../../docs/troubleshooting.md#selfmd--personality-drift).
 
 Keep tool recipes **out** of SOUL/RULES/USER. Point at `TOOLS.md` instead.
 

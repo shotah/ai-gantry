@@ -129,7 +129,7 @@ sequenceDiagram
     A->>S: Messages + Summary
     A->>M: Hydrate(query, ~30)
     A->>A: assemble system blocks + history + user
-    loop until final text or TOOL_MAX_ITERATIONS
+    loop until final text (at TOOL_MAX_ITERATIONS a no-tools landing call forces one)
       A->>A: collapse tool results older than last 4
       A->>L: Complete(messages, tool schemas)
       alt tool_calls

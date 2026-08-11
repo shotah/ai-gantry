@@ -33,7 +33,8 @@ services:
       STREAM_REPLIES: ${STREAM_REPLIES:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
-      - ./persona:/persona:ro
+      # Writable for SELF.md (self_note / /new distill). Only that file is agent-written.
+      - ./persona:/persona
       - ./mcp.toml:/etc/gantry/mcp.toml:ro
       - ./data:/data
     healthcheck:

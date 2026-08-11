@@ -105,13 +105,36 @@ bot start (`setMyCommands`); type `/help` anytime.
 | Command | What it does |
 | --- | --- |
 | `/status` `/perf` `/memstats` `/toolstats` | Session bounds, last-turn timing, memory health, MCP ledger |
-| `/tools` `/new` `/cancel` `/help` | Catalog, reset session, abort in-flight turn |
+| `/tools` `/new` `/cancel` `/help` | Catalog, reset session (**distills personality into `SELF.md`**), abort in-flight turn |
 | **`/auth`** | **Headless MCP OAuth** — paste a code from a static catch page; no laptop `localhost` callback |
 
 Headless Google / Strava / Health: `/auth google` (etc.) → approve → paste
 code. Laptop still works via `make *-auth`. Guide:
 **[docs/auth.md](docs/auth.md)**. Observability from chat + host:
 **[docs/observability.md](docs/observability.md)**.
+
+### Personality that survives `/new`
+
+Most agents *feel* like someone after a long chat — then you hit `/new` (or
+history rolls off) and the funny, game-playing, in-joke version is gone.
+Gantry keeps that growth on purpose:
+
+| Piece | What it does |
+| --- | --- |
+| **`SELF.md`** | Agent-writable notes in `PERSONA_DIR` — voice, humor, running jokes, rituals |
+| **`self_note`** | Builtin tool: jot one short line when personality happens mid-chat |
+| **Distill on `/new`** | Before the session wipe, one model pass rewrites `SELF.md` from the dying chat + existing notes |
+
+Operator files (`SOUL.md` / `RULES.md` / `USER.md` / `TOOLS.md`) stay yours.
+`SELF.md` is the only file the agent may write — capped (~4KB), greppable,
+diffable, and yours to prune. Docker mounts `./persona` **writable** for this;
+`:ro` silently disables the feature (see
+**[docs/troubleshooting.md](docs/troubleshooting.md#selfmd--personality-drift)**).
+
+**You own the veto.** If the agent gets snarky, clingy, or just “not them”
+anymore, open `SELF.md` and delete lines — or wipe the file and start fresh.
+Treat it like you would a friend’s inside jokes: keep what’s good, cut what
+isn’t. Audit after long sessions or whenever the vibe feels off.
 
 ### Hardened for small local models
 
@@ -136,6 +159,7 @@ another billed retry.
 | Multi-bubble | Interrupt + coalesce + settle (`COALESCE_SETTLE_MS`) | “Strava… wait Garmin… nvm calendar” → one joined turn |
 | Slow turns | Per-turn perf logs + `/perf` / tool trace in chat | Know whether prefill, thinking, or an MCP is the wait |
 | Memory | SQLite + FTS5 in-process | No embedding API before every reply |
+| Personality | `SELF.md` + `self_note` + distill on `/new` | The funny agent survives resets — and you can prune it |
 | Runtime | One static binary (systemd *or* Distroless) | No Node/Bun/gateway in the path |
 | Gemini 3 | Preserves `thought_signature` on tool rounds | Cloud multi-step turns don't 400 |
 
@@ -164,7 +188,7 @@ Full life-stack (tools + auth helpers): **[local-agent/](local-agent/)**.
 or laptop browser callback
 (**[deploy-docker § MCP tool auth](docs/deploy-docker.md#mcp-tool-auth-browser-oauth)**).  
 Cookbook: **[examples/README.md](examples/README.md)**. Positioning /
-design / security / MCP: **[docs/](docs/)**.
+design / security / MCP / troubleshooting (`SELF.md`): **[docs/](docs/)**.
 
 ---
 
@@ -306,8 +330,9 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `HISTORY_MAX_MESSAGES` | no | `200` |
 | `HISTORY_MAX_TOKENS` | no | `128000` |
 | `TOOL_RESULT_MAX_CHARS` | no | `6000` |
-| `TOOL_MAX_ITERATIONS` | no | `20` |
+| `TOOL_MAX_ITERATIONS` | no | `10` (tool rounds per turn; at the cap a final no-tools call forces a text reply) |
 | `TOOL_SCHEMA_MAX_TOKENS` | no | `0` (log estimate only; `>0` = hard fail if over) |
+| `SELF_NOTES_ENABLED` | no | `true` (agent-writable `SELF.md` via `self_note` tool + personality distill on `/new`; auto-off when `PERSONA_DIR` is read-only) |
 | `MEMORY_ENABLED` | no | `true` |
 | `MEMORY_BACKEND` | no | `builtin` (or `mcp:<server-name>`, see §6 / §9) |
 | `MEMORY_CONSOLIDATE_MINUTES` | no | `30` (`0` = off; builtin backend only) |
@@ -408,6 +433,9 @@ This is the part that earns its keep. Keep it boring and bounded:
    mistakes, else suggest closest real names *and* constrain the next call to
    them with a response-format grammar), truncate each result to
    `TOOL_RESULT_MAX_CHARS`, loop until final text or `TOOL_MAX_ITERATIONS`.
+   At ~70% of the budget the model is told how many rounds remain; at the cap
+   one landing call runs with tools withheld so the turn ends in a real reply
+   (what was done, what's left) instead of an error that drops the work.
    Each call appends a trace line (`→ name`, `✓ 1.2s · 4.1k chars`) to a
    streaming reply so long chains show motion.
 4. **Reply** on the channel; append turn to session.
@@ -429,7 +457,26 @@ Bounding rules:
   summary is injected as a system block on later turns.
 - Tool results older than the last 4 collapse to one line:
   `[tool gmail.search: N chars, truncated]`.
-- `/new` wipes the session (memory untouched).
+- `/new` wipes the session (memory untouched). When self-notes are enabled,
+  a distill pass rewrites `SELF.md` first so personality survives the reset.
+
+### 5.1 Self-notes (`SELF.md`) — grown personality
+
+Persona files describe who the agent **should** be. `SELF.md` is who it
+**became** with you — and unlike chat history, it outlives `/new`.
+
+- Lives in `PERSONA_DIR`, loaded in the stable prompt prefix (`SOUL` → `SELF`
+  → `RULES` → `USER` → `TOOLS`).
+- Mid-chat: `self_note` appends one short line (model already sees the full
+  file in the persona, so it can skip duplicates).
+- On `/new`: full rewrite distill (keep what matters, fold in the dying
+  session, ≤30 bullets) — not a blind append.
+- Cap ~4KB; at capacity the tool refuses until distill or you prune.
+- Needs a **writable** persona directory (`SELF_NOTES_ENABLED`, default on).
+
+**Operator duty:** audit or delete `SELF.md` if the agent drifts into
+behavior you don’t want. Details + recipes:
+**[docs/troubleshooting.md](docs/troubleshooting.md#selfmd--personality-drift)**.
 
 ## 6. Memory design
 

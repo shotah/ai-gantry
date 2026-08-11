@@ -19,6 +19,7 @@ func TestLoad_FixedOrderAndExtras(t *testing.T) {
 	}
 	write("ZZZ.md", "extra-z")
 	write("USER.md", "user-body")
+	write("SELF.md", "self-body")
 	write("SOUL.md", "soul-body")
 	write("AAA.md", "extra-a")
 	write("notes.txt", "ignored")
@@ -29,13 +30,14 @@ func TestLoad_FixedOrderAndExtras(t *testing.T) {
 	}
 
 	soul := strings.Index(got, "soul-body")
+	self := strings.Index(got, "self-body")
 	user := strings.Index(got, "user-body")
 	aaa := strings.Index(got, "extra-a")
 	zzz := strings.Index(got, "extra-z")
-	if soul < 0 || user < 0 || aaa < 0 || zzz < 0 {
+	if soul < 0 || self < 0 || user < 0 || aaa < 0 || zzz < 0 {
 		t.Fatalf("missing parts in %q", got)
 	}
-	if soul >= user || user >= aaa || aaa >= zzz {
+	if soul >= self || self >= user || user >= aaa || aaa >= zzz {
 		t.Fatalf("order wrong in %q", got)
 	}
 	if strings.Contains(got, "ignored") {

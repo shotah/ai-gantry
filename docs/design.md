@@ -89,8 +89,8 @@ Boring on purpose:
 
 1. Assemble prompt (persona → memory → summary → history → user).
 2. Call model with eager-loaded tool schemas.
-3. Execute tool calls; truncate each result; loop until final text or
-   `TOOL_MAX_ITERATIONS`.
+3. Execute tool calls; truncate each result; loop until final text (at
+   `TOOL_MAX_ITERATIONS` a no-tools landing call forces one).
 4. Reply on the channel; append the turn.
 
 **Bounds that keep prompts finite:**
@@ -101,7 +101,8 @@ Boring on purpose:
 | Rolling summary | Trimmed turns fold into `session.summary` via the same LLM; reinjected later |
 | Tool truncate | Each MCP/memory tool result capped at `TOOL_RESULT_MAX_CHARS` |
 | Tool collapse | Tool payloads older than the last 4 become one-line markers |
-| Iteration cap | Hard stop at `TOOL_MAX_ITERATIONS` |
+| Iteration cap | `TOOL_MAX_ITERATIONS` tool rounds, then one landing call with tools withheld forces a text reply (warning to the model at ~70%) |
+| Self-notes | Agent-writable `SELF.md` (`self_note` + distill on `/new`); operator must audit/prune if personality drifts — [troubleshooting.md](troubleshooting.md#selfmd--personality-drift) |
 
 `/new` clears session history + summary. Memory is untouched.
 

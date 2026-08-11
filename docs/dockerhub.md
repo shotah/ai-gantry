@@ -103,7 +103,8 @@ services:
       DATA_DIR: /data
       MCP_MANIFEST: /etc/gantry/mcp.toml
     volumes:
-      - ./persona:/persona:ro
+      # Persona writable for SELF.md (self_note + /new distill). Use :ro only with SELF_NOTES_ENABLED=false.
+      - ./persona:/persona
       - ./mcp.toml:/etc/gantry/mcp.toml:ro
       - ./data:/data
     healthcheck:

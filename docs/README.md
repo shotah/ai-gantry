@@ -23,9 +23,11 @@ is the public pitch + product contract; these pages go deeper.
 | [security.md](security.md) | Threat model, tradeoffs, residual risks |
 | [choices.md](choices.md) | Decision log (why we picked X over Y) |
 | [memory.md](memory.md) | Hand-inspect / fix builtin SQLite memory with `sqlite3` |
+| [troubleshooting.md](troubleshooting.md) | **`SELF.md` audit/prune**, self-notes `:ro` disable, `/new` personality, tool budget |
 | [cron.md](cron.md) | Schedule tools, timezone, inspect jobs, overlap policy |
 
 Start with **deploy-docker** (Hub pull) or **deploy-native** for a running bot;
 **auth** for headless MCP login; **positioning** for who/why; **architecture**
 for the code; **mcp** before wiring tools; **security** before exposing an
-allowlist with real tool credentials.
+allowlist with real tool credentials. Audit grown personality in
+**troubleshooting** (`SELF.md`) whenever the vibe drifts.

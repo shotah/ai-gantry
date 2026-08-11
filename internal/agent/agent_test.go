@@ -923,6 +923,8 @@ func TestAgent_CompleteError(t *testing.T) {
 	}
 }
 
+// A provider that keeps returning tool_calls even on the landing call (where
+// tools are withheld) must still terminate with the budget error.
 func TestAgent_MaxToolIterations(t *testing.T) {
 	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
 		return &provider.Result{ToolCalls: []provider.ToolCall{
@@ -943,4 +945,108 @@ func TestAgent_MaxToolIterations(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "TOOL_MAX_ITERATIONS") {
 		t.Fatalf("err = %v", err)
 	}
+}
+
+// Exhausting the tool budget must land gracefully: the final call runs without
+// tools plus a wrap-up note, the model's text becomes the reply, and the turn
+// is persisted instead of erroring out and dropping all the tool work.
+func TestAgent_MaxToolIterations_GracefulLanding(t *testing.T) {
+	var reqs []provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		reqs = append(reqs, req)
+		if len(req.Tools) > 0 {
+			return &provider.Result{ToolCalls: []provider.ToolCall{
+				{ID: "c", Name: "demo__echo", Arguments: `{}`},
+			}}, nil
+		}
+		return &provider.Result{Content: "ran out of tool budget; here is what I found"}, nil
+	}}
+	hist := newMemHistory()
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     hist,
+		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "demo__echo"}}},
+		MaxToolIters: 2,
+		Model:        "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "loop"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != "ran out of tool budget; here is what I found" {
+		t.Fatalf("reply = %q", reply)
+	}
+	if len(reqs) != 3 {
+		t.Fatalf("model calls = %d, want 2 tool rounds + landing", len(reqs))
+	}
+	landing := reqs[len(reqs)-1]
+	last := landing.Messages[len(landing.Messages)-1]
+	if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "Tool budget exhausted") {
+		t.Fatalf("landing call missing budget note: %+v", last)
+	}
+	msgs, err := hist.Messages(context.Background(), "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("history = %d messages, want persisted user + assistant", len(msgs))
+	}
+}
+
+// Past ~70% of the budget the model is told how many rounds remain, once.
+func TestAgent_MaxToolIterations_WarnsNearBudget(t *testing.T) {
+	var reqs []provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		reqs = append(reqs, req)
+		if len(reqs) < 5 {
+			return &provider.Result{ToolCalls: []provider.ToolCall{
+				{ID: "c", Name: "demo__echo", Arguments: `{}`},
+			}}, nil
+		}
+		return &provider.Result{Content: "done"}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "demo__echo"}}},
+		MaxToolIters: 5, // warn after round 3 (70% floor), 2 rounds remain
+		Model:        "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "loop"}); err != nil {
+		t.Fatal(err)
+	}
+	countWarnings := func(req provider.Request) int {
+		n := 0
+		for _, m := range req.Messages {
+			if m.Role == provider.RoleSystem && strings.Contains(m.Content, "[system] Tool budget:") {
+				n++
+			}
+		}
+		return n
+	}
+	if n := countWarnings(reqs[2]); n != 0 {
+		t.Fatalf("round 3 request already has %d warnings", n)
+	}
+	final := reqs[len(reqs)-1]
+	if n := countWarnings(final); n != 1 {
+		t.Fatalf("final request has %d budget warnings, want exactly 1", n)
+	}
+	if !strings.Contains(warningText(final), "2 remain") {
+		t.Fatalf("warning text = %q, want remaining rounds", warningText(final))
+	}
+}
+
+func warningText(req provider.Request) string {
+	for _, m := range req.Messages {
+		if m.Role == provider.RoleSystem && strings.Contains(m.Content, "[system] Tool budget:") {
+			return m.Content
+		}
+	}
+	return ""
 }

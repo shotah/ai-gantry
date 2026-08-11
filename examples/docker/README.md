@@ -45,8 +45,8 @@ Chat + memory + cron work with zero MCP servers. First checks:
 | --- | --- |
 | `hi` | Short reply in character |
 | `/status` | uptime, model, history, tool count |
-| `/tools` | builtin memory/cron (MCP empty until servers are granted) |
-| `/new` | `session reset` |
+| `/tools` | builtin memory/cron + `self_note` (MCP empty until servers are granted) |
+| `/new` | `session reset` (or `… — personality distilled into SELF.md` after a real chat) |
 
 ### Discord or Slack
 
@@ -83,9 +83,18 @@ Full appliance with tools pre-baked:
 | Path | Survives image pulls? |
 | --- | --- |
 | `./data/gantry.db` | Yes |
-| `./persona/*.md` | Yes |
+| `./persona/*.md` | Yes (incl. agent-written `SELF.md`) |
 | `./mcp.toml` / `.env` | Yes |
 | Container image | Disposable |
+
+### Persona write access (`SELF.md`)
+
+`compose.yml` mounts `./persona` **writable** so the agent can keep
+`SELF.md` (voice / jokes / rituals) via the `self_note` tool and a distill
+pass on `/new`. Only that one file is agent-written; the rest are still
+yours to edit. Mounting `:ro` (or a read-only host dir) makes self-notes
+auto-disable at boot — check logs for `self-notes disabled`. Set
+`SELF_NOTES_ENABLED=false` if you want a read-only persona on purpose.
 
 ## Publishing this template
 

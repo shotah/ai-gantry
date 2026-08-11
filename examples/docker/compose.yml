@@ -34,7 +34,10 @@ services:
       STREAM_REPLIES: ${STREAM_REPLIES:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
-      - ./persona:/persona:ro
+      # Persona is writable so SELF.md (agent personality notes) can grow.
+      # Only SELF.md is agent-written; SOUL/RULES/USER/TOOLS stay operator-edited.
+      # Use :ro here only if you set SELF_NOTES_ENABLED=false.
+      - ./persona:/persona
       - ./mcp.toml:/etc/gantry/mcp.toml:ro
       - ./data:/data
       # Optional tool secrets:

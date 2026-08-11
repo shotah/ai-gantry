@@ -51,7 +51,7 @@ type Config struct {
 	HistoryMaxMessages int `env:"HISTORY_MAX_MESSAGES" envDefault:"200"`
 	HistoryMaxTokens   int `env:"HISTORY_MAX_TOKENS" envDefault:"128000"` // estimated (chars/4)
 	ToolResultMaxChars int `env:"TOOL_RESULT_MAX_CHARS" envDefault:"6000"`
-	ToolMaxIterations  int `env:"TOOL_MAX_ITERATIONS" envDefault:"20"`
+	ToolMaxIterations  int `env:"TOOL_MAX_ITERATIONS" envDefault:"10"`
 	// ToolSchemaMaxTokens is an optional hard cap on estimated tool-schema tokens
 	// (chars/4 of name+description+parameters). 0 = log estimate only.
 	ToolSchemaMaxTokens int `env:"TOOL_SCHEMA_MAX_TOKENS" envDefault:"0"`
@@ -61,6 +61,12 @@ type Config struct {
 	// for models that reject tools (e.g. Ollama gemma3). Memory/cron backends may
 	// still start; only the agent tool surface is cleared.
 	ToolsEnabled bool `env:"TOOLS_ENABLED" envDefault:"true"`
+
+	// SelfNotesEnabled lets the agent keep SELF.md in PERSONA_DIR: a self_note
+	// tool for jotting personality lines, plus a distill pass on /new that
+	// folds the dying session's voice/jokes/rituals into the file so they
+	// survive the reset. Auto-disables when PERSONA_DIR is not writable.
+	SelfNotesEnabled bool `env:"SELF_NOTES_ENABLED" envDefault:"true"`
 
 	MemoryEnabled            bool   `env:"MEMORY_ENABLED" envDefault:"true"`
 	MemoryBackend            string `env:"MEMORY_BACKEND" envDefault:"builtin"`

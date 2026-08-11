@@ -27,6 +27,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/persona"
 	"github.com/shotah/ai-gantry/internal/provider"
+	"github.com/shotah/ai-gantry/internal/selfnote"
 	"github.com/shotah/ai-gantry/internal/session"
 )
 
@@ -52,6 +53,7 @@ func run() int {
 		"mcp_manifest", cfg.MCPManifest,
 		"memory_enabled", cfg.MemoryEnabled,
 		"memory_backend", cfg.MemoryBackend,
+		"self_notes_enabled", cfg.SelfNotesEnabled,
 		"cron_enabled", cfg.CronEnabled,
 		"cron_tz", cfg.CronTZ,
 		"spark_qty", cfg.SparkQty,
@@ -184,6 +186,21 @@ func run() int {
 		logger.Info("cron ready", "tz", cfg.CronTZ, "max_jobs", cfg.CronMaxJobs)
 	}
 
+	var selfStore *selfnote.Store
+	if cfg.SelfNotesEnabled {
+		selfStore, err = selfnote.Open(cfg.PersonaDir)
+		if err != nil {
+			// Read-only persona mounts are common; degrade instead of failing boot.
+			logger.Warn("self-notes disabled (persona dir not writable)", "err", err)
+		} else {
+			tools = selfnote.Composite{
+				Self:  selfnote.Tools{Store: selfStore},
+				Other: tools,
+			}
+			logger.Info("self-notes ready", "file", filepath.Join(cfg.PersonaDir, selfnote.FileName))
+		}
+	}
+
 	agentTools := tools
 	if !cfg.ToolsEnabled {
 		agentTools = nil
@@ -217,7 +234,7 @@ func run() int {
 	} else {
 		logger.Warn("cron tz load failed; temporal anchor uses UTC", "tz", cfg.CronTZ, "err", err)
 	}
-	ag, err := agent.New(agent.Options{
+	agentOpts := agent.Options{
 		Persona:        personaText,
 		Completer:      completer,
 		Sessions:       sessions,
@@ -234,10 +251,27 @@ func run() int {
 		SpinupNotice:   time.Duration(cfg.SpinupNoticeMS) * time.Millisecond,
 		Consolidator:   consol,
 		MCPManifest:    cfg.MCPManifest,
-	})
+	}
+	if selfStore != nil {
+		agentOpts.SelfNotes = selfStore
+	}
+	ag, err := agent.New(agentOpts)
 	if err != nil {
 		logger.Error("agent init failed", "err", err)
 		return 1
+	}
+	if selfStore != nil {
+		// SELF.md sits in the persona prefix; reload after every agent write so
+		// the note takes effect without waiting for a SIGHUP.
+		selfStore.OnChange = func() {
+			text, err := persona.Load(cfg.PersonaDir)
+			if err != nil {
+				logger.Error("persona reload after self-note failed", "err", err)
+				return
+			}
+			ag.SetPersona(text)
+			logger.Info("persona reloaded after self-note", "chars", len(text))
+		}
 	}
 	go watchPersonaReload(ctx, cfg.PersonaDir, ag, logger)
 

@@ -21,7 +21,8 @@ services:
       DATA_DIR: /data
       MCP_MANIFEST: /etc/gantry/mcp.toml
     volumes:
-      - ./deploy/persona:/persona:ro
+      # Writable for SELF.md (self_note / /new distill). Only that file is agent-written.
+      - ./deploy/persona:/persona
       - ./deploy/mcp.toml:/etc/gantry/mcp.toml:ro
       - ./deploy/data:/data
       - ./deploy/secrets:/secrets:ro

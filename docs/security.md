@@ -51,7 +51,12 @@ profiles per tool, enterprise SSO.
 
 - Distroless/static, **nonroot** (uid 65532), no shell.
 - Static MCP binaries required — smaller, fewer shared-lib surprises.
-- Persona + manifest mounts intended **read-only**.
+- Manifest mounts stay **read-only**. Persona is **writable** by default so
+  `SELF.md` can grow (`SELF_NOTES_ENABLED`); only that file is agent-written
+  (capped ~4KB). SOUL/RULES/USER/TOOLS remain operator-edited. A `:ro` persona
+  mount auto-disables self-notes at boot. **Operator duty:** audit or delete
+  `SELF.md` if grown personality turns undesirable —
+  [troubleshooting.md](troubleshooting.md#selfmd--personality-drift).
 
 ### Data at rest
 

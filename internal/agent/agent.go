@@ -47,6 +47,15 @@ const (
 // compactCallsHeader is the progress line opened in TOOL_TRACE=compact.
 const compactCallsHeader = "Making Calls:"
 
+// budgetExhaustedNote is injected on the landing call, where no tools are
+// offered, so the model reports what it has instead of erroring out.
+const budgetExhaustedNote = "[system] Tool budget exhausted: all %d tool rounds for this turn are used and no more tool calls are possible. " +
+	"Write your final reply to the user now: summarize what you accomplished, what you found, and what is still unfinished."
+
+// toolNarrationNote is appended to the system persona when tools are wired so
+// the visible trace carries a "why" line ahead of each call's ✓/✗ marks.
+const toolNarrationNote = `Before each tool call, write one short line of visible reply text saying what you are doing and why (e.g. "Searching contacts for Joe"). Keep it under a dozen words and make the call in the same response.`
+
 // Options configures the agent.
 type Options struct {
 	Persona       string
@@ -72,6 +81,9 @@ type Options struct {
 	// without model output. The first turn of the process posts immediately
 	// instead of waiting. 0 disables both notices.
 	SpinupNotice time.Duration
+	// SelfNotes is optional; when set, /new distills the dying session's
+	// personality into SELF.md before the reset (see internal/selfnote).
+	SelfNotes SelfNotes
 	// Consolidator is optional; /memstats reads last_run from it when set.
 	Consolidator *memory.Consolidator
 	// MCPManifest is the path to mcp.toml for /auth (chat OAuth). Empty disables /auth.
@@ -86,6 +98,7 @@ type Agent struct {
 	sessions      History
 	tools         Tools
 	memory        memory.Memory
+	selfNotes     SelfNotes
 	model         string
 	maxToolIters  int
 	streamReplies bool
@@ -134,7 +147,7 @@ func New(opts Options) (*Agent, error) {
 	}
 	maxIters := opts.MaxToolIters
 	if maxIters < 1 {
-		maxIters = 20
+		maxIters = 10
 	}
 	toolTrace := strings.ToLower(strings.TrimSpace(opts.ToolTrace))
 	switch toolTrace {
@@ -155,6 +168,7 @@ func New(opts Options) (*Agent, error) {
 		sessions:       opts.Sessions,
 		tools:          opts.Tools,
 		memory:         opts.Memory,
+		selfNotes:      opts.SelfNotes,
 		model:          opts.Model,
 		maxToolIters:   maxIters,
 		streamReplies:  opts.StreamReplies,
@@ -175,8 +189,12 @@ func New(opts Options) (*Agent, error) {
 }
 
 // SetPersona replaces the system persona text (e.g. after SIGHUP reload).
-// When memory is enabled, the persona-precedence note is appended.
+// When tools are wired, the narration note is appended; when memory is
+// enabled, the persona-precedence note is appended.
 func (a *Agent) SetPersona(text string) {
+	if a.tools != nil {
+		text = strings.TrimRight(text, "\n") + "\n" + toolNarrationNote
+	}
 	if a.memory != nil {
 		text = strings.TrimRight(text, "\n") + "\n" + strings.TrimSpace(memory.PersonaPrecedenceNote)
 	}
@@ -229,8 +247,15 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			unlock := a.lockSession(msg.SessionID)
 			defer unlock()
 			a.coalesceClear(msg.SessionID)
+			distilled := false
+			if a.selfNotes != nil {
+				distilled = a.distillSelf(ctx, msg.SessionID)
+			}
 			if err := a.sessions.Reset(ctx, msg.SessionID); err != nil {
 				return "", err
+			}
+			if distilled {
+				return "session reset — personality distilled into SELF.md", nil
 			}
 			return "session reset", nil
 		case "/status":
@@ -441,13 +466,29 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 
 	// Names to force on the next call, set when a tool name failed to resolve.
 	var forceNames []string
-	for iter := 0; iter < a.maxToolIters; iter++ {
+	budgetWarned := false
+	// The loop grants maxToolIters tool rounds plus one landing call: tools are
+	// withheld on that last call so the model must answer with text — the turn
+	// ends with a real reply (and persisted history) instead of an error that
+	// throws away every tool result it just gathered.
+	for iter := 0; iter <= a.maxToolIters; iter++ {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
+		final := iter == a.maxToolIters
 		iters = iter + 1
 		bounded := collapseOldToolResults(messages)
+		if final {
+			forceNames = nil
+			bounded = append(bounded, provider.Message{
+				Role:    provider.RoleSystem,
+				Content: fmt.Sprintf(budgetExhaustedNote, a.maxToolIters),
+			})
+		}
 		req := provider.Request{Messages: bounded, Tools: toolDefs, ForceToolNames: forceNames}
+		if final {
+			req.Tools = nil
+		}
 		// One-shot: a repair either lands or the turn continues unconstrained.
 		constrained := len(forceNames) > 0
 		forceNames = nil
@@ -470,7 +511,8 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 		// Stream when enabled and a channel writer is present. Tool-call
 		// responses still come back on the same stream path; onProgress is
 		// skipped once tool deltas appear (see provider.CompleteStream).
-		if a.streamReplies && canStream && hasWriter && !constrained {
+		streamedRound := a.streamReplies && canStream && hasWriter && !constrained
+		if streamedRound {
 			tw, hasThinking := writer.(channel.ThinkingWriter)
 			res, err = streamer.CompleteStream(ctx, req, func(content, thinking string) error {
 				if firstTokenAt.IsZero() && (content != "" || thinking != "") {
@@ -527,8 +569,9 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 		}
 		// Models sometimes print the tool call instead of emitting one. Left
 		// alone that JSON becomes the visible reply — the agent answering in
-		// wire format — so run it as the call it plainly is.
-		if len(res.ToolCalls) == 0 && a.tools != nil {
+		// wire format — so run it as the call it plainly is. Not on the landing
+		// call: nothing can execute there, so text (even ugly) must stand.
+		if len(res.ToolCalls) == 0 && a.tools != nil && !final {
 			if call, ok := salvageToolCall(res.Content, toolDefs, messages); ok {
 				a.log.Warn("model printed a tool call instead of emitting one; executing it",
 					"name", call.Name,
@@ -623,12 +666,26 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 		if a.tools == nil {
 			return "", fmt.Errorf("agent: model requested tools but none are configured")
 		}
+		if final {
+			// Tools were withheld from the landing call; a tool_call reply here
+			// means the provider ignored that, so stop rather than loop on.
+			return "", fmt.Errorf("agent: exceeded TOOL_MAX_ITERATIONS (%d)", a.maxToolIters)
+		}
 
 		messages = append(messages, provider.Message{
 			Role:      provider.RoleAssistant,
 			Content:   res.Content,
 			ToolCalls: res.ToolCalls,
 		})
+
+		// Streamed rounds already showed the model's narration via the reply
+		// writer; on the Complete path it would otherwise be invisible, so put
+		// its first line in the trace — the "why" ahead of the ✓/✗ marks.
+		if hasProgress && !streamedRound && a.toolTrace != ToolTraceOff {
+			if reason := firstLine(res.Content); reason != "" {
+				_ = progress.UpdateProgress(ctx, reason)
+			}
+		}
 
 		compactHeader := false
 		a.markToolsStarted(sessionID)
@@ -701,6 +758,17 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 				Role:       provider.RoleTool,
 				Content:    out,
 				ToolCallID: call.ID,
+			})
+		}
+		// Past ~70% of the budget, tell the model how many rounds remain so it
+		// wraps up on its own instead of slamming into the landing call.
+		if warnAt := a.maxToolIters * 7 / 10; !budgetWarned && iters >= warnAt && a.maxToolIters-iters >= 1 {
+			budgetWarned = true
+			messages = append(messages, provider.Message{
+				Role: provider.RoleSystem,
+				Content: fmt.Sprintf(
+					"[system] Tool budget: %d of %d tool rounds used this turn; %d remain before you must answer. Finish the most important remaining step or wrap up now.",
+					iters, a.maxToolIters, a.maxToolIters-iters),
 			})
 		}
 	}
@@ -928,6 +996,16 @@ func shortChars(n int) string {
 		return fmt.Sprintf("%.1fk chars", float64(n)/1000)
 	}
 	return fmt.Sprintf("%d chars", n)
+}
+
+// firstLine returns the first non-empty line of s, clipped for the trace.
+func firstLine(s string) string {
+	for _, line := range strings.Split(s, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			return clipChars(line, 100)
+		}
+	}
+	return ""
 }
 
 // clipChars truncates s to at most n runes (with ellipsis when clipped).

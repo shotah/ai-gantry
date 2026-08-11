@@ -125,6 +125,50 @@ func TestAgent_ToolProgress_CompactMode(t *testing.T) {
 	}
 }
 
+// Narration sent alongside tool calls becomes the "why" line in the trace on
+// the non-streaming path (streamed rounds already show it via the writer).
+func TestAgent_ToolProgress_ShowsReasonLine(t *testing.T) {
+	n := 0
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		n++
+		if n == 1 {
+			return &provider.Result{
+				Content: "Searching contacts for Joe\nand more detail below",
+				ToolCalls: []provider.ToolCall{
+					{ID: "c1", Name: "contacts__search", Arguments: `{}`},
+				},
+			}, nil
+		}
+		return &provider.Result{Content: "found him"}, nil
+	}}
+	w := &progressWriter{}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "contacts__search"}}},
+		Model:        "m",
+		MaxToolIters: 5,
+		ToolTrace:    agent.ToolTraceCompact,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := channel.WithReplyWriter(context.Background(), w)
+	if _, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "find joe"}); err != nil {
+		t.Fatal(err)
+	}
+	notes := w.traced()
+	want := []string{"Searching contacts for Joe", "Making Calls:", "✓"}
+	if len(notes) != len(want) {
+		t.Fatalf("notes = %v, want %v", notes, want)
+	}
+	for i := range want {
+		if notes[i] != want[i] {
+			t.Fatalf("notes[%d] = %q, want %q (all=%v)", i, notes[i], want[i], notes)
+		}
+	}
+}
+
 func TestAgent_ToolProgress_OffMode(t *testing.T) {
 	n := 0
 	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {

@@ -79,8 +79,9 @@ services:
       # Optional: persist local usage counter on the data volume
       MARKETCHECK_USAGE_FILE: ${MARKETCHECK_USAGE_FILE:-/data/marketcheck-usage.json}
     volumes:
-      # Persona markdown (SOUL.md USER.md TOOLS.md ...) — the system prompt
-      - ./persona:/persona:ro
+      # Persona markdown (SOUL.md SELF.md RULES.md USER.md TOOLS.md) — system prompt.
+      # Writable so SELF.md can grow (self_note + /new distill). Only SELF.md is agent-written.
+      - ./persona:/persona
       # MCP server manifest — the one structured config file
       - ./mcp.toml:/etc/gantry/mcp.toml:ro
       # gantry.db + MCP tool state under data/.config/* (same layout as native /opt/gantry/data).
