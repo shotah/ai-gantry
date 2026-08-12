@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -418,7 +419,18 @@ func resolveChatID(msg channel.Outbound) (int64, error) {
 }
 
 func (c *Channel) sendChunks(ctx context.Context, b *bot.Bot, chatID int64, threadID int, text string) error {
-	parts := splitMessage(text, c.chunkMax)
+	limit := c.chunkMax
+	if limit < 1 {
+		limit = telegramMaxMessageRunes
+	}
+	htmlBody := markdownToTelegramHTML(text)
+	if htmlBody != "" && utf8.RuneCountInString(htmlBody) <= limit {
+		err := c.sendOne(ctx, b, chatID, threadID, htmlBody, true)
+		if err == nil || !isTelegramEntityError(err) {
+			return err
+		}
+	}
+	parts := splitMessage(text, limit)
 	for i, part := range parts {
 		if i > 0 {
 			select {
@@ -427,24 +439,35 @@ func (c *Channel) sendChunks(ctx context.Context, b *bot.Bot, chatID int64, thre
 			case <-time.After(chunkPause):
 			}
 		}
-		var sent *models.Message
-		if err := doWith429Retry(ctx, func() error {
-			m, err := b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:          chatID,
-				MessageThreadID: threadID,
-				Text:            part,
-			})
-			if err != nil {
-				return err
-			}
-			sent = m
-			return nil
-		}); err != nil {
+		if err := c.sendOne(ctx, b, chatID, threadID, part, false); err != nil {
 			return err
 		}
-		if sent != nil {
-			c.outbound.remember(chatID, sent.ID, threadID, part)
+	}
+	return nil
+}
+
+func (c *Channel) sendOne(ctx context.Context, b *bot.Bot, chatID int64, threadID int, text string, asHTML bool) error {
+	var sent *models.Message
+	if err := doWith429Retry(ctx, func() error {
+		p := &bot.SendMessageParams{
+			ChatID:          chatID,
+			MessageThreadID: threadID,
+			Text:            text,
 		}
+		if asHTML {
+			p.ParseMode = models.ParseModeHTML
+		}
+		m, err := b.SendMessage(ctx, p)
+		if err != nil {
+			return err
+		}
+		sent = m
+		return nil
+	}); err != nil {
+		return err
+	}
+	if sent != nil {
+		c.outbound.remember(chatID, sent.ID, threadID, text)
 	}
 	return nil
 }

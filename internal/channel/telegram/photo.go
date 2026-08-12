@@ -76,6 +76,19 @@ func clipCaption(s string) string {
 	return string(r[:telegramCaptionMax-1]) + "…"
 }
 
+// htmlCaption converts markdown for a photo caption when it fits Telegram's limit.
+func htmlCaption(s string) (caption string, asHTML bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", false
+	}
+	htmlBody := markdownToTelegramHTML(s)
+	if htmlBody != "" && utf8.RuneCountInString(htmlBody) <= telegramCaptionMax {
+		return htmlBody, true
+	}
+	return clipCaption(s), false
+}
+
 // sendReply sends text and any image URLs found in it (or explicit PhotoURL).
 func (c *Channel) sendReply(ctx context.Context, b *bot.Bot, chatID int64, threadID int, text string, extraPhoto string) error {
 	urls, rest := channel.ExtractImageURLs(text)
@@ -97,16 +110,21 @@ func (c *Channel) sendReply(ctx context.Context, b *bot.Bot, chatID int64, threa
 	caption := clipCaption(rest)
 	for i, u := range urls {
 		photoCaption := ""
+		captionHTML := false
 		if i == 0 {
-			photoCaption = caption
+			photoCaption, captionHTML = htmlCaption(caption)
 			caption = "" // only first photo gets the text caption
 		}
-		sent, err := b.SendPhoto(ctx, &bot.SendPhotoParams{
+		p := &bot.SendPhotoParams{
 			ChatID:          chatID,
 			MessageThreadID: threadID,
 			Photo:           &models.InputFileString{Data: u},
 			Caption:         photoCaption,
-		})
+		}
+		if captionHTML {
+			p.ParseMode = models.ParseModeHTML
+		}
+		sent, err := b.SendPhoto(ctx, p)
 		if err != nil {
 			return fmt.Errorf("telegram: sendPhoto: %w", err)
 		}

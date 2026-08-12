@@ -18,10 +18,11 @@ import (
 )
 
 type apiMock struct {
-	token string
-	mu    sync.Mutex
-	calls map[string]int
-	srv   *httptest.Server
+	token    string
+	mu       sync.Mutex
+	calls    map[string]int
+	lastBody string
+	srv      *httptest.Server
 }
 
 const testBotToken = "1:test-token"
@@ -40,11 +41,13 @@ func newAPIMock(t *testing.T) *apiMock {
 			return
 		}
 		method := strings.TrimPrefix(r.URL.Path, "/bot"+testBotToken+"/")
+		body, _ := io.ReadAll(r.Body)
 		m.mu.Lock()
 		m.calls[method]++
+		if method == "sendMessage" || method == "editMessageText" || method == "sendPhoto" {
+			m.lastBody = string(body)
+		}
 		m.mu.Unlock()
-
-		_, _ = io.ReadAll(r.Body)
 		switch method {
 		case "getMe":
 			_, _ = w.Write([]byte(`{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"g","username":"gantry_bot"}}`))
@@ -201,6 +204,28 @@ func TestSendChunks_Splits(t *testing.T) {
 	}
 	if got := api.count("sendMessage"); got != 3 {
 		t.Fatalf("sendMessage calls = %d, want 3", got)
+	}
+}
+
+func TestSendChunks_FormatsMarkdownHTML(t *testing.T) {
+	api := newAPIMock(t)
+	ch := testChannel(t)
+	ch.chunkMax = 4096
+	b := testBot(t, api.srv.URL)
+	if err := ch.sendChunks(context.Background(), b, 1, 0, "Try **bold**"); err != nil {
+		t.Fatal(err)
+	}
+	if api.count("sendMessage") != 1 {
+		t.Fatalf("sends=%d", api.count("sendMessage"))
+	}
+	api.mu.Lock()
+	body := api.lastBody
+	api.mu.Unlock()
+	if !strings.Contains(body, "parse_mode") || !strings.Contains(body, "HTML") {
+		t.Fatalf("expected HTML parse_mode, body=%s", body)
+	}
+	if !strings.Contains(body, "<b>bold</b>") {
+		t.Fatalf("expected converted markdown, body=%s", body)
 	}
 }
 

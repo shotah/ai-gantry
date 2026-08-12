@@ -16,17 +16,23 @@ import (
 )
 
 // markdownToTelegramHTML converts CommonMark/GFM into Telegram's HTML subset.
-// Always returns sendable text: on parse/render failure it falls back to escaped plain.
-func markdownToTelegramHTML(src string) string {
+// Always returns sendable text: on parse/render failure (or goldmark panic) it
+// falls back to escaped plain.
+func markdownToTelegramHTML(src string) (out string) {
 	src = strings.TrimSpace(src)
 	if src == "" {
 		return ""
 	}
+	defer func() {
+		if recover() != nil {
+			out = html.EscapeString(src)
+		}
+	}()
 	var buf bytes.Buffer
 	if err := telegramMarkdown.Convert([]byte(src), &buf); err != nil {
 		return html.EscapeString(src)
 	}
-	out := strings.TrimSpace(buf.String())
+	out = strings.TrimSpace(buf.String())
 	if out == "" {
 		return html.EscapeString(src)
 	}
@@ -76,6 +82,9 @@ func (r *tgHTMLRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) 
 	reg.Register(ast.KindString, r.renderString)
 	reg.Register(ast.KindHTMLBlock, r.renderHTMLBlock)
 	reg.Register(ast.KindRawHTML, r.renderRawHTML)
+	// goldmark 1.8+ emits these; leaving them unregistered panics Convert
+	// (index out of range) and the send path falls back to raw markdown.
+	reg.Register(ast.KindLinkReferenceDefinition, r.renderPassthrough)
 
 	reg.Register(east.KindStrikethrough, r.renderStrikethrough)
 	reg.Register(east.KindTaskCheckBox, r.renderTaskCheckBox)

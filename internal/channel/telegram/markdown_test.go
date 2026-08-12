@@ -119,6 +119,14 @@ func TestMarkdownToTelegramHTML_StrikethroughTelegramSafe(t *testing.T) {
 	}
 }
 
+func TestMarkdownToTelegramHTML_LinkReferenceDefinition(t *testing.T) {
+	in := "See [docs][d] for more.\n\n[d]: https://example.com/x"
+	got := markdownToTelegramHTML(in)
+	if !strings.Contains(got, `<a href="https://example.com/x">docs</a>`) {
+		t.Fatalf("reference link not converted: %q", got)
+	}
+}
+
 func TestBuildStreamDisplay_FinalFormatsMarkdown(t *testing.T) {
 	text, useHTML := buildStreamDisplay("", "Try **bold** and `x`", 4096, true)
 	if !useHTML {

@@ -99,6 +99,17 @@ func isMessageNotModified(err error) bool {
 	return strings.Contains(strings.ToLower(err.Error()), "message is not modified")
 }
 
+// isTelegramEntityError is a ParseMode HTML rejection (bad/unclosed tags).
+func isTelegramEntityError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "can't parse entities") ||
+		strings.Contains(s, "can't find end of the entity") ||
+		strings.Contains(s, "unsupported start tag")
+}
+
 func sleepCtx(ctx context.Context, d time.Duration) error {
 	t := time.NewTimer(d)
 	defer t.Stop()

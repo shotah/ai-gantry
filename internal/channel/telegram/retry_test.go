@@ -83,6 +83,16 @@ func TestIsMessageNotModified(t *testing.T) {
 	}
 }
 
+func TestIsTelegramEntityError(t *testing.T) {
+	err := fmt.Errorf(`telegram: send: bad request, Bad Request: can't parse entities: Unsupported start tag "table" at byte offset 0`)
+	if !isTelegramEntityError(err) {
+		t.Fatal("expected entity error")
+	}
+	if isTelegramEntityError(nil) || isTelegramEntityError(errors.New("other")) {
+		t.Fatal("false positive entity error")
+	}
+}
+
 func TestDoWith429Retry_Non429NoRetry(t *testing.T) {
 	var n int
 	want := errors.New("boom")
