@@ -105,7 +105,7 @@ bot start (`setMyCommands`); type `/help` anytime.
 | Command | What it does |
 | --- | --- |
 | `/status` `/perf` `/memstats` `/toolstats` | Session bounds, last-turn timing, memory health, MCP ledger |
-| `/tools` `/new` `/cancel` `/help` | Catalog, reset session (**distills personality into `SELF.md`**), abort in-flight turn |
+| `/tools` `/examples` `/new` `/cancel` `/help` | Catalog, capability ideas (`/examples on` / `off`), reset session (**distills personality into `SELF.md`**), abort in-flight turn |
 | **`/auth`** | **Headless MCP OAuth** — paste a code from a static catch page; no laptop `localhost` callback |
 
 Headless Google / Strava / Health: `/auth google` (etc.) → approve → paste
@@ -579,7 +579,7 @@ UI. ChatOps is not a compromise for an agent — it is the point.
 - Consumption & timing without a dashboard — RAM/VRAM (`ollama ps`, not `top`),
   per-turn `jq` recipes, `docker stats`: **[docs/observability.md](docs/observability.md)**.
 - Telegram/stdio slash commands (also in the pitch above): `/new` `/cancel`
-  `/status` `/tools` `/perf` `/memstats` `/toolstats` `/auth` `/help`;
+  `/status` `/tools` `/examples` `/perf` `/memstats` `/toolstats` `/auth` `/help`;
   Telegram menu is pushed via `setMyCommands` on connect. Unix `SIGHUP`
   reloads persona. Headless tool OAuth: **[docs/auth.md](docs/auth.md)**.
 - **Multi-bubble (interrupt → coalesce → settle):** a lone message runs at once;

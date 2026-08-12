@@ -49,7 +49,7 @@ Discord / Slack / stdio).
 | Command | Use it for |
 | --- | --- |
 | `/status` `/perf` `/memstats` `/toolstats` | Health, slow turns, memory, MCP timing |
-| `/tools` `/new` `/cancel` `/help` | Catalog, reset, abort, command list |
+| `/tools` `/examples` `/new` `/cancel` `/help` | Catalog, capability ideas, reset, abort, command list |
 | `/auth` | **Headless OAuth** (Google / Strava / …) — no laptop `localhost` callback |
 
 Guide: [docs/auth.md](https://github.com/shotah/ai-gantry/blob/main/docs/auth.md)

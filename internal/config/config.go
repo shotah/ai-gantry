@@ -84,6 +84,13 @@ type Config struct {
 	SparkPrompt            string `env:"SPARK_PROMPT" envDefault:""`
 	SparkSkipRecentMinutes int    `env:"SPARK_SKIP_RECENT_MINUTES" envDefault:"15"`
 
+	// Capability examples / training wheels (on by default). Empty or "0" = no proactive pings;
+	// /examples on-demand still works. Qty: "1", "1-2".
+	ExamplesQty               string `env:"EXAMPLES_QTY" envDefault:"1-2"`
+	ExamplesStartHour         int    `env:"EXAMPLES_START_HOUR" envDefault:"6"`
+	ExamplesEndHour           int    `env:"EXAMPLES_END_HOUR" envDefault:"21"`
+	ExamplesSkipRecentMinutes int    `env:"EXAMPLES_SKIP_RECENT_MINUTES" envDefault:"15"`
+
 	StreamReplies bool `env:"STREAM_REPLIES" envDefault:"true"`
 
 	// ShowThinking controls whether chain-of-thought is rendered in the Telegram
@@ -269,6 +276,19 @@ func (c *Config) Validate() error {
 		}
 		if c.SparkSkipRecentMinutes < 0 {
 			return fmt.Errorf("SPARK_SKIP_RECENT_MINUTES: must be >= 0, got %d", c.SparkSkipRecentMinutes)
+		}
+	}
+
+	c.ExamplesQty = strings.TrimSpace(c.ExamplesQty)
+	if c.ExamplesQty != "" && c.ExamplesQty != "0" {
+		if c.ExamplesStartHour < 0 || c.ExamplesStartHour > 23 {
+			return fmt.Errorf("EXAMPLES_START_HOUR: must be 0–23, got %d", c.ExamplesStartHour)
+		}
+		if c.ExamplesEndHour < 1 || c.ExamplesEndHour > 24 || c.ExamplesEndHour <= c.ExamplesStartHour {
+			return fmt.Errorf("EXAMPLES_END_HOUR: must be 1–24 and > EXAMPLES_START_HOUR, got %d", c.ExamplesEndHour)
+		}
+		if c.ExamplesSkipRecentMinutes < 0 {
+			return fmt.Errorf("EXAMPLES_SKIP_RECENT_MINUTES: must be >= 0, got %d", c.ExamplesSkipRecentMinutes)
 		}
 	}
 

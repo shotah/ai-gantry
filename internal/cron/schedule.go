@@ -160,14 +160,14 @@ func AdvanceNext(kind, expr, tz string, from time.Time) (next time.Time, newExpr
 			return time.Time{}, "", false, err
 		}
 		return from.Add(d).UTC(), "", true, nil
-	case KindSpark:
+	case KindSpark, KindExamples:
 		// Daily planner: wake again at the next window start.
 		spec, err := ParseSparkExpr(expr)
 		if err != nil {
 			return time.Time{}, "", false, err
 		}
 		return PlanSparkPlannerNext(spec, loc, from), "", true, nil
-	case KindSparkPing:
+	case KindSparkPing, KindExamplesPing:
 		return time.Time{}, "", false, nil
 	default:
 		return time.Time{}, "", false, fmt.Errorf("cron: unknown kind %q", kind)

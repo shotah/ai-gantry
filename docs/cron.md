@@ -17,6 +17,10 @@ stdio). Pure-MCP cron cannot deliver outbound chat by itself.
 | `SPARK_END_HOUR` | `21` | Local window end (exclusive), e.g. 21 → last ping before 9pm |
 | `SPARK_PROMPT` | _(built-in check-in pool)_ | One prompt, or one per line (`\n`) — random pick per ping |
 | `SPARK_SKIP_RECENT_MINUTES` | `15` | Skip/defer if the human messaged within this many minutes |
+| `EXAMPLES_QTY` | `1-2` | **On by default** capability-example pings. Empty or `0` = no proactive pings. `/examples` on-demand still works |
+| `EXAMPLES_START_HOUR` | `6` | Local window start for examples pings |
+| `EXAMPLES_END_HOUR` | `21` | Local window end (exclusive) |
+| `EXAMPLES_SKIP_RECENT_MINUTES` | `15` | Skip/defer if the human messaged within this many minutes |
 
 ## Builtin tools
 
@@ -35,7 +39,8 @@ stdio). Pure-MCP cron cannot deliver outbound chat by itself.
 | `17:00` | `daily` | Every day at 5pm |
 | `every:1h` | — | Interval from now |
 | RFC3339 | `once` | Absolute UTC/offset time |
-| `4-6@06-21` | `spark` | Random 4–6 pings/day between 6am and 9pm |
+| `4-6@06-21` | `spark` | Random 4–6 presence pings/day between 6am and 9pm |
+| `1-2@06-21` | _(boot)_ | Examples planner uses the same qty@HH-HH shape (`examples` / `examples_ping` kinds) |
 
 Example prompts the model can schedule:
 
@@ -74,6 +79,32 @@ SPARK_END_HOUR=21
 # Optional: one prompt, or one variant per line (random pick per ping):
 # SPARK_PROMPT=Generate a short Spark of Life check-in. Keep it under 3 sentences. No tools. …
 # SPARK_SKIP_RECENT_MINUTES=15
+```
+
+## Capability examples / training wheels (on by default)
+
+Inventory-aware multi-step ideas (propose only — no tools on the ping).
+**On unless `EXAMPLES_QTY` is empty or `0`.** Default is `1-2` pings/day.
+
+Chat controls:
+
+| Command | Effect |
+| --- | --- |
+| `/examples` | One suggestion now (filtered to connected MCP servers) |
+| `/examples on` / `true` | Re-enable proactive pings for this chat |
+| `/examples off` / `false` | Opt out (persists across restarts) |
+
+On Telegram, boot auto-binds an examples **planner** per allowlisted DM (same
+session shape as spark), skipping sessions that opted out. Pings pick a curated
+seed whose required server prefixes are all present in the live `/tools` catalog,
+then ask the model to localize it. Turn off anytime with `/examples off`.
+
+```env
+EXAMPLES_QTY=1-2
+EXAMPLES_START_HOUR=6
+EXAMPLES_END_HOUR=21
+# EXAMPLES_QTY=0   # disable proactive pings; /examples still works
+# EXAMPLES_SKIP_RECENT_MINUTES=15
 ```
 
 ## Inspect with sqlite3

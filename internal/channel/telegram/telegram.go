@@ -6,8 +6,11 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +24,15 @@ import (
 const (
 	typingInterval = 4 * time.Second
 	chunkPause     = 100 * time.Millisecond
+
+	// Long-poll knobs for go-telegram/bot. The library sets Telegram's
+	// getUpdates timeout to pollTimeout-1s and uses http.Client.Timeout for
+	// the whole request (including the hold). Library defaults use the same
+	// value for both (60s / 59s) — only ~1s of slack — which trips
+	// "Client.Timeout exceeded while awaiting headers" on quiet overnight
+	// polls when the path is a bit slow. Keep client timeout well above poll.
+	telegramPollTimeout = time.Minute
+	telegramHTTPTimeout = 90 * time.Second
 )
 
 // Config configures the Telegram channel.
@@ -86,7 +98,14 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 			models.AllowedUpdateMessage,
 			models.AllowedUpdateMessageReaction,
 		}),
+		bot.WithHTTPClient(telegramPollTimeout, &http.Client{Timeout: telegramHTTPTimeout}),
 		bot.WithErrorsHandler(func(err error) {
+			// Transient getUpdates timeouts are expected on flaky paths; keep
+			// them out of TELEGRAM_ERROR_REPORTING=error DMs.
+			if isTransientPollErr(err) {
+				c.log.Warn("telegram bot error", "err", err)
+				return
+			}
 			c.log.Error("telegram bot error", "err", err)
 		}),
 	)
@@ -100,6 +119,7 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 			{Command: "cancel", Description: "Cancel the in-flight reply / tool loop"},
 			{Command: "status", Description: "Uptime, model, history, tools, turns"},
 			{Command: "tools", Description: "Prefixed tool catalog"},
+			{Command: "examples", Description: "Capability idea (/examples on|off)"},
 			{Command: "perf", Description: "Last turns' timing split"},
 			{Command: "memstats", Description: "Memory row counts and consolidation"},
 			{Command: "toolstats", Description: "Per-tool call ledger since boot"},
@@ -282,6 +302,25 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 func (c *Channel) isAllowed(userID int64) bool {
 	_, ok := c.allowed[userID]
 	return ok
+}
+
+// isTransientPollErr reports getUpdates failures that are safe to retry (and
+// should not page as ERROR). Covers http.Client.Timeout and deadline wraps
+// from go-telegram/bot's long-poll loop.
+func isTransientPollErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "Client.Timeout exceeded") ||
+		strings.Contains(msg, "context deadline exceeded")
 }
 
 func sessionKey(chatID, userID int64, threadID int) string {

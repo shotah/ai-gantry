@@ -73,6 +73,11 @@ func (s *Store) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_cron_due
 			ON cron_job(enabled, running, next_run_at)`,
+		`CREATE TABLE IF NOT EXISTS session_pref (
+			session_id       TEXT PRIMARY KEY,
+			examples_enabled INTEGER NOT NULL DEFAULT 1,
+			updated_at       TEXT NOT NULL
+		)`,
 	}
 	for _, q := range stmts {
 		if _, err := s.db.Exec(q); err != nil {
@@ -168,8 +173,8 @@ func (s *Store) ClearStaleRunning(ctx context.Context) (int64, error) {
 	return n, nil
 }
 
-// Cancel disables a job by id. If the job is a spark planner, pending spark_ping
-// rows for that session are cancelled too.
+// Cancel disables a job by id. If the job is a spark or examples planner,
+// pending ping rows for that session are cancelled too.
 func (s *Store) Cancel(ctx context.Context, id int64) error {
 	job, err := s.Get(ctx, id)
 	if err != nil {
@@ -188,8 +193,11 @@ func (s *Store) Cancel(ctx context.Context, id int64) error {
 	if n == 0 {
 		return fmt.Errorf("cron: job %d not found", id)
 	}
-	if job.Kind == KindSpark {
+	switch job.Kind {
+	case KindSpark:
 		_, _ = s.CancelSparkPings(ctx, job.SessionID)
+	case KindExamples:
+		_, _ = s.CancelExamplesPings(ctx, job.SessionID)
 	}
 	return nil
 }
@@ -199,15 +207,15 @@ func (s *Store) Due(ctx context.Context, now time.Time, limit int) ([]Job, error
 	if limit < 1 {
 		limit = 10
 	}
-	// Spark planners first so they CancelSparkPings before overdue leftovers Claim.
+	// Daily planners first so they cancel pending pings before overdue leftovers Claim.
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, prompt, kind, expr, timezone, next_run_at,
 		       session_id, user_id, chat_id, thread_id,
 		       enabled, running, created_at, updated_at, last_run_at, last_error
 		FROM cron_job
 		WHERE enabled = 1 AND running = 0 AND next_run_at <= ?
-		ORDER BY CASE WHEN kind = ? THEN 0 ELSE 1 END, next_run_at ASC
-		LIMIT ?`, formatCronTime(now.UTC()), KindSpark, limit)
+		ORDER BY CASE WHEN kind IN (?, ?) THEN 0 ELSE 1 END, next_run_at ASC
+		LIMIT ?`, formatCronTime(now.UTC()), KindSpark, KindExamples, limit)
 	if err != nil {
 		return nil, err
 	}

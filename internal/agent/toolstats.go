@@ -14,6 +14,7 @@ const helpText = `/new — reset this session's history
 /cancel — stop the in-flight turn
 /status — uptime, model, history, tools, turns
 /tools — prefixed tool catalog
+/examples — one capability idea (on|off for proactive pings)
 /perf — last turns' timing split
 /memstats — memory row counts and consolidation
 /toolstats — per-tool call ledger since boot

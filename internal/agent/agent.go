@@ -88,6 +88,8 @@ type Options struct {
 	Consolidator *memory.Consolidator
 	// MCPManifest is the path to mcp.toml for /auth (chat OAuth). Empty disables /auth.
 	MCPManifest string
+	// Examples is optional; enables /examples (instant + on/off for proactive pings).
+	Examples ExamplesControl
 }
 
 // Agent runs the prompt → model → (tools) → reply loop.
@@ -127,6 +129,7 @@ type Agent struct {
 	consolidator *memory.Consolidator
 
 	mcpManifest string
+	examples    ExamplesControl
 }
 
 // New creates an Agent. Completer and Sessions are required.
@@ -181,6 +184,7 @@ func New(opts Options) (*Agent, error) {
 		spinupNotice:   opts.SpinupNotice,
 		consolidator:   opts.Consolidator,
 		mcpManifest:    strings.TrimSpace(opts.MCPManifest),
+		examples:       opts.Examples,
 		perf:           newPerfRing(started),
 	}
 	a.initTurns()
@@ -239,6 +243,18 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		unlock := a.lockSession(msg.SessionID)
 		defer unlock()
 		return a.handleAuth(ctx, server, arg)
+	}
+
+	// /examples accepts on|off|true|false.
+	if arg, ok := parseExamplesCommand(text); ok {
+		unlock := a.lockSession(msg.SessionID)
+		defer unlock()
+		return a.handleExamples(ctx, channelDelivery{
+			SessionID: msg.SessionID,
+			UserID:    msg.UserID,
+			ChatID:    msg.ChatID,
+			ThreadID:  msg.ThreadID,
+		}, arg)
 	}
 
 	if cmd, ok := parseCommand(text); ok {

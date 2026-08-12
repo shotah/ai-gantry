@@ -21,6 +21,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/config"
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/drain"
+	"github.com/shotah/ai-gantry/internal/examples"
 	"github.com/shotah/ai-gantry/internal/heartbeat"
 	"github.com/shotah/ai-gantry/internal/logfwd"
 	"github.com/shotah/ai-gantry/internal/mcp"
@@ -57,6 +58,7 @@ func run() int {
 		"cron_enabled", cfg.CronEnabled,
 		"cron_tz", cfg.CronTZ,
 		"spark_qty", cfg.SparkQty,
+		"examples_qty", cfg.ExamplesQty,
 		"stream_replies", cfg.StreamReplies,
 		"show_thinking", cfg.ShowThinking,
 		"tool_trace", cfg.ToolTrace,
@@ -234,6 +236,19 @@ func run() int {
 	} else {
 		logger.Warn("cron tz load failed; temporal anchor uses UTC", "tz", cfg.CronTZ, "err", err)
 	}
+	var examplesSvc *examples.Service
+	if cronStore != nil {
+		catalog := tools
+		examplesSvc = &examples.Service{
+			Store:     cronStore,
+			Qty:       cfg.ExamplesQty,
+			StartHour: cfg.ExamplesStartHour,
+			EndHour:   cfg.ExamplesEndHour,
+			TZ:        cfg.CronTZ,
+			Tools:     catalog.Tools,
+		}
+	}
+
 	agentOpts := agent.Options{
 		Persona:        personaText,
 		Completer:      completer,
@@ -251,6 +266,7 @@ func run() int {
 		SpinupNotice:   time.Duration(cfg.SpinupNoticeMS) * time.Millisecond,
 		Consolidator:   consol,
 		MCPManifest:    cfg.MCPManifest,
+		Examples:       examplesSvc,
 	}
 	if selfStore != nil {
 		agentOpts.SelfNotes = selfStore
@@ -297,16 +313,22 @@ func run() int {
 			return 1
 		}
 		runner := &cron.Runner{
-			Store:           cronStore,
-			Handle:          handle,
-			Pusher:          pusher,
-			Interval:        time.Duration(cfg.CronTickSeconds) * time.Second,
-			Logger:          logger,
-			Recent:          sessions,
-			SparkSkipRecent: time.Duration(cfg.SparkSkipRecentMinutes) * time.Minute,
+			Store:              cronStore,
+			Handle:             handle,
+			Pusher:             pusher,
+			Interval:           time.Duration(cfg.CronTickSeconds) * time.Second,
+			Logger:             logger,
+			Recent:             sessions,
+			SparkSkipRecent:    time.Duration(cfg.SparkSkipRecentMinutes) * time.Minute,
+			ExamplesSkipRecent: time.Duration(cfg.ExamplesSkipRecentMinutes) * time.Minute,
+			Examples:           examplesSvc,
 		}
 		if err := ensureSparkJobs(ctx, cfg, cronStore, logger); err != nil {
 			logger.Error("spark ensure failed", "err", err)
+			return 1
+		}
+		if err := ensureExamplesJobs(ctx, cfg, examplesSvc, logger); err != nil {
+			logger.Error("examples ensure failed", "err", err)
 			return 1
 		}
 		go runner.Start(ctx)
@@ -406,6 +428,53 @@ func ensureSparkJobs(ctx context.Context, cfg *config.Config, store *cron.Store,
 	default:
 		log.Info("spark configured but auto-bind is telegram-only; schedule via cron_schedule repeat=spark",
 			"channel", cfg.Channel, "qty", cfg.SparkQty)
+	}
+	return nil
+}
+
+// ensureExamplesJobs installs on-by-default capability-example pings when
+// EXAMPLES_QTY is set (empty/"0" = off). Telegram DMs use chat_id == user_id.
+func ensureExamplesJobs(ctx context.Context, cfg *config.Config, svc *examples.Service, log *slog.Logger) error {
+	if svc == nil || !svc.ProactiveEnabled() {
+		return nil
+	}
+	// Validate qty early so bad EXAMPLES_QTY fails boot clearly.
+	if _, _, err := cron.ParseSparkQty(strings.TrimSpace(cfg.ExamplesQty)); err != nil {
+		return fmt.Errorf("EXAMPLES_QTY: %w", err)
+	}
+
+	switch cfg.Channel {
+	case config.ChannelTelegram:
+		for _, uid := range cfg.TelegramAllowedUsers {
+			if uid == 0 {
+				continue
+			}
+			id := strconv.FormatInt(uid, 10)
+			delivery := cron.Delivery{
+				SessionID: fmt.Sprintf("telegram:%s:%s", id, id),
+				UserID:    id,
+				ChatID:    id,
+			}
+			job, created, err := svc.EnsureFor(ctx, delivery)
+			if err != nil {
+				return err
+			}
+			if job.ID == 0 {
+				log.Info("examples skipped (session opted out)",
+					"session_id", delivery.SessionID)
+				continue
+			}
+			log.Info("examples job ready",
+				"created", created,
+				"id", job.ID,
+				"session_id", delivery.SessionID,
+				"next_run", job.NextRunAt.UTC().Format(time.RFC3339),
+				"expr", job.Expr,
+			)
+		}
+	default:
+		log.Info("examples proactive auto-bind is telegram-only; use /examples on-demand",
+			"channel", cfg.Channel, "qty", cfg.ExamplesQty)
 	}
 	return nil
 }

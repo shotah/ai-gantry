@@ -65,6 +65,7 @@ Everything is env or a mount. Boot is fail-fast: missing required env → exit 1
 | Memory | `MEMORY_ENABLED`, `MEMORY_BACKEND` (`builtin`\|`mcp:<name>`), `MEMORY_CONSOLIDATE_MINUTES` |
 | Cron | `CRON_ENABLED`, `CRON_TZ`, `CRON_MAX_JOBS`, `CRON_TICK_SECONDS` |
 | Spark of life | `SPARK_QTY` (empty=off), `SPARK_START_HOUR`, `SPARK_END_HOUR`, `SPARK_PROMPT`, `SPARK_SKIP_RECENT_MINUTES` |
+| Capability examples | `EXAMPLES_QTY` (default `1-2`, empty/`0`=no pings), `EXAMPLES_START_HOUR`, `EXAMPLES_END_HOUR`, `EXAMPLES_SKIP_RECENT_MINUTES` |
 | Stream | `STREAM_REPLIES` (`true` default; Telegram edit / stdio tokens) |
 | Ops | `LOG_LEVEL` |
 
@@ -143,7 +144,7 @@ recalled rows. Contradictions should be surfaced to the user, not obeyed.
 | `gantry version` | Build ldflags |
 | SIGTERM / Interrupt | Stop channel → drain in-flight turn → close MCP → close DB |
 | Logs | JSON `slog` on stderr (`docker logs`) |
-| Chat cmds | `/new`, `/cancel`, `/status`, `/tools`, `/perf`, `/memstats`, `/toolstats`, `/auth`, `/help` (SIGHUP reloads persona on unix) |
+| Chat cmds | `/new`, `/cancel`, `/status`, `/tools`, `/examples`, `/perf`, `/memstats`, `/toolstats`, `/auth`, `/help` (SIGHUP reloads persona on unix) |
 | Multi-bubble | Interrupt + coalesce + settle (`COALESCE_SETTLE_MS`, default 2s) |
 | Photos | Telegram inbound → multimodal user turn; outbound `SendPhoto` for image URLs in reply |
 

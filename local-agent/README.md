@@ -216,7 +216,7 @@ Everything lives in [`./docs`](docs). Start with Telegram, add the rest as neede
 | 🧠 **[docs/models.md](docs/models.md)** | One OpenAI-compatible chat provider (`LLM_*`); Gemini defaults; swapping chat to xAI/Grok/Ollama; local models + tool-name aliasing | Changing brain / cost tuning |
 | 🔌 **[../docs/mcp.md](../docs/mcp.md)** | Kernel MCP host: `{server}__{tool}` naming, underscore-prefix alias, unknown-tool hints, local `/tools` REPL | Debugging tool calls / wiring a new MCP |
 | 🎭 **[docs/persona.md](docs/persona.md)** | `SOUL` / `RULES` / `USER` / `TOOLS` system prompt vs SQLite memory | Shaping LOCAL_AGENT's behavior |
-| ⏰ **[../docs/cron.md](../docs/cron.md)** | Scheduled turns + opt-in spark-of-life (`SPARK_QTY`) | Reminders / presence pings |
+| ⏰ **[../docs/cron.md](../docs/cron.md)** | Scheduled turns + opt-in spark + on-by-default `/examples` pings | Reminders / presence / capability ideas |
 | 🚀 **[docs/deploy.md](docs/deploy.md)** | Docker remote deploy (SSH + compose) | Cloud-LLM / compose path |
 | 🐧 **[deploy/README.md](deploy/README.md)** · **[../docs/deploy-native.md](../docs/deploy-native.md)** | Native systemd + Ollama/Qwen on `/opt/gantry` | Featured production path |
 | 🗂️ **[docs/google-workspace.md](docs/google-workspace.md)** | Go MCP (`google-mcp`), `make google-auth` / `gantry auth google` | Gmail / Calendar / Docs / Sheets / Tasks |
@@ -252,6 +252,7 @@ Set in `.env` (copy from [`.env.example`](.env.example)). Secrets are never comm
 | `SHOW_THINKING` | — | CoT in the bubble (default `true`; needs `STREAM_REPLIES`) |
 | `MEMORY_*`, `HISTORY_*`, `TOOL_*`, `CRON_*` | — | gantry runtime knobs — see [ai-gantry §4.1](https://github.com/shotah/ai-gantry#41-environment-variables) |
 | `SPARK_QTY` / `SPARK_*` | — | Opt-in spark-of-life presence pings (`4-6`, window hours). Empty qty = off. See [docs/cron.md](../docs/cron.md#spark-of-life-opt-in); native: [deploy/README.md](deploy/README.md#spark-of-life-opt-in) |
+| `EXAMPLES_QTY` / `EXAMPLES_*` | `1-2` | Capability-example pings (on by default). Empty/`0` = no proactive pings; `/examples` on-demand still works. Opt out in chat: `/examples off`. See [docs/cron.md](../docs/cron.md#capability-examples--training-wheels-on-by-default) |
 | `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | — | Strava API app (see [Workout coaching](#workout-coaching-strava)) |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `USER_GOOGLE_EMAIL` | — | Google Workspace MCP OAuth (see [docs/google-workspace.md](docs/google-workspace.md)) |
 | `GANTRY_VERSION` | — | shotah/ai-gantry release for native fetch (`make remote-native-fetch`) |
