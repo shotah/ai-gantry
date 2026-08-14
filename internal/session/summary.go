@@ -22,6 +22,8 @@ type LLMSummarizer struct {
 const summarizeSystem = `You maintain a rolling conversation summary for a personal agent.
 Merge the dropped turns into the prior summary. Keep it short (one tight paragraph).
 Preserve durable facts, preferences, open tasks, and names. Drop chitchat.
+Use absolute dates (2006-01-02) for anything time-bound — never yesterday, tomorrow,
+this morning, or a weekday alone (those go stale when the week rolls).
 Reply with ONLY the updated summary text — no markdown fences, no preamble.`
 
 const (

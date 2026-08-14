@@ -236,6 +236,9 @@ func run() int {
 	} else {
 		logger.Warn("cron tz load failed; temporal anchor uses UTC", "tz", cfg.CronTZ, "err", err)
 	}
+	if consol != nil {
+		consol.Location = tzLoc
+	}
 	var examplesSvc *examples.Service
 	if cronStore != nil {
 		catalog := tools

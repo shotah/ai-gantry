@@ -27,6 +27,8 @@ type Consolidator struct {
 	Interval  time.Duration
 	BatchSize int
 	Logger    *slog.Logger
+	// Location stamps episode created_at in the operator timezone (CRON_TZ).
+	Location *time.Location
 
 	mu      sync.Mutex
 	lastRun time.Time
@@ -107,7 +109,7 @@ func (c *Consolidator) runPass(ctx context.Context, log *slog.Logger, batch int)
 		allowed[id] = true
 	}
 
-	prompt := buildConsolidatePrompt(episodes)
+	prompt := buildConsolidatePrompt(episodes, c.Location)
 	res, err := c.Completer.Complete(ctx, provider.Request{
 		Messages: []provider.Message{
 			{Role: provider.RoleSystem, Content: consolidateSystem},
@@ -159,7 +161,8 @@ Reply with ONLY a JSON array (no markdown). Each element:
 {"kind":"fact|preference|person|insight","subject":"...","content":"...","supersedes":[id,...]}
 Deduplicate: if a new row replaces an older memory id from this batch, list that id in supersedes.
 If nothing durable, return [].
-Keep content atomic (one statement). Do not invent facts not implied by episodes.`
+Keep content atomic (one statement). Do not invent facts not implied by episodes.
+When an episode is time-bound, put an absolute date (2006-01-02) in content — never yesterday, tomorrow, or a weekday alone.`
 
 type consolidateItem struct {
 	Kind       string  `json:"kind"`
@@ -168,11 +171,18 @@ type consolidateItem struct {
 	Supersedes []int64 `json:"supersedes"`
 }
 
-func buildConsolidatePrompt(episodes []Entry) string {
+func buildConsolidatePrompt(episodes []Entry, loc *time.Location) string {
+	if loc == nil {
+		loc = time.UTC
+	}
 	var b strings.Builder
 	b.WriteString("Unconsolidated episodes:\n")
 	for _, e := range episodes {
-		_, _ = fmt.Fprintf(&b, "- id=%d subject=%q: %s\n", e.ID, e.Subject, e.Content)
+		when := ""
+		if !e.CreatedAt.IsZero() {
+			when = " recorded=" + e.CreatedAt.In(loc).Format("Mon 2006-01-02")
+		}
+		_, _ = fmt.Fprintf(&b, "- id=%d%s subject=%q: %s\n", e.ID, when, e.Subject, e.Content)
 	}
 	return b.String()
 }

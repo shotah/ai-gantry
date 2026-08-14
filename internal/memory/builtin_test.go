@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/session"
@@ -108,7 +109,7 @@ func TestBuiltin_HydrateAndForgetQuery(t *testing.T) {
 	if len(hydrated) < 1 {
 		t.Fatal("expected hydrate rows")
 	}
-	block := memory.FormatHydration(hydrated)
+	block := memory.FormatHydration(hydrated, time.UTC)
 	if block == "" || block[:8] != "[memory]" {
 		t.Fatalf("bad hydration block: %q", block)
 	}

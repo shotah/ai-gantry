@@ -377,7 +377,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		entries, err := a.memory.Hydrate(turnCtx, hydrateQuery, 30)
 		if err != nil {
 			a.log.Warn("memory hydrate failed", "err", err)
-		} else if block := memory.FormatHydration(entries); block != "" {
+		} else if block := memory.FormatHydration(entries, a.loc); block != "" {
 			shape.hydration = (len(block) + 3) / 4
 			messages = append(messages, provider.Message{
 				Role:    provider.RoleSystem,
