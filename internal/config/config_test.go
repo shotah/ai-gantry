@@ -65,8 +65,8 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if !cfg.CronEnabled {
 		t.Error("CronEnabled = false, want true")
 	}
-	if cfg.CronTZ != "UTC" {
-		t.Errorf("CronTZ = %q, want UTC", cfg.CronTZ)
+	if cfg.CronTZ != "America/Los_Angeles" {
+		t.Errorf("CronTZ = %q, want America/Los_Angeles", cfg.CronTZ)
 	}
 	if cfg.CronMaxJobs != 50 {
 		t.Errorf("CronMaxJobs = %d, want 50", cfg.CronMaxJobs)

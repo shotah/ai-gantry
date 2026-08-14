@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 // PreferredOrder is the fixed concat order for well-known persona files.
@@ -76,6 +78,50 @@ func Load(dir string) (string, error) {
 	}
 
 	return strings.Join(parts, "\n\n"), nil
+}
+
+// tzField matches USER.md lines like `- **Timezone:** America/Los_Angeles`
+// (colon may sit inside the bold markers).
+var tzField = regexp.MustCompile(`(?i)\**timezone\**\s*:\s*\**\s*([A-Za-z0-9_+\-/]+)`)
+
+// Timezone extracts an IANA zone from USER.md-style persona text.
+// Empty if the field is missing or not a loadable location.
+func Timezone(text string) string {
+	m := tzField.FindStringSubmatch(text)
+	if len(m) < 2 {
+		return ""
+	}
+	name := strings.TrimSpace(m[1])
+	if name == "" {
+		return ""
+	}
+	if _, err := time.LoadLocation(name); err != nil {
+		return ""
+	}
+	return name
+}
+
+// ResolveTimezone prefers USER.md Timezone over fallback (CRON_TZ).
+func ResolveTimezone(personaText, fallback string) (name string, loc *time.Location, source string) {
+	if tz := Timezone(personaText); tz != "" {
+		loc, err := time.LoadLocation(tz)
+		if err == nil {
+			return tz, loc, "USER.md"
+		}
+	}
+	fb := strings.TrimSpace(fallback)
+	if fb == "" {
+		fb = "America/Los_Angeles"
+	}
+	loc, err := time.LoadLocation(fb)
+	if err != nil {
+		loc, err = time.LoadLocation("America/Los_Angeles")
+		if err != nil {
+			return "UTC", time.UTC, "UTC"
+		}
+		return "America/Los_Angeles", loc, "America/Los_Angeles"
+	}
+	return fb, loc, "CRON_TZ"
 }
 
 func readFile(path string) (string, error) {

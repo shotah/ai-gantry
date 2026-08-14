@@ -73,7 +73,7 @@ type Config struct {
 	MemoryConsolidateMinutes int    `env:"MEMORY_CONSOLIDATE_MINUTES" envDefault:"30"` // 0 = off
 
 	CronEnabled     bool   `env:"CRON_ENABLED" envDefault:"true"`
-	CronTZ          string `env:"CRON_TZ" envDefault:"UTC"`
+	CronTZ          string `env:"CRON_TZ" envDefault:"America/Los_Angeles"`
 	CronMaxJobs     int    `env:"CRON_MAX_JOBS" envDefault:"50"`
 	CronTickSeconds int    `env:"CRON_TICK_SECONDS" envDefault:"15"`
 
@@ -254,7 +254,7 @@ func (c *Config) Validate() error {
 	}
 	c.CronTZ = strings.TrimSpace(c.CronTZ)
 	if c.CronTZ == "" {
-		c.CronTZ = "UTC"
+		c.CronTZ = "America/Los_Angeles"
 	}
 	if c.CronMaxJobs < 1 {
 		return fmt.Errorf("CRON_MAX_JOBS: must be >= 1, got %d", c.CronMaxJobs)

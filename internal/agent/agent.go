@@ -17,6 +17,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/memory"
+	"github.com/shotah/ai-gantry/internal/persona"
 	"github.com/shotah/ai-gantry/internal/provider"
 	"github.com/shotah/ai-gantry/internal/session"
 )
@@ -209,7 +210,19 @@ func (a *Agent) SetPersona(text string) {
 	}
 	a.personaMu.Lock()
 	a.persona = text
+	if tz := persona.Timezone(text); tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			a.loc = loc
+			a.tzName = tz
+		}
+	}
 	a.personaMu.Unlock()
+}
+
+func (a *Agent) clockZone() (*time.Location, string) {
+	a.personaMu.RLock()
+	defer a.personaMu.RUnlock()
+	return a.loc, a.tzName
 }
 
 func (a *Agent) personaText() string {
@@ -373,11 +386,12 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	if hydrateQuery == "" {
 		hydrateQuery = storeText
 	}
+	loc, tzName := a.clockZone()
 	if a.memory != nil {
 		entries, err := a.memory.Hydrate(turnCtx, hydrateQuery, 30)
 		if err != nil {
 			a.log.Warn("memory hydrate failed", "err", err)
-		} else if block := memory.FormatHydration(entries, a.loc); block != "" {
+		} else if block := memory.FormatHydration(entries, loc); block != "" {
 			shape.hydration = (len(block) + 3) / 4
 			messages = append(messages, provider.Message{
 				Role:    provider.RoleSystem,
@@ -400,7 +414,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	// fixation on small local models. Fresh each turn for "what time is it?".
 	messages = append(messages, provider.Message{
 		Role:    provider.RoleSystem,
-		Content: temporalAnchor(time.Now().In(a.loc), a.tzName),
+		Content: temporalAnchor(time.Now().In(loc), tzName),
 	})
 
 	var toolDefs []provider.ToolDef

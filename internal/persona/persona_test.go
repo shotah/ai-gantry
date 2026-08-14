@@ -68,3 +68,38 @@ func TestLoad_MissingPreferredTolerant(t *testing.T) {
 		t.Fatalf("got %q, want only-user", got)
 	}
 }
+
+func TestTimezone_FromUserMarkdown(t *testing.T) {
+	t.Parallel()
+	for _, in := range []string{
+		"- **Timezone:** America/Los_Angeles\n- **Location:** Seattle",
+		"Timezone: America/Los_Angeles",
+		"**Timezone:** America/Los_Angeles",
+	} {
+		if got := persona.Timezone(in); got != "America/Los_Angeles" {
+			t.Fatalf("input %q: got %q", in, got)
+		}
+	}
+	if persona.Timezone("no tz here") != "" {
+		t.Fatal("expected empty")
+	}
+	if persona.Timezone("- **Timezone:** Not/AZone") != "" {
+		t.Fatal("invalid IANA must be empty")
+	}
+}
+
+func TestResolveTimezone_PrefersUserMarkdown(t *testing.T) {
+	t.Parallel()
+	name, loc, source := persona.ResolveTimezone("- **Timezone:** America/Los_Angeles", "UTC")
+	if name != "America/Los_Angeles" || source != "USER.md" || loc == nil {
+		t.Fatalf("name=%q source=%q loc=%v", name, source, loc)
+	}
+	name, _, source = persona.ResolveTimezone("", "America/New_York")
+	if name != "America/New_York" || source != "CRON_TZ" {
+		t.Fatalf("fallback name=%q source=%q", name, source)
+	}
+	name, loc, source = persona.ResolveTimezone("", "")
+	if name != "America/Los_Angeles" || loc == nil {
+		t.Fatalf("empty fallback name=%q source=%q", name, source)
+	}
+}

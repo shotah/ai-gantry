@@ -72,6 +72,12 @@ func run() int {
 	}
 	logger.Info("persona loaded", "chars", len(personaText))
 
+	tzName, tzLoc, tzSource := persona.ResolveTimezone(personaText, cfg.CronTZ)
+	logger.Info("human timezone", "tz", tzName, "source", tzSource)
+	if strings.EqualFold(tzName, "UTC") {
+		logger.Warn("human timezone is UTC; set Timezone in USER.md (or CRON_TZ) to the human's IANA zone")
+	}
+
 	completer := provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel).
 		WithMaxTokens(cfg.LLMMaxTokens).
 		WithReasoningEffort(cfg.LLMReasoningEffort)
@@ -182,10 +188,10 @@ func run() int {
 			return 1
 		}
 		tools = cron.Composite{
-			Cron:  cron.Tools{Store: cronStore, TZ: cfg.CronTZ},
+			Cron:  cron.Tools{Store: cronStore, TZ: tzName},
 			Other: tools,
 		}
-		logger.Info("cron ready", "tz", cfg.CronTZ, "max_jobs", cfg.CronMaxJobs)
+		logger.Info("cron ready", "tz", tzName, "max_jobs", cfg.CronMaxJobs)
 	}
 
 	var selfStore *selfnote.Store
@@ -230,12 +236,6 @@ func run() int {
 		}
 	}
 
-	tzLoc := time.UTC
-	if loc, err := time.LoadLocation(cfg.CronTZ); err == nil {
-		tzLoc = loc
-	} else {
-		logger.Warn("cron tz load failed; temporal anchor uses UTC", "tz", cfg.CronTZ, "err", err)
-	}
 	if consol != nil {
 		consol.Location = tzLoc
 	}
@@ -247,7 +247,7 @@ func run() int {
 			Qty:       cfg.ExamplesQty,
 			StartHour: cfg.ExamplesStartHour,
 			EndHour:   cfg.ExamplesEndHour,
-			TZ:        cfg.CronTZ,
+			TZ:        tzName,
 			Tools:     catalog.Tools,
 		}
 	}
@@ -264,7 +264,7 @@ func run() int {
 		ToolTrace:      cfg.ToolTrace,
 		Logger:         logger,
 		Location:       tzLoc,
-		TZName:         cfg.CronTZ,
+		TZName:         tzName,
 		CoalesceSettle: time.Duration(cfg.CoalesceSettleMS) * time.Millisecond,
 		SpinupNotice:   time.Duration(cfg.SpinupNoticeMS) * time.Millisecond,
 		Consolidator:   consol,
@@ -326,7 +326,7 @@ func run() int {
 			ExamplesSkipRecent: time.Duration(cfg.ExamplesSkipRecentMinutes) * time.Minute,
 			Examples:           examplesSvc,
 		}
-		if err := ensureSparkJobs(ctx, cfg, cronStore, logger); err != nil {
+		if err := ensureSparkJobs(ctx, cfg, cronStore, logger, tzName); err != nil {
 			logger.Error("spark ensure failed", "err", err)
 			return 1
 		}
@@ -386,11 +386,14 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 
 // ensureSparkJobs installs opt-in spark-of-life cron jobs when SPARK_QTY is set.
 // Telegram DMs use chat_id == user_id from the allowlist.
-func ensureSparkJobs(ctx context.Context, cfg *config.Config, store *cron.Store, log *slog.Logger) error {
+func ensureSparkJobs(ctx context.Context, cfg *config.Config, store *cron.Store, log *slog.Logger, tzName string) error {
 	if strings.TrimSpace(cfg.SparkQty) == "" || store == nil {
 		return nil
 	}
-	loc, err := time.LoadLocation(cfg.CronTZ)
+	if strings.TrimSpace(tzName) == "" {
+		tzName = cfg.CronTZ
+	}
+	loc, err := time.LoadLocation(tzName)
 	if err != nil {
 		return err
 	}

@@ -19,27 +19,31 @@ func temporalAnchor(now time.Time, tzName string) string {
 	yesterday := now.AddDate(0, 0, -1)
 	tomorrow := now.AddDate(0, 0, 1)
 	// "-07:00" is Go's layout token (like "2006-01-02"), not a fixed Pacific
-	// offset — it prints whatever zone `now` is in (from CRON_TZ / Location).
+	// offset — it prints whatever zone `now` is in (USER.md / CRON_TZ).
 	offset := now.Format("-07:00")
 	part, already, ahead := dayPart(now.Hour())
+	notUTC := ""
+	if !isUTCName(tzName) {
+		notUTC = " Human local time, not UTC."
+	}
 
 	return fmt.Sprintf(
-		"[current time] NOW: %s %s %d, %d %s (%s, UTC%s) — %s\n"+
+		"[current time] NOW: %s %s %d, %d %s %s — %s.%s\n"+
 			"already today: 12:00 AM–%s (%s)\n"+
 			"remaining today: %s–11:59 PM (%s)\n"+
 			"yesterday=%s (%s) · today=%s (%s) · tomorrow=%s (%s)\n"+
 			"this week: %s\n"+
 			"next week starts %s — weekday-only notes (e.g. \"Monday\") are not this week\n"+
 			"Relative words in earlier turns, summary, and memory are stale. NOW is the split: before = past, after = upcoming. "+
-			"Tool date args: this timezone, offset %s — not UTC/Z.",
+			"Tool date args: this timezone, offset %s — never Z / UTC unless the schema requires it.",
 		now.Weekday().String(),
 		now.Month().String(),
 		now.Day(),
 		now.Year(),
 		now.Format("3:04 PM"),
-		tzName,
-		offset,
+		formatZone(now, tzName),
 		dayPartCallout(part),
+		notUTC,
 		now.Format("3:04 PM"),
 		joinParts(already),
 		now.Format("3:04 PM"),
@@ -54,6 +58,24 @@ func temporalAnchor(now time.Time, tzName string) string {
 		sundayStart(now).AddDate(0, 0, 7).Format("2006-01-02"),
 		offset,
 	)
+}
+
+func isUTCName(name string) bool {
+	n := strings.TrimSpace(name)
+	return n == "" || strings.EqualFold(n, "UTC") || strings.EqualFold(n, "Zulu")
+}
+
+// formatZone never prints "UTC-07:00" — models treat that word as "the zone is UTC".
+func formatZone(now time.Time, tzName string) string {
+	offset := now.Format("-07:00")
+	if isUTCName(tzName) {
+		return fmt.Sprintf("UTC (offset %s)", offset)
+	}
+	abbr := now.Format("MST")
+	if abbr != "" && abbr != tzName && !isUTCName(abbr) && !strings.HasPrefix(strings.ToUpper(abbr), "UTC") {
+		return fmt.Sprintf("%s (%s, offset %s)", abbr, tzName, offset)
+	}
+	return fmt.Sprintf("%s (offset %s)", tzName, offset)
 }
 
 type daySlot struct {

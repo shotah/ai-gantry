@@ -337,7 +337,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `MEMORY_BACKEND` | no | `builtin` (or `mcp:<server-name>`, see §6 / §9) |
 | `MEMORY_CONSOLIDATE_MINUTES` | no | `30` (`0` = off; builtin backend only) |
 | `CRON_ENABLED` | no | `true` |
-| `CRON_TZ` | no | `UTC` (IANA, e.g. `America/Los_Angeles`) |
+| `CRON_TZ` | no | `America/Los_Angeles` (Pacific; override with any IANA zone) |
 | `CRON_MAX_JOBS` | no | `50` |
 | `CRON_TICK_SECONDS` | no | `15` |
 | `STREAM_REPLIES` | no | `true` (Telegram edit-in-place / stdio token stream) |

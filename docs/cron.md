@@ -19,7 +19,7 @@ model skipped tools on iteration 1.
 | Env | Default | Meaning |
 | --- | --- | --- |
 | `CRON_ENABLED` | `true` | Master switch |
-| `CRON_TZ` | `UTC` | IANA timezone for clock times (`America/Los_Angeles`) |
+| `CRON_TZ` | `America/Los_Angeles` | IANA timezone for clock times (Pacific — SJ / SF / SEA / LA) |
 | `CRON_MAX_JOBS` | `50` | Cap on enabled jobs |
 | `CRON_TICK_SECONDS` | `15` | Due-job poll interval |
 | `SPARK_QTY` | _(empty)_ | **Opt-in** spark-of-life. Empty = off. `5` or `4-6` (random count/day) |

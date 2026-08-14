@@ -652,6 +652,39 @@ func TestAgent_Handle_PersonaAndHistory(t *testing.T) {
 	}
 }
 
+func TestAgent_Handle_UsesUserMarkdownTimezone(t *testing.T) {
+	var last provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		last = req
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Persona:   "- **Timezone:** America/Los_Angeles\n- **Name:** Chris",
+		Completer: fc,
+		Sessions:  newMemHistory(),
+		Model:     "m",
+		Location:  time.UTC,
+		TZName:    "UTC",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "what time is it"}); err != nil {
+		t.Fatal(err)
+	}
+	n := len(last.Messages)
+	if n < 1 {
+		t.Fatal("no messages")
+	}
+	got := last.Messages[n-1].Content
+	if !strings.Contains(got, "America/Los_Angeles") {
+		t.Fatalf("USER.md tz ignored: %q", got)
+	}
+	if strings.Contains(got, "UTC-") || strings.Contains(got, "UTC+") {
+		t.Fatalf("still labeled UTC: %q", got)
+	}
+}
+
 func TestAgent_ToolLoop(t *testing.T) {
 	n := 0
 	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
