@@ -14,6 +14,7 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/provider"
@@ -313,6 +314,110 @@ func TestAgent_Handle_FakeSuccessClaimGetsNudged(t *testing.T) {
 	}
 	if reqs != 3 {
 		t.Fatalf("completions = %d, want 3", reqs)
+	}
+}
+
+// A cron live-data job that drafts the digest with fake numbers (no tool
+// theater cues) must be nudged so the model actually calls Garmin/etc.
+func TestAgent_Handle_CronLiveDataReportWithoutToolsGetsNudged(t *testing.T) {
+	ctx := context.Background()
+	var reqs int
+	var firstReq provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		reqs++
+		switch reqs {
+		case 1:
+			firstReq = req
+			return &provider.Result{
+				Content: "Unified Morning Audit\n| Sleep | 81 |\n| HRV | 62 |\nReady to train.",
+			}, nil
+		case 2:
+			last := req.Messages[len(req.Messages)-1]
+			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "scheduled job needs live data") {
+				t.Fatalf("missing cron live-data nudge: %+v", last)
+			}
+			return &provider.Result{ToolCalls: []provider.ToolCall{
+				{ID: "c1", Name: "garmin__sleep_get", Arguments: `{}`},
+			}}, nil
+		default:
+			return &provider.Result{Content: "Sleep score 74 — from Garmin."}, nil
+		}
+	}}
+	tools := &fakeTools{
+		defs: []provider.ToolDef{{Name: "garmin__sleep_get", Parameters: map[string]any{"type": "object"}}},
+		out:  `{"sleepScore":74}`,
+	}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := cron.JobUserPrefix + "Fetch Garmin sleep and present the Unified Morning Audit."
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: text})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(reply, "Sleep score 74") {
+		t.Fatalf("reply = %q", reply)
+	}
+	if len(tools.calls) != 1 || tools.calls[0] != "garmin__sleep_get" {
+		t.Fatalf("tools = %v", tools.calls)
+	}
+	if reqs != 3 {
+		t.Fatalf("completions = %d, want 3", reqs)
+	}
+	foundNote := false
+	for _, m := range firstReq.Messages {
+		if strings.Contains(m.Content, "Scheduled turn: if this job needs live data") {
+			foundNote = true
+			break
+		}
+	}
+	if !foundNote {
+		t.Fatal("missing cron tool-first system note on first completion")
+	}
+}
+
+// A no-tool reminder must not be forced into a tool call just because it
+// arrived on the cron path.
+func TestAgent_Handle_CronReminderWithoutLiveDataNotNudged(t *testing.T) {
+	ctx := context.Background()
+	var reqs int
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		reqs++
+		return &provider.Result{Content: "Time to submit your timecard."}, nil
+	}}
+	tools := &fakeTools{
+		defs: []provider.ToolDef{{Name: "garmin__sleep_get", Parameters: map[string]any{"type": "object"}}},
+	}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := cron.JobUserPrefix + "Remind me to submit my timecard."
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: text})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != "Time to submit your timecard." {
+		t.Fatalf("reply = %q", reply)
+	}
+	if len(tools.calls) != 0 {
+		t.Fatalf("tools = %v, want none", tools.calls)
+	}
+	if reqs != 1 {
+		t.Fatalf("completions = %d, want 1 (no nudge)", reqs)
 	}
 }
 

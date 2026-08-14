@@ -37,8 +37,9 @@ func ToolDefs() []provider.ToolDef {
 				"type": "object",
 				"properties": map[string]any{
 					"prompt": map[string]any{
-						"type":        "string",
-						"description": "what the agent should do when the job fires",
+						"type": "string",
+						"description": "what the agent should do when the job fires. " +
+							"For live-data jobs (calendar, mail, fitness, search, sheets), list the tools to call first and say not to invent numbers.",
 					},
 					"when": map[string]any{
 						"type":        "string",

@@ -2,6 +2,7 @@ package cron_test
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -66,6 +67,9 @@ func TestRunner_ScheduleFirePushCancel(t *testing.T) {
 
 	if handled == "" || handled[:6] != "[cron]" {
 		t.Fatalf("handle text=%q", handled)
+	}
+	if !strings.Contains(handled, "call those tools first") || !strings.Contains(handled, "submit timecard") {
+		t.Fatalf("handle text missing tool-first prefix or job body: %q", handled)
 	}
 	pusher.mu.Lock()
 	n := len(pusher.msgs)

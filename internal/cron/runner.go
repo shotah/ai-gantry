@@ -10,6 +10,11 @@ import (
 	"github.com/shotah/ai-gantry/internal/channel"
 )
 
+// JobUserPrefix wraps user-scheduled job prompts (not spark/examples pings).
+// It must stay a single paragraph plus a trailing blank line so the agent can
+// split wrapper from job body when deciding whether live tools were skipped.
+const JobUserPrefix = "[cron] Scheduled job — execute now. If this job needs live data, call those tools first — do not write the report, tables, or numbers until tool results are in context. Never guess metrics; if a tool fails, say so.\n\n"
+
 // DefaultTick is how often the runner polls for due jobs.
 const DefaultTick = 15 * time.Second
 
@@ -134,7 +139,7 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 		}
 	}
 
-	prefix := "[cron] Scheduled job — do the following and reply with the result for the user:\n\n"
+	prefix := JobUserPrefix
 	prompt := job.Prompt
 	handleCtx := ctx
 	switch job.Kind {

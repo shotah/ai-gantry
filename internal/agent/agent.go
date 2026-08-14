@@ -56,6 +56,11 @@ const budgetExhaustedNote = "[system] Tool budget exhausted: all %d tool rounds 
 // the visible trace carries a "why" line ahead of each call's ✓/✗ marks.
 const toolNarrationNote = `Before each tool call, write one short line of visible reply text saying what you are doing and why (e.g. "Searching contacts for Joe"). Keep it under a dozen words and make the call in the same response.`
 
+// cronToolFirstNote sits after the clock on scheduled turns so the last
+// instruction is "tools first" — cron user text otherwise reads like a
+// finished-report spec and small models draft numbers instead of calling.
+const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data, emit tool calls now and wait for results. Do not invent metrics, events, or search results. Write the user-facing report only after tool results are in context. If no tools are needed, reply now."
+
 // Options configures the agent.
 type Options struct {
 	Persona       string
@@ -402,6 +407,12 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	if a.tools != nil && !channel.NoToolsFrom(ctx) {
 		toolDefs = a.tools.Tools()
 	}
+	if turnSource(text) == "cron" && len(toolDefs) > 0 {
+		messages = append(messages, provider.Message{
+			Role:    provider.RoleSystem,
+			Content: cronToolFirstNote,
+		})
+	}
 	shape.schemas = mcp.EstimateToolSchemaTokens(toolDefs)
 
 	a.log.Debug("agent complete",
@@ -640,14 +651,19 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 			// moment…") that leave the human hanging — giving up is fine;
 			// stalling is not. (Do not use promisesToolCall after tools: a
 			// honest "google__sheets_… failed" final answer contains "__".)
+			// Cron live-data jobs are a separate miss: the model drafts the
+			// digest (fake scores, agenda) with zero theater cues.
 			preToolTheater := !sawTools && (promisesToolCall(res.Content, res.Thinking) || claimsToolSuccess(res.Content))
+			cronSkippedLive := !sawTools && source == "cron" && len(toolDefs) > 0 &&
+				cronJobImpliesLiveTools(lastUserContent(messages))
 			deferral := sawTools && defersPendingWork(res.Content)
-			if (preToolTheater || deferral) && !nudged {
+			if (preToolTheater || deferral || cronSkippedLive) && !nudged {
 				a.log.Warn("model narrated tool action in prose without calling",
 					"chars", len(res.Content),
 					"iteration", iter+1,
 					"saw_tools", sawTools,
 					"deferral", deferral,
+					"cron_skipped_live", cronSkippedLive,
 				)
 				nudged = true
 				messages = append(messages, provider.Message{
@@ -662,6 +678,11 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 						"Act now: emit the real tool call using the exact name from the tools list, " +
 						"OR give a final answer that reports the tool error and stops. Giving up is fine. " +
 						"Do not ask for a moment or promise another attempt without calling a tool."
+				} else if cronSkippedLive {
+					nudge = "[system] This scheduled job needs live data, but you wrote the user-facing result without calling any tools. " +
+						"Emit the real tool calls now using exact names from the tools list. " +
+						"Do not invent metrics, events, or search results. After tools return, then write the report. " +
+						"If a tool fails, report the failure."
 				}
 				messages = append(messages, provider.Message{
 					Role:    provider.RoleSystem,
@@ -1031,6 +1052,54 @@ func clipChars(s string, n int) string {
 		return s
 	}
 	return string(r[:n]) + "…"
+}
+
+func lastUserContent(messages []provider.Message) string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == provider.RoleUser {
+			return messages[i].Content
+		}
+	}
+	return ""
+}
+
+// cronJobBody returns the scheduled prompt without the runner wrapper. The
+// wrapper itself mentions tools/metrics and must not trip live-data detection
+// on a plain reminder.
+func cronJobBody(userText string) string {
+	t := strings.TrimSpace(userText)
+	if !strings.HasPrefix(t, "[cron]") {
+		return t
+	}
+	if i := strings.Index(t, "\n\n"); i >= 0 {
+		return strings.TrimSpace(t[i+2:])
+	}
+	return t
+}
+
+// cronJobImpliesLiveTools reports whether a scheduled prompt is asking for
+// fetched data (fitness, calendar, mail, search, sheets) rather than a
+// no-tool reminder. Conservative cues — "submit my timecard" must not match.
+func cronJobImpliesLiveTools(userText string) bool {
+	text := strings.ToLower(cronJobBody(userText))
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	cues := []string{
+		"fetch", "search", "pull ", "query",
+		"garmin", "strava", "ghealth",
+		"calendar", "gmail", "inbox",
+		"sheets", "ledger",
+		"sleep", "hrv", "readiness", "body battery",
+		"web_search", "google_search",
+		"audit", "brief", "summarize",
+	}
+	for _, cue := range cues {
+		if strings.Contains(text, cue) {
+			return true
+		}
+	}
+	return false
 }
 
 // promisesToolCall reports whether text talks about invoking a tool without

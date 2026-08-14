@@ -56,7 +56,9 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 
 - **Rentals MCP (`rentals-search-mcp`, server id `rentals`)** — long-term apartments/houses via RentCast
 - **Exact tools:** `rentals__listings_search`, `rentals__listings_get`, `rentals__areas_resolve`, `rentals__rent_estimate_get`, `rentals__markets_get`, `rentals__link_format`, `rentals__account_get`
-- Neighborhood → `areas_resolve` then `listings_search`; hand off listing URL — never apply or contact landlords; not for commercial leases
+- **QUOTA:** ≈50 free req/month (~1–2/day). Check `rentals__account_get` / `usage` first. Local counter resets on the **1st**. FREE: `areas_resolve`, `link_format`, `account_get`.
+- **THRIFTY:** ONE `listings_search` with `neighborhood="Ballard,Fremont"` or `zip_codes="98107,98103"` + city+state — never one call per area.
+- Hand off listing URL — never apply or contact landlords; not for commercial leases
 
 ## Cars
 

@@ -4,6 +4,16 @@ Proactive jobs live in SQLite and fire inside the gantry: run the normal agent
 loop (MCP tools allowed), then **push** the reply on Telegram (or print on
 stdio). Pure-MCP cron cannot deliver outbound chat by itself.
 
+Live-data jobs (calendar, mail, fitness, search, sheets) get a tool-first
+wrapper plus a last-token system note so the model calls tools before drafting
+the digest. If it still writes the report with zero tool calls, the agent loop
+nudges once. Plain reminders ("submit my timecard") are unchanged.
+
+Cron has no Telegram streaming / tool-trace bubble — only the final `Push`.
+Whether tools ran shows up in server logs (`tool call` / `model call` with
+`tool_calls`, `turn perf` `source=cron`). Zero `tool call` lines means the
+model skipped tools on iteration 1.
+
 ## Config
 
 | Env | Default | Meaning |
