@@ -1,7 +1,6 @@
 # Milestone archive (build order)
 
 Historical checklist for how ai-gantry was built (M0–M7). All shipped;
-LOCAL_AGENT/ZeroClaw cutover is done. Open follow-ups live in [todo.md](../todo.md).
 
 ---
 

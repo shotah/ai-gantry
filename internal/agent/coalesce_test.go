@@ -375,6 +375,40 @@ func TestCoalesce_SkipsCron(t *testing.T) {
 	}
 }
 
+func TestCoalesce_SkipsWatch(t *testing.T) {
+	started := make(chan struct{}, 1)
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		started <- struct{}{}
+		return &provider.Result{Content: "watch-ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Completer:      fc,
+		Sessions:       newMemHistory(),
+		Model:          "m",
+		CoalesceSettle: time.Hour,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	reply, err := a.Handle(ctx, channel.Message{
+		SessionID: "s",
+		Text:      "[watch] New items from a subscription.\n\n- id=nws-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != "watch-ok" {
+		t.Fatalf("reply = %q", reply)
+	}
+	select {
+	case <-started:
+	default:
+		t.Fatal("watch should bypass coalesce")
+	}
+}
+
 // gateCompleter signals started once, then delegates to onComplete.
 type gateCompleter struct {
 	started    chan struct{}

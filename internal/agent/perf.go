@@ -76,6 +76,8 @@ func turnSource(text string) string {
 	switch {
 	case strings.HasPrefix(t, "[cron]"):
 		return "cron"
+	case strings.HasPrefix(t, "[watch]"):
+		return "watch"
 	case strings.HasPrefix(t, "[reaction]"):
 		return "reaction"
 	default:

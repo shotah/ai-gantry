@@ -57,8 +57,8 @@ type Config struct {
 	ToolSchemaMaxTokens int `env:"TOOL_SCHEMA_MAX_TOKENS" envDefault:"0"`
 
 	// ToolsEnabled controls whether tool schemas are sent to the model.
-	// false omits MCP, memory_*, and cron_* tools from every completion — required
-	// for models that reject tools (e.g. Ollama gemma3). Memory/cron backends may
+	// false omits MCP, memory_*, cron_*, and watch_* tools from every completion — required
+	// for models that reject tools (e.g. Ollama gemma3). Memory/cron/watch backends may
 	// still start; only the agent tool surface is cleared.
 	ToolsEnabled bool `env:"TOOLS_ENABLED" envDefault:"true"`
 
@@ -76,6 +76,10 @@ type Config struct {
 	CronTZ          string `env:"CRON_TZ" envDefault:"America/Los_Angeles"`
 	CronMaxJobs     int    `env:"CRON_MAX_JOBS" envDefault:"50"`
 	CronTickSeconds int    `env:"CRON_TICK_SECONDS" envDefault:"15"`
+
+	// Watch polls MCP fetch tools and wakes the agent only on new item ids.
+	WatchEnabled bool `env:"WATCH_ENABLED" envDefault:"true"`
+	WatchMax     int  `env:"WATCH_MAX" envDefault:"50"`
 
 	// Spark of life (opt-in). Empty SPARK_QTY = disabled. Examples: "5", "4-6".
 	SparkQty               string `env:"SPARK_QTY" envDefault:""`
@@ -261,6 +265,9 @@ func (c *Config) Validate() error {
 	}
 	if c.CronTickSeconds < 1 {
 		return fmt.Errorf("CRON_TICK_SECONDS: must be >= 1, got %d", c.CronTickSeconds)
+	}
+	if c.WatchMax < 1 {
+		return fmt.Errorf("WATCH_MAX: must be >= 1, got %d", c.WatchMax)
 	}
 	if _, err := timeLoadLocation(c.CronTZ); err != nil {
 		return fmt.Errorf("CRON_TZ: %w", err)

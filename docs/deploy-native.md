@@ -89,8 +89,6 @@ The kernel hardens the loop so SAM finishes multi-step turns:
 
 Persona still spells exact names (`TOOLS.md`). Runtime fixes catch the rest.
 
-Open follow-ups (token truncation, eval harness): [native_plan_todo.md](../native_plan_todo.md).
-
 ---
 
 ## Latency: measure before tuning

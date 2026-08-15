@@ -59,6 +59,8 @@ func TestDropCronHistory(t *testing.T) {
 		{Role: session.RoleAssistant, Content: "hi"},
 		{Role: session.RoleUser, Content: cron.JobUserPrefix + "Fetch Garmin sleep"},
 		{Role: session.RoleAssistant, Content: "Sleep 81"},
+		{Role: session.RoleUser, Content: "[watch] New items from a subscription.\n\n- id=nws-1"},
+		{Role: session.RoleAssistant, Content: "NWS posted a wind advisory."},
 		{Role: session.RoleUser, Content: "what's up"},
 		{Role: session.RoleAssistant, Content: "nm"},
 	}
@@ -68,6 +70,19 @@ func TestDropCronHistory(t *testing.T) {
 	}
 	if out[0].Content != "hey" || out[1].Content != "hi" || out[2].Content != "what's up" || out[3].Content != "nm" {
 		t.Fatalf("out=%+v", out)
+	}
+}
+
+func TestTurnSource(t *testing.T) {
+	t.Parallel()
+	if got := turnSource("[watch] New items"); got != "watch" {
+		t.Fatalf("watch source=%q", got)
+	}
+	if got := turnSource("[cron] Scheduled job"); got != "cron" {
+		t.Fatalf("cron source=%q", got)
+	}
+	if got := turnSource("hey"); got != "user" {
+		t.Fatalf("user source=%q", got)
 	}
 }
 

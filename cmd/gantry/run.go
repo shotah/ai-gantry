@@ -30,9 +30,10 @@ import (
 	"github.com/shotah/ai-gantry/internal/provider"
 	"github.com/shotah/ai-gantry/internal/selfnote"
 	"github.com/shotah/ai-gantry/internal/session"
+	"github.com/shotah/ai-gantry/internal/watch"
 )
 
-// run boots config, persona, sessions, MCP host, memory, cron, provider, agent, and channel.
+// run boots config, persona, sessions, MCP host, memory, cron, watch, provider, agent, and channel.
 func run() int {
 	cfg, err := config.Load()
 	if err != nil {
@@ -56,6 +57,7 @@ func run() int {
 		"memory_backend", cfg.MemoryBackend,
 		"self_notes_enabled", cfg.SelfNotesEnabled,
 		"cron_enabled", cfg.CronEnabled,
+		"watch_enabled", cfg.WatchEnabled,
 		"cron_tz", cfg.CronTZ,
 		"spark_qty", cfg.SparkQty,
 		"examples_qty", cfg.ExamplesQty,
@@ -192,6 +194,20 @@ func run() int {
 			Other: tools,
 		}
 		logger.Info("cron ready", "tz", tzName, "max_jobs", cfg.CronMaxJobs)
+	}
+
+	var watchStore *watch.Store
+	if cfg.WatchEnabled {
+		watchStore, err = watch.OpenDB(sessions.DB(), cfg.WatchMax)
+		if err != nil {
+			logger.Error("watch store open failed", "err", err)
+			return 1
+		}
+		tools = watch.Composite{
+			Watch: watch.Tools{Store: watchStore},
+			Other: tools,
+		}
+		logger.Info("watch ready", "max", cfg.WatchMax)
 	}
 
 	var selfStore *selfnote.Store
@@ -335,6 +351,23 @@ func run() int {
 			return 1
 		}
 		go runner.Start(ctx)
+	}
+
+	if watchStore != nil {
+		pusher, ok := ch.(channel.Pusher)
+		if !ok {
+			logger.Error("watch enabled but channel does not support Push")
+			return 1
+		}
+		watchRunner := &watch.Runner{
+			Store:    watchStore,
+			Fetcher:  mcpHost,
+			Handle:   handle,
+			Pusher:   pusher,
+			Interval: time.Duration(cfg.CronTickSeconds) * time.Second,
+			Logger:   logger,
+		}
+		go watchRunner.Start(ctx)
 	}
 
 	runErr := ch.Run(ctx, handle)

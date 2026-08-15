@@ -340,6 +340,8 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `CRON_TZ` | no | `America/Los_Angeles` (Pacific; override with any IANA zone) |
 | `CRON_MAX_JOBS` | no | `50` |
 | `CRON_TICK_SECONDS` | no | `15` |
+| `WATCH_ENABLED` | no | `true` (poll MCP fetch tools; wake only on new item ids — [docs/watch.md](docs/watch.md)) |
+| `WATCH_MAX` | no | `50` |
 | `STREAM_REPLIES` | no | `true` (Telegram edit-in-place / stdio token stream) |
 | `SHOW_THINKING` | no | `true` (Telegram CoT italics → expandable blockquote; needs `STREAM_REPLIES`; independent of `LLM_REASONING_EFFORT`) |
 | `TOOL_TRACE` | no | `compact` (`compact` = `Making Calls: ✓, ✗`; `full` = → name / ✓ timing; `off` = hide; needs `STREAM_REPLIES`) |

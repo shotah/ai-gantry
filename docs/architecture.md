@@ -237,6 +237,34 @@ sequenceDiagram
 Outbound push needs a channel API beyond “reply to the update that invoked
 Handle” — Telegram chat/user id is stored with the job from the scheduling turn.
 
+## Event watches
+
+Poller is code, not the agent. Quiet ticks never call the Completer.
+
+```mermaid
+sequenceDiagram
+  participant T as ticker
+  participant H as MCP Host
+  participant W as watch
+  participant A as agent
+  participant C as channel
+
+  T->>W: due rows
+  W->>H: Call(tool, args)
+  H-->>W: items JSON
+  alt first poll or no new ids
+    W->>W: seed / update cursor
+  else new ids
+    W->>A: Handle([watch] items)
+    A-->>W: reply or [silent]
+    opt not silent
+      W->>C: Push
+    end
+  end
+```
+
+Details: [watch.md](watch.md).
+
 ## Streaming replies (Milestone 7)
 
 Default on: `STREAM_REPLIES=true`. Channel attaches a `ReplyWriter`; agent uses

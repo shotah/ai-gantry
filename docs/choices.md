@@ -103,6 +103,15 @@ Firing a job must run `agent.Handle` and **push** on Telegram. An MCP server
 alone cannot outbound to the channel. External `docker exec` poke remains a
 valid interim escape hatch but is not the product surface.
 
+## Event watches
+
+**Pick:** kernel poller (`watch` table + `Host.Call` + id cursor), not
+`cron_schedule` + a silent fetch prompt.
+
+Quiet ticks must not call the Completer. The first successful poll seeds the
+cursor (no backlog flood). `[silent]` still skips the Push when the agent does
+run. Fetch adapters stay MCP children; the kernel does not know RSS vs Twitter.
+
 ## Tool naming
 
 **Pick:** always `{server}__{tool}`.
@@ -160,8 +169,6 @@ Consistency beats inventing a second release culture.
 
 All three messengers are outbound-only + allowlist (no inbound ports). Slack uses
 **Socket Mode only** (HTTP Events API is a non-goal). Signal is next — see
-[todo.md](../todo.md). Setup: [discord.md](discord.md), [slack.md](slack.md).
-
 ## Related
 
 - [design.md](design.md)

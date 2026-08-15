@@ -38,7 +38,6 @@ Deploy shapes: [deploy-docker.md](deploy-docker.md) (Hub) ·
 
 - Web dashboard, gateway, REST/WS API, pairing flows
 - Multi-agent / multi-provider / model fallback chains
-- Channels beyond Telegram + Discord + Slack + stdio (Signal planned; see todo.md)
 - Built-in search/workspace tools (those are MCP binaries)
 - Vector DB / embedding service
 - In-process sandboxing / risk profiles (the container is the sandbox;
@@ -48,7 +47,7 @@ Deploy shapes: [deploy-docker.md](deploy-docker.md) (Hub) ·
 
 M0–M7 are done (scaffold → talk → Telegram → MCP → memory → hardening → cron →
 stream). Full checklist: [milestones.md](milestones.md). Cron details:
-[cron.md](cron.md). Streaming: set `STREAM_REPLIES=true`.
+[cron.md](cron.md). Event watches: [watch.md](watch.md). Streaming: set `STREAM_REPLIES=true`.
 
 ## Configuration contract
 
@@ -64,6 +63,7 @@ Everything is env or a mount. Boot is fail-fast: missing required env → exit 1
 | Bounds | `HISTORY_MAX_MESSAGES`, `HISTORY_MAX_TOKENS`, `TOOL_RESULT_MAX_CHARS`, `TOOL_MAX_ITERATIONS` |
 | Memory | `MEMORY_ENABLED`, `MEMORY_BACKEND` (`builtin`\|`mcp:<name>`), `MEMORY_CONSOLIDATE_MINUTES` |
 | Cron | `CRON_ENABLED`, `CRON_TZ`, `CRON_MAX_JOBS`, `CRON_TICK_SECONDS` |
+| Watch | `WATCH_ENABLED`, `WATCH_MAX` (shares `CRON_TICK_SECONDS`) |
 | Spark of life | `SPARK_QTY` (empty=off), `SPARK_START_HOUR`, `SPARK_END_HOUR`, `SPARK_PROMPT`, `SPARK_SKIP_RECENT_MINUTES` |
 | Capability examples | `EXAMPLES_QTY` (default `1-2`, empty/`0`=no pings), `EXAMPLES_START_HOUR`, `EXAMPLES_END_HOUR`, `EXAMPLES_SKIP_RECENT_MINUTES` |
 | Stream | `STREAM_REPLIES` (`true` default; Telegram edit / stdio tokens) |

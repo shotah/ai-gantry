@@ -49,7 +49,7 @@ func (a *Agent) coalesceSession(sessionID string) *coalesceSession {
 
 func skipCoalesce(text string) bool {
 	t := strings.TrimSpace(text)
-	return strings.HasPrefix(t, "[cron]") || strings.HasPrefix(t, "[reaction]")
+	return strings.HasPrefix(t, "[cron]") || strings.HasPrefix(t, "[watch]") || strings.HasPrefix(t, "[reaction]")
 }
 
 func messageStoreText(msg channel.Message) string {

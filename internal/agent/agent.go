@@ -369,9 +369,9 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			Content: "[session summary]\n" + s,
 		})
 	}
-	// Prior scheduled replies are a few-shot template for inventing the next
-	// digest. Keep them in SQLite; omit them from this cron turn's prompt.
-	if turnSource(text) == "cron" {
+	// Prior scheduled / watch replies are a few-shot template for inventing
+	// the next digest. Keep them in SQLite; omit them from this turn's prompt.
+	if src := turnSource(text); src == "cron" || src == "watch" {
 		history = dropCronHistory(history)
 	}
 	for _, h := range history {
@@ -1103,8 +1103,8 @@ func withCronToolFooter(reply string, called []string) string {
 	return strings.TrimRight(reply, "\n") + "\n\n— tools: " + label
 }
 
-// dropCronHistory removes prior scheduled user/assistant pairs so yesterday's
-// digest cannot few-shot the next one. Interactive turns are kept.
+// dropCronHistory removes prior scheduled and watch user/assistant pairs so
+// yesterday's digest cannot few-shot the next one. Interactive turns are kept.
 func dropCronHistory(history []session.Message) []session.Message {
 	if len(history) == 0 {
 		return history
@@ -1117,9 +1117,12 @@ func dropCronHistory(history []session.Message) []session.Message {
 			continue
 		}
 		skipAssistant = false
-		if h.Role == session.RoleUser && strings.HasPrefix(strings.TrimSpace(h.Content), "[cron]") {
-			skipAssistant = true
-			continue
+		if h.Role == session.RoleUser {
+			c := strings.TrimSpace(h.Content)
+			if strings.HasPrefix(c, "[cron]") || strings.HasPrefix(c, "[watch]") {
+				skipAssistant = true
+				continue
+			}
 		}
 		out = append(out, h)
 	}

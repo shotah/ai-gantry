@@ -25,6 +25,7 @@ is the public pitch + product contract; these pages go deeper.
 | [memory.md](memory.md) | Hand-inspect / fix builtin SQLite memory with `sqlite3` |
 | [troubleshooting.md](troubleshooting.md) | **`SELF.md` audit/prune**, self-notes `:ro` disable, `/new` personality, tool budget |
 | [cron.md](cron.md) | Schedule tools, timezone, inspect jobs, overlap policy |
+| [watch.md](watch.md) | Poll MCP fetch tools; wake the agent only on new item ids |
 
 Start with **deploy-docker** (Hub pull) or **deploy-native** for a running bot;
 **auth** for headless MCP login; **positioning** for who/why; **architecture**

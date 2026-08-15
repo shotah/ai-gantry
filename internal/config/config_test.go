@@ -65,6 +65,12 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if !cfg.CronEnabled {
 		t.Error("CronEnabled = false, want true")
 	}
+	if !cfg.WatchEnabled {
+		t.Error("WatchEnabled = false, want true")
+	}
+	if cfg.WatchMax != 50 {
+		t.Errorf("WatchMax = %d, want 50", cfg.WatchMax)
+	}
 	if cfg.CronTZ != "America/Los_Angeles" {
 		t.Errorf("CronTZ = %q, want America/Los_Angeles", cfg.CronTZ)
 	}
@@ -300,6 +306,7 @@ func TestLoad_MoreValidation(t *testing.T) {
 		{"TOOL_SCHEMA_MAX_TOKENS", "-1", "TOOL_SCHEMA_MAX_TOKENS"},
 		{"TOOL_TRACE", "verbose", "TOOL_TRACE"},
 		{"MEMORY_CONSOLIDATE_MINUTES", "-1", "MEMORY_CONSOLIDATE_MINUTES"},
+		{"WATCH_MAX", "0", "WATCH_MAX"},
 		{"MEMORY_BACKEND", "mcp:", "MEMORY_BACKEND"},
 		{"PERSONA_DIR", "   ", "PERSONA_DIR"},
 		{"DATA_DIR", "   ", "DATA_DIR"},
