@@ -82,7 +82,7 @@ type Config struct {
 	SparkStartHour         int    `env:"SPARK_START_HOUR" envDefault:"6"`
 	SparkEndHour           int    `env:"SPARK_END_HOUR" envDefault:"21"`
 	SparkPrompt            string `env:"SPARK_PROMPT" envDefault:""`
-	SparkSkipRecentMinutes int    `env:"SPARK_SKIP_RECENT_MINUTES" envDefault:"15"`
+	SparkSkipRecentMinutes int    `env:"SPARK_SKIP_RECENT_MINUTES" envDefault:"60"`
 
 	// Capability examples / training wheels (on by default). Empty or "0" = no proactive pings;
 	// /examples on-demand still works. Qty: "1", "1-2".

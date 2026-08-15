@@ -102,6 +102,59 @@ func TestRunner_ScheduleFirePushCancel(t *testing.T) {
 	}
 }
 
+func TestRunner_SilentReplySkipsPush(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+
+	store, err := cron.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().UTC().Add(-time.Minute)
+	job, err := store.Schedule(ctx, "dead-man: check garmin, stay quiet if fine", cron.Parsed{
+		Kind:     cron.KindOnce,
+		Expr:     past.Format(time.RFC3339Nano),
+		NextRun:  past,
+		Timezone: "UTC",
+	}, cron.Delivery{SessionID: "telegram:1:2", UserID: "2", ChatID: "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pusher := &memPusher{}
+	var handled string
+	runner := &cron.Runner{
+		Store: store,
+		Handle: func(_ context.Context, msg channel.Message) (string, error) {
+			handled = msg.Text
+			return cron.SilentToken + "\nall-clear", nil
+		},
+		Pusher: pusher,
+	}
+	runner.FireDueForTest(ctx)
+
+	if !strings.Contains(handled, "[silent]") {
+		t.Fatalf("job prefix should mention [silent]: %q", handled)
+	}
+	pusher.mu.Lock()
+	n := len(pusher.msgs)
+	pusher.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("silent reply must not push, got %d", n)
+	}
+	got, err := store.Get(ctx, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Enabled {
+		t.Fatal("once job should finish (disable) after silent skip")
+	}
+}
+
 func TestRunner_StartAndNil(t *testing.T) {
 	(&cron.Runner{}).Start(context.Background()) // no-op
 

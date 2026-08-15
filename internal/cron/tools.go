@@ -31,6 +31,7 @@ func ToolDefs() []provider.ToolDef {
 			Name: ToolSchedule,
 			Description: "Schedule a proactive agent turn (reminder, digest, or spark-of-life). " +
 				"Fires later, runs tools, and pushes the reply to this chat. " +
+				"Work-only jobs can reply [silent] to skip the push (all-clear / no need to ping). " +
 				`when: RFC3339, "15:04", "in 30m", or for spark "4-6@06-21". ` +
 				`repeat: once|daily|every:1h|spark.`,
 			Parameters: map[string]any{
@@ -39,7 +40,8 @@ func ToolDefs() []provider.ToolDef {
 					"prompt": map[string]any{
 						"type": "string",
 						"description": "what the agent should do when the job fires. " +
-							"For live-data jobs (calendar, mail, fitness, search, sheets), list the tools to call first and say not to invent numbers.",
+							"For live-data jobs (calendar, mail, fitness, search, sheets), list the tools to call first and say not to invent numbers. " +
+							"For work-only / all-clear jobs, say to reply [silent] unless the human needs a message.",
 					},
 					"when": map[string]any{
 						"type":        "string",

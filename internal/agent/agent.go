@@ -369,6 +369,11 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			Content: "[session summary]\n" + s,
 		})
 	}
+	// Prior scheduled replies are a few-shot template for inventing the next
+	// digest. Keep them in SQLite; omit them from this cron turn's prompt.
+	if turnSource(text) == "cron" {
+		history = dropCronHistory(history)
+	}
 	for _, h := range history {
 		messages = append(messages, provider.Message{
 			Role:    provider.Role(h.Role),
@@ -465,13 +470,23 @@ type promptShape struct {
 	schemas   int // est tokens in the tool schema block
 }
 
-func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provider.Message, toolDefs []provider.ToolDef, shape promptShape, source string) (string, error) {
+func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provider.Message, toolDefs []provider.ToolDef, shape promptShape, source string) (reply string, err error) {
 	streamer, canStream := a.completer.(provider.Streamer)
 	writer, hasWriter := channel.ReplyWriterFrom(ctx)
 	progress, hasProgress := channel.ProgressWriterFrom(ctx)
 	status, hasStatus := channel.StatusWriterFrom(ctx)
 	nudged := false
 	sawTools := false
+	var called []string
+	defer func() {
+		if err != nil || source != "cron" || reply == "" || cron.IsSilentReply(reply) {
+			return
+		}
+		if len(called) == 0 && !cronJobImpliesLiveTools(lastUserContent(messages)) {
+			return
+		}
+		reply = withCronToolFooter(reply, called)
+	}()
 
 	// Latency accounting: local models spend most of a turn in prefill/decode,
 	// so split model vs tool time to know which one to attack.
@@ -712,6 +727,15 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 				)
 				return "I couldn't finish that — tools failed and I stalled instead of retrying or giving up clearly. Please try again.", nil
 			}
+			if cronSkippedLive && nudged {
+				// Second draft after nudge is still a no-tool report — do not
+				// ship invented metrics (Flash will happily rewrite the table).
+				a.log.Warn("cron live-data job skipped tools after nudge; refusing invented report",
+					"chars", len(res.Content),
+					"iteration", iter+1,
+				)
+				return cronSkippedLiveReply, nil
+			}
 			return res.Content, nil
 		}
 		if a.tools == nil {
@@ -805,6 +829,7 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 				}
 			}
 			sawTools = true
+			called = append(called, call.Name)
 			messages = append(messages, provider.Message{
 				Role:       provider.RoleTool,
 				Content:    out,
@@ -1066,6 +1091,39 @@ func clipChars(s string, n int) string {
 		return s
 	}
 	return string(r[:n]) + "…"
+}
+
+const cronSkippedLiveReply = "Scheduled job needs live data, but no tools were called — I won't invent metrics. Ask me in chat if you want a live pull."
+
+func withCronToolFooter(reply string, called []string) string {
+	label := "(none)"
+	if len(called) > 0 {
+		label = strings.Join(called, ", ")
+	}
+	return strings.TrimRight(reply, "\n") + "\n\n— tools: " + label
+}
+
+// dropCronHistory removes prior scheduled user/assistant pairs so yesterday's
+// digest cannot few-shot the next one. Interactive turns are kept.
+func dropCronHistory(history []session.Message) []session.Message {
+	if len(history) == 0 {
+		return history
+	}
+	out := make([]session.Message, 0, len(history))
+	skipAssistant := false
+	for _, h := range history {
+		if skipAssistant && h.Role == session.RoleAssistant {
+			skipAssistant = false
+			continue
+		}
+		skipAssistant = false
+		if h.Role == session.RoleUser && strings.HasPrefix(strings.TrimSpace(h.Content), "[cron]") {
+			skipAssistant = true
+			continue
+		}
+		out = append(out, h)
+	}
+	return out
 }
 
 func lastUserContent(messages []provider.Message) string {

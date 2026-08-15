@@ -13,13 +13,19 @@ import (
 // JobUserPrefix wraps user-scheduled job prompts (not spark/examples pings).
 // It must stay a single paragraph plus a trailing blank line so the agent can
 // split wrapper from job body when deciding whether live tools were skipped.
-const JobUserPrefix = "[cron] Scheduled job — execute now. If this job needs live data, call those tools first — do not write the report, tables, or numbers until tool results are in context. Never guess metrics; if a tool fails, say so.\n\n"
+const JobUserPrefix = "[cron] Scheduled job — execute now. If this job needs live data, call those tools first — do not write the report, tables, or numbers until tool results are in context. Never guess metrics; if a tool fails, say so. If the human does not need a message (all-clear or work-only), reply with exactly [silent] and nothing else.\n\n"
+
+// SparkPingPrefix wraps spark-of-life presence pings.
+const SparkPingPrefix = "[cron] Spark of life — check in only if it would feel welcome. If you've already been talking, the vibe is warm, or a ping would be noise, reply with exactly [silent] and nothing else:\n\n"
+
+// ExamplesPingPrefix wraps capability-example pings.
+const ExamplesPingPrefix = "[cron] Capability example — inspire the human with one concrete idea (propose only). If a ping would be noise, reply with exactly [silent] and nothing else:\n\n"
 
 // DefaultTick is how often the runner polls for due jobs.
 const DefaultTick = 15 * time.Second
 
 // DefaultSparkSkipRecent is how long a recent user message suppresses a spark ping.
-const DefaultSparkSkipRecent = 15 * time.Minute
+const DefaultSparkSkipRecent = 60 * time.Minute
 
 // RecentUserActivity reports whether the human messaged recently (spark barge-in guard).
 type RecentUserActivity interface {
@@ -144,11 +150,11 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 	handleCtx := ctx
 	switch job.Kind {
 	case KindSparkPing:
-		prefix = "[cron] Spark of life — check in with the human now:\n\n"
+		prefix = SparkPingPrefix
 		prompt = PickSparkPrompt(job.Prompt)
 		handleCtx = channel.WithNoTools(ctx)
 	case KindExamplesPing:
-		prefix = "[cron] Capability example — inspire the human with one concrete idea (propose only):\n\n"
+		prefix = ExamplesPingPrefix
 		if r.Examples != nil {
 			prompt = r.Examples.BuildPingPrompt(ctx)
 		}
@@ -168,7 +174,9 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 		_ = r.Store.Finish(ctx, job, err)
 		return
 	}
-	if reply != "" {
+	if IsSilentReply(reply) {
+		log.Info("cron silent skip", "id", job.ID, "kind", job.Kind, "session_id", job.SessionID)
+	} else if reply != "" {
 		if err := r.Pusher.Push(ctx, channel.Outbound{
 			SessionID: job.SessionID,
 			UserID:    job.UserID,

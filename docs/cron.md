@@ -7,12 +7,19 @@ stdio). Pure-MCP cron cannot deliver outbound chat by itself.
 Live-data jobs (calendar, mail, fitness, search, sheets) get a tool-first
 wrapper plus a last-token system note so the model calls tools before drafting
 the digest. If it still writes the report with zero tool calls, the agent loop
-nudges once. Plain reminders ("submit my timecard") are unchanged.
+nudges once; a second no-tool draft is refused instead of shipping invented
+metrics. Prior `[cron]` turns are omitted from that job's prompt so yesterday's
+digest cannot few-shot the next one. Plain reminders ("submit my timecard")
+are unchanged.
 
 Cron has no Telegram streaming / tool-trace bubble — only the final `Push`.
-Whether tools ran shows up in server logs (`tool call` / `model call` with
-`tool_calls`, `turn perf` `source=cron`). Zero `tool call` lines means the
-model skipped tools on iteration 1.
+Live-data replies append `— tools: name, …` or `— tools: (none)` so a skipped
+pull is visible in chat. Server logs still show `tool call` / `model call`.
+
+The model can skip the push by replying with `[silent]` (first line). The job
+still runs and the turn is stored; nothing is sent to chat. Use that for
+all-clear / work-only jobs (dead-man, health checks) and for spark when a
+check-in would be noise.
 
 ## Config
 
@@ -26,7 +33,7 @@ model skipped tools on iteration 1.
 | `SPARK_START_HOUR` | `6` | Local window start (inclusive), used when spark is on |
 | `SPARK_END_HOUR` | `21` | Local window end (exclusive), e.g. 21 → last ping before 9pm |
 | `SPARK_PROMPT` | _(built-in check-in pool)_ | One prompt, or one per line (`\n`) — random pick per ping |
-| `SPARK_SKIP_RECENT_MINUTES` | `15` | Skip/defer if the human messaged within this many minutes |
+| `SPARK_SKIP_RECENT_MINUTES` | `60` | Skip/defer if the human messaged within this many minutes |
 | `EXAMPLES_QTY` | `1-2` | **On by default** capability-example pings. Empty or `0` = no proactive pings. `/examples` on-demand still works |
 | `EXAMPLES_START_HOUR` | `6` | Local window start for examples pings |
 | `EXAMPLES_END_HOUR` | `21` | Local window end (exclusive) |
@@ -57,6 +64,7 @@ Example prompts the model can schedule:
 ```text
 Remind me at 5pm to submit my timecard.
 At 5pm daily: summarize calendar + work email for the past 8 hours.
+At midnight daily: check last 48h of chat + Garmin. If all-clear, reply [silent].
 ```
 
 ## Spark of life (opt-in)
@@ -79,7 +87,8 @@ How it works:
    Once today is planned (planner `next_run` is tomorrow), reboot does not roll a second set.
 4. Each ping picks one line from `SPARK_PROMPT` (if multi-line) and runs the agent;
    if the human messaged within `SPARK_SKIP_RECENT_MINUTES`, that ping is deferred
-   once, then dropped if still chatting.
+   once, then dropped if still chatting. The agent can also reply `[silent]` to
+   skip the push when a check-in would feel like noise.
 5. Cancelling the spark planner (`cron_cancel`) also disables pending pings for that session.
 
 ```env
@@ -88,7 +97,7 @@ SPARK_START_HOUR=6
 SPARK_END_HOUR=21
 # Optional: one prompt, or one variant per line (random pick per ping):
 # SPARK_PROMPT=Generate a short Spark of Life check-in. Keep it under 3 sentences. No tools. …
-# SPARK_SKIP_RECENT_MINUTES=15
+# SPARK_SKIP_RECENT_MINUTES=60
 ```
 
 ## Capability examples / training wheels (on by default)

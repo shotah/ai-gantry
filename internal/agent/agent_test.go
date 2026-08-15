@@ -362,7 +362,7 @@ func TestAgent_Handle_CronLiveDataReportWithoutToolsGetsNudged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(reply, "Sleep score 74") {
+	if !strings.Contains(reply, "Sleep score 74") || !strings.Contains(reply, "— tools: garmin__sleep_get") {
 		t.Fatalf("reply = %q", reply)
 	}
 	if len(tools.calls) != 1 || tools.calls[0] != "garmin__sleep_get" {
@@ -418,6 +418,150 @@ func TestAgent_Handle_CronReminderWithoutLiveDataNotNudged(t *testing.T) {
 	}
 	if reqs != 1 {
 		t.Fatalf("completions = %d, want 1 (no nudge)", reqs)
+	}
+	if strings.Contains(reply, "— tools:") {
+		t.Fatalf("reminder should not get a tool footer: %q", reply)
+	}
+}
+
+// [silent] after a live-data pull must not grow a tools footer (runner skips the push).
+func TestAgent_Handle_CronSilentReplySkipsToolFooter(t *testing.T) {
+	ctx := context.Background()
+	var reqs int
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		reqs++
+		if reqs == 1 {
+			return &provider.Result{ToolCalls: []provider.ToolCall{
+				{ID: "c1", Name: "garmin__sleep_get", Arguments: `{}`},
+			}}, nil
+		}
+		return &provider.Result{Content: cron.SilentToken + "\nall-clear"}, nil
+	}}
+	tools := &fakeTools{
+		defs: []provider.ToolDef{{Name: "garmin__sleep_get", Parameters: map[string]any{"type": "object"}}},
+		out:  `{"sleepScore":81}`,
+	}
+	hist := newMemHistory()
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     hist,
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := cron.JobUserPrefix + "Fetch Garmin sleep. If all-clear, reply [silent]."
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: text})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cron.IsSilentReply(reply) {
+		t.Fatalf("reply = %q, want silent", reply)
+	}
+	if strings.Contains(reply, "— tools:") {
+		t.Fatalf("silent reply must not get a tool footer: %q", reply)
+	}
+	if len(tools.calls) != 1 {
+		t.Fatalf("tools = %v, want one pull", tools.calls)
+	}
+	msgs, err := hist.Messages(ctx, "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) < 2 || !cron.IsSilentReply(msgs[len(msgs)-1].Content) {
+		t.Fatalf("session should keep the silent turn, got %+v", msgs)
+	}
+}
+
+// After a live-data nudge, a second no-tool draft must not ship invented metrics.
+func TestAgent_Handle_CronLiveDataReportAfterNudgeRefused(t *testing.T) {
+	ctx := context.Background()
+	var reqs int
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		reqs++
+		return &provider.Result{
+			Content: "Unified Morning Audit\n| Sleep | 74 |\n| HRV | 44 |",
+		}, nil
+	}}
+	tools := &fakeTools{
+		defs: []provider.ToolDef{{Name: "garmin__sleep_get", Parameters: map[string]any{"type": "object"}}},
+	}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := cron.JobUserPrefix + "Fetch Garmin sleep and present the Unified Morning Audit."
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: text})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(reply, "I won't invent metrics") {
+		t.Fatalf("reply = %q, want refuse", reply)
+	}
+	if strings.Contains(reply, "Sleep | 74") {
+		t.Fatalf("shipped invented metrics: %q", reply)
+	}
+	if !strings.Contains(reply, "— tools: (none)") {
+		t.Fatalf("reply = %q, want tools-none footer", reply)
+	}
+	if len(tools.calls) != 0 {
+		t.Fatalf("tools = %v", tools.calls)
+	}
+	if reqs != 2 {
+		t.Fatalf("completions = %d, want 2 (draft + nudged draft)", reqs)
+	}
+}
+
+// Prior scheduled digests must not appear in the next cron prompt (few-shot bait).
+func TestAgent_Handle_CronOmitsPriorCronHistory(t *testing.T) {
+	ctx := context.Background()
+	hist := newMemHistory()
+	if err := hist.Append(ctx, "s",
+		session.Message{Role: session.RoleUser, Content: "hey"},
+		session.Message{Role: session.RoleAssistant, Content: "hi there"},
+		session.Message{Role: session.RoleUser, Content: cron.JobUserPrefix + "Fetch Garmin sleep"},
+		session.Message{Role: session.RoleAssistant, Content: "UNIFIED MORNING AUDIT\nSleep Score: 81"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	var first provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		if first.Messages == nil {
+			first = req
+		}
+		return &provider.Result{Content: "Time to submit your timecard."}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     hist,
+		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "garmin__sleep_get", Parameters: map[string]any{"type": "object"}}}},
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := cron.JobUserPrefix + "Remind me to submit my timecard."
+	if _, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: text}); err != nil {
+		t.Fatal(err)
+	}
+	blob := ""
+	for _, m := range first.Messages {
+		blob += m.Content + "\n"
+	}
+	if strings.Contains(blob, "Sleep Score: 81") || strings.Contains(blob, "UNIFIED MORNING AUDIT") {
+		t.Fatalf("prior cron audit leaked into prompt:\n%s", blob)
+	}
+	if !strings.Contains(blob, "hey") || !strings.Contains(blob, "hi there") {
+		t.Fatalf("interactive history was dropped:\n%s", blob)
 	}
 }
 

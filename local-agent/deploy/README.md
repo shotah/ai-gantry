@@ -67,7 +67,7 @@ qty is set; otherwise those keys are omitted.
 SPARK_QTY=4-6
 SPARK_START_HOUR=6
 SPARK_END_HOUR=21
-# SPARK_SKIP_RECENT_MINUTES=15
+# SPARK_SKIP_RECENT_MINUTES=60
 # SPARK_PROMPT=...   # optional; one variant per line (\n); empty = built-in pool
 ```
 

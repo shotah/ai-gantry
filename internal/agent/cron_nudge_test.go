@@ -5,6 +5,7 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/provider"
+	"github.com/shotah/ai-gantry/internal/session"
 )
 
 func TestCronJobImpliesLiveTools(t *testing.T) {
@@ -48,6 +49,25 @@ func TestCronJobImpliesLiveTools(t *testing.T) {
 					tc.text, got, tc.want, cronJobBody(tc.text))
 			}
 		})
+	}
+}
+
+func TestDropCronHistory(t *testing.T) {
+	t.Parallel()
+	in := []session.Message{
+		{Role: session.RoleUser, Content: "hey"},
+		{Role: session.RoleAssistant, Content: "hi"},
+		{Role: session.RoleUser, Content: cron.JobUserPrefix + "Fetch Garmin sleep"},
+		{Role: session.RoleAssistant, Content: "Sleep 81"},
+		{Role: session.RoleUser, Content: "what's up"},
+		{Role: session.RoleAssistant, Content: "nm"},
+	}
+	out := dropCronHistory(in)
+	if len(out) != 4 {
+		t.Fatalf("len=%d want 4: %+v", len(out), out)
+	}
+	if out[0].Content != "hey" || out[1].Content != "hi" || out[2].Content != "what's up" || out[3].Content != "nm" {
+		t.Fatalf("out=%+v", out)
 	}
 }
 

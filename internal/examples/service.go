@@ -50,7 +50,7 @@ func (s *Service) BuildPingPrompt(_ context.Context) string {
 	}
 	prompt, seed, ok := s.SuggestPrompt()
 	if !ok {
-		return "No multi-step recipes match the connected tools. Skip this ping quietly (one short sentence). " + OffHint
+		return "No multi-step recipes match the connected tools. Reply with exactly [silent]."
 	}
 	_ = seed
 	return prompt
