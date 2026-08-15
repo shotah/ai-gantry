@@ -246,6 +246,26 @@ var DefaultSeeds = []Seed{
 			"Append the inputs + result to a Google Sheet row",
 		},
 	},
+	{
+		ID:      "feeds-nws-watch",
+		Title:   "RSS watch: subscribe to a feed (NWS alerts, a blog, a GitHub release) and get a text when something posts",
+		Servers: []string{"feeds"},
+		Steps: []string{
+			"Resolve the feed URL with feeds__source_resolve (NWS zone, site, or GitHub repo)",
+			"Offer to watch_add feeds__items_list with that url (interval 15m is fine)",
+			"Explain quiet ticks stay silent; a new item can Push or [silent] if it's noise",
+		},
+	},
+	{
+		ID:      "twitter-watch",
+		Title:   "X watch: subscribe to a public account and get a text when they post",
+		Servers: []string{"twitter"},
+		Steps: []string{
+			"Confirm the @handle they care about",
+			"Offer to watch_add twitter__posts_list with that handle (prefer 30–60m — X reads are pay-per-use)",
+			"Explain the first poll seeds the cursor (no backlog dump); [silent] still skips noise",
+		},
+	},
 }
 
 // ServerPrefixes returns the set of MCP server prefixes present in defs
@@ -321,6 +341,7 @@ func PolishPrompt(s Seed) string {
 	b.WriteString("\nRules: 2–3 sentences. Localize with a plausible everyday scenario. ")
 	b.WriteString("Invite them to try it (e.g. want me to do that?). ")
 	b.WriteString("If the recipe mentions cron_schedule / a recurring reminder, pitch scheduling it (daily or weekly) — still propose only. ")
+	b.WriteString("If the recipe mentions watch_add / a feed or X subscription, pitch setting up the watch — still propose only. ")
 	b.WriteString("Do not call tools. Do not invent tools outside this recipe. ")
 	fmt.Fprintf(&b, "End with a short note: %s", OffHint)
 	return b.String()

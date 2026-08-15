@@ -75,6 +75,9 @@ func TestPolishAndFallback(t *testing.T) {
 	if !strings.Contains(p, "cron_schedule") {
 		t.Fatal("polish should mention recurring reminder guidance")
 	}
+	if !strings.Contains(p, "watch_add") {
+		t.Fatal("polish should mention watch subscription guidance")
+	}
 	f := examples.FallbackFormat(s)
 	if !strings.Contains(f, "Demo title") || !strings.Contains(f, examples.OffHint) {
 		t.Fatalf("fallback: %s", f)
@@ -124,5 +127,38 @@ func TestDefaultSeeds_GHealthVsGarminAndReminders(t *testing.T) {
 	}
 	if ids["ghealth-strava-enrich"] {
 		t.Fatal("ghealth enrich should not match garmin-only health catalog")
+	}
+}
+
+func TestDefaultSeeds_FeedsAndTwitter(t *testing.T) {
+	feedsOnly := examples.ServerPrefixes([]provider.ToolDef{
+		{Name: "feeds__items_list"},
+		{Name: "feeds__source_resolve"},
+	})
+	elig := examples.Eligible(examples.DefaultSeeds, feedsOnly)
+	ids := map[string]bool{}
+	for _, s := range elig {
+		ids[s.ID] = true
+	}
+	if !ids["feeds-nws-watch"] {
+		t.Fatalf("feeds catalog missing feeds-nws-watch: %v", ids)
+	}
+	if ids["twitter-watch"] {
+		t.Fatal("twitter-watch should not match feeds-only catalog")
+	}
+
+	twitterOnly := examples.ServerPrefixes([]provider.ToolDef{
+		{Name: "twitter__posts_list"},
+	})
+	elig = examples.Eligible(examples.DefaultSeeds, twitterOnly)
+	ids = map[string]bool{}
+	for _, s := range elig {
+		ids[s.ID] = true
+	}
+	if !ids["twitter-watch"] {
+		t.Fatalf("twitter catalog missing twitter-watch: %v", ids)
+	}
+	if ids["feeds-nws-watch"] {
+		t.Fatal("feeds-nws-watch should not match twitter-only catalog")
 	}
 }
