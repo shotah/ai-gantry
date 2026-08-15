@@ -15,7 +15,6 @@ ticker → Host.Call(tool, args) → compare ids → empty? stop
 
 The first successful poll **seeds the cursor**. Old items are not dumped into
 chat. Fetch tools must already be in the MCP manifest (`{server}__{tool}`).
-This repo does not ship a feed or Twitter binary — those are sibling packages.
 
 ## Config
 
@@ -42,7 +41,39 @@ Example prompts once a fetch tool exists:
 ```text
 Watch the NWS alert feed for Santa Clara and text me if something posts.
 Stop watching NWS.
+Watch @so-and-so on X and text me when they post.
 ```
+
+## Fetch adapters
+
+The poller does not know RSS vs Twitter. A watch row is `tool` + `args`.
+Siblings return the same `{items:[{id,…}]}` JSON.
+
+| Server | Binary | Tools | Auth | Watch args |
+| --- | --- | --- | --- | --- |
+| `feeds` | [feeds-mcp](https://github.com/shotah/feeds-mcp) | `items_list`, `source_resolve` | none (`FEEDS_USER_AGENT` optional for NWS) | `{ url }` |
+| `twitter` | [twitter-mcp](https://github.com/shotah/twitter-mcp) | `posts_list` | `X_BEARER_TOKEN` on the gantry process (child inherits) | `{ handle }` |
+
+```toml
+[[server]]
+name = "feeds"
+command = "feeds-mcp"
+download_tag = "latest"
+download_url = "https://github.com/shotah/feeds-mcp/releases/download/{tag}/feeds-mcp_{version}_{os}_{arch}.tar.gz"
+# tools = ["items_list", "source_resolve"]
+
+[[server]]
+name = "twitter"
+command = "twitter-mcp"
+download_tag = "latest"
+download_url = "https://github.com/shotah/twitter-mcp/releases/download/{tag}/twitter-mcp_{version}_{os}_{arch}.tar.gz"
+# tools = ["posts_list"]
+```
+
+Uncomment in [examples/mcp.toml.example](../examples/mcp.toml.example) (and the
+docker / native / hosting copies). Put `X_BEARER_TOKEN` in `.env`, not in the
+manifest. Prefer a **30–60m** interval for X (pay-per-use). Live-agent enablement
+is a downstream consumer — not documented here.
 
 ## `[silent]`
 

@@ -270,10 +270,10 @@ out unless we are living in that catalog every day.
 
 | Step | What | Where |
 | --- | --- | --- |
-| 1 | **Shipped.** Kernel poller: `watch` table, ticker, `watch_add` / `watch_list` / `watch_cancel`, `Host.Call` + cursor, wake only on new ids. `[silent]` still skips Push. | this repo |
-| 2 | `feeds-mcp` — `items_list` / `source_resolve`, static Go, stdio, GoReleaser | sibling `/home/christopher/feeds-mcp` (see TODO.md) |
-| 3 | `twitter-mcp` — `posts_list`, Bearer token on that child, same item shape | sibling `/home/christopher/twitter-mcp` (see TODO.md) |
-| 4 | Wire both into gantry docs + `mcp.toml` examples (`download_url`, env, `tools` / `exclude`) | this repo |
+| 1 | **Shipped.** Kernel poller | this repo — [docs/watch.md](docs/watch.md) |
+| 2 | **Shipped.** `feeds-mcp` — `items_list` / `source_resolve` | [shotah/feeds-mcp](https://github.com/shotah/feeds-mcp) |
+| 3 | **Shipped.** `twitter-mcp` — `posts_list` | [shotah/twitter-mcp](https://github.com/shotah/twitter-mcp) |
+| 4 | **Shipped.** Docs + `mcp.toml` examples (`download_url`, `tools` / `exclude`) | this repo |
 
 Live-agent enablement is a downstream consumer. Not documented here.
 

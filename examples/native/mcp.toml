@@ -27,3 +27,19 @@
 # command = "mcp-go-math"
 # download_tag = "latest"
 # download_url = "https://github.com/shotah/mcp-go-math/releases/download/{tag}/mcp-go-math_{version}_{os}_{arch}.tar.gz"
+
+# --- RSS / Atom / JSON Feed (shotah/feeds-mcp) — watch: feeds__items_list ----
+# [[server]]
+# name = "feeds"
+# command = "feeds-mcp"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/feeds-mcp/releases/download/{tag}/feeds-mcp_{version}_{os}_{arch}.tar.gz"
+# # tools = ["items_list", "source_resolve"]
+
+# --- X public posts (shotah/twitter-mcp) — watch: twitter__posts_list --------
+# [[server]]
+# name = "twitter"
+# command = "twitter-mcp"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/twitter-mcp/releases/download/{tag}/twitter-mcp_{version}_{os}_{arch}.tar.gz"
+# # X_BEARER_TOKEN must be in gantry.env (child inherits it)

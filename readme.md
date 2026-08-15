@@ -383,6 +383,20 @@ command = "strava-mcp"
 auth_args = ["auth"]
 download_tag = "latest"
 download_url = "https://github.com/shotah/go-strava-mcp/releases/download/{tag}/strava-mcp_{version}_{os}_{arch}.tar.gz"
+
+[[server]]
+name    = "feeds"
+command = "feeds-mcp"
+download_tag = "latest"
+download_url = "https://github.com/shotah/feeds-mcp/releases/download/{tag}/feeds-mcp_{version}_{os}_{arch}.tar.gz"
+# tools = ["items_list", "source_resolve"]  # omit = both
+
+[[server]]
+name    = "twitter"
+command = "twitter-mcp"
+download_tag = "latest"
+download_url = "https://github.com/shotah/twitter-mcp/releases/download/{tag}/twitter-mcp_{version}_{os}_{arch}.tar.gz"
+# X_BEARER_TOKEN in process env (child inherits it). Prefer 30–60m watch interval.
 ```
 
 `download_url` + `download_tag` feed `gantry tools-fetch` (native deploy and

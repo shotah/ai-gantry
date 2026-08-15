@@ -54,3 +54,21 @@
 # [[server]]
 # name = "math"
 # command = "mcp-go-math"
+
+# --- RSS / Atom / JSON Feed (shotah/feeds-mcp) — watch: feeds__items_list ----
+# [[server]]
+# name = "feeds"
+# command = "feeds-mcp"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/feeds-mcp/releases/download/{tag}/feeds-mcp_{version}_{os}_{arch}.tar.gz"
+# # tools = ["items_list", "source_resolve"]
+# # Optional: FEEDS_USER_AGENT in process env (NWS wants a contact UA)
+
+# --- X public posts (shotah/twitter-mcp) — watch: twitter__posts_list --------
+# [[server]]
+# name = "twitter"
+# command = "twitter-mcp"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/twitter-mcp/releases/download/{tag}/twitter-mcp_{version}_{os}_{arch}.tar.gz"
+# # tools = ["posts_list"]
+# # X_BEARER_TOKEN must be in the gantry process env (child inherits it)

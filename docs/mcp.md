@@ -46,6 +46,8 @@ Examples:
 | `cast` | `youtube_beam_video` | `cast__youtube_beam_video` |
 | `garmin` | `sleep_get` | `garmin__sleep_get` |
 | `strava` | `activities_list` | `strava__activities_list` |
+| `feeds` | `items_list` | `feeds__items_list` |
+| `twitter` | `posts_list` | `twitter__posts_list` |
 
 **Why the prefix?** OpenAI-safe characters, no collisions across servers, and
 obvious provenance in logs / collapsed history markers.
@@ -318,4 +320,5 @@ hints without spawning real MCP binaries.
 - [design.md](design.md) — principles / config contract
 - [choices.md](choices.md) — why `{server}__{tool}` and tool-surface budget
 - [security.md](security.md) — MCP child = trusted code
-- Root [readme.md](../readme.md) §5.2 — manifest sketch
+- [watch.md](watch.md) — poller + `feeds-mcp` / `twitter-mcp`
+- Root [readme.md](../readme.md) §4.2 — manifest sketch
