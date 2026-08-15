@@ -34,6 +34,15 @@ endif
 VERSION ?= $(shell git describe --tags --always --dirty 2>$(NULL) || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>$(NULL) || echo none)
 
+# go install lands here; snap/PATH often misses it (pre-commit + make fmt).
+GOBIN_DIR := $(shell go env GOBIN)
+ifeq ($(strip $(GOBIN_DIR)),)
+GOBIN_DIR := $(shell go env GOPATH)/bin
+endif
+ifneq ($(OS),Windows_NT)
+export PATH := $(GOBIN_DIR):$(PATH)
+endif
+
 # Release bump: patch (default), minor, or major. Or set TAG=v0.2.0 explicitly.
 BUMP ?= patch
 
@@ -175,7 +184,7 @@ endif
 tools: ## Install goimports-reviser + golangci-lint v2 into $$GOBIN
 	go install github.com/incu6us/goimports-reviser/v3@latest
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-	@echo Installed tools. Ensure GOPATH/bin is on PATH, then: golangci-lint version
+	@echo Installed to $(GOBIN_DIR). make fmt / the pre-commit hook prepend that dir to PATH.
 
 .PHONY: docker-build
 docker-build: ## Build the container image (gantry:local)

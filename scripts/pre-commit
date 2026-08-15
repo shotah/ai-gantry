@@ -5,6 +5,18 @@ set -eu
 ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT"
 
+# go install puts binaries in GOPATH/bin; that dir is often not on PATH.
+if command -v go >/dev/null 2>&1; then
+	GOBIN=$(go env GOBIN)
+	GOPATH=$(go env GOPATH)
+	if [ -n "$GOBIN" ]; then
+		PATH="$GOBIN:$PATH"
+	elif [ -n "$GOPATH" ]; then
+		PATH="$GOPATH/bin:$PATH"
+	fi
+	export PATH
+fi
+
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM || true)
 
 echo "==> Autofix: goimports-reviser"
