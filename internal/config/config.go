@@ -89,7 +89,7 @@ type Config struct {
 	ExamplesQty               string `env:"EXAMPLES_QTY" envDefault:"1-2"`
 	ExamplesStartHour         int    `env:"EXAMPLES_START_HOUR" envDefault:"6"`
 	ExamplesEndHour           int    `env:"EXAMPLES_END_HOUR" envDefault:"21"`
-	ExamplesSkipRecentMinutes int    `env:"EXAMPLES_SKIP_RECENT_MINUTES" envDefault:"15"`
+	ExamplesSkipRecentMinutes int    `env:"EXAMPLES_SKIP_RECENT_MINUTES" envDefault:"60"`
 
 	StreamReplies bool `env:"STREAM_REPLIES" envDefault:"true"`
 

@@ -37,7 +37,7 @@ check-in would be noise.
 | `EXAMPLES_QTY` | `1-2` | **On by default** capability-example pings. Empty or `0` = no proactive pings. `/examples` on-demand still works |
 | `EXAMPLES_START_HOUR` | `6` | Local window start for examples pings |
 | `EXAMPLES_END_HOUR` | `21` | Local window end (exclusive) |
-| `EXAMPLES_SKIP_RECENT_MINUTES` | `15` | Skip/defer if the human messaged within this many minutes |
+| `EXAMPLES_SKIP_RECENT_MINUTES` | `60` | Skip/defer if the human messaged within this many minutes |
 
 ## Builtin tools
 
@@ -123,7 +123,7 @@ EXAMPLES_QTY=1-2
 EXAMPLES_START_HOUR=6
 EXAMPLES_END_HOUR=21
 # EXAMPLES_QTY=0   # disable proactive pings; /examples still works
-# EXAMPLES_SKIP_RECENT_MINUTES=15
+# EXAMPLES_SKIP_RECENT_MINUTES=60
 ```
 
 ## Inspect with sqlite3
