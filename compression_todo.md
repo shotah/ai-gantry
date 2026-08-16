@@ -166,6 +166,37 @@ skips rows whose content substring-matches the current summary/SELF text.
 It's ≤30 rows, so the ceiling is small — check `hydration_est_tokens` first;
 only worth doing if it's routinely fat.
 
+### 12. Progressive tools (list servers, expand one) — **later · M**
+
+Live `/tokens` showed `schemas 17715` — same order as history. The ask:
+send 8 server names, expand Garmin only when he picks it. Or send schemas
+once and cache.
+
+**Cache (“send once”) is already the local/cloud story if the tool list
+never changes.** OpenAI/Gemini cache the *tools array as part of the
+prefix*; Ollama KV-cache does the same. Gantry already sorts
+`Host.Tools()` so a reshuffle does not cost ~68s of re-prefill. `/tokens`
+still prints the full 17k (what we *send*), not the discounted/cached
+bill. You cannot omit tools on later turns and still call them — the
+model only sees this request. Expanding a server mid-chat *changes* the
+tools array and **busts** that cache.
+
+**Expand-on-demand is a real 2026 pattern** (Anthropic `defer_loading` +
+tool search; “progressive tool loading”). Their API hides the expansion.
+On our OpenAI-compat loop we would own it: builtin `mcp_open(server)`
+swaps the published set, extra turn, then the real call. Small local
+models already misspell names — a two-step “pick server, then tool” is
+another miss. Extra Completer call = persona+history billed again.
+
+**Do first, no new loop:** `mcp.toml` `tools` / `exclude` / `--tool-tier
+core`. That is progressive loading with the operator as the search tool.
+Keep always-on: memory / self_note / calendar-ish core. Defer flights /
+rentals / youtube until a week you actually use them.
+
+Build the expand dance only if a curated catalog is still >~8k on
+`/tokens` *and* we are willing to spend a turn + bust cache to open a
+server.
+
 ---
 
 ## Revert plan
