@@ -99,13 +99,15 @@ Boring on purpose:
 | Mechanism | Behavior |
 | --- | --- |
 | History caps | Drop oldest past `HISTORY_MAX_MESSAGES` / `HISTORY_MAX_TOKENS` (chars/4 **estimate**) |
-| Rolling summary | Trimmed turns fold into `session.summary` via the same LLM; reinjected later |
+| Rolling summary | Trimmed turns fold into `session.summary` (`Facts:` + `Voice:`) via the same LLM; Voice copies forward; reinjected later |
 | Tool truncate | Each MCP/memory tool result capped at `TOOL_RESULT_MAX_CHARS` |
-| Tool collapse | Tool payloads older than the last 4 become one-line markers |
+| Tool collapse | Tool payloads older than the last 2 become one-line markers; matching tool-call args are stubbed |
 | Iteration cap | `TOOL_MAX_ITERATIONS` tool rounds, then one landing call with tools withheld forces a text reply (warning to the model at ~70%) |
 | Self-notes | Agent-writable `SELF.md` (`self_note` + distill on `/new`); operator must audit/prune if personality drifts — [troubleshooting.md](troubleshooting.md#selfmd--personality-drift) |
 
-`/new` clears session history + summary. Memory is untouched.
+`/new` clears session history + summary. `Voice:` distills into `SELF.md`;
+`Facts:` park as a memory episode. Existing memory rows stay. `USER.md` is
+never written.
 
 ## Memory design
 
@@ -144,7 +146,7 @@ recalled rows. Contradictions should be surfaced to the user, not obeyed.
 | `gantry version` | Build ldflags |
 | SIGTERM / Interrupt | Stop channel → drain in-flight turn → close MCP → close DB |
 | Logs | JSON `slog` on stderr (`docker logs`) |
-| Chat cmds | `/new`, `/cancel`, `/status`, `/tools`, `/examples`, `/perf`, `/memstats`, `/toolstats`, `/auth`, `/help` (SIGHUP reloads persona on unix) |
+| Chat cmds | `/new`, `/cancel`, `/status`, `/tools`, `/examples`, `/perf`, `/memstats`, `/toolstats`, `/tokens`, `/auth`, `/help` (SIGHUP reloads persona on unix) |
 | Multi-bubble | Interrupt + coalesce + settle (`COALESCE_SETTLE_MS`, default 2s) |
 | Photos | Telegram inbound → multimodal user turn; outbound `SendPhoto` for image URLs in reply |
 

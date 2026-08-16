@@ -18,6 +18,7 @@ const helpText = `/new — reset this session's history
 /perf — last turns' timing split
 /memstats — memory row counts and consolidation
 /toolstats — per-tool call ledger since boot
+/tokens — prompt token breakdown (estimates)
 /auth — remote OAuth (url / paste code; see guide)
 /help — this list`
 

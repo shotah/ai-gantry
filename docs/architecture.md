@@ -130,7 +130,7 @@ sequenceDiagram
     A->>M: Hydrate(query, ~30)
     A->>A: assemble system blocks + history + user
     loop until final text (at TOOL_MAX_ITERATIONS a no-tools landing call forces one)
-      A->>A: collapse tool results older than last 4
+      A->>A: collapse tool results older than last 2 (and stub their args)
       A->>L: Complete(messages, tool schemas)
       alt tool_calls
         loop each call
@@ -188,7 +188,8 @@ One WAL SQLite file: `$DATA_DIR/gantry.db`.
 | `memory` / `memory_fts` | `memory` | structured long-term memory |
 | `heartbeat` | `heartbeat` | singleton row for `gantry status` |
 
-`/new` deletes the session row (cascade messages + summary). Memory rows are
+`/new` deletes the session row (cascade messages + summary) after `Voice:`
+distills into `SELF.md` and `Facts:` park as a memory episode. Memory rows are
 untouched.
 
 ## Prompt assembly (order)

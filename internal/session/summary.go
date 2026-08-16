@@ -20,11 +20,24 @@ type LLMSummarizer struct {
 }
 
 const summarizeSystem = `You maintain a rolling conversation summary for a personal agent.
-Merge the dropped turns into the prior summary. Keep it short (one tight paragraph).
-Preserve durable facts, preferences, open tasks, and names. Drop chitchat.
+Merge the dropped turns into the prior summary. Reply with ONLY this shape
+(no markdown fences, no preamble):
+
+Facts: <one tight paragraph>
+Voice: <2–4 short lines>
+
+Facts: durable facts, preferences, open tasks, and names. Drop other chitchat.
 Use absolute dates (2006-01-02) for anything time-bound — never yesterday, tomorrow,
 this morning, or a weekday alone (those go stale when the week rolls).
-Reply with ONLY the updated summary text — no markdown fences, no preamble.`
+
+Voice: today's register, nicknames in play, the current game, and running jokes.
+Quote a joke's exact wording — a paraphrased joke is a dead joke. Keep up to 3
+short verbatim quotes (each under ~100 characters).
+Copy the prior Voice block forward UNCHANGED unless a new joke, nickname, or
+game appeared in the dropped turns. When something new lands, add or replace
+one line and keep the exact wording. Do not paraphrase existing quotes.
+If the prior summary has no Voice: line, start one from the dropped turns
+(or leave Voice empty if nothing tonal happened).`
 
 const (
 	maxFoldMsgChars   = 1200
@@ -70,7 +83,75 @@ func (s *LLMSummarizer) Fold(ctx context.Context, prior string, dropped []Messag
 	if out == "" {
 		return prior, fmt.Errorf("session: empty summary from model")
 	}
-	return clipRunes(out, maxSummaryChars), nil
+	return clipRunes(ensureVoiceLedger(prior, out), maxSummaryChars), nil
+}
+
+const (
+	factsLabel = "Facts:"
+	voiceLabel = "Voice:"
+)
+
+// ensureVoiceLedger keeps a Facts:/Voice: shape even when a small model
+// forgets the labels. Prior Voice is copied forward if the new text omits it.
+func ensureVoiceLedger(prior, out string) string {
+	facts, voice, hasVoice := splitLedger(out)
+	if !hasVoice || strings.TrimSpace(voice) == "" {
+		if _, priorVoice, priorHas := splitLedger(prior); priorHas && strings.TrimSpace(priorVoice) != "" {
+			voice = strings.TrimSpace(priorVoice)
+		}
+	}
+	if strings.TrimSpace(facts) == "" && strings.TrimSpace(voice) == "" {
+		return strings.TrimSpace(out)
+	}
+	if strings.TrimSpace(voice) == "" {
+		return factsLabel + " " + strings.TrimSpace(facts)
+	}
+	if strings.TrimSpace(facts) == "" {
+		return voiceLabel + " " + strings.TrimSpace(voice)
+	}
+	return factsLabel + " " + strings.TrimSpace(facts) + "\n" + voiceLabel + " " + strings.TrimSpace(voice)
+}
+
+// LedgerParts splits a session summary into Facts and Voice.
+// An unlabeled legacy paragraph is returned as facts with empty voice.
+func LedgerParts(s string) (facts, voice string) {
+	facts, voice, _ = splitLedger(s)
+	return strings.TrimSpace(facts), strings.TrimSpace(voice)
+}
+
+func splitLedger(s string) (facts, voice string, hasVoice bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", "", false
+	}
+	voiceAt := indexLineLabel(s, voiceLabel)
+	if voiceAt < 0 {
+		if factsAt := indexLineLabel(s, factsLabel); factsAt == 0 {
+			return strings.TrimSpace(s[len(factsLabel):]), "", false
+		}
+		return s, "", false
+	}
+	head := strings.TrimSpace(s[:voiceAt])
+	voice = strings.TrimSpace(s[voiceAt+len(voiceLabel):])
+	if factsAt := indexLineLabel(head, factsLabel); factsAt == 0 {
+		facts = strings.TrimSpace(head[len(factsLabel):])
+	} else {
+		facts = head
+	}
+	return facts, voice, true
+}
+
+func indexLineLabel(s, label string) int {
+	lower := strings.ToLower(s)
+	want := strings.ToLower(label)
+	if strings.HasPrefix(lower, want) {
+		return 0
+	}
+	i := strings.Index(lower, "\n"+want)
+	if i < 0 {
+		return -1
+	}
+	return i + 1
 }
 
 func clipRunes(s string, limit int) string {

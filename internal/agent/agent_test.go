@@ -38,12 +38,13 @@ func (f *fakeCompleter) Complete(_ context.Context, req provider.Request) (*prov
 }
 
 type memHistory struct {
-	mu   sync.Mutex
-	data map[string][]session.Message
+	mu      sync.Mutex
+	data    map[string][]session.Message
+	summary map[string]string
 }
 
 func newMemHistory() *memHistory {
-	return &memHistory{data: make(map[string][]session.Message)}
+	return &memHistory{data: make(map[string][]session.Message), summary: make(map[string]string)}
 }
 
 func (m *memHistory) Messages(_ context.Context, id string) ([]session.Message, error) {
@@ -63,6 +64,7 @@ func (m *memHistory) Reset(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.data, id)
+	delete(m.summary, id)
 	return nil
 }
 
@@ -74,8 +76,16 @@ func (m *memHistory) Stats(ctx context.Context, id string) (int, int, error) {
 	return len(msgs), session.EstTokens(msgs), nil
 }
 
-func (m *memHistory) Summary(_ context.Context, _ string) (string, error) {
-	return "", nil
+func (m *memHistory) Summary(_ context.Context, id string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.summary[id], nil
+}
+
+func (m *memHistory) setSummary(id, s string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.summary[id] = s
 }
 
 type fakeTools struct {
@@ -1052,6 +1062,40 @@ func TestAgent_MemStats(t *testing.T) {
 	}
 }
 
+func TestAgent_Tokens(t *testing.T) {
+	hist := newMemHistory()
+	hist.setSummary("s", "chris likes espresso")
+	if err := hist.Append(context.Background(), "s",
+		session.Message{Role: session.RoleUser, Content: "hi"},
+		session.Message{Role: session.RoleAssistant, Content: "hello"},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	a, err := agent.New(agent.Options{
+		Persona:   "you are a test persona with some padding text",
+		Completer: &fakeCompleter{},
+		Sessions:  hist,
+		Tools:     &fakeTools{defs: []provider.ToolDef{{Name: "a__b", Description: "demo"}}},
+		Model:     "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "/tokens"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"tokens (chars/4 estimates)", "persona", "summary", "history", "hydration", "schemas", "standing", "(2 msgs)", "(off)"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("tokens missing %q:\n%s", want, got)
+		}
+	}
+	if !strings.Contains(got, "summary") || strings.Contains(got, "  summary     0\n") {
+		t.Fatalf("expected non-zero summary estimate:\n%s", got)
+	}
+}
+
 func TestAgent_Help(t *testing.T) {
 	a, err := agent.New(agent.Options{Completer: &fakeCompleter{}, Sessions: newMemHistory(), Model: "m"})
 	if err != nil {
@@ -1061,7 +1105,7 @@ func TestAgent_Help(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, cmd := range []string{"/new", "/cancel", "/status", "/tools", "/perf", "/memstats", "/toolstats", "/auth", "/help"} {
+	for _, cmd := range []string{"/new", "/cancel", "/status", "/tools", "/perf", "/memstats", "/toolstats", "/tokens", "/auth", "/help"} {
 		if !strings.Contains(got, cmd) {
 			t.Fatalf("help missing %s: %q", cmd, got)
 		}

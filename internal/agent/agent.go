@@ -281,6 +281,7 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			unlock := a.lockSession(msg.SessionID)
 			defer unlock()
 			a.coalesceClear(msg.SessionID)
+			parked := a.parkSessionFacts(ctx, msg.SessionID)
 			distilled := false
 			if a.selfNotes != nil {
 				distilled = a.distillSelf(ctx, msg.SessionID)
@@ -288,10 +289,16 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			if err := a.sessions.Reset(ctx, msg.SessionID); err != nil {
 				return "", err
 			}
-			if distilled {
+			switch {
+			case distilled && parked:
+				return "session reset — personality distilled into SELF.md; session facts parked in memory", nil
+			case distilled:
 				return "session reset — personality distilled into SELF.md", nil
+			case parked:
+				return "session reset — session facts parked in memory", nil
+			default:
+				return "session reset", nil
 			}
-			return "session reset", nil
 		case "/status":
 			unlock := a.lockSession(msg.SessionID)
 			defer unlock()
@@ -312,6 +319,10 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			unlock := a.lockSession(msg.SessionID)
 			defer unlock()
 			return a.formatToolStats(), nil
+		case "/tokens":
+			unlock := a.lockSession(msg.SessionID)
+			defer unlock()
+			return a.formatTokens(ctx, msg.SessionID)
 		case "/help":
 			unlock := a.lockSession(msg.SessionID)
 			defer unlock()

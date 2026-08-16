@@ -46,7 +46,7 @@ Chat + memory + cron work with zero MCP servers. First checks:
 | `hi` | Short reply in character |
 | `/status` | uptime, model, history, tool count |
 | `/tools` | builtin memory/cron + `self_note` (MCP empty until servers are granted) |
-| `/new` | `session reset` (or `… — personality distilled into SELF.md` after a real chat) |
+| `/new` | `session reset` (or distilled into `SELF.md` / facts parked in memory after a real chat) |
 
 ### Discord or Slack
 

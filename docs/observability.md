@@ -8,7 +8,7 @@ observable from three places:
 | Signal | Source | Where to look |
 | --- | --- | --- |
 | Per-turn timing + token estimates | gantry's JSON `slog` on stderr | `journalctl -u gantry` / `docker logs` |
-| Slow turn / memory health / tool offender | slash commands (kernel-side) | `/perf` · `/memstats` · `/toolstats` in chat |
+| Slow turn / memory health / tool offender / prompt size | slash commands (kernel-side) | `/perf` · `/memstats` · `/toolstats` · `/tokens` in chat |
 | Process CPU / RAM (gantry + MCP children) | the supervisor's cgroup accounting | `systemctl status` / `docker stats` |
 | Model RAM / VRAM, residency, offload split | Ollama's own CLI + GPU tools | `ollama ps`, `nvidia-smi`, … |
 | Memory rows, session size, disk | the SQLite file itself | `sqlite3 data/gantry.db` · or `/memstats` |
@@ -135,10 +135,11 @@ journalctl -u gantry -b | grep -E 'tools_listed|tools_published|est_tokens'
 ```
 
 In-chat, `/status` shows session bounds and estimates without touching the
-host; `/perf` / `/memstats` / `/toolstats` answer the usual follow-ups (why
-was that turn slow, is memory consolidating, which MCP is chronic) without
-SSH. `TELEGRAM_ERROR_REPORTING=error` tees error-level logs into the
-chat as expandable blocks when you can't reach a terminal.
+host; `/tokens` breaks the standing prompt into persona / summary / history /
+hydration / schemas; `/perf` / `/memstats` / `/toolstats` answer the usual
+follow-ups (why was that turn slow, is memory consolidating, which MCP is
+chronic) without SSH. `TELEGRAM_ERROR_REPORTING=error` tees error-level logs
+into the chat as expandable blocks when you can't reach a terminal.
 
 ---
 

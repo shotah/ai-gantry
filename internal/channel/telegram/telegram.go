@@ -124,6 +124,7 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 			{Command: "perf", Description: "Last turns' timing split"},
 			{Command: "memstats", Description: "Memory row counts and consolidation"},
 			{Command: "toolstats", Description: "Per-tool call ledger since boot"},
+			{Command: "tokens", Description: "Prompt token breakdown (estimates)"},
 			{Command: "auth", Description: "Remote OAuth (URL / paste code)"},
 			{Command: "help", Description: "List commands"},
 		},

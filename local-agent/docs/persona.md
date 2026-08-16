@@ -27,7 +27,7 @@ local models aren’t flooded. Hard tool-discipline (“no lazy tools”) lives 
 | --- | --- |
 | `SOUL.md` | Who the agent is — name/vibe, OpenClaw-style core truths, lab energy, communication |
 | `SELF.md` | Who the agent has **become** — agent-written (`self_note` tool + distill on `/new`); capped ~4KB; prune freely |
-| `RULES.md` | Operating rules — **no lazy tools**, have a spine, tool budget, identity lock, execute bias, safety, memory hygiene |
+| `RULES.md` | Operating rules — **no lazy tools**, have a spine, tool budget, identity lock, safety, memory hygiene |
 | `USER.md` | Who Chris is — **canonical email lives here**, directives, gyms, prefs |
 | `TOOLS.md` | MCP recipes only — exact tool names, Google/fitness/feeds/maps/cast/search how-tos |
 

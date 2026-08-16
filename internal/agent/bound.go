@@ -1,20 +1,26 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
 // keepRecentToolResults is how many trailing tool payloads stay in full.
-// Older tool results collapse to a one-line marker (readme §6 bounding rules).
+// Older tool results collapse to a one-line marker (readme §5 bounding rules).
 // Search-heavy MCPs (flights/rentals/cars) re-send results each iteration, so
 // keeping 2 (not 4) cuts in-turn prefill without losing the latest evidence.
 const keepRecentToolResults = 2
 
-// collapseOldToolResults shortens tool payloads older than the recent window.
-// Within the window, older results that share a tool name with a newer one are
-// also collapsed so repeated flights__offers_search calls do not stack.
+// collapsedToolArgs is the stub left on aging assistant tool-call arguments.
+// Name and id stay so the provider can pair the collapsed result.
+const collapsedToolArgs = "{}"
+
+// collapseOldToolResults shortens tool payloads older than the recent window
+// and stubs the matching assistant tool-call argument JSON. Within the window,
+// older results that share a tool name with a newer one are also collapsed so
+// repeated flights__offers_search calls do not stack.
 func collapseOldToolResults(messages []provider.Message) []provider.Message {
 	var toolIdx []int
 	for i, m := range messages {
@@ -48,6 +54,7 @@ func collapseOldToolResults(messages []provider.Message) []provider.Message {
 
 	out := make([]provider.Message, len(messages))
 	copy(out, messages)
+	collapsedIDs := make(map[string]bool)
 	for _, i := range toolIdx {
 		name := names[out[i].ToolCallID]
 		if name == "" {
@@ -58,8 +65,60 @@ func collapseOldToolResults(messages []provider.Message) []provider.Message {
 			continue
 		}
 		out[i].Content = fmt.Sprintf("[tool %s: %d chars, truncated]", name, len(messages[i].Content))
+		if id := out[i].ToolCallID; id != "" {
+			collapsedIDs[id] = true
+		}
+	}
+	if len(collapsedIDs) > 0 {
+		collapseOldToolCallArgs(out, collapsedIDs)
 	}
 	return out
+}
+
+// collapseOldToolCallArgs stubs argument JSON on assistant tool calls whose
+// results were collapsed. Copies the ToolCalls slice so the caller's messages
+// are not mutated. Gemini thought_signature in Raw is kept; only arguments shrink.
+func collapseOldToolCallArgs(messages []provider.Message, collapsedIDs map[string]bool) {
+	for i, m := range messages {
+		if m.Role != provider.RoleAssistant || len(m.ToolCalls) == 0 {
+			continue
+		}
+		copied := false
+		for j, tc := range m.ToolCalls {
+			if !collapsedIDs[tc.ID] {
+				continue
+			}
+			if !copied {
+				calls := make([]provider.ToolCall, len(m.ToolCalls))
+				copy(calls, m.ToolCalls)
+				messages[i].ToolCalls = calls
+				copied = true
+			}
+			messages[i].ToolCalls[j] = stubToolCallArgs(messages[i].ToolCalls[j])
+		}
+	}
+}
+
+func stubToolCallArgs(tc provider.ToolCall) provider.ToolCall {
+	tc.Arguments = collapsedToolArgs
+	if len(tc.Raw) == 0 {
+		return tc
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(tc.Raw, &payload); err != nil {
+		tc.Raw = nil
+		return tc
+	}
+	if fn, ok := payload["function"].(map[string]any); ok {
+		fn["arguments"] = collapsedToolArgs
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		tc.Raw = nil
+		return tc
+	}
+	tc.Raw = b
+	return tc
 }
 
 func toolCallNames(messages []provider.Message) map[string]string {

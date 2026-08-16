@@ -62,6 +62,7 @@ No approval step — if the allowlist is right, it just replies.
 | `/perf` | Last ~12 turns' timing split (`model` / `tool` / `first_token` / `volatile`) |
 | `/memstats` | Memory row counts, decay state, consolidation backlog |
 | `/toolstats` | Per-tool call ledger since boot (avg/max, repairs) |
+| `/tokens` | Standing prompt token breakdown (persona / summary / history / hydration / schemas) |
 | `/auth` | Remote OAuth without a port — URL then paste code ([auth guide](https://github.com/shotah/ai-gantry/blob/main/docs/auth.md)) |
 | `/help` | One-line list of commands |
 
@@ -77,6 +78,7 @@ tools - prefixed tool catalog
 perf - last turns' timing split
 memstats - memory health
 toolstats - per-tool call ledger
+tokens - prompt token breakdown
 auth - remote OAuth (see docs/auth.md)
 help - list commands
 ```
@@ -128,8 +130,8 @@ gantry keeps the prompt bounded with env knobs (defaults are sane; all in
 - `TOOL_RESULT_MAX_CHARS=6000` — trims huge single tool results (Gmail / flights / rentals dumps).
   Native/Ollama deploys default to `6000`: results are re-sent on every tool
   loop iteration, so the cap multiplies prefill cost
-- Tool results older than the last 4 turns collapse to a one-line stub
-- Trimmed turns fold into a rolling per-session **summary** via the same LLM
+- Tool results older than the last 2 in-turn payloads collapse to a one-line stub; matching tool-call args are stubbed
+- Trimmed turns fold into a rolling per-session **summary** (`Facts:` + `Voice:`) via the same LLM
 
 Gemini 3.5's ~1M window leaves headroom, but fat tool results still make
 answers worse without these caps. `/new` remains the hard **session** reset.

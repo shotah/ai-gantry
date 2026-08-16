@@ -107,7 +107,7 @@ bot start (`setMyCommands`); type `/help` anytime.
 
 | Command | What it does |
 | --- | --- |
-| `/status` `/perf` `/memstats` `/toolstats` | Session bounds, last-turn timing, memory health, MCP ledger |
+| `/status` `/perf` `/memstats` `/toolstats` `/tokens` | Session bounds, last-turn timing, memory health, MCP ledger, prompt token breakdown |
 | `/tools` `/examples` `/new` `/cancel` `/help` | Catalog, capability ideas (`/examples on` / `off`), reset session (**distills personality into `SELF.md`**), abort in-flight turn |
 | **`/auth`** | **Headless MCP OAuth** — paste a code from a static catch page; no laptop `localhost` callback |
 
@@ -126,7 +126,7 @@ Gantry keeps that growth on purpose:
 | --- | --- |
 | **`SELF.md`** | Agent-writable notes in `PERSONA_DIR` — voice, humor, running jokes, rituals |
 | **`self_note`** | Builtin tool: jot one short line when personality happens mid-chat |
-| **Distill on `/new`** | Before the session wipe, one model pass rewrites `SELF.md` from the dying chat + existing notes |
+| **Distill on `/new`** | Before the session wipe: `Voice:` folds into `SELF.md`; `Facts:` park in SQLite memory (not `USER.md`) |
 
 Operator files (`SOUL.md` / `RULES.md` / `USER.md` / `TOOLS.md`) stay yours.
 `SELF.md` is the only file the agent may write — capped (~4KB), greppable,
@@ -486,12 +486,15 @@ Bounding rules:
   they surface (logs, `/status`) — see §9. Persona + last N turns are
   always protected.
 - When history is trimmed, dropped turns fold into a persistent per-session
-  `summary` paragraph via the same LLM (one string — not a framework). The
-  summary is injected as a system block on later turns.
-- Tool results older than the last 4 collapse to one line:
-  `[tool gmail.search: N chars, truncated]`.
-- `/new` wipes the session (memory untouched). When self-notes are enabled,
-  a distill pass rewrites `SELF.md` first so personality survives the reset.
+  `summary` via the same LLM (one string — `Facts:` + `Voice:`). Facts churn;
+  Voice copies forward so jokes and nicknames survive the trim. Injected as a
+  system block on later turns.
+- Tool results older than the last 2 collapse to one line
+  (`[tool gmail.search: N chars, truncated]`); matching tool-call argument
+  JSON is stubbed the same way. Session history never stores tool payloads.
+- `/new` wipes the session. `Voice:` folds into `SELF.md` (when self-notes
+  are enabled). `Facts:` park as a memory episode for the consolidator —
+  `USER.md` is operator-owned and is never written. Existing memory rows stay.
 
 ### 5.1 Self-notes (`SELF.md`) — grown personality
 
@@ -502,8 +505,9 @@ Persona files describe who the agent **should** be. `SELF.md` is who it
   → `RULES` → `USER` → `TOOLS`).
 - Mid-chat: `self_note` appends one short line (model already sees the full
   file in the persona, so it can skip duplicates).
-- On `/new`: full rewrite distill (keep what matters, fold in the dying
-  session, ≤30 bullets) — not a blind append.
+- On `/new`: full rewrite distill (keep what matters, fold in `[session voice]`
+  + the dying chat, ≤30 bullets) — not a blind append. Session `Facts:` go to
+  memory, not `SELF.md` and not `USER.md`.
 - Cap ~4KB; at capacity the tool refuses until distill or you prune.
 - Needs a **writable** persona directory (`SELF_NOTES_ENABLED`, default on).
 
@@ -612,7 +616,7 @@ UI. ChatOps is not a compromise for an agent — it is the point.
 - Consumption & timing without a dashboard — RAM/VRAM (`ollama ps`, not `top`),
   per-turn `jq` recipes, `docker stats`: **[docs/observability.md](docs/observability.md)**.
 - Telegram/stdio slash commands (also in the pitch above): `/new` `/cancel`
-  `/status` `/tools` `/examples` `/perf` `/memstats` `/toolstats` `/auth` `/help`;
+  `/status` `/tools` `/examples` `/perf` `/memstats` `/toolstats` `/tokens` `/auth` `/help`;
   Telegram menu is pushed via `setMyCommands` on connect. Unix `SIGHUP`
   reloads persona. Headless tool OAuth: **[docs/auth.md](docs/auth.md)**.
 - **Multi-bubble (interrupt → coalesce → settle):** a lone message runs at once;
