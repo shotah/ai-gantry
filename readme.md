@@ -333,7 +333,8 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `DATA_DIR` | no | `/data` |
 | `MCP_MANIFEST` | no | `/etc/gantry/mcp.toml` |
 | `HISTORY_MAX_MESSAGES` | no | `200` |
-| `HISTORY_MAX_TOKENS` | no | `128000` |
+| `HISTORY_MAX_TOKENS` | no | `32000` (chars/4 estimate; older turns fold into `Facts:` / `Voice:`) |
+| `HISTORY_STRIP_FILLERS` | no | `true` (prompt-only; last 5 history messages stay verbatim; `false` disables) |
 | `TOOL_RESULT_MAX_CHARS` | no | `6000` |
 | `TOOL_MAX_ITERATIONS` | no | `10` (tool rounds per turn; at the cap a final no-tools call forces a text reply) |
 | `TOOL_SCHEMA_MAX_TOKENS` | no | `0` (log estimate only; `>0` = hard fail if over) |
@@ -481,10 +482,12 @@ split is the difference between a prefill problem and a slow MCP —
 
 Bounding rules:
 
-- Hard cap `HISTORY_MAX_MESSAGES`; drop oldest turns past `HISTORY_MAX_TOKENS`.
-  Token counts are chars/4 **estimates** and are labeled as such everywhere
-  they surface (logs, `/status`) — see §9. Persona + last N turns are
-  always protected.
+- Hard cap `HISTORY_MAX_MESSAGES`; drop oldest turns past `HISTORY_MAX_TOKENS`
+  (default **32000** est). Token counts are chars/4 **estimates** and are
+  labeled as such everywhere they surface (logs, `/status`) — see §9.
+  Persona + last N turns are always protected. Older-than-last-5 history
+  messages drop a small Go word list (`the`/`a`/`is`/…) in the prompt only;
+  quoted jokes and the tail stay verbatim. SQLite is not rewritten.
 - When history is trimmed, dropped turns fold into a persistent per-session
   `summary` via the same LLM (one string — `Facts:` + `Voice:`). Facts churn;
   Voice copies forward so jokes and nicknames survive the trim. Injected as a

@@ -96,6 +96,8 @@ type Options struct {
 	MCPManifest string
 	// Examples is optional; enables /examples (instant + on/off for proactive pings).
 	Examples ExamplesControl
+	// HistoryStripFillers applies session.StripFillerHistory at prompt time.
+	HistoryStripFillers bool
 }
 
 // Agent runs the prompt → model → (tools) → reply loop.
@@ -136,6 +138,8 @@ type Agent struct {
 
 	mcpManifest string
 	examples    ExamplesControl
+
+	stripFillers bool
 }
 
 // New creates an Agent. Completer and Sessions are required.
@@ -191,6 +195,7 @@ func New(opts Options) (*Agent, error) {
 		consolidator:   opts.Consolidator,
 		mcpManifest:    strings.TrimSpace(opts.MCPManifest),
 		examples:       opts.Examples,
+		stripFillers:   opts.HistoryStripFillers,
 		perf:           newPerfRing(started),
 	}
 	a.initTurns()
@@ -384,6 +389,10 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	// the next digest. Keep them in SQLite; omit them from this turn's prompt.
 	if src := turnSource(text); src == "cron" || src == "watch" {
 		history = dropCronHistory(history)
+	}
+	// Prompt-only: SQLite keeps the original. Last 5 messages stay verbatim.
+	if a.stripFillers {
+		history = session.StripFillerHistory(history)
 	}
 	for _, h := range history {
 		messages = append(messages, provider.Message{

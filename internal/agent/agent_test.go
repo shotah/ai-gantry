@@ -1376,3 +1376,51 @@ func warningText(req provider.Request) string {
 	}
 	return ""
 }
+
+func TestAgent_StripFillersOnOldHistory(t *testing.T) {
+	var seen []provider.Message
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		seen = append([]provider.Message(nil), req.Messages...)
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	hist := newMemHistory()
+	for i := 0; i < 6; i++ {
+		if err := hist.Append(context.Background(), "s",
+			session.Message{Role: session.RoleUser, Content: "the calendar on Tuesday"},
+			session.Message{Role: session.RoleAssistant, Content: "the day is clear"},
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a, err := agent.New(agent.Options{
+		Completer:           fc,
+		Sessions:            hist,
+		Model:               "m",
+		HistoryStripFillers: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "hi"}); err != nil {
+		t.Fatal(err)
+	}
+	var users []string
+	for _, m := range seen {
+		if m.Role == provider.RoleUser {
+			users = append(users, m.Content)
+		}
+	}
+	if len(users) < 2 {
+		t.Fatalf("user msgs=%v", users)
+	}
+	if users[0] == "the calendar on Tuesday" || strings.Contains(users[0], " the ") {
+		t.Fatalf("oldest history not stripped: %q", users[0])
+	}
+	if users[len(users)-1] != "hi" {
+		t.Fatalf("current user = %q", users[len(users)-1])
+	}
+	stored, _ := hist.Messages(context.Background(), "s")
+	if stored[0].Content != "the calendar on Tuesday" {
+		t.Fatalf("SQLite rewritten: %q", stored[0].Content)
+	}
+}

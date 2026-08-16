@@ -49,9 +49,12 @@ type Config struct {
 	MCPManifest string `env:"MCP_MANIFEST" envDefault:"/etc/gantry/mcp.toml"`
 
 	HistoryMaxMessages int `env:"HISTORY_MAX_MESSAGES" envDefault:"200"`
-	HistoryMaxTokens   int `env:"HISTORY_MAX_TOKENS" envDefault:"128000"` // estimated (chars/4)
-	ToolResultMaxChars int `env:"TOOL_RESULT_MAX_CHARS" envDefault:"6000"`
-	ToolMaxIterations  int `env:"TOOL_MAX_ITERATIONS" envDefault:"10"`
+	HistoryMaxTokens   int `env:"HISTORY_MAX_TOKENS" envDefault:"32000"` // estimated (chars/4); older turns fold into Facts/Voice
+	// HistoryStripFillers drops a small function-word list from history older
+	// than the last 5 messages at prompt time (SQLite stays verbatim).
+	HistoryStripFillers bool `env:"HISTORY_STRIP_FILLERS" envDefault:"true"`
+	ToolResultMaxChars  int  `env:"TOOL_RESULT_MAX_CHARS" envDefault:"6000"`
+	ToolMaxIterations   int  `env:"TOOL_MAX_ITERATIONS" envDefault:"10"`
 	// ToolSchemaMaxTokens is an optional hard cap on estimated tool-schema tokens
 	// (chars/4 of name+description+parameters). 0 = log estimate only.
 	ToolSchemaMaxTokens int `env:"TOOL_SCHEMA_MAX_TOKENS" envDefault:"0"`

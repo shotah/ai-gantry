@@ -49,7 +49,7 @@ func Open(dataDir string, maxMessages, maxEstTokens int) (*Store, error) {
 		maxMessages = 200
 	}
 	if maxEstTokens < 1 {
-		maxEstTokens = 128000
+		maxEstTokens = 32000
 	}
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return nil, fmt.Errorf("session: mkdir data dir: %w", err)

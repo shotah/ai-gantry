@@ -41,8 +41,11 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if cfg.HistoryMaxMessages != 200 {
 		t.Errorf("HistoryMaxMessages = %d, want 200", cfg.HistoryMaxMessages)
 	}
-	if cfg.HistoryMaxTokens != 128000 {
-		t.Errorf("HistoryMaxTokens = %d, want 128000", cfg.HistoryMaxTokens)
+	if cfg.HistoryMaxTokens != 32000 {
+		t.Errorf("HistoryMaxTokens = %d, want 32000", cfg.HistoryMaxTokens)
+	}
+	if !cfg.HistoryStripFillers {
+		t.Error("HistoryStripFillers = false, want true")
 	}
 	if cfg.ToolResultMaxChars != 6000 {
 		t.Errorf("ToolResultMaxChars = %d, want 6000", cfg.ToolResultMaxChars)

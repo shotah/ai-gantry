@@ -40,7 +40,7 @@ Per-turn logs already carry `prompt_est_tokens`, `volatile_est_tokens`,
 | Persona (SOUL+RULES+USER+TOOLS) | ~14 KB ≈ ~3.5k tokens after the diet (was ~19 KB) | none |
 | SELF.md | ≤ 4 KB ≈ ~1k tokens | capped |
 | Session summary | ≤ 2000 chars | capped, but churns |
-| History | 200 msgs / 128k est tokens | huge default |
+| History | 200 msgs / 32k est tokens (was 128k) | fold into Facts/Voice |
 | Memory hydration | ≤ 30 rows | capped |
 | Tool schemas | per-manifest; `est_tokens` logged at boot | curation only |
 | Tool results in-loop | 6000 chars each; collapse older than last 2 (args stubbed too) | capped |
@@ -108,14 +108,17 @@ lobotomize the humor.
 
 ### 6. Tiered history: verbatim → one-liners → paragraph — **later · M**
 
-Today history is binary: full verbatim until trimmed, then melted into one
-paragraph. Add a middle tier. Oldest = rolling summary (exists). Middle =
-one line per turn (`user asked X / agent did Y, joked Z`). Recent = verbatim.
-Tone degrades gradually instead of falling off a cliff, and the middle tier
-compresses ~10:1. This is the "some algorithm" you were reaching for, and it
-lives entirely in `internal/session` + the existing summarizer. Do it only
-if `/tokens` says history dominates (default bounds are so wide it probably
-does on long sessions).
+**Shipped (lite):** Go word-list strip at prompt assembly
+(`internal/session/filler.go`). Last 5 messages verbatim. Double-quoted
+spans untouched. List checked against NLTK (179, too hot — keeps `not`/
+`just`/`this`), SMLTAR “global” function words (articles/preps/be), and
+Terse/LLMLingua padding (longer hedges + `you know` / `kind of`).
+Refused: negation, discourse particles, deixis, pronouns, `have`/`had`
+(main verb), phrasal-verb particles. SQLite keeps the original.
+
+**Still later:** LLM one-liners for the middle tier (`user asked X / agent
+did Y, joked Z`). Only if `/tokens` still says history dominates after the
+32k default + this strip.
 
 ### 7. Strip tool-call plumbing from aging history — **shipped**
 
@@ -149,15 +152,11 @@ in RULES), recipes tightened. Tone still lives in SOUL/SELF. Roughly ~1.3k
 tokens/turn off the standing prefix. Further cuts only if `/tokens` still
 says persona dominates.
 
-### 10. Right-size the history defaults — **maybe · S**
+### 10. Right-size the history defaults — **shipped**
 
-`HISTORY_MAX_TOKENS=128000` means the summarizer basically never runs until
-the context is enormous — you're paying full verbatim price for ancient
-turns that a good summary (post-idea-1/2/3) would carry fine. Once the tone
-fixes are in and probed (idea 5), drop the default (or document ~32k as the
-recommended setting). Explicitly sequenced *after* the tone work: lowering
-the bound today feeds more turns into a summarizer that has not been
-probe-tested for tone (idea 5).
+Default `HISTORY_MAX_TOKENS` is **32000** (was 128000). Older turns fold
+into `Facts:` / `Voice:` instead of riding along verbatim. See
+[Revert plan](#revert-plan) — we are not doing it; capture only.
 
 ### 11. Hydration dedup vs summary/SELF — **maybe · S**
 
@@ -169,10 +168,64 @@ only worth doing if it's routinely fat.
 
 ---
 
+## Revert plan
+
+Not doing this. Written down so a bad week has a ladder, not a scramble.
+A tagged release already exists as the hard floor.
+
+**When to even look:** a running joke or nickname that was in recent chat
+fails a callback after a trim, `/tokens` `summary` has no `Voice:` line, or
+the agent feels lobotomized after a long session (not after `/new` — that
+is a different path). One miss is a probe candidate; a pattern is a revert.
+
+### Rung 1 — env only (minutes, no rebuild)
+
+```bash
+HISTORY_MAX_TOKENS=128000
+```
+
+Restart. New turns stop folding at 32k; verbatim history grows again up to
+the old ceiling. Already-folded `Facts:` / `Voice:` stay in `session.summary`
+(harmless). SQLite memory and `SELF.md` are not touched.
+
+To disable only the word-list strip (keep the 32k fold):
+
+```bash
+HISTORY_STRIP_FILLERS=false
+```
+
+Prompt-only — stored chat is already full wording.
+
+If the live `.env` never set this var, the 32k default is what you are
+running — adding the line is the whole undo. If it was already `128000`
+uncommented, this cut never applied.
+
+### Rung 2 — leave the ledger, undo only the cut in git
+
+Revert the default in `internal/config/config.go` (`envDefault:"32000"` →
+`"128000"`), the `session.Open` fallback, `.env.example` comments, and the
+readme / config test. Keep `/tokens`, the summarizer prompt, `Facts:` /
+`Voice:`, `/new` handoff, tool-arg collapse, and the persona diet. Those
+are belts, not the cut.
+
+### Rung 3 — tagged release
+
+Deploy the release cut before this work. Last resort: the ledger and the
+32k default both go. Memory rows and `SELF.md` written after that release
+stay on disk — they are not in the tag. Prune by hand if a fold wrote
+something you do not want.
+
+**Do not revert** to “fix” a single bad `SELF.md` line or one parked
+episode. Delete the line / `memory_forget` the row. The veto is still
+yours; the cut is not the file.
+
+---
+
 ## Not doing
 
 | Idea | Why not |
 | --- | --- |
+| **LLMLingua / a compression sidecar** | Python/torch (fit gate 3). Same reject. The Go word-list strip (last 5 verbatim, quotes kept, no `not`/`just`) is the in-process version — see shipped note under idea 6. |
 | **LLMLingua / perplexity-based token pruning** | Needs a Python/torch sidecar (fit gate 3: no JIT), and it deletes "low-information" tokens — which is precisely what a joke looks like to a perplexity filter. The named-algorithm answer to "compress the communications" is the one that eats tone first. |
 | **Embedding-based semantic dedup / retrieval summaries** | Already rejected for memory ([choices](docs/choices.md)); same reasons — second model, opaque, unfixable when wrong. FTS5 + prompts is enough at one-user scale. |
 | **Schema slimming** | Rejected in [future_todo.md](future_todo.md) — the bytes are the tool manual. Lever remains publishing fewer tools (`tools` / `exclude` / `--tool-tier`). |
@@ -192,7 +245,9 @@ only worth doing if it's routinely fat.
 | 5 | Tone ledger (idea 3) | **shipped** |
 | 6 | Tone probe (idea 5) | Gate before lowering history defaults |
 | 7 | Distill-on-trim / tiered history (4, 6) | The real machinery, now safer to build |
-| 8 | Defaults + churn work (8, 10, 11) | Only if `/tokens` says so — 10 is the next real cut |
+| 8 | History default 32k (idea 10) | **shipped** — revert plan captured, not executing |
+| 8b | Go filler strip (idea 6 lite) | **shipped** — last 5 verbatim; `HISTORY_STRIP_FILLERS=false` |
+| 9 | Tone probe / churn / hydration (5, 8, 11) | Only if `/tokens` or tone says so |
 
 When something ships: docs in the same change, then mark **shipped** here —
 same contract as [future_todo.md](future_todo.md#when-something-ships).
