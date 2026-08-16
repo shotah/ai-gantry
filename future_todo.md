@@ -30,21 +30,6 @@ Size: **S** ≈ an afternoon · **M** ≈ a weekend
 
 ---
 
-## Tooling — maps
-
-Calendar answers “what’s next.” Maps answers **“when do I leave?”** That is
-the gap. Reuse the existing Google OAuth story (`google-mcp` already has the
-client). Prefer a **google-mcp preset / a few route tools** over a second
-binary if the APIs fit; otherwise a small `shotah/maps-mcp`.
-
-| | |
-| --- | --- |
-| Tools (target ≤4) | `place_resolve`, `route_eta`, maybe `route_steps` |
-| Ask | “I have climbing at 6 — when do I need to leave?” |
-| Status | **next** · M |
-
----
-
 ## Features (only if they expand what he can do)
 
 | Feature | Why it is kernel / channel work | Status |

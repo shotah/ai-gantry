@@ -3,7 +3,8 @@
 > Copy to `TOOLS.md` via `make persona`. Add host-specific notes locally; don’t commit secrets.
 
 **If a tool is in this file or in `/tools`, call it — do not claim it is absent.**
-Wrong args → fix and retry; unknown tool → use the exact name below.
+Wrong args → fix once and retry once; unknown tool → use the exact name below.
+**Budget:** aim ≤6 tool calls/turn; stop by ~10 (`TOOL_MAX_ITERATIONS` default).
 
 ## Server routing (read first)
 
@@ -12,6 +13,10 @@ Wrong args → fix and retry; unknown tool → use the exact name below.
 | Calendar / mail / tasks / docs / sheets | `google__…` | `strava__`, `garmin__` |
 | Workouts / load | `strava__` / `garmin__` | `google__` |
 | Sleep / recovery | `garmin__` | `strava__` for sleep |
+| Saved Strava routes / `strava.app.link` | `strava__urls_resolve` / `strava__routes_*` | `maps__link_resolve` |
+| Restaurants / “what’s near …” | `maps__place_search` | web search as the first hop |
+| Maps share link / when do I leave | `maps__link_resolve` / `maps__route_eta` | `strava__routes_*` for leave-by |
+| RSS / alerts / “watch this feed” | `feeds__…` + `watch_*` | inventing `twitter__*` |
 
 Wrong-server error → switch prefix; don’t retry Strava/Garmin for calendar.
 Never `garmin__calendar_*` for Google Calendar (Connect training calendar).
@@ -32,6 +37,8 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - **Calendar create:** `google__calendar_create_event` (not `calendar_update_event` — that needs `event_id`)
 - **Calendar day:** `google__calendar_list_events` — omit `event_id`; `calendar_id="primary"`, both `time_min` + `time_max`
 - **Calendar update:** `calendar_list_events` → id → `google__calendar_update_event`
+- **Calendar delete** (they named the event): `calendar_list_events` → id →
+  `google__calendar_delete_event`. Do it — don’t invent “Google can’t delete.”
 - **Gmail:** `google__gmail_search_messages` → `google__gmail_get_message`; send only if asked
   - “Today”: Gmail `after:YYYY/MM/DD` is *after* that day — for date D use
     `after:`(D−1) `before:`(D+1) with **slashes**, or `newer_than:1d`. Never
@@ -56,9 +63,9 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 
 - **Rentals MCP (`rentals-search-mcp`, server id `rentals`)** — long-term apartments/houses via RentCast
 - **Exact tools:** `rentals__listings_search`, `rentals__listings_get`, `rentals__areas_resolve`, `rentals__rent_estimate_get`, `rentals__markets_get`, `rentals__link_format`, `rentals__account_get`
-- **QUOTA:** ≈50 free req/month (~1–2/day). Check `rentals__account_get` / `usage` first. Local counter resets on the **1st**. FREE: `areas_resolve`, `link_format`, `account_get`.
-- **THRIFTY:** ONE `listings_search` with `neighborhood="Ballard,Fremont"` or `zip_codes="98107,98103"` + city+state — never one call per area.
-- Hand off listing URL — never apply or contact landlords; not for commercial leases
+- **Quota:** free tier is tight (~50/month). Check `rentals__account_get` / `usage` before burning calls. FREE: `areas_resolve`, `link_format`, `account_get`.
+- **Thrifty:** ONE `listings_search` with combined `neighborhood=` or `zip_codes=` — never one call per area.
+- Neighborhood → `areas_resolve` then `listings_search`; hand off listing URL — never apply or contact landlords; not for commercial leases
 
 ## Cars
 
@@ -68,7 +75,10 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 
 ## Fitness
 
-- **Strava MCP** — activities, load, weekly summaries (`strava__activities_list`, `strava__activities_get` / `_zones`, `strava__athlete_get_stats`)
+**Live tools only.** No sleep / recovery / activity numbers in the reply until a
+tool this turn returned them. Chat memory and `memory_recall` do **not** count.
+
+- **Strava MCP** — activities, load, weekly summaries (`strava__activities_list`, `strava__activities_get` / `_zones`, `strava__athlete_get_stats`). Saved courses: `strava__routes_list` / `strava__routes_get`. Share / short URL (`strava.app.link` or `strava.com/routes/…`): `strava__urls_resolve` first — do not use `maps__link_resolve` for Strava links.
 - **Garmin MCP** (core) — `garmin__sleep_get`, `garmin__weight_get`, `garmin__wellness_get_body_battery`, `garmin__hrv_get`, `garmin__metrics_get_training_readiness`, `garmin__activities_list`, `garmin__activities_get`
 - Prefer Garmin for recovery
 - **“What did I do?” / yesterday’s ride / session:** call a list tool first — `garmin__activities_list` and/or `strava__activities_list` (whichever is in the tools list). Bound the day in the human’s timezone from `[current time]` (not UTC). Then by-id detail if needed. Do **not** ask the human to paste stats when a list tool exists; do **not** invent “no daily activity tool” because you only looked for `get_activities`.
@@ -79,6 +89,23 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 - **Exact tool name:** `google-search__web_search` (not `google_search`, not `web_search_mcp_*`)
 - New event + place → search if needed, then **`google__calendar_create_event`**. Existing + place → **`google__calendar_update_event`**
 - If two cities share a gym-ish name, prefer the city in the ask / `USER.md`
+
+## Feeds / watches
+
+- **Feeds MCP (`feeds-mcp`, server id `feeds`)** — RSS / Atom / JSON Feed / NWS. No auth.
+- **Exact tools:** `feeds__source_resolve` (site / page → feed URL), `feeds__items_list` (`url`)
+- **Watch (kernel, not a chat loop):** `watch_add` with `tool=feeds__items_list`, `args` `{url}`, `interval` (default `15m`, min `1m`), optional `label`. First poll seeds the cursor — old items are not dumped into chat.
+- `watch_list` / `watch_cancel` to manage. First line `[silent]` drops the human-facing push when the new item is noise.
+- **X / Twitter is not granted** unless `X_BEARER_TOKEN` is set. Do not invent `twitter__*` tools.
+
+## Maps
+
+- **Maps MCP (`google-maps-mcp`, server id `maps`)** — share links, one place, nearby recommendations, route ETAs. Not `google-mcp` (that is Workspace OAuth).
+- **Share / short URL first:** `maps__link_resolve` (`url`) for `maps.app.goo.gl`, `goo.gl/maps`, `g.co/maps`. No API key. Not for `strava.app.link`.
+- **One place:** `maps__place_resolve` (`query`) — name, address, or share URL → coords, rating, a few reviews, Maps URL.
+- **Restaurants / “what’s good near …”:** `maps__place_search` (`query`, optional `near`, `limit`). Do not invent a `places_search` synonym. Include the returned Maps links.
+- **When do I leave / how far:** `maps__route_eta` (`origin`, `destination`, optional `mode`, `departure_time`). Modes: `driving` (default), `walking`, `bicycling`, `transit`. If the human bikes, pass `mode=bicycling` — do not assume driving. Always include the returned tap-to-open Maps URL. Not a Strava saved-route tool.
+- Do not invent `google__maps_*` or put `maps` on the tool name.
 
 ## YouTube
 
@@ -113,8 +140,9 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
 
 ## Memory tools
 
-- `memory_recall` — helpful, but **not** authoritative for the human’s email/name
-- `memory_store` — confirmed facts **and** `skill/<area>` tool craft (see `RULES.md` Skills); never a new identity for the human; never raw mail/calendar dumps
+- `memory_recall` — helpful, but **not** authoritative for the human’s email/name;
+  **never** for live fitness/calendar/mail values
+- `memory_store` — confirmed facts **and** `skill/<area>` tool craft (see `RULES.md` Skills); never a new identity for the human; never raw mail/calendar dumps; never metric snapshots
 - `memory_forget` — delete contradictions with `USER.md` / obsolete skills
 - Before a fiddly tool area: `memory_recall` query `skill/` — reuse your own recipes
 
@@ -125,7 +153,8 @@ Tools: `google__{service}_{verb}_…` (e.g. `google__calendar_list_events`). Not
   is already there, **do not call** — paraphrases are still duplicates.
 - One short line only (voice, humor, running jokes, rituals). Not facts about the
   human (`memory_store`) and not tool recipes (`TOOLS.md` / `skill/`).
-- Full merge/dedupe of `SELF.md` happens only on `/new` — never mid-chat via this tool.
+- Do this **unprompted** when a vibe lands. Full merge/dedupe of `SELF.md`
+  happens only on `/new` — never mid-chat via this tool.
 
 ## Shell
 

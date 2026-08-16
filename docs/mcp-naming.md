@@ -6,7 +6,7 @@ their `TODO.md` / README rather than inventing a local dialect.
 
 **Audience:** authors of google-mcp, go-garmin, go-strava-mcp, youtube-go-mcp,
 mcp-beam, mcp-go-math, mcp-gemini-search, flights-search-mcp, rentals-search-mcp,
-cars-search-mcp, feeds-mcp, twitter-mcp, and future MCPs.
+cars-search-mcp, feeds-mcp, twitter-mcp, google-maps-mcp, and future MCPs.
 **Why it matters:** small models (Qwen) and host closest-match repair pick tools
 by **name tokens + description**. Synonyms and double prefixes break matching.
 
@@ -63,6 +63,7 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
    | --- | --- | --- |
    | Calendar events | `calendar_` | google |
    | Activities / workouts | `activities_` | garmin, strava |
+   | Saved Strava courses / Strava share links | `routes_` / `urls_` | strava (`urls_resolve` for `strava.app.link`; not `maps__link_resolve`) |
    | Devices (LAN / cast) | `devices_` | cast (and garmin hardware — host prefix disambiguates) |
    | Playlists | `playlists_` | youtube |
    | Library shelves | `library_` | youtube |
@@ -75,6 +76,7 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
    | Car listings / VIN / markets / quota | `listings_` / `vin_` / `markets_` / `link_` / `account_` | cars (host prefix disambiguates from rentals) |
    | Feed items / feed URL discovery | `items_` / `source_` | feeds |
    | X / Twitter public posts | `posts_` | twitter (not `tweets_` / `user_posts_`) |
+   | Places / Maps share links / leave-by | `place_` / `link_` / `route_` | maps (`place_search` for restaurants; `link_resolve` not `short_url_*`; `route_eta` is leave-by, not a saved Strava course) |
 
 6. **Descriptions sell the intent**
    First sentence = what the agent wants (“Search YouTube videos…”, “List
@@ -107,7 +109,7 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
 | `google` | `calendar_list_events` | `google__calendar_list_events` |
 | `google-search` | `web_search` | `google-search__web_search` |
 | `garmin` | `sleep_get`, `activities_list` | `garmin__sleep_get` |
-| `strava` | `activities_list` | `strava__activities_list` |
+| `strava` | `activities_list`, `routes_list`, `urls_resolve` | `strava__activities_list` |
 | `youtube` | `videos_search`, `library_list_liked_videos` | `youtube__videos_search` |
 | `cast` | `devices_list`, `youtube_beam_video` | `cast__devices_list` |
 | `math` | `expression_evaluate`, `units_convert` | `math__expression_evaluate` |
@@ -116,6 +118,7 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
 | `cars` | `listings_search`, `listings_get`, `vin_get`, `markets_get`, `link_format`, `account_get` | `cars__listings_search` |
 | `feeds` | `items_list`, `source_resolve` | `feeds__items_list` |
 | `twitter` | `posts_list` | `twitter__posts_list` |
+| `maps` | `link_resolve`, `place_resolve`, `place_search`, `route_eta` | `maps__place_search` |
 
 Hyphenated server ids (`google-search`) are fine; tool suffixes stay underscores.
 The host aliases `google_search__web_search` → `google-search__web_search` on

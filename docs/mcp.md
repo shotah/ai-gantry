@@ -45,9 +45,10 @@ Examples:
 | `youtube` | `videos_search` | `youtube__videos_search` |
 | `cast` | `youtube_beam_video` | `cast__youtube_beam_video` |
 | `garmin` | `sleep_get` | `garmin__sleep_get` |
-| `strava` | `activities_list` | `strava__activities_list` |
+| `strava` | `activities_list`, `urls_resolve` | `strava__activities_list` |
 | `feeds` | `items_list` | `feeds__items_list` |
 | `twitter` | `posts_list` | `twitter__posts_list` |
+| `maps` | `place_search`, `route_eta` | `maps__place_search` |
 
 **Why the prefix?** OpenAI-safe characters, no collisions across servers, and
 obvious provenance in logs / collapsed history markers.

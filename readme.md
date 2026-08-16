@@ -28,6 +28,9 @@ static binary + persona + mcp.toml + any OpenAI-compat LLM  →  outbound chat
 
 Chat, memory, and cron work with **zero MCP servers**. Tools are optional
 binaries on `PATH` (or baked into an image) — the frame stays out of the way.
+A **watch** is a cursor + poll: the kernel calls a fetch tool on an interval
+and wakes the model only when new item ids appear. Quiet ticks never touch
+the Completer ([docs/watch.md](docs/watch.md)).
 
 The whole kernel is ~12k lines of Go — small enough to read in an afternoon,
 small enough to actually trust. It was hardened in production against
@@ -62,7 +65,7 @@ checkout): **[docs/deploy-docker.md](docs/deploy-docker.md)** →
 
 | | **Kernel** (`gantry`) | **Appliance** ([`local-agent/`](local-agent/)) |
 | --- | --- | --- |
-| What | Runtime only — env + mounts | Kernel + Workspace / Strava / Garmin / Cast / YT Music / search |
+| What | Runtime only — env + mounts | Kernel + Workspace / Strava / Garmin / Maps / Cast / YT / search / feeds |
 | Run it | **Hub image**, binary, or systemd | Native Linux + Ollama, or Docker compose |
 | Start here if | You want a tiny host you control | You want a full life-stack assistant |
 
@@ -265,6 +268,7 @@ One OS process. Goroutines:
 | agent loop | per-message: assemble prompt → model → tool calls → reply |
 | MCP supervisors | one per server: spawn, health, restart w/ backoff |
 | memory consolidator | optional timer job (see §6) |
+| cron + watch tickers | clock jobs → agent → push; fetch-tool polls → wake only on new ids |
 
 No goroutine talks to the network inbound. Healthcheck is `gantry status`
 (exit-code) reading a heartbeat row in SQLite — no port needed.
@@ -284,6 +288,7 @@ internal/persona/    load + concat markdown from /persona
 internal/heartbeat/  SQLite heartbeat for `gantry status`
 internal/drain/      wait for in-flight turn on shutdown
 internal/cron/       scheduled turns → agent → channel push
+internal/watch/      poll MCP fetch tools; wake only on new item ids
 ```
 (Diagrams + sequences: [docs/architecture.md](docs/architecture.md).)
 
@@ -397,7 +402,19 @@ command = "twitter-mcp"
 download_tag = "latest"
 download_url = "https://github.com/shotah/twitter-mcp/releases/download/{tag}/twitter-mcp_{version}_{os}_{arch}.tar.gz"
 # X_BEARER_TOKEN in process env (child inherits it). Prefer 30–60m watch interval.
+
+[[server]]
+name    = "maps"
+command = "google-maps-mcp"
+download_tag = "latest"
+download_url = "https://github.com/shotah/google-maps-mcp/releases/download/{tag}/google-maps-mcp_{version}_{os}_{arch}.tar.gz"
+# GOOGLE_MAPS_API_KEY in process env (child inherits). link_resolve works without it.
+# place_search: restaurants / “near …”. route_eta mode: driving, walking, bicycling, transit.
 ```
+
+What a sibling can do (share-link resolve, place search, saved Strava
+routes, …) lives in that package’s README and persona `TOOLS.md`. This
+file does not catalog every tool — the manifest is the grant.
 
 `download_url` + `download_tag` feed `gantry tools-fetch` (native deploy and
 Docker bake): placeholders `{os}` `{arch}` `{tag}` `{version}` (`version` =

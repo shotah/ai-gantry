@@ -43,3 +43,11 @@
 # download_tag = "latest"
 # download_url = "https://github.com/shotah/twitter-mcp/releases/download/{tag}/twitter-mcp_{version}_{os}_{arch}.tar.gz"
 # # X_BEARER_TOKEN must be in gantry.env (child inherits it)
+#
+# --- Google Maps (shotah/google-maps-mcp) — place_search / route_eta ----
+# [[server]]
+# name = "maps"
+# command = "google-maps-mcp"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/google-maps-mcp/releases/download/{tag}/google-maps-mcp_{version}_{os}_{arch}.tar.gz"
+# # GOOGLE_MAPS_API_KEY must be in gantry.env (child inherits it)

@@ -86,3 +86,11 @@
 # download_url = "https://github.com/shotah/twitter-mcp/releases/download/{tag}/twitter-mcp_{version}_{os}_{arch}.tar.gz"
 # # tools = ["posts_list"]
 # # X_BEARER_TOKEN must be in the gantry process env (child inherits it)
+#
+# [[server]]
+# name    = "maps"
+# command = "google-maps-mcp"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/google-maps-mcp/releases/download/{tag}/google-maps-mcp_{version}_{os}_{arch}.tar.gz"
+# # tools = ["link_resolve", "place_resolve", "place_search", "route_eta"]
+# # GOOGLE_MAPS_API_KEY in process env (child inherits). link_resolve works without it.
