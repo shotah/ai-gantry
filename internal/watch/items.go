@@ -32,6 +32,9 @@ func ParseItems(raw string) ([]Item, error) {
 	}
 	var obj map[string]any
 	if err := json.Unmarshal([]byte(raw), &obj); err != nil {
+		if strings.Contains(raw, "…[truncated]") {
+			return nil, fmt.Errorf("watch: fetch result was truncated mid-JSON: %w", err)
+		}
 		return nil, fmt.Errorf("watch: fetch result is not JSON: %w", err)
 	}
 	for _, key := range []string{"items", "entries", "data", "tweets"} {

@@ -20,9 +20,19 @@ const WakePrefix = "[watch] New items from a subscription. The fetch already ran
 // DefaultTick is how often the runner looks for due watches.
 const DefaultTick = 15 * time.Second
 
-// Fetcher is the MCP host (or a test fake). The poller calls it without the LLM.
+// Fetcher is the MCP host (or a test fake). The poller calls it without the LLM
+// and needs the full JSON — Host.Call truncates for the model and that cut
+// lands mid-string, so ParseItems fails.
 type Fetcher interface {
 	Call(ctx context.Context, name string, arguments json.RawMessage) (string, error)
+}
+
+// FetchFunc adapts a function to Fetcher (e.g. Host.CallRaw).
+type FetchFunc func(ctx context.Context, name string, arguments json.RawMessage) (string, error)
+
+// Call implements Fetcher.
+func (f FetchFunc) Call(ctx context.Context, name string, arguments json.RawMessage) (string, error) {
+	return f(ctx, name, arguments)
 }
 
 // Runner polls due watches and wakes the agent only on new item ids.

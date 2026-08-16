@@ -601,6 +601,14 @@ command = "x"
 	if !strings.Contains(out, "truncated") {
 		t.Fatalf("%q", out)
 	}
+
+	raw, err := host.CallRaw(context.Background(), "demo__big", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(raw, "truncated") || raw != strings.Repeat("z", 200) {
+		t.Fatalf("CallRaw should be untruncated, got %q", raw)
+	}
 }
 
 type longConn struct{}

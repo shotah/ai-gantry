@@ -105,7 +105,7 @@ valid interim escape hatch but is not the product surface.
 
 ## Event watches
 
-**Pick:** kernel poller (`watch` table + `Host.Call` + id cursor), not
+**Pick:** kernel poller (`watch` table + `Host.CallRaw` + id cursor), not
 `cron_schedule` + a silent fetch prompt.
 
 Quiet ticks must not call the Completer. The first successful poll seeds the

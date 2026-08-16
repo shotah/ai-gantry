@@ -149,8 +149,23 @@ func (h *Host) ToolCount() int {
 	return len(h.tools)
 }
 
-// Call executes a prefixed tool name and truncates the result.
+// Call executes a prefixed tool name and truncates the result for the model.
 func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMessage) (string, error) {
+	text, err := h.call(ctx, toolName, arguments)
+	if err != nil {
+		return "", err
+	}
+	return Truncate(text, h.resultMaxChars), nil
+}
+
+// CallRaw is Call without TOOL_RESULT_MAX_CHARS. Machine consumers (the watch
+// poller) need intact JSON; the truncation marker starts with a raw newline
+// that json.Unmarshal rejects as "invalid character '\\n' in string literal".
+func (h *Host) CallRaw(ctx context.Context, toolName string, arguments json.RawMessage) (string, error) {
+	return h.call(ctx, toolName, arguments)
+}
+
+func (h *Host) call(ctx context.Context, toolName string, arguments json.RawMessage) (string, error) {
 	tool, resolved, ok := h.resolve(toolName)
 	if !ok {
 		hint, candidates := h.suggest(toolName)
@@ -193,7 +208,7 @@ func (h *Host) Call(ctx context.Context, toolName string, arguments json.RawMess
 		}
 	}
 	h.recordToolCall(resolved, time.Since(start), false)
-	return Truncate(text, h.resultMaxChars), nil
+	return text, nil
 }
 
 // isRestartableMCPError reports transport-death failures worth a reconnect.

@@ -49,6 +49,19 @@ func TestParseItems_Shapes(t *testing.T) {
 	}
 }
 
+func TestParseItems_TruncatedJSON(t *testing.T) {
+	t.Parallel()
+	// Host.Call appends "\n…[truncated]" mid-string — the live gantry-tim failure.
+	raw := `{"items":[{"id":"a","summary":"hello` + "\n…[truncated]"
+	_, err := watch.ParseItems(raw)
+	if err == nil {
+		t.Fatal("expected truncated JSON error")
+	}
+	if !strings.Contains(err.Error(), "truncated mid-JSON") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
 func TestDiffAndMergeSeen(t *testing.T) {
 	t.Parallel()
 	a := watch.Item{ID: "a"}

@@ -361,7 +361,7 @@ func run() int {
 		}
 		watchRunner := &watch.Runner{
 			Store:    watchStore,
-			Fetcher:  mcpHost,
+			Fetcher:  watch.FetchFunc(mcpHost.CallRaw),
 			Handle:   handle,
 			Pusher:   pusher,
 			Interval: time.Duration(cfg.CronTickSeconds) * time.Second,

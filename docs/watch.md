@@ -9,9 +9,12 @@ Do not implement this as `cron_schedule` + “fetch the feed; if nothing new,
 `[silent]`.” That would spend a Completer call on every tick.
 
 ```text
-ticker → Host.Call(tool, args) → compare ids → empty? stop
-                              → new? agent.Handle → Push (or [silent])
+ticker → Host.CallRaw(tool, args) → compare ids → empty? stop
+                                 → new? agent.Handle → Push (or [silent])
 ```
+
+The poller uses `CallRaw`, not `Call`. `TOOL_RESULT_MAX_CHARS` is for the model;
+cutting a feed JSON mid-string makes `ParseItems` fail and the watch never seeds.
 
 The first successful poll **seeds the cursor**. Old items are not dumped into
 chat. Fetch tools must already be in the MCP manifest (`{server}__{tool}`).
