@@ -123,41 +123,24 @@ open a server.
 
 ## Prototype / maybe
 
-### Stateful objectives — **prototype** · M
+### Stateful objectives — **skip** unless the stack below actually fails
 
-Not `SELF.md`. Not a webhook. Not a life goal. A **folder** that ties
-existing wakes to the same job.
+Default answer: **already covered.**
 
-**Thursday, today (no row):**
+| Layer | Holds |
+| --- | --- |
+| `SELF.md` aims | Standing “poke before Thursday flights” |
+| `Facts:` / memory | This week’s job, names, open loops |
+| Cron + watch | The actual wakes |
+| Google Tasks (or calendar) | A real long-running to-do with a due date |
 
-1. You say “get me to SFO Thursday.” He looks at calendar. Chat ends.
-2. A watch later fires “UA 123 delayed.” That turn does not know it is
-   the airport job unless summary/memory happens to mention it.
-3. A cron Thursday morning says “leave for the airport.” Same: a new
-   amnesiac `Handle`, hoping the fold remembered.
+A kernel “objective row” would only be a folder that stamps `[objective 7]`
+onto those wakes so they share notes. If you are so deep in parallel jobs
+that memory and Tasks cannot hold it, the fix is better task tracking —
+not a second job database inside gantry.
 
-Three pipes, three strangers. The “job” lives only in prose.
-
-**Thursday, with a row:**
-
-```text
-id=7  goal=SFO Thursday  status=watching
-      watch=UA123  cron=Thu 07:00
-```
-
-When the watch fires, or the cron fires, or you type, `Handle` gets
-`[objective 7]` plus that row. Same job. Saturday the row is done —
-nothing fires, nothing sits in `SELF.md`.
-
-The pipes do not change. Cron still notices the clock. Watch still
-notices a new id. The row is only the **label** those wakes share.
-
-**Why it might never ship:** if the prototype is “a memory row the
-model wrote,” we already have that. Ship only if the kernel must
-decide *silence vs wake* from the row (due / waiting-on-watch / done)
-without asking the Completer every tick — the watch pattern, for a
-job. If Thursday already works via one watch + one cron + a SELF aim
-(“poke before Thursday flights”), skip this.
+Revisit only if a watch fire and a Thursday cron regularly *do not*
+recognize they are the same job, and Tasks would not have fixed that.
 
 | Item | Why | Size |
 | --- | --- | --- |
