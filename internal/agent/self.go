@@ -37,11 +37,12 @@ const selfDistillPrompt = "[system] This chat session is about to be reset and i
 	"Below are your current self-notes (SELF.md), the dying conversation, and (if present) a " +
 	"[session voice] block — the rolling mood of this chat (jokes, nicknames, games). " +
 	"Rewrite the complete self-notes file so the personality you developed here survives: " +
-	"keep existing notes that still matter and fold in voice, humor, running jokes, games, nicknames, and rituals from the voice block and conversation worth keeping. " +
+	"keep existing notes that still matter and fold in voice, humor, running jokes, games, nicknames, rituals, and standing aims from the voice block and conversation worth keeping. " +
+	"A standing aim outlives one task; keep those. Do not copy one-off to-dos or Facts: about the human. " +
 	"Prefer exact wording from [session voice] over paraphrasing the transcript. " +
 	"Skip one-off mood weather (\"dry today\"). Do not copy facts about the human into SELF.md. " +
 	"Rules: output only the file content; start with the heading \"# SELF.md — Who You Are Becoming\"; " +
-	"short \"- \" bullet lines, at most 30; notes describe YOUR personality and shared rituals — " +
+	"short \"- \" bullet lines, at most 30; notes describe YOUR personality, shared rituals, and standing aims — " +
 	"not facts about the human, not rules, not tool recipes."
 
 // distillSelf folds the dying session's personality into SELF.md before a

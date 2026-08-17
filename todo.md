@@ -125,28 +125,39 @@ open a server.
 
 ### Stateful objectives — **prototype** · M
 
-Not “plans” as a workflow engine. Not a DAG. A **persistent objective**
-whose state survives individual cron / watch / chat turns.
+Not `SELF.md`. Not a webhook. Not a life goal. A **folder** that ties
+existing wakes to the same job.
 
-Today each wake is amnesiac except for session summary + memory rows.
-“Get me to the airport Thursday” is a chat turn, a calendar lookup, and
-then hope. A watch can fire when a flight status feed moves, but nothing
-binds those wakes to *the same job*.
+**Thursday, today (no row):**
 
-Prototype before deciding it is necessary:
+1. You say “get me to SFO Thursday.” He looks at calendar. Chat ends.
+2. A watch later fires “UA 123 delayed.” That turn does not know it is
+   the airport job unless summary/memory happens to mention it.
+3. A cron Thursday morning says “leave for the airport.” Same: a new
+   amnesiac `Handle`, hoping the fold remembered.
+
+Three pipes, three strangers. The “job” lives only in prose.
+
+**Thursday, with a row:**
 
 ```text
-objective { goal, status, last_wake, notes }
-cron / watch / chat  →  same row  →  agent.Handle sees it
+id=7  goal=SFO Thursday  status=watching
+      watch=UA123  cron=Thu 07:00
 ```
 
-**Why kernel (if it ships):** an MCP child cannot run the agent or
-outbound to Telegram. Same reason cron and watches are kernel.
+When the watch fires, or the cron fires, or you type, `Handle` gets
+`[objective 7]` plus that row. Same job. Saturday the row is done —
+nothing fires, nothing sits in `SELF.md`.
 
-**Kill criteria:** if the prototype is just “a memory row the model
-wrote,” we already have that. Ship only if the kernel must *wake on
-state* (due, blocked, waiting-on-watch) without a Completer call every
-tick — the watch pattern, for goals.
+The pipes do not change. Cron still notices the clock. Watch still
+notices a new id. The row is only the **label** those wakes share.
+
+**Why it might never ship:** if the prototype is “a memory row the
+model wrote,” we already have that. Ship only if the kernel must
+decide *silence vs wake* from the row (due / waiting-on-watch / done)
+without asking the Completer every tick — the watch pattern, for a
+job. If Thursday already works via one watch + one cron + a SELF aim
+(“poke before Thursday flights”), skip this.
 
 | Item | Why | Size |
 | --- | --- | --- |

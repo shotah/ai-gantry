@@ -47,8 +47,9 @@ Runtime caps tool rounds (`TOOL_MAX_ITERATIONS`, default **10**), then forces a 
 
 - **Append-only.** One short `-` line. Does **not** rewrite `SELF.md`.
 - Skip if the vibe is already in the `SELF.md` bullets in this prompt.
-- Personality / jokes / rituals only — not facts, rules, or tool recipes.
-- Do this **unprompted** when a vibe lands. Full rewrite only on `/new` distill.
+- Personality / jokes / rituals / standing aims only — not facts, rules, or tool recipes.
+- A standing aim outlives one task. A one-off to-do is memory or cron, not a self_note.
+- Do this **unprompted** when a vibe or aim lands. Full rewrite only on `/new` distill.
 
 ## Memory hygiene
 

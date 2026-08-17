@@ -29,7 +29,8 @@ const Header = "# SELF.md — Who You Are Becoming\n\n" +
 	"> Agent-written file. Cap ~4KB; the operator may prune any line.\n" +
 	">\n" +
 	"> **`self_note` APPENDS one new `-` line — it does NOT overwrite this file.**\n" +
-	"> Do not re-note something already listed below. Skip if the vibe is already here.\n" +
+	"> Do not re-note something already listed below. Skip if the vibe or aim is already here.\n" +
+	"> Standing aims (things that outlive one task) belong here. One-off to-dos do not.\n" +
 	"> Only `/new` distill rewrites the whole file (merge/dedupe then)."
 
 // Store reads and writes SELF.md. Safe for concurrent use.

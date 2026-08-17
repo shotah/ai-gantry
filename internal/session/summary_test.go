@@ -94,7 +94,7 @@ func TestLLMSummarizer_FoldKeepsVoice(t *testing.T) {
 		t.Fatal("summarizer sent no messages")
 	}
 	sys := fc.got.Messages[0].Content
-	for _, want := range []string{"Facts:", "Voice:", "UNCHANGED", "paraphrased joke is a dead joke"} {
+	for _, want := range []string{"Facts:", "Voice:", "UNCHANGED", "paraphrased joke is a dead joke", "SELF.md"} {
 		if !strings.Contains(sys, want) {
 			t.Fatalf("summarize prompt missing %q:\n%s", want, sys)
 		}

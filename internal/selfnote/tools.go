@@ -17,7 +17,8 @@ func ToolDefs() []provider.ToolDef {
 	return []provider.ToolDef{{
 		Name: ToolNote,
 		Description: "APPEND one short new line to SELF.md (does not overwrite or distill the file). " +
-			"Only for a vibe/joke/ritual that is NOT already in the SELF.md bullets in your prompt — skip if it is already there or only a paraphrase. " +
+			"Only for a vibe, joke, ritual, or standing aim that is NOT already in the SELF.md bullets in your prompt — skip if it is already there or only a paraphrase. " +
+			"A standing aim outlives one task. A one-off to-do is memory_store or cron, not this. " +
 			"Full rewrite/dedupe happens only on /new. Not for facts about the human — use memory_store for those.",
 		Parameters: map[string]any{
 			"type": "object",

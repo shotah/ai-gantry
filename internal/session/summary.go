@@ -27,6 +27,7 @@ Facts: <one tight paragraph>
 Voice: <2–4 short lines>
 
 Facts: durable facts, preferences, open tasks, and names. Drop other chitchat.
+Standing aims that outlive this session belong in SELF.md (self_note), not Facts.
 Use absolute dates (2006-01-02) for anything time-bound — never yesterday, tomorrow,
 this morning, or a weekday alone (those go stale when the week rolls).
 
