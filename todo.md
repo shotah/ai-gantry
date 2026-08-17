@@ -60,27 +60,6 @@ another Completer call.
 
 ---
 
-### 2. Tool-result caching — **next** · S
-
-Very cheap host addition. Identical `{tool, args}` within a TTL (or
-within the turn) should not re-hit the child — or the upstream API.
-
-Cuts `tool_ms`, billed tool-result tokens on the next Completer call
-when the stub is smaller, and vendor rate/cost on search / maps / feeds.
-
-**Why kernel:** every call already goes through `Host.Call`. The child
-should not grow a second cache.
-
-**Do not cache** time-sensitive or mutating tools (calendar write, send,
-`watch_add`). Start with an allowlist or a short TTL default + opt-out,
-not “cache everything.” Watch ticks already have their own cursor; do
-not double-cache there.
-
-Measure: repeat the same ask two minutes apart; `/toolstats` and
-`/perf` should show the second turn cheaper.
-
----
-
 ## Later
 
 ### Dynamic tool grouping — **later** · M
@@ -122,6 +101,17 @@ open a server.
 ---
 
 ## Prototype / maybe
+
+### Tool-result caching — **skip** unless `/toolstats` shows repeat `{tool, args}`
+
+A host TTL on identical `Host.Call` keys. Sounds cheap. The live agent
+does not do this: he sees the result in the prompt and is **happy not
+to call again**. The actual fight is getting a second pull, not
+deduping a storm of the same search.
+
+That item was an API-bill / runaway-automation holdover. Watch ticks
+already have a cursor. In-turn old results already collapse. Revisit
+only if `/toolstats` shows the same key firing over and over.
 
 ### Stateful objectives — **skip** unless the stack below actually fails
 
