@@ -55,7 +55,27 @@ func Open(dir string) (*Store, error) {
 	if err := f.Close(); err != nil {
 		return nil, fmt.Errorf("selfnote: close %s: %w", path, err)
 	}
-	return &Store{path: path}, nil
+	s := &Store{path: path}
+	if err := s.persistStamp(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// persistStamp rewrites the kernel header if the file is stale or empty.
+func (s *Store) persistStamp() error {
+	cur, err := s.readRaw()
+	if err != nil {
+		return err
+	}
+	next := Stamp(cur)
+	if cur == next {
+		return nil
+	}
+	if err := os.WriteFile(s.path, []byte(next+"\n"), 0o644); err != nil {
+		return fmt.Errorf("selfnote: stamp %s: %w", s.path, err)
+	}
+	return nil
 }
 
 // Read returns the current content ("" when the file is absent or empty).
@@ -66,6 +86,14 @@ func (s *Store) Read() (string, error) {
 }
 
 func (s *Store) readLocked() (string, error) {
+	raw, err := s.readRaw()
+	if err != nil {
+		return "", err
+	}
+	return Stamp(raw), nil
+}
+
+func (s *Store) readRaw() (string, error) {
 	b, err := os.ReadFile(s.path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -89,10 +117,7 @@ func (s *Store) Append(note string) error {
 		s.mu.Unlock()
 		return err
 	}
-	if cur == "" {
-		cur = Header
-	}
-	next := cur + "\n- " + note
+	next := Stamp(cur) + "\n- " + note
 	if len(next) > MaxChars {
 		s.mu.Unlock()
 		return fmt.Errorf("selfnote: %s is full (%d/%d chars) — it is rewritten compactly on /new, or the operator can prune it", FileName, len(cur), MaxChars)
@@ -114,9 +139,7 @@ func (s *Store) Write(content string) error {
 	if content == "" {
 		return fmt.Errorf("selfnote: refusing to write empty %s", FileName)
 	}
-	if !strings.HasPrefix(content, "#") {
-		content = Header + "\n" + content
-	}
+	content = Stamp(content)
 	if len(content) > MaxChars {
 		cut := MaxChars
 		for cut > 0 && !utf8.RuneStart(content[cut]) {

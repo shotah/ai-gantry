@@ -67,6 +67,9 @@ func run() int {
 		"telegram_error_reporting", cfg.TelegramErrorReporting,
 	)
 
+	if err := persona.SyncKernel(cfg.PersonaDir); err != nil {
+		logger.Warn("RULES.md kernel section not written (persona dir not writable?)", "err", err)
+	}
 	personaText, err := persona.Load(cfg.PersonaDir)
 	if err != nil {
 		logger.Error("persona load failed", "err", err)
@@ -222,6 +225,11 @@ func run() int {
 				Other: tools,
 			}
 			logger.Info("self-notes ready", "file", filepath.Join(cfg.PersonaDir, selfnote.FileName))
+			if text, err := persona.Load(cfg.PersonaDir); err != nil {
+				logger.Warn("persona reload after SELF.md stamp failed", "err", err)
+			} else {
+				personaText = text
+			}
 			store := selfStore
 			sessions.WithFoldHook(func(prior, next string) {
 				ok, err := selfnote.GraduateVoice(store, prior, next)

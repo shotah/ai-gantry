@@ -60,6 +60,7 @@ func Load(dir string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		text = stampPreferred(name, text)
 		if text != "" {
 			parts = append(parts, text)
 		}
@@ -78,6 +79,17 @@ func Load(dir string) (string, error) {
 	}
 
 	return strings.Join(parts, "\n\n"), nil
+}
+
+func stampPreferred(name, text string) string {
+	switch name {
+	case "SELF.md":
+		return stampSELF(text)
+	case "RULES.md":
+		return stampRules(text)
+	default:
+		return text
+	}
 }
 
 // tzField matches USER.md lines like `- **Timezone:** America/Los_Angeles`

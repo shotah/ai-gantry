@@ -24,6 +24,9 @@ func watchPersonaReload(ctx context.Context, dir string, ag *agent.Agent, log *s
 		case <-ctx.Done():
 			return
 		case <-ch:
+			if err := persona.SyncKernel(dir); err != nil {
+				log.Warn("RULES.md kernel section not written", "err", err)
+			}
 			text, err := persona.Load(dir)
 			if err != nil {
 				log.Error("persona reload failed", "err", err)

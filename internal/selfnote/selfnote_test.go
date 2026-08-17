@@ -12,6 +12,31 @@ import (
 	"github.com/shotah/ai-gantry/internal/selfnote"
 )
 
+func TestStore_OpenRefreshesStaleHeader(t *testing.T) {
+	dir := t.TempDir()
+	old := "# SELF.md — Who You Are Becoming\n\n> old header from last year\n\n- dry humor"
+	if err := os.WriteFile(filepath.Join(dir, selfnote.FileName), []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := selfnote.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "old header from last year") {
+		t.Fatalf("stale header kept: %q", got)
+	}
+	if !strings.Contains(got, "Standing aims") {
+		t.Fatalf("kernel header missing: %q", got)
+	}
+	if !strings.Contains(got, "- dry humor") {
+		t.Fatalf("body dropped: %q", got)
+	}
+}
+
 func TestStore_AppendCreatesHeaderAndNotifies(t *testing.T) {
 	dir := t.TempDir()
 	s, err := selfnote.Open(dir)

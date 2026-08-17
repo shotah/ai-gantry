@@ -11,6 +11,7 @@ rewriting persona.
 Gantry’s **self-notes** feature lets the agent grow a personality that
 survives `/new`:
 
+- Boot / SIGHUP: gantry overwrites the `SELF.md` header and the `RULES.md` Self-notes section. Your bullets stay.
 - Mid-chat: builtin `self_note` appends a short line to `PERSONA_DIR/SELF.md`.
 - On history trim: new `Voice:` bits append the same way (no extra model call).
 - On `/new`: a distill pass **rewrites** the whole file from the dying session,

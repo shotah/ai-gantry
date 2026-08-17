@@ -69,6 +69,52 @@ func TestLoad_MissingPreferredTolerant(t *testing.T) {
 	}
 }
 
+func TestLoad_StampsSelfAndRules(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "SELF.md"), []byte("# SELF.md — Who You Are Becoming\n\n> stale\n\n- dry humor\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rules := "# RULES.md\n\n## Identity lock\n\nhold id\n\n## Self-notes (`self_note` → SELF.md)\n\n- stale rule\n\n## Memory hygiene\n\nhold mem\n"
+	if err := os.WriteFile(filepath.Join(dir, "RULES.md"), []byte(rules), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := persona.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "stale") || strings.Contains(got, "stale rule") {
+		t.Fatalf("stale kernel text kept: %q", got)
+	}
+	if !strings.Contains(got, "Standing aims") || !strings.Contains(got, "- dry humor") {
+		t.Fatalf("SELF stamp missing: %q", got)
+	}
+	if !strings.Contains(got, "A standing aim outlives one task") || !strings.Contains(got, "hold mem") {
+		t.Fatalf("RULES stamp missing: %q", got)
+	}
+}
+
+func TestSyncKernel_RewritesRulesSection(t *testing.T) {
+	dir := t.TempDir()
+	old := "# RULES.md\n\n## Self-notes (`self_note` → SELF.md)\n\n- stale\n\n## Memory hygiene\n\nok\n"
+	if err := os.WriteFile(filepath.Join(dir, "RULES.md"), []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := persona.SyncKernel(dir); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "RULES.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(b)
+	if strings.Contains(got, "- stale") {
+		t.Fatalf("stale section kept: %q", got)
+	}
+	if !strings.Contains(got, "A standing aim outlives one task") || !strings.Contains(got, "## Memory hygiene") {
+		t.Fatalf("sync missing kernel or rest of file: %q", got)
+	}
+}
+
 func TestTimezone_FromUserMarkdown(t *testing.T) {
 	t.Parallel()
 	for _, in := range []string{
