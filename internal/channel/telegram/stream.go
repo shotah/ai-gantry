@@ -387,8 +387,9 @@ func (s *editStream) noteRateLimit(err error) {
 	slog.Warn("telegram stream cooling down", "retry_after", wait.String())
 }
 
-// Discard drops a started placeholder (cancel/coalesce empty reply) instead of
-// promoting tool-trace body into a final bubble.
+// Discard drops a started placeholder (/cancel empty reply) instead of
+// promoting tool-trace body into a final bubble. Steer follow-ups do not
+// Discard — they never Start a stream; the live Handle edits in place.
 func (s *editStream) Discard(ctx context.Context) error {
 	s.stopFlusher()
 	s.mu.Lock()

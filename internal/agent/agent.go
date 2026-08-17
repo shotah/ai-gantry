@@ -79,9 +79,9 @@ type Options struct {
 	// Location is the operator timezone for the per-turn temporal anchor (CRON_TZ).
 	Location *time.Location
 	TZName   string // IANA name for display (e.g. America/Los_Angeles)
-	// CoalesceSettle waits this long after the last bubble before running a
-	// joined turn (interrupt + coalesce). 0 disables. Production default is
-	// DefaultCoalesceSettle via run config.
+	// CoalesceSettle waits this long after the last bubble before injecting
+	// one steer into the live turn (or starting a new turn if the first
+	// already finished). 0 disables. Production default is DefaultCoalesceSettle.
 	CoalesceSettle time.Duration
 	// SpinupNotice posts a "still working" line once a turn has gone this long
 	// without model output. The first turn of the process posts immediately
@@ -335,7 +335,8 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		}
 	}
 
-	// Interrupt + coalesce + settle for multi-bubble asks (skip cron/reactions).
+	// Multi-bubble: idle runs now; in-flight follow-ups settle then steer
+	// the live loop (Completer only). Cron/watch/reactions skip.
 	if a.coalesceSettle > 0 && !skipCoalesce(text) {
 		joined, run, err := a.coalesceAccept(ctx, msg)
 		if err != nil {
@@ -476,7 +477,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	}
 
 	if err := a.sessions.Append(turnCtx, msg.SessionID,
-		session.Message{Role: session.RoleUser, Content: storeText},
+		session.Message{Role: session.RoleUser, Content: a.turnStoreText(msg.SessionID, storeText)},
 		session.Message{Role: session.RoleAssistant, Content: reply},
 	); err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -557,6 +558,10 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
+		messages = a.drainSteers(ctx, sessionID, messages, hasProgress, progress)
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		final := iter == a.maxToolIters
 		iters = iter + 1
 		bounded := collapseOldToolResults(messages)
@@ -593,10 +598,13 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 		// Stream when enabled and a channel writer is present. Tool-call
 		// responses still come back on the same stream path; onProgress is
 		// skipped once tool deltas appear (see provider.CompleteStream).
+		// Completer uses a child context so a steer can cancel prefill
+		// without aborting in-flight MCP calls (those stay on ctx).
 		streamedRound := a.streamReplies && canStream && hasWriter && !constrained
+		compCtx, releaseComp := a.armCompleter(ctx, sessionID)
 		if streamedRound {
 			tw, hasThinking := writer.(channel.ThinkingWriter)
-			res, err = streamer.CompleteStream(ctx, req, func(content, thinking string) error {
+			res, err = streamer.CompleteStream(compCtx, req, func(content, thinking string) error {
 				if firstTokenAt.IsZero() && (content != "" || thinking != "") {
 					firstTokenAt = time.Now()
 					stopNotice()
@@ -607,12 +615,18 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 				return writer.Update(ctx, content)
 			})
 		} else {
-			res, err = a.completer.Complete(ctx, req)
+			res, err = a.completer.Complete(compCtx, req)
 		}
+		releaseComp()
 		callDur := time.Since(callStart)
 		stopNotice()
 		modelTime += callDur
 		if err != nil {
+			if errors.Is(err, context.Canceled) && ctx.Err() == nil {
+				// Steer cancelled Completer only — keep tool messages, retry.
+				iter--
+				continue
+			}
 			return "", err
 		}
 		a.warmed.Store(true)
@@ -682,6 +696,14 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 						a.log.Info("promoting thinking to reply after tool results",
 							"chars", len(think),
 						)
+						var steered bool
+						messages, think, steered, err = a.finishText(ctx, sessionID, messages, think)
+						if err != nil {
+							return "", err
+						}
+						if steered {
+							continue
+						}
 						return think, nil
 					}
 					if !nudged {
@@ -751,7 +773,16 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 					"chars", len(res.Content),
 					"iteration", iter+1,
 				)
-				return "I couldn't finish that — tools failed and I stalled instead of retrying or giving up clearly. Please try again.", nil
+				giveUp := "I couldn't finish that — tools failed and I stalled instead of retrying or giving up clearly. Please try again."
+				var steered bool
+				messages, giveUp, steered, err = a.finishText(ctx, sessionID, messages, giveUp)
+				if err != nil {
+					return "", err
+				}
+				if steered {
+					continue
+				}
+				return giveUp, nil
 			}
 			if cronSkippedLive && nudged {
 				// Second draft after nudge is still a no-tool report — do not
@@ -760,7 +791,24 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 					"chars", len(res.Content),
 					"iteration", iter+1,
 				)
-				return cronSkippedLiveReply, nil
+				var steered bool
+				reply := cronSkippedLiveReply
+				messages, reply, steered, err = a.finishText(ctx, sessionID, messages, reply)
+				if err != nil {
+					return "", err
+				}
+				if steered {
+					continue
+				}
+				return reply, nil
+			}
+			var steered bool
+			messages, res.Content, steered, err = a.finishText(ctx, sessionID, messages, res.Content)
+			if err != nil {
+				return "", err
+			}
+			if steered {
+				continue
 			}
 			return res.Content, nil
 		}
@@ -788,7 +836,6 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 			}
 		}
 
-		a.markToolsStarted(sessionID)
 		round, canceled := a.runToolRound(ctx, res.ToolCalls, iter, hasProgress, progress)
 		toolTime += round.wall
 		if canceled {

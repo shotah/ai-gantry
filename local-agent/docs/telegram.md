@@ -88,20 +88,18 @@ the corrected ask. Use **`/new`** when LOCAL_AGENT dumps huge JSON/transcripts, 
 the same tool error, or ignores a clear ask — that is usually a poisoned session, not a
 broken deploy — reset and ask one concrete thing again.
 
-### Multi-bubble asks (interrupt + coalesce + settle)
+### Multi-bubble asks (steer + settle)
 
-A single message starts work **immediately** — no settle delay. Coalescing only
-engages once there is something to interrupt, so a follow-up bubble that lands
-while SAM is still working causes gantry to:
+A single message starts work **immediately** — no settle delay. A follow-up
+bubble that lands while TIM is still working:
 
-1. **Interrupt** the in-flight turn (same plumbing as `/cancel`)
-2. **Coalesce** the interrupted text with the new bubble(s)
-3. **Settle** ~2s after the last message (`COALESCE_SETTLE_MS`, default `2000`; `0` disables)
+1. **Settle** ~2s after the last message (`COALESCE_SETTLE_MS`, default `2000`; `0` disables) so a burst joins into one steer
+2. **Cancel the Completer only** (mid-prefill is fine). In-flight MCP calls keep running; their results — and Gemini `thought_signature` on those tool messages — stay in the prompt
+3. **Inject** a `[steer]` user line into the same turn. Telegram edits the live bubble with `redirect: …` (does not Discard it)
 
-Then run **one** joined turn. So "check Strava… wait, Garmin… nvm, calendar" fired
-mid-turn becomes a single ask, while a lone question never pays the quiet window.
-Tools that already finished are not undone. Cron and reaction synthetics skip this
-path.
+History stores **one** user turn (original + steers joined). `/cancel` still
+hard-aborts tools and Completer. Cron, watch, and reaction synthetics skip this
+path. A lone question never pays the quiet window.
 
 ### "Hang on" line before the first token
 

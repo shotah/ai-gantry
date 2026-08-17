@@ -160,7 +160,7 @@ another billed retry.
 | Name repair | Prefix alias/rebuild, closest-name hints, then a grammar-constrained retry | `google_search__…` and `mcp__get_hrv` still land; an unresolvable name makes the retry unable to misspell it |
 | Think stalls | Promote CoT → reply after tools | Multi-step turns finish instead of ERROR |
 | Printed calls | Parse a tool call written as text and run it | A model that prints `{"name":…}` never speaks JSON at you |
-| Multi-bubble | Interrupt + coalesce + settle (`COALESCE_SETTLE_MS`) | “Strava… wait Garmin… nvm calendar” → one joined turn |
+| Multi-bubble | Steer + settle (`COALESCE_SETTLE_MS`) | “Strava… wait Garmin… nvm calendar” → one turn, tools kept |
 | Slow turns | Per-turn perf logs + `/perf` / tool trace in chat | Know whether prefill, thinking, or an MCP is the wait |
 | Memory | SQLite + FTS5 in-process | No embedding API before every reply |
 | Personality | `SELF.md` + `self_note` + distill on `/new` | The funny agent survives resets — and you can prune it |
@@ -352,7 +352,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `STREAM_REPLIES` | no | `true` (Telegram edit-in-place / stdio token stream) |
 | `SHOW_THINKING` | no | `true` (Telegram CoT italics → expandable blockquote; needs `STREAM_REPLIES`; independent of `LLM_REASONING_EFFORT`) |
 | `TOOL_TRACE` | no | `compact` (`compact` = `Making Calls: ✓, ✗`; `full` = → name / ✓ timing; `off` = hide; needs `STREAM_REPLIES`) |
-| `COALESCE_SETTLE_MS` | no | `2000` (quiet ms after a bubble **interrupts a running turn**, before one joined turn; a lone message never waits; `0` = off) |
+| `COALESCE_SETTLE_MS` | no | `2000` (quiet ms after a follow-up, then **steer** the live turn — Completer cancelled, MCP calls kept; a lone message never waits; `0` = off) |
 | `SPINUP_NOTICE_MS` | no | `4000` (post “working on it” after this much model silence; the first turn after start posts at once; needs `STREAM_REPLIES`; `0` = off) |
 | `LOG_LEVEL` | no | `info` |
 
@@ -627,13 +627,15 @@ UI. ChatOps is not a compromise for an agent — it is the point.
   `/status` `/tools` `/examples` `/perf` `/memstats` `/toolstats` `/tokens` `/auth` `/help`;
   Telegram menu is pushed via `setMyCommands` on connect. Unix `SIGHUP`
   reloads persona. Headless tool OAuth: **[docs/auth.md](docs/auth.md)**.
-- **Multi-bubble (interrupt → coalesce → settle):** a lone message runs at once;
-  a follow-up sent while a turn is running cancels the current loop, joins the
-  bubbles into one user message, waits `COALESCE_SETTLE_MS` (default **2000**)
-  of quiet, then resubmits as a single turn. `/cancel` also clears a pending
-  settle batch. Tools that already finished are not undone. Cron/reaction
-  synthetics skip this path. Details:
-  [local-agent/docs/telegram.md](local-agent/docs/telegram.md).
+- **Multi-bubble (steer → settle):** a lone message runs at once; a follow-up
+  sent while a turn is running waits `COALESCE_SETTLE_MS` (default **2000**) of
+  quiet, then injects a `[steer]` line into the **same** turn (Completer
+  cancelled mid-prefill; in-flight MCP calls keep running; Gemini
+  `thought_signature` on those tool messages stays). History stores one user
+  turn (original + steers). Telegram edits the live bubble (`redirect: …`)
+  instead of Discarding it. `/cancel` still aborts tools + Completer and
+  clears a pending settle. Cron/watch/reaction synthetics skip this path.
+  Details: [local-agent/docs/telegram.md](local-agent/docs/telegram.md).
 - **Spin-up notice:** local models prefill in silence, so `SPINUP_NOTICE_MS`
   (default **4000**) opens the streaming bubble with a status line before the
   first token — at once on the first turn after start (known-cold: model load

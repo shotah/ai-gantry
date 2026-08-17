@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/provider"
 )
 
 // DefaultCoalesceSettle is how long to wait after the last inbound bubble
-// before running one joined turn (interrupt + coalesce + settle).
+// before injecting one steer (or starting a joined turn if the first finished).
 const DefaultCoalesceSettle = 2 * time.Second
 
 type coalescePart struct {
@@ -30,6 +31,7 @@ type coalesceSession struct {
 	timer   *time.Timer
 	waiters map[uint64]chan coalesceAcceptResult
 	meta    channel.Message
+	quiet   chan struct{} // closed when a burst flushes or is cleared
 }
 
 func (a *Agent) initCoalesce() {
@@ -89,6 +91,7 @@ func (a *Agent) coalesceClear(sessionID string) {
 	}
 	s.parts = nil
 	s.gen++ // invalidate in-flight timers
+	a.signalCoalesceQuietLocked(s)
 	for gen, ch := range s.waiters {
 		ch <- coalesceAcceptResult{run: false}
 		delete(s.waiters, gen)
@@ -98,29 +101,17 @@ func (a *Agent) coalesceClear(sessionID string) {
 // coalesceAccept decides what to do with an inbound bubble:
 //   - Nothing in flight and nothing buffered → (msg, true) immediately. A lone
 //     message must not pay the settle window; that would delay every reply.
-//   - Otherwise buffer it, interrupt the in-flight turn (re-merging its user
-//     text), and wait out the quiet window, returning either:
-//     (joined, true) — this caller runs the joined turn
-//     (zero, false)  — superseded; a later Accept runs the joined batch
+//   - In-flight turn → buffer + settle, then steer the live loop (Completer
+//     cancelled, MCP calls keep running). This Handle does not start a turn.
+//   - Turn ended during settle → (joined follow-ups, true) as a new turn.
 func (a *Agent) coalesceAccept(ctx context.Context, msg channel.Message) (channel.Message, bool, error) {
 	s := a.coalesceSession(msg.SessionID)
 
 	s.mu.Lock()
-	text, images, interrupted := a.interruptTurnForCoalesce(msg.SessionID)
-	if !interrupted && len(s.parts) == 0 {
-		// Fast path when idle. Mid-turn after tools have started also lands here
-		// (interrupt refused): buffer+settle so the new bubble runs after the
-		// current turn without cancelling paid MCP search calls.
-		if _, _, inFlight := a.turnPeek(msg.SessionID); !inFlight {
-			s.mu.Unlock()
-			return msg, true, nil
-		}
-	}
-	if interrupted {
-		a.log.Info("coalesce interrupt", "session_id", msg.SessionID)
-		if !coalescePartsContain(s.parts, text) {
-			s.parts = append([]coalescePart{{text: text, images: images}}, s.parts...)
-		}
+	inFlight := a.turnInFlight(msg.SessionID)
+	if !inFlight && len(s.parts) == 0 {
+		s.mu.Unlock()
+		return msg, true, nil
 	}
 	s.parts = append(s.parts, coalescePart{
 		text:   messageStoreText(msg),
@@ -132,12 +123,19 @@ func (a *Agent) coalesceAccept(ctx context.Context, msg channel.Message) (channe
 	if s.timer != nil {
 		s.timer.Stop()
 	}
+	if s.quiet == nil {
+		s.quiet = make(chan struct{})
+	}
 	ch := make(chan coalesceAcceptResult, 1)
 	s.waiters[myGen] = ch
 	settle := a.coalesceSettle
 	s.timer = time.AfterFunc(settle, func() {
 		a.coalesceFlush(msg.SessionID, myGen)
 	})
+	if inFlight {
+		a.bumpCompleter(msg.SessionID)
+		a.log.Info("steer buffer", "session_id", msg.SessionID)
+	}
 	s.mu.Unlock()
 
 	select {
@@ -149,15 +147,6 @@ func (a *Agent) coalesceAccept(ctx context.Context, msg channel.Message) (channe
 	}
 }
 
-func coalescePartsContain(parts []coalescePart, text string) bool {
-	for _, p := range parts {
-		if p.text == text {
-			return true
-		}
-	}
-	return false
-}
-
 func (a *Agent) coalesceFlush(sessionID string, gen uint64) {
 	s := a.coalesceSession(sessionID)
 	s.mu.Lock()
@@ -166,9 +155,28 @@ func (a *Agent) coalesceFlush(sessionID string, gen uint64) {
 		return
 	}
 	joined := joinCoalesceParts(s.parts, s.meta)
+	parts := s.parts
+	n := len(s.waiters)
+	inFlight := a.turnInFlight(sessionID)
 	s.parts = nil
 	s.timer = nil
-	n := len(s.waiters)
+	if inFlight {
+		// Queue before closing quiet so runLoop's wait sees steers.
+		a.queueSteer(sessionID, parts...)
+	}
+	a.signalCoalesceQuietLocked(s)
+	if inFlight {
+		for g, ch := range s.waiters {
+			ch <- coalesceAcceptResult{run: false}
+			delete(s.waiters, g)
+		}
+		a.log.Info("steer flush",
+			"session_id", sessionID,
+			"waiters", n,
+			"chars", len(joined.Text),
+		)
+		return
+	}
 	for g, ch := range s.waiters {
 		if g == gen {
 			ch <- coalesceAcceptResult{run: true, msg: joined}
@@ -184,6 +192,100 @@ func (a *Agent) coalesceFlush(sessionID string, gen uint64) {
 			"chars", len(joined.Text),
 		)
 	}
+}
+
+func (a *Agent) signalCoalesceQuietLocked(s *coalesceSession) {
+	if s.quiet != nil {
+		close(s.quiet)
+		s.quiet = nil
+	}
+}
+
+func (a *Agent) waitCoalesceQuiet(ctx context.Context, sessionID string) {
+	if a.coalesceSettle <= 0 {
+		return
+	}
+	s := a.coalesceSession(sessionID)
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		s.mu.Lock()
+		pending := len(s.parts) > 0 || s.timer != nil
+		ch := s.quiet
+		s.mu.Unlock()
+		if !pending {
+			return
+		}
+		if ch == nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ch:
+		}
+	}
+}
+
+func (a *Agent) drainSteers(ctx context.Context, sessionID string, messages []provider.Message, hasProgress bool, progress channel.ProgressWriter) []provider.Message {
+	a.waitCoalesceQuiet(ctx, sessionID)
+	return a.applySteers(ctx, messages, a.takeSteers(sessionID), hasProgress, progress)
+}
+
+func (a *Agent) applySteers(ctx context.Context, messages []provider.Message, parts []coalescePart, hasProgress bool, progress channel.ProgressWriter) []provider.Message {
+	if len(parts) == 0 {
+		return messages
+	}
+	text, images := joinSteer(parts)
+	if text == "" && len(images) == 0 {
+		return messages
+	}
+	if hasProgress && progress != nil {
+		if line := firstLine(text); line != "" {
+			_ = progress.UpdateProgress(ctx, "redirect: "+line)
+		} else {
+			_ = progress.UpdateProgress(ctx, "redirect")
+		}
+	}
+	msg := provider.Message{
+		Role:    provider.RoleUser,
+		Content: "[steer] " + text,
+	}
+	for _, img := range images {
+		if u := strings.TrimSpace(img.URL); u != "" {
+			msg.ImageURLs = append(msg.ImageURLs, u)
+		}
+	}
+	return append(messages, msg)
+}
+
+func joinSteer(parts []coalescePart) (text string, images []channel.Image) {
+	texts := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p.text); t != "" {
+			texts = append(texts, t)
+		}
+		images = append(images, p.images...)
+	}
+	return strings.Join(texts, "\n\n"), images
+}
+
+func (a *Agent) finishText(ctx context.Context, sessionID string, messages []provider.Message, text string) ([]provider.Message, string, bool, error) {
+	a.waitCoalesceQuiet(ctx, sessionID)
+	if err := ctx.Err(); err != nil {
+		return messages, "", false, err
+	}
+	if !a.hasSteers(sessionID) {
+		return messages, text, false, nil
+	}
+	if strings.TrimSpace(text) != "" {
+		messages = append(messages, provider.Message{
+			Role:    provider.RoleAssistant,
+			Content: text,
+		})
+	}
+	return messages, "", true, nil
 }
 
 func (a *Agent) coalesceCancelWaiter(sessionID string, gen uint64) {

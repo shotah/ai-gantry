@@ -133,7 +133,7 @@ journalctl -u ollama -f
 | `TOOL_RESULT_MAX_CHARS` | `gantry.env` | Native default `6000`. Results are re-sent each loop iteration, so this multiplies prefill |
 | Shorter replies | persona (`SOUL.md` → "Length") | Decode is a hard ~23 tok/s: a 230-token reply *is* 10s. Halving reply length halves that. Persona text is in the cached prefix, so it costs nothing per turn |
 | Fewer tools | `mcp.toml` `tools` / `exclude`, MCP `--tool-tier` | Schemas are cached once the prefix is stable, but they inflate total context — and prefill rate falls with length (~1000 tok/s at 16k vs ~264 tok/s at 25k) |
-| `COALESCE_SETTLE_MS` | `gantry.env` | Deliberate quiet window before a turn starts — counts against time-to-first-response |
+| `COALESCE_SETTLE_MS` | `gantry.env` | Quiet window before a follow-up steers the live turn — lone messages do not wait |
 | `SPINUP_NOTICE_MS` | `gantry.env` | Doesn't make a turn faster — opens the bubble during silent prefill so it stops *feeling* frozen |
 | `OLLAMA_FLASH_ATTENTION` / `OLLAMA_KV_CACHE_TYPE=q8_0` | `ollama-gantry.conf` (commented) | Faster prefill, much smaller KV cache; measure quality before keeping |
 | Smaller / router model | `LLM_MODEL`, or a second endpoint | Real work — only worth it once the logs say model time dominates |

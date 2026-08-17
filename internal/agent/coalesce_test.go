@@ -12,10 +12,11 @@ import (
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/provider"
+	"github.com/shotah/ai-gantry/internal/session"
 )
 
 // A lone bubble must never pay the settle window — that would delay every
-// single reply. Coalescing only kicks in once there is a turn to interrupt.
+// single reply. Coalescing only kicks in once there is a turn to steer.
 func TestCoalesce_LoneMessageRunsImmediately(t *testing.T) {
 	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
 		return &provider.Result{Content: "ok"}, nil
@@ -44,8 +45,8 @@ func TestCoalesce_LoneMessageRunsImmediately(t *testing.T) {
 	}
 }
 
-// Chatty-Cathy burst: the first bubble runs, later bubbles land mid-turn and
-// interrupt it, then settle into a single joined turn.
+// Chatty-Cathy burst: the first bubble runs; later bubbles settle into one
+// steer on that same turn. The first Handle owns the reply.
 func TestCoalesce_JoinsBurstDuringInFlightTurn(t *testing.T) {
 	started := make(chan struct{})
 	var calls atomic.Int32
@@ -54,21 +55,17 @@ func TestCoalesce_JoinsBurstDuringInFlightTurn(t *testing.T) {
 		started: started,
 		onComplete: func(ctx context.Context, req provider.Request) (*provider.Result, error) {
 			if calls.Add(1) == 1 {
-				<-ctx.Done() // hold the first turn open until it is interrupted
+				<-ctx.Done() // hold until Completer-only cancel
 				return nil, ctx.Err()
 			}
-			for i := len(req.Messages) - 1; i >= 0; i-- {
-				if req.Messages[i].Role == provider.RoleUser {
-					saw.Store(req.Messages[i].Content)
-					break
-				}
-			}
+			saw.Store(allUserText(req.Messages))
 			return &provider.Result{Content: "ok"}, nil
 		},
 	}
+	hist := newMemHistory()
 	a, err := agent.New(agent.Options{
 		Completer:      block,
-		Sessions:       newMemHistory(),
+		Sessions:       hist,
 		Model:          "m",
 		CoalesceSettle: 60 * time.Millisecond,
 	})
@@ -106,21 +103,22 @@ func TestCoalesce_JoinsBurstDuringInFlightTurn(t *testing.T) {
 	}
 	wg.Wait()
 
-	var nonEmpty int
-	for _, r := range replies {
-		if r != "" {
-			nonEmpty++
-		}
+	if replies[0] != "ok" {
+		t.Fatalf("first Handle should own the reply, got %q", replies[0])
 	}
-	if nonEmpty != 1 {
-		t.Fatalf("want exactly one reply, got %d (%q)", nonEmpty, replies)
+	if replies[1] != "" || replies[2] != "" {
+		t.Fatalf("follow-ups should return empty, got %q", replies)
 	}
 	got, _ := saw.Load().(string)
 	for _, want := range []string{"pull yesterday's ride", "from Garmin", "MTB"} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("joined user text %q missing %q", got, want)
+			t.Fatalf("prompt user text %q missing %q", got, want)
 		}
 	}
+	if !strings.Contains(got, "[steer]") {
+		t.Fatalf("prompt missing [steer] marker: %q", got)
+	}
+	assertOneUserTurn(t, hist, "s", "pull yesterday's ride", "from Garmin", "MTB")
 }
 
 func TestCoalesce_InterruptsInFlight(t *testing.T) {
@@ -134,21 +132,17 @@ func TestCoalesce_InterruptsInFlight(t *testing.T) {
 				<-ctx.Done()
 				return nil, ctx.Err()
 			}
-			var user string
-			for i := len(req.Messages) - 1; i >= 0; i-- {
-				if req.Messages[i].Role == provider.RoleUser {
-					user = req.Messages[i].Content
-					break
-				}
-			}
-			return &provider.Result{Content: "joined:" + user}, nil
+			return &provider.Result{Content: "joined:" + lastUser(req.Messages)}, nil
 		},
 	}
+	hist := newMemHistory()
+	w := &progressWriter{}
 	a, err := agent.New(agent.Options{
 		Completer:      block,
-		Sessions:       newMemHistory(),
+		Sessions:       hist,
 		Model:          "m",
 		CoalesceSettle: 40 * time.Millisecond,
+		ToolTrace:      agent.ToolTraceFull,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +152,7 @@ func TestCoalesce_InterruptsInFlight(t *testing.T) {
 	var firstReply string
 	go func() {
 		defer close(firstDone)
-		firstReply, _ = a.Handle(context.Background(), channel.Message{
+		firstReply, _ = a.Handle(channel.WithReplyWriter(context.Background(), w), channel.Message{
 			SessionID: "s",
 			Text:      "first ask",
 		})
@@ -179,16 +173,26 @@ func TestCoalesce_InterruptsInFlight(t *testing.T) {
 	}
 	<-firstDone
 
-	if firstReply != "" {
-		t.Fatalf("interrupted first reply should be empty, got %q", firstReply)
+	if secondReply != "" {
+		t.Fatalf("follow-up Handle should return empty, got %q", secondReply)
 	}
-	if !strings.Contains(secondReply, "first ask") || !strings.Contains(secondReply, "and also this") {
-		t.Fatalf("second reply should include both: %q", secondReply)
+	if !strings.Contains(firstReply, "and also this") {
+		t.Fatalf("first Handle should include the steer, got %q", firstReply)
 	}
+	var sawRedirect bool
+	for _, n := range w.traced() {
+		if strings.Contains(n, "redirect:") && strings.Contains(n, "and also this") {
+			sawRedirect = true
+		}
+	}
+	if !sawRedirect {
+		t.Fatalf("want redirect progress line, got %v", w.traced())
+	}
+	assertOneUserTurn(t, hist, "s", "first ask", "and also this")
 }
 
-// /cancel during the settle window must drop the buffered batch, so the joined
-// turn never reaches the model. Pending state only exists after an interrupt.
+// /cancel during the settle window aborts the still-in-flight first turn
+// and drops the buffered steer. Pending state is not "idle".
 func TestCoalesce_CancelClearsPending(t *testing.T) {
 	started := make(chan struct{})
 	var calls atomic.Int32
@@ -199,7 +203,7 @@ func TestCoalesce_CancelClearsPending(t *testing.T) {
 				<-ctx.Done()
 				return nil, ctx.Err()
 			}
-			t.Error("joined turn ran after /cancel cleared pending")
+			t.Error("Completer ran again after /cancel")
 			return &provider.Result{Content: "should not happen"}, nil
 		},
 	}
@@ -215,9 +219,10 @@ func TestCoalesce_CancelClearsPending(t *testing.T) {
 	}
 
 	firstDone := make(chan struct{})
+	var firstReply string
 	go func() {
 		defer close(firstDone)
-		_, _ = a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "first ask"})
+		firstReply, _ = a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "first ask"})
 	}()
 	select {
 	case <-started:
@@ -225,7 +230,6 @@ func TestCoalesce_CancelClearsPending(t *testing.T) {
 		t.Fatal("first turn did not start")
 	}
 
-	// Second bubble interrupts the in-flight turn and starts settling.
 	secondDone := make(chan struct{})
 	var secondReply string
 	go func() {
@@ -238,19 +242,20 @@ func TestCoalesce_CancelClearsPending(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The first turn was already interrupted by the second bubble, so only the
-	// settle buffer is left to clear.
-	if !strings.Contains(got, "nothing in progress") {
-		t.Fatalf("expected idle cancel while only settling, got %q", got)
+	if !strings.Contains(got, "cancelled") {
+		t.Fatalf("expected cancel of in-flight turn, got %q", got)
 	}
 	<-firstDone
 	<-secondDone
+	if firstReply != "" {
+		t.Fatalf("cancelled first Handle should be empty, got %q", firstReply)
+	}
 	if secondReply != "" {
-		t.Fatalf("cancelled batch should not reply, got %q", secondReply)
+		t.Fatalf("cancelled steer should not reply, got %q", secondReply)
 	}
 	time.Sleep(2 * settle) // the settle timer would have fired by now
 	if n := calls.Load(); n != 1 {
-		t.Fatalf("model calls = %d, want 1 (only the interrupted turn)", n)
+		t.Fatalf("model calls = %d, want 1 (only the interrupted Completer)", n)
 	}
 }
 
@@ -275,7 +280,7 @@ func (s *slowTools) Call(_ context.Context, _ string, _ json.RawMessage) (string
 	return `{"ok":true}`, nil
 }
 
-func TestCoalesce_DoesNotInterruptAfterTools(t *testing.T) {
+func TestCoalesce_SteersKeepToolResults(t *testing.T) {
 	toolStarted := make(chan struct{})
 	var toolCalls atomic.Int32
 	tools := &slowTools{
@@ -283,29 +288,23 @@ func TestCoalesce_DoesNotInterruptAfterTools(t *testing.T) {
 		started: toolStarted,
 		calls:   &toolCalls,
 	}
+	raw := json.RawMessage(`{"id":"c1","type":"function","function":{"name":"search__q","arguments":"{}"},"extra_content":{"google":{"thought_signature":"sig-keep"}}}`)
 	var n atomic.Int32
+	var secondReq atomic.Value
 	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
 		i := n.Add(1)
 		if i == 1 {
 			return &provider.Result{ToolCalls: []provider.ToolCall{
-				{ID: "c1", Name: "search__q", Arguments: `{}`},
+				{ID: "c1", Name: "search__q", Arguments: `{}`, Raw: raw},
 			}}, nil
 		}
-		if i == 2 {
-			return &provider.Result{Content: "first done"}, nil
-		}
-		var user string
-		for j := len(req.Messages) - 1; j >= 0; j-- {
-			if req.Messages[j].Role == provider.RoleUser {
-				user = req.Messages[j].Content
-				break
-			}
-		}
-		return &provider.Result{Content: "second:" + user}, nil
+		secondReq.Store(cloneMessages(req.Messages))
+		return &provider.Result{Content: "steered done"}, nil
 	}}
+	hist := newMemHistory()
 	a, err := agent.New(agent.Options{
 		Completer:      fc,
-		Sessions:       newMemHistory(),
+		Sessions:       hist,
 		Tools:          tools,
 		Model:          "m",
 		CoalesceSettle: 40 * time.Millisecond,
@@ -330,15 +329,26 @@ func TestCoalesce_DoesNotInterruptAfterTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-firstDone
-	if firstReply != "first done" {
-		t.Fatalf("first turn should complete without coalesce cancel, got %q", firstReply)
+	if firstReply != "steered done" {
+		t.Fatalf("first Handle should finish the steered turn, got %q", firstReply)
+	}
+	if secondReply != "" {
+		t.Fatalf("follow-up should return empty, got %q", secondReply)
 	}
 	if toolCalls.Load() != 1 {
 		t.Fatalf("toolCalls=%d want 1 (no reburn)", toolCalls.Load())
 	}
-	if !strings.Contains(secondReply, "also check returns") {
-		t.Fatalf("second reply=%q", secondReply)
+	msgs, _ := secondReq.Load().([]provider.Message)
+	if !messagesContainRole(msgs, provider.RoleTool, `{"ok":true}`) {
+		t.Fatalf("second Completer missing tool result: %+v", msgs)
 	}
+	if !messagesContainRole(msgs, provider.RoleUser, "[steer] also check returns") {
+		t.Fatalf("second Completer missing steer: %+v", msgs)
+	}
+	if !messagesContainRaw(msgs, "sig-keep") {
+		t.Fatalf("thought_signature dropped on steered retry: %+v", msgs)
+	}
+	assertOneUserTurn(t, hist, "s", "search flights", "also check returns")
 }
 
 func TestCoalesce_SkipsCron(t *testing.T) {
@@ -419,4 +429,72 @@ type gateCompleter struct {
 func (g *gateCompleter) Complete(ctx context.Context, req provider.Request) (*provider.Result, error) {
 	g.once.Do(func() { close(g.started) })
 	return g.onComplete(ctx, req)
+}
+
+func lastUser(msgs []provider.Message) string {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == provider.RoleUser {
+			return msgs[i].Content
+		}
+	}
+	return ""
+}
+
+func allUserText(msgs []provider.Message) string {
+	var b strings.Builder
+	for _, m := range msgs {
+		if m.Role == provider.RoleUser {
+			b.WriteString(m.Content)
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
+
+func cloneMessages(in []provider.Message) []provider.Message {
+	out := make([]provider.Message, len(in))
+	copy(out, in)
+	return out
+}
+
+func messagesContainRole(msgs []provider.Message, role provider.Role, sub string) bool {
+	for _, m := range msgs {
+		if m.Role == role && strings.Contains(m.Content, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+func messagesContainRaw(msgs []provider.Message, sub string) bool {
+	for _, m := range msgs {
+		for _, tc := range m.ToolCalls {
+			if strings.Contains(string(tc.Raw), sub) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func assertOneUserTurn(t *testing.T, hist *memHistory, sessionID string, parts ...string) {
+	t.Helper()
+	msgs, err := hist.Messages(context.Background(), sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var users []session.Message
+	for _, m := range msgs {
+		if m.Role == session.RoleUser {
+			users = append(users, m)
+		}
+	}
+	if len(users) != 1 {
+		t.Fatalf("history user turns = %d, want 1: %+v", len(users), msgs)
+	}
+	for _, p := range parts {
+		if !strings.Contains(users[0].Content, p) {
+			t.Fatalf("history user text %q missing %q", users[0].Content, p)
+		}
+	}
 }

@@ -179,23 +179,14 @@ open a server.
 
 ---
 
-### 7. Better in-flight steering — **later** · M
+### 7. Better in-flight steering — **shipped**
 
-Today the user can `/cancel` and start over, or wait for coalesce to
-join a follow-up *after* the turn. Mid-work “no, the other airport”
-still means eat the in-flight tools and re-ask.
-
-Wanted: redirect the current turn — inject a user line into the
-in-flight message list (or interrupt the Completer, keep tool results,
-resume with the new constraint). Do **not** cancel paid MCP calls that
-are still useful.
-
-**Why kernel / channel:** `/cancel` and coalesce already live in
-`internal/agent`. This is the same slot, a third outcome: *steer*, not
-abort or queue.
-
-Prototype on stdio first. Telegram edits and typing indicators are
-easy to get wrong; the loop change is the product.
+Follow-up mid-turn settles (`COALESCE_SETTLE_MS`), cancels Completer
+only, injects `[steer]` into the same message list. MCP calls keep
+running; Gemini `thought_signature` on those tool messages stays.
+Telegram edits the live bubble (`redirect: …`) instead of Discard.
+History is one user turn (original + steers). Cron/watch skip. `/cancel`
+still hard-aborts.
 
 ---
 

@@ -147,7 +147,7 @@ recalled rows. Contradictions should be surfaced to the user, not obeyed.
 | SIGTERM / Interrupt | Stop channel → drain in-flight turn → close MCP → close DB |
 | Logs | JSON `slog` on stderr (`docker logs`) |
 | Chat cmds | `/new`, `/cancel`, `/status`, `/tools`, `/examples`, `/perf`, `/memstats`, `/toolstats`, `/tokens`, `/auth`, `/help` (SIGHUP reloads persona on unix) |
-| Multi-bubble | Interrupt + coalesce + settle (`COALESCE_SETTLE_MS`, default 2s) |
+| Multi-bubble | Steer + settle (`COALESCE_SETTLE_MS`, default 2s): Completer cancelled, MCP kept |
 | Photos | Telegram inbound → multimodal user turn; outbound `SendPhoto` for image URLs in reply |
 
 No port is opened by the gantry, ever.

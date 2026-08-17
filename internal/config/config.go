@@ -112,8 +112,9 @@ type Config struct {
 	// off = hide tool activity entirely. Journal logs are unaffected.
 	ToolTrace string `env:"TOOL_TRACE" envDefault:"compact"`
 
-	// CoalesceSettleMS is quiet time after the last chat bubble before running
-	// one joined turn (interrupt + coalesce). 0 disables. Default 2000ms.
+	// CoalesceSettleMS is quiet time after the last chat bubble before
+	// steering the live turn (or starting a new one if it already finished).
+	// 0 disables. Default 2000ms.
 	CoalesceSettleMS int `env:"COALESCE_SETTLE_MS" envDefault:"2000"`
 
 	// SpinupNoticeMS posts a "still working" line once a turn has gone this

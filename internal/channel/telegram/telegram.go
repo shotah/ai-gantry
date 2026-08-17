@@ -254,7 +254,9 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 		})
 		return
 	}
-	// Cancel/coalesce supersede returns "" — do not promote tool-trace placeholders.
+	// /cancel and superseded follow-ups return "". A steer follow-up never
+	// Starts this stream — the in-flight Handle owns the bubble. Discard
+	// only if *this* Handle already posted a placeholder.
 	if reply == "" && stream != nil && stream.Started() {
 		if err := stream.Discard(ctx); err != nil {
 			c.log.Warn("telegram stream discard failed", "err", err, "session_id", msg.SessionID)
