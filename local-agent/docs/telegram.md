@@ -211,7 +211,7 @@ APIs):
 
 | User sends | Agent sees |
 | --- | --- |
-| Location / venue | `[location] lat=… lon=…` / `[venue] Name — address (…)` |
+| Location / venue | Updates this chat's **last pin** (coords + time). A bare pin is silent (no model turn). A caption or follow-up ask uses `[last pin]` in the time footer for maps/places. Pin + caption still sends `[location]` / `[venue]` on that turn. |
 | Contact | `[contact] Name, +phone` |
 | Document | `[document] file.pdf (mime) N bytes` (metadata only) |
 | Sticker | `[sticker] 🧗` (emoji when present) |

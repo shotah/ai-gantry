@@ -166,6 +166,12 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 			return
 		}
 
+		sessionID := sessionKey(msg.Chat.ID, userID, msg.MessageThreadID)
+		rememberPin(sessionID, msg, time.Now())
+		if bareLocation(msg) {
+			c.log.Info("telegram last pin updated", "session_id", sessionID)
+			return
+		}
 		text := composeInboundText(msg)
 		images, err := inboundImages(ctx, b, msg)
 		if err != nil {
@@ -182,7 +188,7 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 		}
 
 		c.deliver(ctx, b, handle, channel.Message{
-			SessionID: sessionKey(msg.Chat.ID, userID, msg.MessageThreadID),
+			SessionID: sessionID,
 			UserID:    strconv.FormatInt(userID, 10),
 			ChatID:    strconv.FormatInt(msg.Chat.ID, 10),
 			ThreadID:  msg.MessageThreadID,

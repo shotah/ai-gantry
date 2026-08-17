@@ -3,9 +3,48 @@ package telegram
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-telegram/bot/models"
+
+	"github.com/shotah/ai-gantry/internal/here"
 )
+
+func TestBareLocation(t *testing.T) {
+	if !bareLocation(&models.Message{Location: &models.Location{Latitude: 1, Longitude: 2}}) {
+		t.Fatal("bare pin should hold")
+	}
+	if bareLocation(&models.Message{
+		Location: &models.Location{Latitude: 1, Longitude: 2},
+		Caption:  "tacos",
+	}) {
+		t.Fatal("captioned pin should run a turn")
+	}
+	if bareLocation(&models.Message{
+		Location:       &models.Location{Latitude: 1, Longitude: 2},
+		ReplyToMessage: &models.Message{Text: "where?"},
+	}) {
+		t.Fatal("reply pin should run a turn")
+	}
+	if bareLocation(&models.Message{Text: "hi"}) {
+		t.Fatal("text is not a pin")
+	}
+}
+
+func TestRememberPin(t *testing.T) {
+	const sid = "telegram:test-pin"
+	at := time.Date(2026, 8, 17, 9, 22, 0, 0, time.UTC)
+	rememberPin(sid, &models.Message{
+		Venue: &models.Venue{
+			Title:    "Cafe",
+			Location: models.Location{Latitude: 37.5, Longitude: -122.2},
+		},
+	}, at)
+	p, ok := here.Get(sid)
+	if !ok || p.Label != "Cafe" || p.Lat != 37.5 {
+		t.Fatalf("pin = %+v ok=%v", p, ok)
+	}
+}
 
 func TestComposeInboundText_LocationAndCaption(t *testing.T) {
 	got := composeInboundText(&models.Message{

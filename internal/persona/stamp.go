@@ -14,29 +14,34 @@ func stampSELF(raw string) string {
 
 func stampRules(raw string) string {
 	raw = strings.TrimSpace(raw)
+	raw = upsertSection(raw, "## Self-notes", selfnote.RulesSection)
+	raw = upsertSection(raw, "## Location pins", selfnote.LocationSection)
+	return strings.TrimSpace(raw)
+}
+
+func upsertSection(raw, heading, body string) string {
 	if raw == "" {
-		return selfnote.RulesSection
+		return body
 	}
-	if start, end, ok := selfNotesSpan(raw); ok {
-		return strings.TrimSpace(raw[:start] + selfnote.RulesSection + "\n\n" + raw[end:])
+	if start, end, ok := sectionSpan(raw, heading); ok {
+		return strings.TrimSpace(raw[:start] + body + "\n\n" + raw[end:])
 	}
 	const mem = "## Memory hygiene"
 	if i := strings.Index(raw, mem); i >= 0 {
-		return strings.TrimSpace(raw[:i] + selfnote.RulesSection + "\n\n" + raw[i:])
+		return strings.TrimSpace(raw[:i] + body + "\n\n" + raw[i:])
 	}
-	return raw + "\n\n" + selfnote.RulesSection
+	return raw + "\n\n" + body
 }
 
-// selfNotesSpan is the ## Self-notes section through the next ## heading or EOF.
-func selfNotesSpan(raw string) (start, end int, ok bool) {
-	const head = "## Self-notes"
-	start = indexHeading(raw, head)
+// sectionSpan is heading through the next ## heading or EOF.
+func sectionSpan(raw, heading string) (start, end int, ok bool) {
+	start = indexHeading(raw, heading)
 	if start < 0 {
 		return 0, 0, false
 	}
-	rest := raw[start+len(head):]
+	rest := raw[start+len(heading):]
 	if rel := nextHeading(rest); rel >= 0 {
-		return start, start + len(head) + rel, true
+		return start, start + len(heading) + rel, true
 	}
 	return start, len(raw), true
 }
@@ -59,9 +64,9 @@ func nextHeading(raw string) int {
 	return -1
 }
 
-// SyncKernel writes the current RULES.md Self-notes section to disk when the
-// file is writable. Best-effort: a read-only mount leaves the prompt stamp
-// (Load) in place and returns the write error.
+// SyncKernel writes kernel RULES sections (Self-notes, Location pins) to disk
+// when the file is writable. Best-effort: a read-only mount leaves the prompt
+// stamp (Load) in place and returns the write error.
 func SyncKernel(dir string) error {
 	path := filepath.Join(dir, "RULES.md")
 	b, err := os.ReadFile(path)

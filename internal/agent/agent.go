@@ -15,6 +15,7 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/cron"
+	"github.com/shotah/ai-gantry/internal/here"
 	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/persona"
@@ -444,9 +445,16 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	// Clock footer (not stored in history): after the user turn so the model
 	// reads intent first. Leading with [current time] primed calendar/tool
 	// fixation on small local models. Fresh each turn for "what time is it?".
+	now := time.Now().In(loc)
+	clock := temporalAnchor(now, tzName)
+	if p, ok := here.Get(msg.SessionID); ok {
+		if line := here.Format(p, now, tzName); line != "" {
+			clock += "\n" + line
+		}
+	}
 	messages = append(messages, provider.Message{
 		Role:    provider.RoleSystem,
-		Content: temporalAnchor(time.Now().In(loc), tzName),
+		Content: clock,
 	})
 
 	var toolDefs []provider.ToolDef

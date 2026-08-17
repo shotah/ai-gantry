@@ -3,8 +3,11 @@ package telegram
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-telegram/bot/models"
+
+	"github.com/shotah/ai-gantry/internal/here"
 )
 
 const inboundClipMax = 200
@@ -46,6 +49,39 @@ func composeInboundText(msg *models.Message) string {
 		parts = append(parts, body)
 	}
 	return strings.Join(parts, "\n")
+}
+
+func rememberPin(sessionID string, msg *models.Message, at time.Time) {
+	if msg == nil {
+		return
+	}
+	var lat, lon float64
+	label := ""
+	switch {
+	case msg.Venue != nil:
+		lat, lon = msg.Venue.Location.Latitude, msg.Venue.Location.Longitude
+		label = strings.TrimSpace(msg.Venue.Title)
+	case msg.Location != nil:
+		lat, lon = msg.Location.Latitude, msg.Location.Longitude
+	default:
+		return
+	}
+	here.Set(sessionID, here.Pin{Lat: lat, Lon: lon, Label: label, At: at})
+}
+
+// bareLocation is a pin/venue with no caption, text, or reply — update the
+// last-pin cursor only; do not start a model turn.
+func bareLocation(msg *models.Message) bool {
+	if msg == nil || (msg.Location == nil && msg.Venue == nil) {
+		return false
+	}
+	if strings.TrimSpace(msg.Text) != "" || strings.TrimSpace(msg.Caption) != "" {
+		return false
+	}
+	if msg.ReplyToMessage != nil {
+		return false
+	}
+	return true
 }
 
 func formatLocation(loc *models.Location) string {

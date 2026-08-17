@@ -91,6 +91,9 @@ func TestLoad_StampsSelfAndRules(t *testing.T) {
 	if !strings.Contains(got, "A standing aim outlives one task") || !strings.Contains(got, "hold mem") {
 		t.Fatalf("RULES stamp missing: %q", got)
 	}
+	if !strings.Contains(got, "## Location pins") || !strings.Contains(got, "[last pin]") {
+		t.Fatalf("location stamp missing: %q", got)
+	}
 }
 
 func TestSyncKernel_RewritesRulesSection(t *testing.T) {
@@ -112,6 +115,9 @@ func TestSyncKernel_RewritesRulesSection(t *testing.T) {
 	}
 	if !strings.Contains(got, "A standing aim outlives one task") || !strings.Contains(got, "## Memory hygiene") {
 		t.Fatalf("sync missing kernel or rest of file: %q", got)
+	}
+	if !strings.Contains(got, "## Location pins") {
+		t.Fatalf("sync missing location section: %q", got)
 	}
 }
 
