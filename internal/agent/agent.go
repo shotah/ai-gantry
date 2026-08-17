@@ -17,6 +17,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/here"
 	"github.com/shotah/ai-gantry/internal/mcp"
+	"github.com/shotah/ai-gantry/internal/mcpenable"
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/persona"
 	"github.com/shotah/ai-gantry/internal/provider"
@@ -99,6 +100,10 @@ type Options struct {
 	Examples ExamplesControl
 	// HistoryStripFillers applies session.StripFillerHistory at prompt time.
 	HistoryStripFillers bool
+	// Enable filters MCP schemas per session (nil = publish the full catalog).
+	Enable *mcpenable.Store
+	// EnableForce is always-published prefixes when Enable is set.
+	EnableForce mcpenable.Force
 }
 
 // Agent runs the prompt → model → (tools) → reply loop.
@@ -141,6 +146,9 @@ type Agent struct {
 	examples    ExamplesControl
 
 	stripFillers bool
+
+	enable      *mcpenable.Store
+	enableForce mcpenable.Force
 }
 
 // New creates an Agent. Completer and Sessions are required.
@@ -197,6 +205,8 @@ func New(opts Options) (*Agent, error) {
 		mcpManifest:    strings.TrimSpace(opts.MCPManifest),
 		examples:       opts.Examples,
 		stripFillers:   opts.HistoryStripFillers,
+		enable:         opts.Enable,
+		enableForce:    opts.EnableForce,
 		perf:           newPerfRing(started),
 	}
 	a.initTurns()
@@ -251,6 +261,7 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		ChatID:    msg.ChatID,
 		ThreadID:  msg.ThreadID,
 	})
+	ctx = mcpenable.WithSession(ctx, msg.SessionID)
 
 	// /cancel must not take the session lock — it runs on a parallel Telegram
 	// worker while the in-flight turn still holds that lock.
@@ -267,6 +278,12 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		unlock := a.lockSession(msg.SessionID)
 		defer unlock()
 		return a.handleAuth(ctx, server, arg)
+	}
+
+	if cmd, prefix, ok := parseEnableHoldCommand(text); ok {
+		unlock := a.lockSession(msg.SessionID)
+		defer unlock()
+		return a.handleEnableHold(ctx, msg.SessionID, cmd, prefix)
 	}
 
 	// /examples accepts on|off|true|false.
@@ -312,7 +329,7 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		case "/tools":
 			unlock := a.lockSession(msg.SessionID)
 			defer unlock()
-			return a.listTools(), nil
+			return a.listTools(ctx, msg.SessionID), nil
 		case "/perf":
 			unlock := a.lockSession(msg.SessionID)
 			defer unlock()
@@ -387,6 +404,12 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			Content: "[session summary]\n" + s,
 		})
 	}
+	if block := a.enableIndexBlock(turnCtx, msg.SessionID); block != "" {
+		messages = append(messages, provider.Message{
+			Role:    provider.RoleSystem,
+			Content: block,
+		})
+	}
 	// Prior scheduled / watch replies are a few-shot template for inventing
 	// the next digest. Keep them in SQLite; omit them from this turn's prompt.
 	if src := turnSource(text); src == "cron" || src == "watch" {
@@ -459,7 +482,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 
 	var toolDefs []provider.ToolDef
 	if a.tools != nil && !channel.NoToolsFrom(ctx) {
-		toolDefs = a.tools.Tools()
+		toolDefs = a.publishedTools(turnCtx, msg.SessionID)
 	}
 	if turnSource(text) == "cron" && len(toolDefs) > 0 {
 		messages = append(messages, provider.Message{
@@ -572,6 +595,10 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 		}
 		final := iter == a.maxToolIters
 		iters = iter + 1
+		if a.tools != nil && !final {
+			toolDefs = a.publishedTools(ctx, sessionID)
+			shape.schemas = mcp.EstimateToolSchemaTokens(toolDefs)
+		}
 		bounded := collapseOldToolResults(messages)
 		if final {
 			forceNames = nil
@@ -883,7 +910,7 @@ func (a *Agent) status(ctx context.Context, sessionID string) (string, error) {
 	}
 	var budget mcp.SchemaBudget
 	if a.tools != nil {
-		budget = mcp.EstimateSchemaBudget(a.tools.Tools())
+		budget = mcp.EstimateSchemaBudget(a.publishedTools(ctx, sessionID))
 	}
 	uptime := formatUptime(time.Since(a.startedAt))
 	var turns uint64
@@ -900,11 +927,11 @@ func (a *Agent) status(ctx context.Context, sessionID string) (string, error) {
 	return line, nil
 }
 
-func (a *Agent) listTools() string {
+func (a *Agent) listTools(ctx context.Context, sessionID string) string {
 	if a.tools == nil {
 		return "tools: (none)"
 	}
-	defs := a.tools.Tools()
+	defs := a.publishedTools(ctx, sessionID)
 	if len(defs) == 0 {
 		return "tools: (none)"
 	}
@@ -916,6 +943,14 @@ func (a *Agent) listTools() string {
 	sort.Strings(names)
 	var b strings.Builder
 	fmt.Fprintf(&b, "tools (%d) schema_est_tokens≈%d (chars/4)\n", budget.Tools, budget.EstTokens)
+	if a.enable != nil {
+		now := time.Now()
+		if rows, err := a.enable.List(ctx, sessionID, now); err == nil {
+			if block := mcpenable.FormatIndexStatus(rows, mcpenable.Index(a.tools.Tools()), a.enableForce, now); block != "" {
+				b.WriteString(block + "\n")
+			}
+		}
+	}
 	healthBy := map[string]mcp.ServerStatus{}
 	now := time.Now()
 	if src, ok := a.tools.(interface{ ServerHealth() []mcp.ServerStatus }); ok {

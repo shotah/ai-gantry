@@ -8,6 +8,8 @@
 #   tools = ["…"]          # allowlist
 #   exclude = ["raw_*"]    # denylist
 #   tools_prefix = "garm"  # override {prefix}__{tool}
+#   dynamic_tools = false  # small models: publish full catalog (skip mcp_enable)
+#   force = true           # on a [[server]]: always publish that prefix
 
 # --- Google (shotah/google-mcp) ---------------------------------------------
 # [[server]]

@@ -33,64 +33,163 @@ Size: **S** ≈ an afternoon · **M** ≈ a weekend
 
 ## Next
 
-### 1. Model + tool profiles — **next** · M
+### 1. Prefix enable (short / long active) — **next** · M
 
-Not multi-agent. Not provider fallback. One process, one Completer, a
-**paired** tool surface:
+The token / usability win. Not model+tool profiles — that is
+operator fiddling (`mcp.toml` `tools` / `exclude` / `--tool-tier`
+already does the static cut). Usage-shaped publish is the lever.
+
+Not a router LLM. Not a new subset every bubble. Not a forever pin.
+The agent gets a **stable index** of name prefixes and a builtin to
+mark one **active**. Matching schemas join the published set on the
+**next Completer call** (same `Handle`, next tool-loop iteration —
+do not wait for the next user bubble, or the turn dies as “ok,
+flights is on, what did you want?”).
+
+A key is a **tool-name prefix**, not an MCP process. One rule for
+Google, Garmin, and anyone else's monster catalog:
 
 ```text
-cheap / local model  →  small tool surface
-smart / cloud model  →  broad tool surface
+flights              →  flights__*
+google               →  google__*          (whole server; usually too fat)
+google__calendar     →  google__calendar_*
+google__gmail        →  google__gmail_*
+garmin               →  garmin__*
+garmin__sleep        →  garmin__sleep_*
 ```
 
-Flash and Qwen already degrade when fed ~150 schemas
-([choices.md](docs/choices.md#tool-surface-budget)). Curation
-(`mcp.toml` `tools` / `exclude` / `--tool-tier core`) is the operator
-doing this by hand. A profile makes the pairing explicit so swapping
-`LLM_MODEL` also swaps the published set — no second agent, no mid-turn
-expand dance.
+`HasPrefix(tool.Name, key)` is the filter. Enabling `google` still
+works; daily furniture should be `google__calendar`, not `google`.
+A fat third-party MCP is the same: enable `monster__invoices`
+without taking `monster__admin`. No extra binaries. The index lists
+the server prefix and, when that server is fat, the next segment
+already in the names. `mcp.toml` force-on / force-off still wins.
 
-**Keep always-on:** memory / self_note / calendar-ish core. Defer
-flights / rentals / youtube until a week you actually use them.
+Store **`last_used` + hold** (`short` | `long`). Idle is computed
+(`now - last_used > window`). No `expires_at`. A successful call
+refreshes the **longest matching** row (`google__calendar_list_events`
+touches `google__calendar`, not a sibling `google__gmail`).
 
-Do this **before** dynamic grouping. Profiles are static and
-cache-friendly: the tools array stays byte-stable for the life of the
-process. Expanding a server mid-chat busts the prefix cache and costs
-another Completer call.
+```text
+mcp_enable prefixes=["google__calendar"]           # short (default)
+mcp_enable prefixes=["google__calendar"] hold=long
+mcp_enable prefixes=["google__calendar","garmin__sleep","strava"]
+  → last_used = now, hold = short|long  (same hold for the list)
+  → next Completer call publishes all matching schemas
+successful google__calendar_list_events
+  → last_used = now on the longest matching row (hold unchanged)
+quiet cron/watch tick (no Completer)
+  → drop any row where now - last_used > that hold's window
+```
+
+One builtin, list argument — not a second `mcp_enable_list` schema.
+A morning brief is still **one** extra Completer round (enable the
+set, then the real calls), not one enable per prefix. Unknown or
+fat-refused keys fail that item and the rest still enable; the
+tool result names what landed. Cap the list (e.g. 8) so “enable
+the world” is one blocked call, not a silent full catalog.
+
+**Short active / long active — better words than lease / pin.**
+Pin sounded permanent. Both are “in use,” both fall off. The only
+difference is the gap you will tolerate.
+
+| | Short active | Long active |
+| --- | --- | --- |
+| Idle | `now - last_used > 27h` | `now - last_used > 76h` |
+| Meaning | Current job | Weekend-shaped habit |
+| Example | flights this week | `google__calendar`, `garmin__sleep` |
+| Who sets | agent (default) | agent, or human `/long` |
+
+27h = a day plus morning slack (7am → 9:30 next day still hot).
+76h = three days plus slack (Friday 7am → Monday morning still
+hot). A vacation week with no calendar still drops.
+
+The agent **does** set both. Default is short. Long is for a
+prefix they expect to need across a weekend, not “this call went
+well.” Human override: `/long google__calendar` / `/short …`
+(demote, `last_used=now`, 27h grace). `/off` drops now.
+
+**Kernel gates on long** (76h of fat `google` is bounded, not
+harmless):
+
+- Refuse a bare server when the index has sub-prefixes.
+- Cap long-active rows (e.g. 4). Short is uncapped-by-count;
+  the idle clock is the cap.
+- Honor `/short` and `/off` — do not let the model flip it
+  back to long on the next turn.
+- Never auto-promote short → long.
+
+Kernel builtins (memory / `self_note` / cron / watch / `mcp_enable`)
+are actually always-on. `/tools` shows `short` / `long` /
+`available`.
+
+**Small models / rollback:** `dynamic_tools = false` at the top of
+`mcp.toml` publishes the full catalog every turn (today's
+behavior). No `mcp_enable`, no idle drop. Default when the key is
+omitted is **true**.
+
+When dynamic tools are on, pin furniture without a model call:
+
+```text
+MCP_ENABLE_FORCE=google__calendar,garmin__sleep
+```
+
+`mcp.toml` `force = true` on a `[[server]]` adds that server's
+prefix to the same always-on set. `exclude` still wins at the host.
+
+**No schema-token hard cap / LRU eviction in v1.** Enable only
+publishes a subset of the host catalog, so the published set
+cannot exceed what we send today (everything on). A busy day
+that enables flights + mail + maps is *today's* bill for 27h,
+then it shrinks. Idle clocks are the pressure.
+
+A cap that evicts `max(now - last_used)` would surprise a still-
+live job (“flights was 3h ago, I enabled six other things, now
+the schema is gone mid-search”). Revisit only if `/tokens` shows
+the agent enabling the world and leaving it hot. Then: evict
+unforced rows by greatest idle, never kernel / `mcp.toml`
+force-on, stop when under the cap. `TOOL_SCHEMA_MAX_TOKENS`
+stays the boot backstop for the *full* catalog, not this loop.
+
+**Persist** by `session_id` in SQLite (same family as `/examples`
+on/off). A process restart must not wipe a three-day search. 1:1
+is usually one session; a second allowlisted DM does not fatten
+this chat.
+
+**Cache:** the tools array is byte-stable *between* enable/drop
+events. Opening or dropping a prefix busts the prefix cache
+**once**. That is cheap next to unused `flights__*` on every
+message. A per-turn router busts it every message — do not
+build that.
+
+**Why this beats `mcp_open` as a one-shot expand:** the first
+miss still costs an extra Completer iteration (enable, then
+the real call). After that the schemas stay hot across the hold
+instead of falling off at end of turn. Small models still have
+to spell the key right — keep the index exact names, no fuzzy
+“travel tools.”
+
+**Go live: leave them off.** No short-seed of today's catalog.
+
+An honest extra `mcp_enable` (list the prefixes, then the real
+calls) is cheaper than a fat day-1 and a surprise shrink on day
+2. Empty rows stay empty. The index is always visible so the
+model can enable in the same turn. Token win starts on minute
+one.
+
+A newly connected MCP stays **off** until `mcp_enable` too.
+Do not seed on process restart. `/new` must not wipe rows
+(same Telegram chat / `session_id`) — once something is in
+use, it stays across a session reset.
+
+`mcp.toml` force-on is the only “already on” besides kernel
+builtins (memory / `self_note` / cron / watch). Use it for
+furniture you refuse to pay enable for on the first morning
+(calendar / Garmin sleep). Everything else starts from 0.
 
 ---
 
 ## Later
-
-### Dynamic tool grouping — **later** · M
-
-A lightweight way to give the model the **right tools for this turn**,
-rather than all of them. Live `/tokens` has shown `schemas` in the same
-order as history (~17k).
-
-**Do first (no new loop):** profiles + `mcp.toml` `tools` / `exclude` /
-`--tool-tier`. That is progressive loading with the operator as the
-search tool.
-
-**Cache (“send once”) is already the local/cloud story** if the tool
-list never changes. OpenAI/Gemini cache the tools array as part of the
-prefix; Ollama KV-cache does the same. Gantry already sorts
-`Host.Tools()` so a reshuffle does not cost a full re-prefill.
-`/tokens` still prints the full send size, not the discounted bill.
-You cannot omit tools on later turns and still call them — the model
-only sees this request.
-
-**Expand-on-demand is a real 2026 pattern** (Anthropic `defer_loading`
-+ tool search). On our OpenAI-compat loop we would own it: builtin
-`mcp_open(server)` swaps the published set, extra turn, then the real
-call. Small local models already misspell names — a two-step “pick
-server, then tool” is another miss. Extra Completer call = persona +
-history billed again, and the tools-array change **busts** the prefix
-cache.
-
-Build the expand dance only if a curated + profiled catalog is still
->~8k on `/tokens` *and* we are willing to spend a turn + bust cache to
-open a server.
 
 | Item | Why | Size |
 | --- | --- | --- |
@@ -243,14 +342,16 @@ Deleted todos stay gone. Also:
 | **Paperless / Grafana / k8s** | Wrong persona. Fat catalogs. |
 | **Python / Node / JIT MCP** | Anywhere. Write or import a native binary. |
 | **Agent lockdown** (confirm-before-send, untrusted-forward wrappers, …) | He has been running fine. Do not invent a second ACL. |
-| **Schema slimming** | The bytes you’d cut *are* the tool manual (descriptions, examples, titles). A “lossless” pass is just `$schema` / `$id` URIs. A pass that removes the manual damages call quality. Token lever that does not touch the manual: publish fewer tools (`tools` / `exclude` / `--tool-tier` / profiles). |
+| **Schema slimming** | The bytes you’d cut *are* the tool manual (descriptions, examples, titles). A “lossless” pass is just `$schema` / `$id` URIs. A pass that removes the manual damages call quality. Token lever that does not touch the manual: publish fewer tools (`mcp_enable` + `mcp.toml` `tools` / `exclude` / `--tool-tier`). |
+| **Model + tool profiles** | Second catalog pairing when `LLM_MODEL` changes. Operator already has `mcp.toml`. Prefix enable is the usage-shaped cut — do not fiddle with a profile file. |
 | **LLMLingua / a compression sidecar** | Python/torch (fit gate 3). The Go word-list strip is the in-process version. |
 | **LLMLingua / perplexity-based token pruning** | Same sidecar reject, and it deletes “low-information” tokens — which is precisely what a joke looks like to a perplexity filter. |
 | **Embedding-based semantic dedup / retrieval summaries** | Already rejected for memory ([choices](docs/choices.md)); same reasons — second model, opaque, unfixable when wrong. FTS5 + prompts is enough at one-user scale. |
 | **Compressing SELF.md harder** | It's 4 KB, capped, and it *is* the tone. Tokens are cheap here at any price. |
 | **A second “cheap summarizer model”** | 1:1, one model (fit gate 7). Two models means two voices summarizing one relationship. |
 | **Watches as `cron_schedule` + a fetch prompt** | Quiet ticks must not call the Completer. Shipped the other way; do not rebuild it. |
-| **Multi-agent / provider orchestration** | Fit gate 7. Profiles pair *this* model with *this* catalog. They do not route across brains. |
+| **Multi-agent / provider orchestration** | Fit gate 7. One Completer. `mcp_enable` changes *this* catalog, not the brain. |
+| **Per-turn router LLM** | Second Completer + a new tools subset every bubble (busts prefix cache every message). Prefix enable (Next) is the version that stays hot while in use. |
 
 ---
 

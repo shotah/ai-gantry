@@ -32,7 +32,7 @@ func (a *Agent) formatTokens(ctx context.Context, sessionID string) (string, err
 
 	schemaEst := 0
 	if a.tools != nil {
-		schemaEst = mcp.EstimateSchemaBudget(a.tools.Tools()).EstTokens
+		schemaEst = mcp.EstimateSchemaBudget(a.publishedTools(ctx, sessionID)).EstTokens
 	}
 
 	hydrateEst := 0

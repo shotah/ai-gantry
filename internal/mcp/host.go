@@ -61,7 +61,26 @@ type Host struct {
 	tools   map[string]*Tool // prefixed name → tool
 	skipped []ServerStatus   // boot fail-soft; not in the published catalog
 
+	dynamicTools  bool
+	forcePrefixes []string
+
 	stats callStatsState
+}
+
+// DynamicTools reports whether prefix-enable filtering is on (mcp.toml).
+func (h *Host) DynamicTools() bool {
+	if h == nil {
+		return true
+	}
+	return h.dynamicTools
+}
+
+// ForcePrefixes are server prefixes with force = true in mcp.toml.
+func (h *Host) ForcePrefixes() []string {
+	if h == nil {
+		return nil
+	}
+	return append([]string(nil), h.forcePrefixes...)
 }
 
 type managedServer struct {
@@ -100,6 +119,8 @@ func Start(ctx context.Context, opts Options) (*Host, error) {
 		maxBackoff:     backoff,
 		servers:        make(map[string]*managedServer, len(manifest.Servers)),
 		tools:          make(map[string]*Tool),
+		dynamicTools:   manifest.DynamicToolsOn(),
+		forcePrefixes:  manifest.ForcePrefixes(),
 	}
 	h.initCallStats()
 
@@ -120,6 +141,7 @@ func Start(ctx context.Context, opts Options) (*Host, error) {
 		"servers", len(h.servers),
 		"tools", len(h.tools),
 		"skipped", failed,
+		"dynamic_tools", h.dynamicTools,
 	)
 	return h, nil
 }

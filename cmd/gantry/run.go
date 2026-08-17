@@ -25,6 +25,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/heartbeat"
 	"github.com/shotah/ai-gantry/internal/logfwd"
 	"github.com/shotah/ai-gantry/internal/mcp"
+	"github.com/shotah/ai-gantry/internal/mcpenable"
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/persona"
 	"github.com/shotah/ai-gantry/internal/provider"
@@ -244,6 +245,30 @@ func run() int {
 		}
 	}
 
+	var enableStore *mcpenable.Store
+	var enableForce mcpenable.Force
+	if cfg.ToolsEnabled && mcpHost.DynamicTools() {
+		enableStore, err = mcpenable.OpenDB(sessions.DB())
+		if err != nil {
+			logger.Error("mcp enable store failed", "err", err)
+			return 1
+		}
+		base := tools
+		enableForce = mcpenable.Force{
+			Prefixes: append(mcpenable.ParseForceCSV(cfg.MCPEnableForce), mcpHost.ForcePrefixes()...),
+		}
+		tools = mcpenable.Composite{
+			Enable: mcpenable.Tools{
+				Store: enableStore,
+				Index: func() []string { return mcpenable.Index(base.Tools()) },
+			},
+			Other: base,
+		}
+		logger.Info("mcp prefix enable on", "force_prefixes", enableForce.Prefixes)
+	} else if cfg.ToolsEnabled {
+		logger.Info("mcp prefix enable off (dynamic_tools = false); full catalog published")
+	}
+
 	agentTools := tools
 	if !cfg.ToolsEnabled {
 		agentTools = nil
@@ -306,6 +331,8 @@ func run() int {
 		MCPManifest:         cfg.MCPManifest,
 		Examples:            examplesSvc,
 		HistoryStripFillers: cfg.HistoryStripFillers,
+		Enable:              enableStore,
+		EnableForce:         enableForce,
 	}
 	if selfStore != nil {
 		agentOpts.SelfNotes = selfStore

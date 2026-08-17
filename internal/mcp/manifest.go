@@ -10,7 +10,18 @@ import (
 
 // Manifest is the on-disk MCP server list (mcp.toml).
 type Manifest struct {
-	Servers []ServerSpec `toml:"server"`
+	// DynamicTools, when false, publishes the full catalog every turn
+	// (small models / rollback). Omitted defaults to true.
+	DynamicTools *bool        `toml:"dynamic_tools"`
+	Servers      []ServerSpec `toml:"server"`
+}
+
+// DynamicToolsOn is the prefix-enable filter. Default true when the key is omitted.
+func (m *Manifest) DynamicToolsOn() bool {
+	if m == nil || m.DynamicTools == nil {
+		return true
+	}
+	return *m.DynamicTools
 }
 
 // ServerSpec describes one stdio MCP server process.
@@ -22,6 +33,9 @@ type ServerSpec struct {
 	Tools       []string `toml:"tools"`        // optional allowlist of original tool names
 	Exclude     []string `toml:"exclude"`      // optional denylist (shell-style * ? patterns)
 	ToolsPrefix string   `toml:"tools_prefix"` // optional prefix override (default: name)
+	// Force publishes this server's prefix even when dynamic_tools is on
+	// (no idle drop). Small-model furniture; prefer a tight tools allowlist.
+	Force bool `toml:"force"`
 	// AuthCommand / AuthArgs declare how to (re)authorize this server.
 	// Used by `gantry auth <name>`. If AuthArgs is set and AuthCommand is
 	// empty, Command is used. Omit both when the server has no auth flow.
@@ -89,4 +103,25 @@ func LoadManifest(path string) (*Manifest, error) {
 		seen[s.Name] = struct{}{}
 	}
 	return &m, nil
+}
+
+// ForcePrefixes returns tools_prefix-or-name for servers with force = true.
+func (m *Manifest) ForcePrefixes() []string {
+	if m == nil {
+		return nil
+	}
+	var out []string
+	for _, s := range m.Servers {
+		if !s.Force {
+			continue
+		}
+		p := strings.TrimSpace(s.ToolsPrefix)
+		if p == "" {
+			p = s.Name
+		}
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

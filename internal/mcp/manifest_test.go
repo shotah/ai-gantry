@@ -91,3 +91,45 @@ tools_prefix = "garm"
 		t.Fatalf("prefix=%q", s.ToolsPrefix)
 	}
 }
+
+func TestLoadManifest_DynamicTools(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mcp.toml")
+	if err := os.WriteFile(path, []byte(`
+[[server]]
+name = "a"
+command = "x"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := mcp.LoadManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.DynamicToolsOn() {
+		t.Fatal("omitted dynamic_tools should default on")
+	}
+
+	if err := os.WriteFile(path, []byte(`
+dynamic_tools = false
+[[server]]
+name = "a"
+command = "x"
+force = true
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err = mcp.LoadManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.DynamicToolsOn() {
+		t.Fatal("dynamic_tools = false should disable")
+	}
+	if !m.Servers[0].Force {
+		t.Fatal("force = true")
+	}
+	if got := m.ForcePrefixes(); len(got) != 1 || got[0] != "a" {
+		t.Fatalf("ForcePrefixes=%v", got)
+	}
+}

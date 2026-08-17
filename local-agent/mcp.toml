@@ -1,5 +1,7 @@
 # SAM agent lab on gemma4:12b — lean catalog (schema size matters).
 # Full SAM stack archived as mcp.full.toml (flights/rentals/cars/cast/youtube).
+# Small local model: do not require mcp_enable (full published set every turn).
+dynamic_tools = false
 
 # Google MCP (shotah/google-mcp) — docs/google-workspace.md
 [[server]]

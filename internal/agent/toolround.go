@@ -91,6 +91,14 @@ func (a *Agent) execToolCall(ctx context.Context, call provider.ToolCall, iter i
 		args = json.RawMessage(`{}`)
 	}
 	toolStart := time.Now()
+	if err := a.guardEnable(ctx, call.Name); err != nil {
+		text := fmt.Sprintf("tool error: %v", err)
+		a.log.Warn("tool call blocked", "name", call.Name, "err", err)
+		if hasProgress && a.toolTrace == ToolTraceCompact {
+			_ = progress.UpdateProgress(ctx, "✗")
+		}
+		return toolRoundResult{name: call.Name, id: call.ID, out: text, err: err}
+	}
 	text, err := a.tools.Call(ctx, call.Name, args)
 	dur := time.Since(toolStart)
 	if err != nil {
@@ -102,6 +110,7 @@ func (a *Agent) execToolCall(ctx context.Context, call provider.ToolCall, iter i
 			"dur_ms", dur.Milliseconds(),
 			"result_chars", len(text),
 		)
+		a.touchEnable(ctx, call.Name)
 	}
 	if hasProgress {
 		switch a.toolTrace {

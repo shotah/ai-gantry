@@ -339,6 +339,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `TOOL_RESULT_MAX_CHARS` | no | `6000` |
 | `TOOL_MAX_ITERATIONS` | no | `10` (tool rounds per turn; at the cap a final no-tools call forces a text reply) |
 | `TOOL_SCHEMA_MAX_TOKENS` | no | `0` (log estimate only; `>0` = hard fail if over) |
+| `MCP_ENABLE_FORCE` | no | comma-separated prefixes always published when `dynamic_tools` is on (e.g. `google__calendar,garmin__sleep`). Full-catalog rollback is `dynamic_tools = false` in `mcp.toml` |
 | `SELF_NOTES_ENABLED` | no | `true` (agent-writable `SELF.md` via `self_note` tool + personality distill on `/new`; auto-off when `PERSONA_DIR` is read-only) |
 | `MEMORY_ENABLED` | no | `true` |
 | `MEMORY_BACKEND` | no | `builtin` (or `mcp:<server-name>`, see §6 / §9) |

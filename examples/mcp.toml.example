@@ -1,6 +1,12 @@
 # MCP server manifest — listed = granted (process may start).
 # Mount at MCP_MANIFEST (default /etc/gantry/mcp.toml).
 #
+# Prefix enable (default on): schemas stay off until mcp_enable.
+# Small models / rollback — publish everything every turn:
+#   dynamic_tools = false
+# Furniture that should never idle-drop (when dynamic_tools is on):
+#   force = true   on a [[server]]   (or MCP_ENABLE_FORCE=google__calendar,garmin__sleep)
+#
 # Tool names reach the model as {tools_prefix or name}__{tool}.
 #
 # Optional publishing filters (host-side, after tools/list):

@@ -58,6 +58,9 @@ type Config struct {
 	// ToolSchemaMaxTokens is an optional hard cap on estimated tool-schema tokens
 	// (chars/4 of name+description+parameters). 0 = log estimate only.
 	ToolSchemaMaxTokens int `env:"TOOL_SCHEMA_MAX_TOKENS" envDefault:"0"`
+	// MCPEnableForce is a comma-separated list of prefixes that stay published
+	// when dynamic_tools is on (e.g. google__calendar,garmin__sleep).
+	MCPEnableForce string `env:"MCP_ENABLE_FORCE"`
 
 	// ToolsEnabled controls whether tool schemas are sent to the model.
 	// false omits MCP, memory_*, cron_*, and watch_* tools from every completion — required
