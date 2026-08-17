@@ -4,9 +4,8 @@
 The agent already runs. Deleted ideas stay deleted — they were non-starters,
 not a backlog. This is not a lockdown / hardening / “safe the agent” list.
 
-- Shipped history: [docs/milestones.md](docs/milestones.md)
-- Locked decisions: [docs/choices.md](docs/choices.md)
-- Watches (shipped): [docs/watch.md](docs/watch.md)
+Shipped work is not listed here. See [docs/milestones.md](docs/milestones.md),
+[docs/choices.md](docs/choices.md), [docs/watch.md](docs/watch.md).
 
 Status: **next** · **later** · **maybe** · **prototype**
 Size: **S** ≈ an afternoon · **M** ≈ a weekend
@@ -32,47 +31,9 @@ Size: **S** ≈ an afternoon · **M** ≈ a weekend
 
 ---
 
-## Token costs (remaining compression work)
+## Next
 
-Not all tokens cost the same. `/tokens` already prints the live table
-(persona / summary / history / hydration / schemas). Use it before
-justifying a cut.
-
-| Bucket | What | Cut it by |
-| --- | --- | --- |
-| **Billed prompt tokens** | Cloud APIs re-bill the whole prompt every turn (cached prefix is discounted, not free) | Smaller persona / history / hydration / schemas |
-| **Prefill latency** | Local models pay wall-clock for every *uncached* token | Byte-stable prefix; less churn, not just less text |
-| **Context ceiling** | Small local models drown past ~8–32k | Bounded everything (mostly done) |
-
-**Churn is a cost even when size isn't.** A 2k-char summary that rewrites
-itself every fold invalidates the KV cache for everything after it.
-Sometimes the win is *stop rewriting*, not *write less*.
-
-Tone rule: any lossy idea has to answer “where does the tone go instead?”
-The old summarizer was told to *“Drop chitchat”* — which is exactly where
-the jokes live. Voice already lives in `Facts:` / `Voice:` in the session
-summary, and in `SELF.md`. Do not store the funny only in the compressible
-layer.
-
----
-
-## Investigate (this order)
-
-Shipped: **parallel MCP calls** — one tool round fans out; results stay in
-the model's original order. Same-server stdio still serializes inside
-the host. `/perf` `tool_ms` is wall-clock for the batch.
-
-Shipped: **tool last-call ledger** — `[tools]` lists every connected
-manifest server (`idle` / `ok` / `error` + age + last note). Host
-observes `Call`; a success flips the line. Skipped boot servers stay
-out of the prompt (they have no tools) and show on `/tools` only.
-
-Shipped: **Voice graduate on trim** — a successful history fold appends
-new `Voice:` bits to `SELF.md` (same `Append` path as `self_note`). No
-second Completer call. Unchanged Voice, mood weather, and already-listed
-jokes are skipped. `/new` still does the full rewrite distill.
-
-### 2. Model + tool profiles — **next** · M
+### 1. Model + tool profiles — **next** · M
 
 Not multi-agent. Not provider fallback. One process, one Completer, a
 **paired** tool surface:
@@ -92,14 +53,14 @@ expand dance.
 **Keep always-on:** memory / self_note / calendar-ish core. Defer
 flights / rentals / youtube until a week you actually use them.
 
-Do this **before** dynamic grouping (item 6). Profiles are static and
+Do this **before** dynamic grouping. Profiles are static and
 cache-friendly: the tools array stays byte-stable for the life of the
 process. Expanding a server mid-chat busts the prefix cache and costs
 another Completer call.
 
 ---
 
-### 3. Tool-result caching — **next** · S
+### 2. Tool-result caching — **next** · S
 
 Very cheap host addition. Identical `{tool, args}` within a TTL (or
 within the turn) should not re-hit the child — or the upstream API.
@@ -120,7 +81,49 @@ Measure: repeat the same ask two minutes apart; `/toolstats` and
 
 ---
 
-### 4. Stateful objectives — **prototype** · M
+## Later
+
+### Dynamic tool grouping — **later** · M
+
+A lightweight way to give the model the **right tools for this turn**,
+rather than all of them. Live `/tokens` has shown `schemas` in the same
+order as history (~17k).
+
+**Do first (no new loop):** profiles + `mcp.toml` `tools` / `exclude` /
+`--tool-tier`. That is progressive loading with the operator as the
+search tool.
+
+**Cache (“send once”) is already the local/cloud story** if the tool
+list never changes. OpenAI/Gemini cache the tools array as part of the
+prefix; Ollama KV-cache does the same. Gantry already sorts
+`Host.Tools()` so a reshuffle does not cost a full re-prefill.
+`/tokens` still prints the full send size, not the discounted bill.
+You cannot omit tools on later turns and still call them — the model
+only sees this request.
+
+**Expand-on-demand is a real 2026 pattern** (Anthropic `defer_loading`
++ tool search). On our OpenAI-compat loop we would own it: builtin
+`mcp_open(server)` swaps the published set, extra turn, then the real
+call. Small local models already misspell names — a two-step “pick
+server, then tool” is another miss. Extra Completer call = persona +
+history billed again, and the tools-array change **busts** the prefix
+cache.
+
+Build the expand dance only if a curated + profiled catalog is still
+>~8k on `/tokens` *and* we are willing to spend a turn + bust cache to
+open a server.
+
+| Item | Why | Size |
+| --- | --- | --- |
+| **Tone regression probe** | Fixture transcript with a planted running joke → fold → fresh context + summary → ask for the callback. One LLM grade, not CI-blocking. Run when a summary/distill prompt changes. | S |
+| **Voice notes in** | Telegram voice → OpenAI-compat `/v1/audio/transcriptions` (`whisper.cpp` locally). Same tagged-text path as photos. | M |
+| **Tiered history (LLM one-liners)** | Go word-list strip already shipped (last 5 verbatim, quotes kept). Middle tier — `user asked X / agent did Y, joked Z` — only if `/tokens` still says history dominates after 32k + the strip. | M |
+
+---
+
+## Prototype / maybe
+
+### Stateful objectives — **prototype** · M
 
 Not “plans” as a workflow engine. Not a DAG. A **persistent objective**
 whose state survives individual cron / watch / chat turns.
@@ -145,62 +148,36 @@ wrote,” we already have that. Ship only if the kernel must *wake on
 state* (due, blocked, waiting-on-watch) without a Completer call every
 tick — the watch pattern, for goals.
 
----
-
-### 6. Dynamic tool grouping — **later** · M
-
-A lightweight way to give the model the **right tools for this turn**,
-rather than all of them. Live `/tokens` has shown `schemas` in the same
-order as history (~17k).
-
-**Do first (no new loop):** item 2 (profiles) + `mcp.toml` `tools` /
-`exclude` / `--tool-tier`. That is progressive loading with the
-operator as the search tool.
-
-**Cache (“send once”) is already the local/cloud story** if the tool
-list never changes. OpenAI/Gemini cache the tools array as part of the
-prefix; Ollama KV-cache does the same. Gantry already sorts
-`Host.Tools()` so a reshuffle does not cost a full re-prefill.
-`/tokens` still prints the full send size, not the discounted bill.
-You cannot omit tools on later turns and still call them — the model
-only sees this request.
-
-**Expand-on-demand is a real 2026 pattern** (Anthropic `defer_loading`
-+ tool search). On our OpenAI-compat loop we would own it: builtin
-`mcp_open(server)` swaps the published set, extra turn, then the real
-call. Small local models already misspell names — a two-step “pick
-server, then tool” is another miss. Extra Completer call = persona +
-history billed again, and the tools-array change **busts** the prefix
-cache.
-
-Build the expand dance only if a curated + profiled catalog is still
->~8k on `/tokens` *and* we are willing to spend a turn + bust cache to
-open a server.
-
----
-
-### 7. Better in-flight steering — **shipped**
-
-Follow-up mid-turn settles (`COALESCE_SETTLE_MS`), cancels Completer
-only, injects `[steer]` into the same message list. MCP calls keep
-running; Gemini `thought_signature` on those tool messages stays.
-Telegram edits the live bubble (`redirect: …`) instead of Discard.
-History is one user turn (original + steers). Cron/watch skip. `/cancel`
-still hard-aborts.
-
----
-
-## Then (if the shortlist still leaves a hole)
-
-| Item | Why | Status |
+| Item | Why | Size |
 | --- | --- | --- |
-| **Tone regression probe** | Fixture transcript with a planted running joke → fold → fresh context + summary → ask for the callback. One LLM grade, not CI-blocking. Run when a summary/distill prompt changes. | **later** · S |
-| **Voice notes in** | Telegram voice → OpenAI-compat `/v1/audio/transcriptions` (`whisper.cpp` locally). Same tagged-text path as photos. | **later** · M |
-| **Tiered history (LLM one-liners)** | Go word-list strip already shipped (last 5 verbatim, quotes kept). Middle tier — `user asked X / agent did Y, joked Z` — only if `/tokens` still says history dominates after 32k + the strip. | **later** · M |
-| **Append-only summary epochs** | Each fold rewrites the whole summary → busts the cached prefix. Fold *adds* a paragraph; rare compaction merges old epochs. Cuts prefill latency, not billed size — local models. Measure `first_token_ms` first; skip if folds are rare. | **maybe** · M |
-| **Hydration dedup vs summary/SELF** | `[memory]` re-states things the summary or SELF already carry. Skip rows whose content substring-matches. Ceiling is 30 rows — check `hydration_est_tokens` first. | **maybe** · S |
-| **Outbound HTTP MCP** | Host only speaks stdio today. Unlocks Home Assistant (and other HTTP MCP) without opening a port. No proxy sidecar. | **maybe** · M — only if we actually want HA |
-| **Webhook inbound** | Poll is minutes. A listen port is justified only if the source has a webhook, no decent poll/RSS, *and* waiting loses the moment. Bind Tailscale/localhost, HMAC on every POST, body is untrusted text, fail closed. Not a dashboard. | **maybe** · M — only for a source we cannot poll |
+| **Append-only summary epochs** | Each fold rewrites the whole summary → busts the cached prefix. Fold *adds* a paragraph; rare compaction merges old epochs. Cuts prefill latency, not billed size — local models. Measure `first_token_ms` first; skip if folds are rare. | M |
+| **Hydration dedup vs summary/SELF** | `[memory]` re-states things the summary or SELF already carry. Skip rows whose content substring-matches. Ceiling is 30 rows — check `hydration_est_tokens` first. | S |
+| **Outbound HTTP MCP** | Host only speaks stdio today. Unlocks Home Assistant (and other HTTP MCP) without opening a port. No proxy sidecar. | M — only if we actually want HA |
+| **Webhook inbound** | Poll is minutes. A listen port is justified only if the source has a webhook, no decent poll/RSS, *and* waiting loses the moment. Bind Tailscale/localhost, HMAC on every POST, body is untrusted text, fail closed. Not a dashboard. | M — only for a source we cannot poll |
+
+---
+
+## Token costs (how to judge a cut)
+
+Not all tokens cost the same. `/tokens` already prints the live table
+(persona / summary / history / hydration / schemas). Use it before
+justifying a cut.
+
+| Bucket | What | Cut it by |
+| --- | --- | --- |
+| **Billed prompt tokens** | Cloud APIs re-bill the whole prompt every turn (cached prefix is discounted, not free) | Smaller persona / history / hydration / schemas |
+| **Prefill latency** | Local models pay wall-clock for every *uncached* token | Byte-stable prefix; less churn, not just less text |
+| **Context ceiling** | Small local models drown past ~8–32k | Bounded everything (mostly done) |
+
+**Churn is a cost even when size isn't.** A 2k-char summary that rewrites
+itself every fold invalidates the KV cache for everything after it.
+Sometimes the win is *stop rewriting*, not *write less*.
+
+Tone rule: any lossy idea has to answer “where does the tone go instead?”
+The old summarizer was told to *“Drop chitchat”* — which is exactly where
+the jokes live. Voice already lives in `Facts:` / `Voice:` in the session
+summary, and in `SELF.md`. Do not store the funny only in the compressible
+layer.
 
 ---
 
