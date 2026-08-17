@@ -14,7 +14,7 @@ Wrong args → fix once and retry once; unknown tool → use the exact name belo
 | Workouts / load | `strava__` / `garmin__` | `google__` |
 | Sleep / recovery | `garmin__` | `strava__` for sleep |
 | Saved Strava routes / `strava.app.link` | `strava__urls_resolve` / `strava__routes_*` | `maps__link_resolve` |
-| Restaurants / “what’s near …” | `maps__place_search` | web search as the first hop |
+| Restaurants / “what’s near …” | `maps__place_search` from `[last pin]` | web search first; inventing a city |
 | Maps share link / when do I leave | `maps__link_resolve` / `maps__route_eta` | `strava__routes_*` for leave-by |
 | RSS / alerts / “watch this feed” | `feeds__…` + `watch_*` | inventing `twitter__*` |
 
@@ -70,6 +70,7 @@ Exact name: `google-search__web_search`. New event + place → search if needed,
 ## Maps
 
 `maps__link_resolve` (share/short URL; not `strava.app.link`), `maps__place_resolve`, `maps__place_search` (restaurants / “near …”), `maps__route_eta` (`origin`, `destination`, optional `mode` / `departure_time`; bike → `mode=bicycling`). Always include the returned Maps URL. Not `google__maps_*`.
+**Here:** Telegram location updates `[last pin]` on the time footer (coords + when). Use it as origin / “near me.” If missing or hours old, ask for a pin — do not guess a city. A bare pin is silent (cursor only); a caption or the next message is the ask.
 
 ## YouTube
 

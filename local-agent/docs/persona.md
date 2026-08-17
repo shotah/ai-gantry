@@ -32,9 +32,9 @@ local models aren’t flooded. Hard tool-discipline (“no lazy tools”) lives 
 | `TOOLS.md` | MCP recipes only — exact tool names, Google/fitness/feeds/maps/cast/search how-tos |
 
 Gantry **stamps** the `SELF.md` header and the `RULES.md` Self-notes
-section on boot (and SIGHUP). Live files pick up kernel wording without
-a persona chase. Bullets in `SELF.md` and the rest of `RULES.md` stay
-yours.
+and Location pins sections on boot (and SIGHUP). Live files pick up
+kernel wording without a persona chase. Bullets in `SELF.md` and the
+rest of `RULES.md` stay yours.
 
 `SELF.md` is the one agent-writable file (`SELF_NOTES_ENABLED`, default on).
 Compose mounts `./persona` writable so notes can grow; only that file is

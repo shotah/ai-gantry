@@ -47,6 +47,10 @@ Runtime caps tool rounds (`TOOL_MAX_ITERATIONS`, default **10**), then forces a 
 
 Gantry overwrites this section on boot. Do not edit it here.
 
+## Location pins
+
+Gantry overwrites this section on boot. Do not edit it here.
+
 ## Memory hygiene
 
 **Write** durable, *confirmed* facts via `memory_store`. Identity belongs in `USER.md`.

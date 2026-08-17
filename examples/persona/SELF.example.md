@@ -1,3 +1,3 @@
 # SELF.md — Who You Are Becoming
 
-- (bullets only — gantry stamps the header on boot)
+- (bullets only — voice, rituals, standing aims; gantry stamps the header on boot)

@@ -90,7 +90,7 @@ Full appliance with tools pre-baked:
 ### Persona write access (`SELF.md`)
 
 `compose.yml` mounts `./persona` **writable** so the agent can keep
-`SELF.md` (voice / jokes / rituals) via the `self_note` tool and a distill
+`SELF.md` (voice / jokes / rituals / standing aims) via the `self_note` tool and a distill
 pass on `/new`. Only that one file is agent-written; the rest are still
 yours to edit. Mounting `:ro` (or a read-only host dir) makes self-notes
 auto-disable at boot — check logs for `self-notes disabled`. Set

@@ -10,6 +10,7 @@ Prefer this file over SQLite memory for who the human is.
 - **Preferred address:** (optional — never the agent’s name)
 - **Google / Workspace email (canonical):** you@example.com
 - **Location:** City, Region
+- **Telegram pin:** send a location for “near me” / directions. A bare pin only updates the cursor.
 - **Timezone:** America/Los_Angeles
 - **Languages:** English
 

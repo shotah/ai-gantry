@@ -39,6 +39,7 @@ Prefer this file over SQLite memory for who the human is.
 - **Key people:** (optional — only names/emails you’ve confirmed)
 - Workout data sources: Strava / Garmin / …
 - **Usual travel mode:** (e.g. bike — `maps__route_eta` should use `mode=bicycling`)
+- **Telegram pin:** send a location for “near me” / directions. A bare pin only updates the cursor; caption or the next message is the ask.
 
 ## Work context
 

@@ -78,6 +78,9 @@ func TestPolishAndFallback(t *testing.T) {
 	if !strings.Contains(p, "watch_add") {
 		t.Fatal("polish should mention watch subscription guidance")
 	}
+	if !strings.Contains(p, "last pin") {
+		t.Fatal("polish should mention Telegram last-pin guidance")
+	}
 	f := examples.FallbackFormat(s)
 	if !strings.Contains(f, "Demo title") || !strings.Contains(f, examples.OffHint) {
 		t.Fatalf("fallback: %s", f)
@@ -127,6 +130,24 @@ func TestDefaultSeeds_GHealthVsGarminAndReminders(t *testing.T) {
 	}
 	if ids["ghealth-strava-enrich"] {
 		t.Fatal("ghealth enrich should not match garmin-only health catalog")
+	}
+}
+
+func TestDefaultSeeds_Maps(t *testing.T) {
+	mapsOnly := examples.ServerPrefixes([]provider.ToolDef{
+		{Name: "maps__place_search"},
+		{Name: "maps__route_eta"},
+	})
+	elig := examples.Eligible(examples.DefaultSeeds, mapsOnly)
+	ids := map[string]bool{}
+	for _, s := range elig {
+		ids[s.ID] = true
+	}
+	if !ids["maps-near-me"] || !ids["maps-route-eta"] {
+		t.Fatalf("maps catalog missing pin seeds: %v", ids)
+	}
+	if ids["feeds-nws-watch"] {
+		t.Fatal("feeds seed should not match maps-only catalog")
 	}
 }
 

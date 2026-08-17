@@ -266,6 +266,26 @@ var DefaultSeeds = []Seed{
 			"Explain the first poll seeds the cursor (no backlog dump); [silent] still skips noise",
 		},
 	},
+	{
+		ID:      "maps-near-me",
+		Title:   "Near me: Telegram pin + place search",
+		Servers: []string{"maps"},
+		Steps: []string{
+			"If [last pin] is missing or hours old, ask them to send a Telegram location pin (a bare pin is silent — it only updates the cursor)",
+			"Call maps__place_search from that pin — do not invent a city",
+			"Share the Maps URL and a short pick; don't invent hours or ratings",
+		},
+	},
+	{
+		ID:      "maps-route-eta",
+		Title:   "Directions: last pin to a place, with a leave-by time",
+		Servers: []string{"maps"},
+		Steps: []string{
+			"Use [last pin] as origin, or ask for a Telegram pin if it's stale",
+			"Resolve the destination (maps__place_resolve or maps__link_resolve for a share link)",
+			"Call maps__route_eta (bike → mode=bicycling) and include the Maps URL",
+		},
+	},
 }
 
 // ServerPrefixes returns the set of MCP server prefixes present in defs
@@ -342,6 +362,7 @@ func PolishPrompt(s Seed) string {
 	b.WriteString("Invite them to try it (e.g. want me to do that?). ")
 	b.WriteString("If the recipe mentions cron_schedule / a recurring reminder, pitch scheduling it (daily or weekly) — still propose only. ")
 	b.WriteString("If the recipe mentions watch_add / a feed or X subscription, pitch setting up the watch — still propose only. ")
+	b.WriteString("If the recipe mentions a Telegram pin or [last pin], mention sending a location pin from the phone. ")
 	b.WriteString("Do not call tools. Do not invent tools outside this recipe. ")
 	fmt.Fprintf(&b, "End with a short note: %s", OffHint)
 	return b.String()

@@ -124,7 +124,7 @@ Gantry keeps that growth on purpose:
 
 | Piece | What it does |
 | --- | --- |
-| **`SELF.md`** | Agent-writable notes in `PERSONA_DIR` — voice, humor, running jokes, rituals, standing aims. Gantry stamps the header (and the `RULES.md` Self-notes section) on boot |
+| **`SELF.md`** | Agent-writable notes in `PERSONA_DIR` — voice, humor, running jokes, rituals, standing aims. Gantry stamps the header (and the `RULES.md` Self-notes + Location pins sections) on boot |
 | **`self_note`** | Builtin tool: jot one short line when personality happens mid-chat |
 | **Distill on `/new`** | Before the session wipe: `Voice:` folds into `SELF.md`; `Facts:` park in SQLite memory (not `USER.md`) |
 | **Voice on trim** | History fold appends new `Voice:` bits to `SELF.md` so long sessions without `/new` still keep the joke |
