@@ -114,6 +114,63 @@ func (f *fakeTools) Call(_ context.Context, name string, _ json.RawMessage) (str
 	return "tool-ok", nil
 }
 
+type healthTools struct {
+	fakeTools
+	rows []mcp.ServerStatus
+}
+
+func (h *healthTools) ServerHealth() []mcp.ServerStatus { return h.rows }
+
+func TestAgent_Handle_ToolsHealthBlock(t *testing.T) {
+	var last provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		last = req
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	now := time.Now()
+	a, err := agent.New(agent.Options{
+		Completer: fc,
+		Sessions:  newMemHistory(),
+		Tools: &healthTools{
+			fakeTools: fakeTools{defs: []provider.ToolDef{{Name: "garmin__sleep_get"}}},
+			rows: []mcp.ServerStatus{
+				{Name: "garmin", State: mcp.ServerError, At: now.Add(-3 * time.Minute), Tool: "garmin__sleep_get", Note: "401 unauthorized"},
+				{Name: "cast", State: mcp.ServerSkipped, Note: "no such file"},
+			},
+		},
+		Model: "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "sleep?"}); err != nil {
+		t.Fatal(err)
+	}
+	var block string
+	for _, m := range last.Messages {
+		if strings.Contains(m.Content, "[tools]") {
+			block = m.Content
+			break
+		}
+	}
+	if block == "" {
+		t.Fatal("missing [tools] hydration")
+	}
+	if !strings.Contains(block, "garmin") || !strings.Contains(block, "401") {
+		t.Fatalf("block = %q", block)
+	}
+	if strings.Contains(block, "cast") {
+		t.Fatalf("skipped server leaked into prompt: %q", block)
+	}
+	listed, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "/tools"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(listed, "error") || !strings.Contains(listed, "cast: skipped") {
+		t.Fatalf("/tools = %q", listed)
+	}
+}
+
 func TestAgent_Handle_MemoryHydration(t *testing.T) {
 	ctx := context.Background()
 	mem, err := memory.Open(t.TempDir())

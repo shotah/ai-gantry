@@ -424,6 +424,12 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			})
 		}
 	}
+	if block := a.toolsHealthBlock(); block != "" {
+		messages = append(messages, provider.Message{
+			Role:    provider.RoleSystem,
+			Content: block,
+		})
+	}
 	userMsg := provider.Message{
 		Role:    provider.RoleUser,
 		Content: storeText,
@@ -855,10 +861,31 @@ func (a *Agent) listTools() string {
 	sort.Strings(names)
 	var b strings.Builder
 	fmt.Fprintf(&b, "tools (%d) schema_est_tokens≈%d (chars/4)\n", budget.Tools, budget.EstTokens)
+	healthBy := map[string]mcp.ServerStatus{}
+	now := time.Now()
+	if src, ok := a.tools.(interface{ ServerHealth() []mcp.ServerStatus }); ok {
+		for _, row := range src.ServerHealth() {
+			healthBy[row.Name] = row
+		}
+	}
 	if len(budget.ByServer) > 0 {
 		b.WriteString("by server:\n")
 		for _, s := range budget.ByServer {
-			fmt.Fprintf(&b, "  %s: %d tools ≈ %d\n", s.Server, s.Tools, s.EstTokens)
+			line := fmt.Sprintf("  %s: %d tools ≈ %d", s.Server, s.Tools, s.EstTokens)
+			if row, ok := healthBy[s.Server]; ok {
+				line += "  " + mcp.FormatServerHealthLine(row, now)
+			}
+			b.WriteString(line + "\n")
+		}
+		var skipped []mcp.ServerStatus
+		for _, row := range healthBy {
+			if row.State == mcp.ServerSkipped {
+				skipped = append(skipped, row)
+			}
+		}
+		sort.Slice(skipped, func(i, j int) bool { return skipped[i].Name < skipped[j].Name })
+		for _, row := range skipped {
+			fmt.Fprintf(&b, "  %s: %s\n", row.Name, mcp.FormatServerHealthLine(row, now))
 		}
 	}
 	for _, name := range names {
@@ -870,6 +897,17 @@ func (a *Agent) listTools() string {
 		}
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+func (a *Agent) toolsHealthBlock() string {
+	if a.tools == nil {
+		return ""
+	}
+	src, ok := a.tools.(interface{ ServerHealth() []mcp.ServerStatus })
+	if !ok {
+		return ""
+	}
+	return mcp.FormatServerHealth(src.ServerHealth(), time.Now())
 }
 
 func splitPrefixedTool(name string) (server, tool string) {

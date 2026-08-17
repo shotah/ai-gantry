@@ -479,6 +479,9 @@ command = "unused"
 	if !strings.Contains(out, "echo:") {
 		t.Fatalf("%q", out)
 	}
+	if rows := host.ServerHealth(); len(rows) != 1 || rows[0].State != mcp.ServerOK || rows[0].Tool != "demo__echo" {
+		t.Fatalf("health after ok = %#v", rows)
+	}
 
 	// Force failure then successful restart re-dial.
 	conn.fail = true
@@ -553,6 +556,16 @@ command = "unused"
 	}
 	if host.Tools()[0].Name != "ok__ping" {
 		t.Fatalf("got %q", host.Tools()[0].Name)
+	}
+	health := host.ServerHealth()
+	if len(health) != 2 {
+		t.Fatalf("health=%#v", health)
+	}
+	if health[0].Name != "broken" || health[0].State != mcp.ServerSkipped || !strings.Contains(health[0].Note, "cannot spawn") {
+		t.Fatalf("skipped=%#v", health[0])
+	}
+	if health[1].Name != "ok" || health[1].State != mcp.ServerIdle {
+		t.Fatalf("ok=%#v", health[1])
 	}
 }
 

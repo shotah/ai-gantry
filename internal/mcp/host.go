@@ -59,6 +59,7 @@ type Host struct {
 	mu      sync.RWMutex
 	servers map[string]*managedServer
 	tools   map[string]*Tool // prefixed name → tool
+	skipped []ServerStatus   // boot fail-soft; not in the published catalog
 
 	stats callStatsState
 }
@@ -106,6 +107,11 @@ func Start(ctx context.Context, opts Options) (*Host, error) {
 	for _, spec := range manifest.Servers {
 		if err := h.connectServer(ctx, spec); err != nil {
 			failed++
+			h.skipped = append(h.skipped, ServerStatus{
+				Name:  spec.Name,
+				State: ServerSkipped,
+				Note:  clipHealthNote(err.Error()),
+			})
 			h.log.Error("mcp server boot skipped", "server", spec.Name, "err", err)
 			continue
 		}
@@ -181,7 +187,9 @@ func (h *Host) call(ctx context.Context, toolName string, arguments json.RawMess
 	args := map[string]any{}
 	if len(arguments) > 0 && string(arguments) != "null" {
 		if err := json.Unmarshal(arguments, &args); err != nil {
-			return "", fmt.Errorf("mcp: invalid arguments for %q: %w", toolName, err)
+			outErr := fmt.Errorf("mcp: invalid arguments for %q: %w", toolName, err)
+			h.recordOutcome(tool.Server, resolved, 0, outErr)
+			return "", outErr
 		}
 	}
 	start := time.Now()
@@ -192,27 +200,29 @@ func (h *Host) call(ctx context.Context, toolName string, arguments json.RawMess
 	text, err := h.callOnce(ctx, tool, args)
 	if err != nil {
 		if !isRestartableMCPError(err) {
-			h.recordToolCall(resolved, time.Since(start), true)
+			h.recordOutcome(tool.Server, resolved, time.Since(start), err)
 			return "", err
 		}
 		h.log.Warn("mcp tool call failed; attempting restart", "tool", resolved, "server", tool.Server, "err", err)
 		if rerr := h.restartServer(ctx, tool.Server); rerr != nil {
-			h.recordToolCall(resolved, time.Since(start), true)
-			return "", fmt.Errorf("mcp: call %q failed: %v (restart: %w)", resolved, err, rerr)
+			outErr := fmt.Errorf("mcp: call %q failed: %v (restart: %w)", resolved, err, rerr)
+			h.recordOutcome(tool.Server, resolved, time.Since(start), outErr)
+			return "", outErr
 		}
 		// Tool map may have changed; re-resolve (keep alias rules).
 		tool, _, ok = h.resolve(toolName)
 		if !ok {
-			h.recordToolCall(resolved, time.Since(start), true)
-			return "", fmt.Errorf("mcp: tool %q missing after restart", toolName)
+			outErr := fmt.Errorf("mcp: tool %q missing after restart", toolName)
+			h.recordOutcome(tool.Server, resolved, time.Since(start), outErr)
+			return "", outErr
 		}
 		text, err = h.callOnce(ctx, tool, args)
 		if err != nil {
-			h.recordToolCall(resolved, time.Since(start), true)
+			h.recordOutcome(tool.Server, resolved, time.Since(start), err)
 			return "", err
 		}
 	}
-	h.recordToolCall(resolved, time.Since(start), false)
+	h.recordOutcome(tool.Server, resolved, time.Since(start), nil)
 	return text, nil
 }
 

@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"context"
+	"errors"
 	"sort"
 	"sync"
 	"time"
@@ -37,14 +39,25 @@ type toolCounters struct {
 type callStatsState struct {
 	mu               sync.Mutex
 	byTool           map[string]*toolCounters
+	byServer         map[string]serverLastCall
 	totalCalls       int
 	prefixAlias      int
 	constrainedRetry int
 	unknownTool      int
 }
 
+type serverLastCall struct {
+	at   time.Time
+	ok   bool
+	tool string
+	note string
+}
+
 func (h *Host) initCallStats() {
-	h.stats = callStatsState{byTool: make(map[string]*toolCounters)}
+	h.stats = callStatsState{
+		byTool:   make(map[string]*toolCounters),
+		byServer: make(map[string]serverLastCall),
+	}
 }
 
 func (h *Host) recordPrefixAlias() {
@@ -58,6 +71,33 @@ func (h *Host) recordUnknownTool(constrained bool) {
 	h.stats.unknownTool++
 	if constrained {
 		h.stats.constrainedRetry++
+	}
+	h.stats.mu.Unlock()
+}
+
+func (h *Host) recordOutcome(server, tool string, dur time.Duration, err error) {
+	h.recordToolCall(tool, dur, err != nil)
+	if err != nil && errors.Is(err, context.Canceled) {
+		return
+	}
+	h.recordServerLast(server, tool, err)
+}
+
+func (h *Host) recordServerLast(server, tool string, err error) {
+	if server == "" {
+		return
+	}
+	note := ""
+	ok := err == nil
+	if err != nil {
+		note = clipHealthNote(err.Error())
+	}
+	h.stats.mu.Lock()
+	h.stats.byServer[server] = serverLastCall{
+		at:   time.Now(),
+		ok:   ok,
+		tool: tool,
+		note: note,
 	}
 	h.stats.mu.Unlock()
 }

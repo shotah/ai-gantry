@@ -62,6 +62,11 @@ Shipped: **parallel MCP calls** — one tool round fans out; results stay in
 the model's original order. Same-server stdio still serializes inside
 the host. `/perf` `tool_ms` is wall-clock for the batch.
 
+Shipped: **tool last-call ledger** — `[tools]` lists every connected
+manifest server (`idle` / `ok` / `error` + age + last note). Host
+observes `Call`; a success flips the line. Skipped boot servers stay
+out of the prompt (they have no tools) and show on `/tools` only.
+
 ### 2. Model + tool profiles — **next** · M
 
 Not multi-agent. Not provider fallback. One process, one Completer, a
@@ -134,28 +139,6 @@ outbound to Telegram. Same reason cron and watches are kernel.
 wrote,” we already have that. Ship only if the kernel must *wake on
 state* (due, blocked, waiting-on-watch) without a Completer call every
 tick — the watch pattern, for goals.
-
----
-
-### 5. Runtime / tool health exposed to the agent — **later** · S
-
-`/toolstats` and `/status` are operator-facing. The model still guesses
-whether Garmin is authenticated, whether search failed three times this
-boot, or whether a server was skipped at start (fail-soft).
-
-Hydrate a short block the way memory already hydrates:
-
-```text
-[tools]
-ok:   calendar, search, feeds
-down: garmin (auth missing)
-fail: maps__route_eta ×3 last 10m
-```
-
-**Why kernel:** this is supervisor + host stats, not a capability.
-Keep it tiny — a catalog of failures, not a dashboard. Untrusted the
-same way tool results are: he may Push or pick another tool; he does
-not get a new ACL.
 
 ---
 

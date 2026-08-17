@@ -104,3 +104,8 @@ func (c Composite) CallStats() mcp.CallStats {
 	}
 	return mcp.CallStats{}
 }
+
+// ServerHealth forwards last-call state when Other exposes it (mcp.Host).
+func (c Composite) ServerHealth() []mcp.ServerStatus {
+	return mcp.ServerHealthOf(c.Other)
+}
