@@ -132,12 +132,32 @@ not a second job database inside gantry.
 Revisit only if a watch fire and a Thursday cron regularly *do not*
 recognize they are the same job, and Tasks would not have fixed that.
 
+### Webhook inbound — **maybe** · M (still want this)
+
+External sources waking him. Same `Handle` as cron/watch, just a POST
+instead of “we went and looked.” The like is real. The hold is fit
+gate 1: a listen port.
+
+Not the same item as **outbound HTTP MCP** (gantry dials Home Assistant
+— no inbound port). This one is someone dialing *us*.
+
+Ship only when all three are true:
+
+1. The source has a webhook, no decent poll/RSS, **and** waiting until
+   the next watch tick loses the moment.
+2. Bind is Tailscale or localhost — not `0.0.0.0` + hope.
+3. HMAC (or equivalent) on every POST; body is untrusted text; fail
+   closed. Not a dashboard.
+
+If (2)+(3) still feel wrong, the outbound-only shape is a tiny relay
+you already trust (Telegram is this): Google POSTs at the relay, gantry
+long-polls the relay. More moving parts. Same wake. No port on gantry.
+
 | Item | Why | Size |
 | --- | --- | --- |
 | **Append-only summary epochs** | Each fold rewrites the whole summary → busts the cached prefix. Fold *adds* a paragraph; rare compaction merges old epochs. Cuts prefill latency, not billed size — local models. Measure `first_token_ms` first; skip if folds are rare. | M |
 | **Hydration dedup vs summary/SELF** | `[memory]` re-states things the summary or SELF already carry. Skip rows whose content substring-matches. Ceiling is 30 rows — check `hydration_est_tokens` first. | S |
 | **Outbound HTTP MCP** | Host only speaks stdio today. Unlocks Home Assistant (and other HTTP MCP) without opening a port. No proxy sidecar. | M — only if we actually want HA |
-| **Webhook inbound** | Poll is minutes. A listen port is justified only if the source has a webhook, no decent poll/RSS, *and* waiting loses the moment. Bind Tailscale/localhost, HMAC on every POST, body is untrusted text, fail closed. Not a dashboard. | M — only for a source we cannot poll |
 
 ---
 
