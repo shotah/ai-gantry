@@ -26,7 +26,7 @@ local models aren’t flooded. Hard tool-discipline (“no lazy tools”) lives 
 | File | Purpose |
 | --- | --- |
 | `SOUL.md` | Who the agent is — name/vibe, OpenClaw-style core truths, lab energy, communication |
-| `SELF.md` | Who the agent has **become** — agent-written (`self_note` tool + distill on `/new`); capped ~4KB; prune freely |
+| `SELF.md` | Who the agent has **become** — agent-written (`self_note` + Voice on trim + distill on `/new`); capped ~4KB; prune freely |
 | `RULES.md` | Operating rules — **no lazy tools**, have a spine, tool budget, identity lock, safety, memory hygiene |
 | `USER.md` | Who Chris is — **canonical email lives here**, directives, gyms, prefs |
 | `TOOLS.md` | MCP recipes only — exact tool names, Google/fitness/feeds/maps/cast/search how-tos |
@@ -41,7 +41,7 @@ self-notes at boot — look for `self-notes disabled` in the logs. Set
 or wipe `SELF.md` — details in
 [../../docs/troubleshooting.md](../../docs/troubleshooting.md#selfmd--personality-drift).
 
-**Append ≠ distill.** `self_note` only adds a line; `/new` rewrites/dedupes.
+**Append ≠ distill.** `self_note` and history-trim Voice graduate add a line; `/new` rewrites/dedupes.
 Persona `RULES` / `TOOLS` / `SELF` headers must say so — otherwise models
 re-note the same vibe every few turns until the file fills with duplicates.
 

@@ -222,6 +222,17 @@ func run() int {
 				Other: tools,
 			}
 			logger.Info("self-notes ready", "file", filepath.Join(cfg.PersonaDir, selfnote.FileName))
+			store := selfStore
+			sessions.WithFoldHook(func(prior, next string) {
+				ok, err := selfnote.GraduateVoice(store, prior, next)
+				if err != nil {
+					logger.Warn("self-note on trim failed", "err", err)
+					return
+				}
+				if ok {
+					logger.Info("self-note on trim", "note_graduated", true)
+				}
+			})
 		}
 	}
 

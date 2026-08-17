@@ -12,6 +12,7 @@ Gantry’s **self-notes** feature lets the agent grow a personality that
 survives `/new`:
 
 - Mid-chat: builtin `self_note` appends a short line to `PERSONA_DIR/SELF.md`.
+- On history trim: new `Voice:` bits append the same way (no extra model call).
 - On `/new`: a distill pass **rewrites** the whole file from the dying session,
   the rolling `Voice:` block, and existing notes (not a blind append). Session
   `Facts:` park in SQLite memory — not `USER.md`.

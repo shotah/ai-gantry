@@ -119,6 +119,100 @@ func LedgerParts(s string) (facts, voice string) {
 	return strings.TrimSpace(facts), strings.TrimSpace(voice)
 }
 
+// VoiceDelta returns new Voice: bits that appeared in next vs prior.
+// Empty when Voice was copied forward unchanged, or the only addition is
+// mood weather ("dry today"). One line, suitable for a self_note append.
+func VoiceDelta(prior, next string) string {
+	_, priorVoice := LedgerParts(prior)
+	_, nextVoice := LedgerParts(next)
+	if strings.TrimSpace(nextVoice) == "" {
+		return ""
+	}
+	if normalizeVoice(nextVoice) == normalizeVoice(priorVoice) {
+		return ""
+	}
+	have := map[string]bool{}
+	for _, b := range VoiceBits(priorVoice) {
+		have[normalizeVoice(b)] = true
+	}
+	var added []string
+	for _, b := range VoiceBits(nextVoice) {
+		if b == "" || have[normalizeVoice(b)] || isMoodWeather(b) {
+			continue
+		}
+		added = append(added, b)
+	}
+	return strings.Join(added, "; ")
+}
+
+// VoiceBits splits a Voice: body on newlines and semicolons, keeping
+// quoted jokes intact.
+func VoiceBits(s string) []string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	var bits []string
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		bits = append(bits, splitVoiceSemi(line)...)
+	}
+	return bits
+}
+
+func splitVoiceSemi(s string) []string {
+	var out []string
+	var b strings.Builder
+	inQuote := false
+	for _, r := range s {
+		switch {
+		case r == '"':
+			inQuote = !inQuote
+			b.WriteRune(r)
+		case r == ';' && !inQuote:
+			if t := strings.TrimSpace(b.String()); t != "" {
+				out = append(out, t)
+			}
+			b.Reset()
+		default:
+			b.WriteRune(r)
+		}
+	}
+	if t := strings.TrimSpace(b.String()); t != "" {
+		out = append(out, t)
+	}
+	if len(out) == 0 {
+		return []string{strings.TrimSpace(s)}
+	}
+	return out
+}
+
+func normalizeVoice(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
+}
+
+// isMoodWeather skips one-off register ("dry today") that the distill prompt
+// already tells the model not to park in SELF.md.
+func isMoodWeather(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return true
+	}
+	if strings.Contains(s, `"`) {
+		return false
+	}
+	lower := strings.ToLower(s)
+	for _, keep := range []string{"gag", "joke", "nickname", "game", "ritual", "calls ", " is \""} {
+		if strings.Contains(lower, keep) {
+			return false
+		}
+	}
+	return len(strings.Fields(s)) <= 3
+}
+
 func splitLedger(s string) (facts, voice string, hasVoice bool) {
 	s = strings.TrimSpace(s)
 	if s == "" {

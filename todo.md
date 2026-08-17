@@ -67,6 +67,11 @@ manifest server (`idle` / `ok` / `error` + age + last note). Host
 observes `Call`; a success flips the line. Skipped boot servers stay
 out of the prompt (they have no tools) and show on `/tools` only.
 
+Shipped: **Voice graduate on trim** — a successful history fold appends
+new `Voice:` bits to `SELF.md` (same `Append` path as `self_note`). No
+second Completer call. Unchanged Voice, mood weather, and already-listed
+jokes are skipped. `/new` still does the full rewrite distill.
+
 ### 2. Model + tool profiles — **next** · M
 
 Not multi-agent. Not provider fallback. One process, one Completer, a
@@ -198,7 +203,6 @@ easy to get wrong; the loop change is the product.
 
 | Item | Why | Status |
 | --- | --- | --- |
-| **Distill-to-SELF on trim** | Long sessions can fold for weeks without `/new`, so `SELF.md` never gets the joke. When a fold drops tone-worthy turns, emit an optional one-line `self_note` (plumbing exists; tool already refuses past 4 KB). Tone graduates from history (expensive, doomed) to SELF.md (capped, permanent). | **later** · M |
 | **Tone regression probe** | Fixture transcript with a planted running joke → fold → fresh context + summary → ask for the callback. One LLM grade, not CI-blocking. Run when a summary/distill prompt changes. | **later** · S |
 | **Voice notes in** | Telegram voice → OpenAI-compat `/v1/audio/transcriptions` (`whisper.cpp` locally). Same tagged-text path as photos. | **later** · M |
 | **Tiered history (LLM one-liners)** | Go word-list strip already shipped (last 5 verbatim, quotes kept). Middle tier — `user asked X / agent did Y, joked Z` — only if `/tokens` still says history dominates after 32k + the strip. | **later** · M |

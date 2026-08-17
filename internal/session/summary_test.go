@@ -26,7 +26,13 @@ func TestStore_RollingSummaryOnTrim(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	store.WithSummarizer(&session.LLMSummarizer{Completer: &foldCompleter{body: "chris likes espresso"}})
+	var hookedPrior, hookedNext string
+	store.WithSummarizer(&session.LLMSummarizer{Completer: &foldCompleter{
+		body: "Facts: chris likes espresso\nVoice: gag: \"that gull had a mortgage\"",
+	}})
+	store.WithFoldHook(func(prior, next string) {
+		hookedPrior, hookedNext = prior, next
+	})
 
 	id := "s1"
 	for i := 0; i < 3; i++ {
@@ -43,6 +49,9 @@ func TestStore_RollingSummaryOnTrim(t *testing.T) {
 	}
 	if !strings.Contains(sum, "espresso") {
 		t.Fatalf("summary=%q", sum)
+	}
+	if !strings.Contains(hookedNext, "gull") {
+		t.Fatalf("fold hook not called with new voice: prior=%q next=%q", hookedPrior, hookedNext)
 	}
 
 	if err := store.Reset(ctx, id); err != nil {
@@ -92,6 +101,21 @@ func TestLLMSummarizer_FoldKeepsVoice(t *testing.T) {
 	}
 	if strings.Contains(sys, "one tight paragraph.") && !strings.Contains(sys, "Facts:") {
 		t.Fatal("old paragraph-only instruction still present")
+	}
+}
+
+func TestVoiceDelta_NewJokeOnly(t *testing.T) {
+	prior := "Facts: espresso\nVoice: dry; gag: \"that gull had a mortgage\""
+	next := "Facts: espresso\nVoice: dry; gag: \"that gull had a mortgage\"; he is \"Chef\" this week"
+	got := session.VoiceDelta(prior, next)
+	if !strings.Contains(got, "Chef") || strings.Contains(got, "gull") || strings.Contains(got, "dry") {
+		t.Fatalf("delta=%q", got)
+	}
+	if session.VoiceDelta(next, next) != "" {
+		t.Fatal("unchanged voice must be empty")
+	}
+	if session.VoiceDelta(prior, "Facts: espresso\nVoice: dry today") != "" {
+		t.Fatal("mood weather must not graduate")
 	}
 }
 

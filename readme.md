@@ -127,6 +127,7 @@ Gantry keeps that growth on purpose:
 | **`SELF.md`** | Agent-writable notes in `PERSONA_DIR` — voice, humor, running jokes, rituals |
 | **`self_note`** | Builtin tool: jot one short line when personality happens mid-chat |
 | **Distill on `/new`** | Before the session wipe: `Voice:` folds into `SELF.md`; `Facts:` park in SQLite memory (not `USER.md`) |
+| **Voice on trim** | History fold appends new `Voice:` bits to `SELF.md` so long sessions without `/new` still keep the joke |
 
 Operator files (`SOUL.md` / `RULES.md` / `USER.md` / `TOOLS.md`) stay yours.
 `SELF.md` is the only file the agent may write — capped (~4KB), greppable,
@@ -508,10 +509,14 @@ Persona files describe who the agent **should** be. `SELF.md` is who it
   → `RULES` → `USER` → `TOOLS`).
 - Mid-chat: `self_note` appends one short line (model already sees the full
   file in the persona, so it can skip duplicates).
+- On history trim: new `Voice:` bits (jokes, nicknames, games — not “dry
+  today”) append the same way, so a long session without `/new` still
+  graduates tone into `SELF.md`. Already-listed bits are skipped. Cap
+  refuse is the same as the tool.
 - On `/new`: full rewrite distill (keep what matters, fold in `[session voice]`
   + the dying chat, ≤30 bullets) — not a blind append. Session `Facts:` go to
   memory, not `SELF.md` and not `USER.md`.
-- Cap ~4KB; at capacity the tool refuses until distill or you prune.
+- Cap ~4KB; at capacity the tool (and trim append) refuse until distill or you prune.
 - Needs a **writable** persona directory (`SELF_NOTES_ENABLED`, default on).
 
 **Operator duty:** audit or delete `SELF.md` if the agent drifts into

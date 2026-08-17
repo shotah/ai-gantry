@@ -33,12 +33,26 @@ type Store struct {
 	maxMessages  int
 	maxEstTokens int
 	summarizer   Summarizer // optional; folds trimmed turns into session.summary
+	foldHook     FoldHook   // optional; after a successful fold (trim already committed)
 }
+
+// FoldHook sees the prior and next session summaries after a successful trim
+// fold. Used to graduate new Voice: material into SELF.md. Must not fail the
+// trim — the hook logs its own errors.
+type FoldHook func(prior, next string)
 
 // WithSummarizer enables rolling summary when history is trimmed.
 func (s *Store) WithSummarizer(sum Summarizer) *Store {
 	if s != nil {
 		s.summarizer = sum
+	}
+	return s
+}
+
+// WithFoldHook runs after a successful fold. Call after WithSummarizer.
+func (s *Store) WithFoldHook(h FoldHook) *Store {
+	if s != nil {
+		s.foldHook = h
 	}
 	return s
 }
@@ -178,6 +192,7 @@ func (s *Store) Append(ctx context.Context, sessionID string, msgs ...Message) e
 		return err
 	}
 
+	var foldedPrior, foldedNext string
 	if len(dropIDs) > 0 {
 		if s.summarizer != nil {
 			var prior string
@@ -198,6 +213,7 @@ func (s *Store) Append(ctx context.Context, sessionID string, msgs ...Message) e
 					next, now, sessionID); err != nil {
 					return fmt.Errorf("session: set summary: %w", err)
 				}
+				foldedPrior, foldedNext = prior, next
 			}
 		} else if err := s.deleteMessageIDs(ctx, tx, dropIDs); err != nil {
 			return err
@@ -206,6 +222,9 @@ func (s *Store) Append(ctx context.Context, sessionID string, msgs ...Message) e
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("session: commit: %w", err)
+	}
+	if s.foldHook != nil && foldedNext != "" {
+		s.foldHook(foldedPrior, foldedNext)
 	}
 	return nil
 }
