@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -90,6 +91,7 @@ func (m *memHistory) setSummary(id, s string) {
 
 type fakeTools struct {
 	defs  []provider.ToolDef
+	mu    sync.Mutex
 	calls []string
 	err   error
 	out   string
@@ -100,7 +102,9 @@ func (f *fakeTools) Tools() []provider.ToolDef { return f.defs }
 func (f *fakeTools) ToolCount() int { return len(f.defs) }
 
 func (f *fakeTools) Call(_ context.Context, name string, _ json.RawMessage) (string, error) {
+	f.mu.Lock()
 	f.calls = append(f.calls, name)
+	f.mu.Unlock()
 	if f.err != nil {
 		return "", f.err
 	}
@@ -1422,5 +1426,81 @@ func TestAgent_StripFillersOnOldHistory(t *testing.T) {
 	stored, _ := hist.Messages(context.Background(), "s")
 	if stored[0].Content != "the calendar on Tuesday" {
 		t.Fatalf("SQLite rewritten: %q", stored[0].Content)
+	}
+}
+
+// overlapTools sleeps on every call and records how many ran at once.
+type overlapTools struct {
+	defs        []provider.ToolDef
+	delay       time.Duration
+	inflight    atomic.Int32
+	maxInflight atomic.Int32
+}
+
+func (o *overlapTools) Tools() []provider.ToolDef { return o.defs }
+
+func (o *overlapTools) ToolCount() int { return len(o.defs) }
+
+func (o *overlapTools) Call(_ context.Context, name string, _ json.RawMessage) (string, error) {
+	n := o.inflight.Add(1)
+	for {
+		old := o.maxInflight.Load()
+		if n <= old || o.maxInflight.CompareAndSwap(old, n) {
+			break
+		}
+	}
+	defer o.inflight.Add(-1)
+	time.Sleep(o.delay)
+	return "ok-" + name, nil
+}
+
+func TestAgent_ToolRoundRunsInParallel(t *testing.T) {
+	var second []provider.Message
+	n := 0
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		n++
+		if n == 1 {
+			return &provider.Result{ToolCalls: []provider.ToolCall{
+				{ID: "c1", Name: "search__web", Arguments: `{"q":"a"}`},
+				{ID: "c2", Name: "calendar__list", Arguments: `{"q":"b"}`},
+			}}, nil
+		}
+		second = append([]provider.Message(nil), req.Messages...)
+		return &provider.Result{Content: "done"}, nil
+	}}
+	tools := &overlapTools{
+		defs: []provider.ToolDef{
+			{Name: "search__web"},
+			{Name: "calendar__list"},
+		},
+		delay: 80 * time.Millisecond,
+	}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "check both"}); err != nil {
+		t.Fatal(err)
+	}
+	elapsed := time.Since(start)
+	if tools.maxInflight.Load() < 2 {
+		t.Fatalf("max inflight = %d, want parallel calls (elapsed %s)", tools.maxInflight.Load(), elapsed)
+	}
+	var toolsOut []string
+	for _, m := range second {
+		if m.Role == provider.RoleTool {
+			toolsOut = append(toolsOut, m.ToolCallID+"="+m.Content)
+		}
+	}
+	want := []string{"c1=ok-search__web", "c2=ok-calendar__list"}
+	if len(toolsOut) != 2 || toolsOut[0] != want[0] || toolsOut[1] != want[1] {
+		t.Fatalf("tool results = %v, want original order %v", toolsOut, want)
 	}
 }

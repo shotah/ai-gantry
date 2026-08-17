@@ -64,8 +64,9 @@ type Host struct {
 }
 
 type managedServer struct {
-	spec ServerSpec
-	conn Conn
+	spec   ServerSpec
+	conn   Conn
+	callMu sync.Mutex // one in-flight CallTool (and restart) per stdio child
 }
 
 // Start loads the manifest, connects every server, and lists tools.
@@ -184,6 +185,10 @@ func (h *Host) call(ctx context.Context, toolName string, arguments json.RawMess
 		}
 	}
 	start := time.Now()
+	if ms := h.managed(tool.Server); ms != nil {
+		ms.callMu.Lock()
+		defer ms.callMu.Unlock()
+	}
 	text, err := h.callOnce(ctx, tool, args)
 	if err != nil {
 		if !isRestartableMCPError(err) {
@@ -476,6 +481,12 @@ func meaningfulTokens(name string) map[string]bool {
 	return out
 }
 
+func (h *Host) managed(name string) *managedServer {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.servers[name]
+}
+
 func (h *Host) callOnce(ctx context.Context, tool *Tool, args map[string]any) (string, error) {
 	h.mu.RLock()
 	ms, ok := h.servers[tool.Server]
@@ -541,7 +552,12 @@ func (h *Host) connectServer(ctx context.Context, spec ServerSpec) error {
 		}
 		h.tools[prefixed] = &t
 	}
-	h.servers[spec.Name] = &managedServer{spec: spec, conn: conn}
+	if existing, ok := h.servers[spec.Name]; ok {
+		existing.spec = spec
+		existing.conn = conn
+	} else {
+		h.servers[spec.Name] = &managedServer{spec: spec, conn: conn}
+	}
 	h.log.Info("mcp server connected",
 		"server", spec.Name,
 		"tools_listed", before,

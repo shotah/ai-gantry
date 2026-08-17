@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -864,5 +865,111 @@ command = "unused"
 	}
 	if slow == nil || slow.Calls != 1 || slow.Errors != 1 {
 		t.Fatalf("slow=%#v", slow)
+	}
+}
+
+type overlapConn struct {
+	fakeConn
+	delay    time.Duration
+	inflight *atomic.Int32
+	peak     *atomic.Int32
+}
+
+func (c *overlapConn) CallTool(ctx context.Context, name string, args map[string]any) (string, error) {
+	n := c.inflight.Add(1)
+	for {
+		old := c.peak.Load()
+		if n <= old || c.peak.CompareAndSwap(old, n) {
+			break
+		}
+	}
+	defer c.inflight.Add(-1)
+	time.Sleep(c.delay)
+	return c.fakeConn.CallTool(ctx, name, args)
+}
+
+func TestHost_CallsDifferentServersInParallel(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "search"
+command = "unused"
+
+[[server]]
+name = "calendar"
+command = "unused"
+`)
+	var inflight, peak atomic.Int32
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
+			return &overlapConn{
+				fakeConn: fakeConn{tools: []mcp.Tool{{OriginalName: "go"}}},
+				delay:    80 * time.Millisecond,
+				inflight: &inflight,
+				peak:     &peak,
+			}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		if _, err := host.Call(context.Background(), "search__go", json.RawMessage(`{}`)); err != nil {
+			t.Errorf("search: %v", err)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		if _, err := host.Call(context.Background(), "calendar__go", json.RawMessage(`{}`)); err != nil {
+			t.Errorf("calendar: %v", err)
+		}
+	}()
+	wg.Wait()
+	if peak.Load() < 2 {
+		t.Fatalf("peak inflight = %d, want cross-server overlap", peak.Load())
+	}
+}
+
+func TestHost_SerializesSameServerCalls(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "search"
+command = "unused"
+`)
+	var inflight, peak atomic.Int32
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(context.Context, mcp.ServerSpec, io.Writer) (mcp.Conn, error) {
+			return &overlapConn{
+				fakeConn: fakeConn{tools: []mcp.Tool{{OriginalName: "go"}}},
+				delay:    40 * time.Millisecond,
+				inflight: &inflight,
+				peak:     &peak,
+			}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, _ = host.Call(context.Background(), "search__go", json.RawMessage(`{"n":1}`))
+	}()
+	go func() {
+		defer wg.Done()
+		_, _ = host.Call(context.Background(), "search__go", json.RawMessage(`{"n":2}`))
+	}()
+	wg.Wait()
+	if peak.Load() != 1 {
+		t.Fatalf("peak inflight = %d, want 1 (stdio child is one pipe)", peak.Load())
 	}
 }

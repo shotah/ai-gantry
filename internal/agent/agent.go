@@ -782,78 +782,22 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 			}
 		}
 
-		compactHeader := false
 		a.markToolsStarted(sessionID)
-		for _, call := range res.ToolCalls {
-			a.log.Info("tool call",
-				"name", call.Name,
-				"id", call.ID,
-				"iteration", iter+1,
-			)
-			// Show forward motion during long tool chains — with thinking
-			// disabled this is the only signal the user gets while waiting.
-			// TOOL_TRACE=compact|off hides tool names (semi-quiet / fully quiet).
-			if hasProgress {
-				switch a.toolTrace {
-				case ToolTraceFull:
-					_ = progress.UpdateProgress(ctx, toolProgressStart(call.Name))
-				case ToolTraceCompact:
-					if !compactHeader {
-						_ = progress.UpdateProgress(ctx, compactCallsHeader)
-						compactHeader = true
-					}
-				}
-			}
-			args := json.RawMessage(call.Arguments)
-			if len(args) == 0 {
-				args = json.RawMessage(`{}`)
-			}
-			toolStart := time.Now()
-			out, err := a.tools.Call(ctx, call.Name, args)
-			toolDur := time.Since(toolStart)
-			toolTime += toolDur
-			if err != nil {
-				if errors.Is(err, context.Canceled) || ctx.Err() != nil {
-					return "", context.Canceled
-				}
-				out = fmt.Sprintf("tool error: %v", err)
-				a.log.Warn("tool call failed", "name", call.Name, "dur_ms", toolDur.Milliseconds(), "err", err)
-				// Constrain only to a tight nearest shortlist (see mcp.suggest).
-				// Never lock the next turn to an entire wrong server (e.g. every
-				// strava__* tool after a calendar hallucination).
-				var unknown *mcp.UnknownToolError
-				if errors.As(err, &unknown) && len(unknown.Candidates) > 0 {
-					forceNames = unknown.Candidates
-					a.log.Info("constraining retry to nearest tool names",
-						"requested", unknown.Name,
-						"candidates", len(unknown.Candidates),
-					)
-				}
-			} else {
-				a.log.Info("tool done",
-					"name", call.Name,
-					"dur_ms", toolDur.Milliseconds(),
-					"result_chars", len(out),
-				)
-			}
-			if hasProgress {
-				switch a.toolTrace {
-				case ToolTraceFull:
-					_ = progress.UpdateProgress(ctx, toolProgressDone(toolDur, len(out), err != nil))
-				case ToolTraceCompact:
-					mark := "✓"
-					if err != nil {
-						mark = "✗"
-					}
-					_ = progress.UpdateProgress(ctx, mark)
-				}
-			}
+		round, canceled := a.runToolRound(ctx, res.ToolCalls, iter, hasProgress, progress)
+		toolTime += round.wall
+		if canceled {
+			return "", context.Canceled
+		}
+		if hint := round.forceNames; len(hint) > 0 {
+			forceNames = hint
+		}
+		for _, r := range round.results {
 			sawTools = true
-			called = append(called, call.Name)
+			called = append(called, r.name)
 			messages = append(messages, provider.Message{
 				Role:       provider.RoleTool,
-				Content:    out,
-				ToolCallID: call.ID,
+				Content:    r.out,
+				ToolCallID: r.id,
 			})
 		}
 		// Past ~70% of the budget, tell the model how many rounds remain so it

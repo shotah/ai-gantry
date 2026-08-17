@@ -18,7 +18,7 @@ Layout on the box:
 
 ## One-time host prep
 
-Done once on a clean Ubuntu box (see repo `todo.md` → Local Ubuntu + local model):
+Done once on a clean Ubuntu box (see [docs/deploy-native.md](../../docs/deploy-native.md)):
 
 - Ollama + model (`qwen3.6:35b-a3b`)
 - system user `gantry` + `/opt/gantry` tree
