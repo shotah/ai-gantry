@@ -36,12 +36,12 @@ func TestStore_EnableTouchExpire(t *testing.T) {
 		t.Fatalf("landed=%v failed=%v", landed, failed)
 	}
 
-	_, failed, err = s.Enable(ctx, "telegram:1:1", []string{"google"}, HoldLong, SourceAgent, now, index)
+	_, failed, err = s.Enable(ctx, "telegram:1:1", []string{"nope"}, HoldShort, SourceAgent, now, index)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(failed) != 1 {
-		t.Fatalf("expected fat-server refuse, failed=%v", failed)
+		t.Fatalf("expected unknown prefix, failed=%v", failed)
 	}
 
 	if err := s.Touch(ctx, "telegram:1:1", "google__calendar_list_events", now.Add(time.Hour)); err != nil {
@@ -74,7 +74,7 @@ func TestStore_EnableTouchExpire(t *testing.T) {
 	}
 }
 
-func TestStore_HumanShortBlocksAgentLong(t *testing.T) {
+func TestStore_HumanSourceSticks(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -82,12 +82,17 @@ func TestStore_HumanShortBlocksAgentLong(t *testing.T) {
 	if _, _, err := s.Enable(ctx, "s", []string{"garmin__sleep"}, HoldShort, SourceHuman, now, index); err != nil {
 		t.Fatal(err)
 	}
-	_, failed, err := s.Enable(ctx, "s", []string{"garmin__sleep"}, HoldLong, SourceAgent, now, index)
+	if _, failed, err := s.Enable(ctx, "s", []string{"garmin__sleep"}, HoldBrief, SourceAgent, now, index); err != nil {
+		t.Fatal(err)
+	} else if len(failed) != 0 {
+		t.Fatalf("failed=%v", failed)
+	}
+	rows, err := s.List(ctx, "s", now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(failed) != 1 {
-		t.Fatalf("failed=%v", failed)
+	if len(rows) != 1 || rows[0].Source != SourceHuman || rows[0].Hold != HoldBrief {
+		t.Fatalf("got %+v", rows)
 	}
 }
 
@@ -112,6 +117,26 @@ func TestStore_BriefExpiresIn6h(t *testing.T) {
 	}
 	if len(rows) != 0 {
 		t.Fatalf("brief should drop after 6h: %+v", rows)
+	}
+}
+
+func TestStore_MigratesLongHoldToShort(t *testing.T) {
+	s := testStore(t)
+	now := time.Now().UTC()
+	_, err := s.db.Exec(`INSERT INTO mcp_enable (session_id, prefix, hold, source, last_used)
+		VALUES ('s', 'flights', 'long', 'agent', ?)`, now.Format(time.RFC3339))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenDB(s.db); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.List(context.Background(), "s", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Hold != HoldShort {
+		t.Fatalf("legacy long should become short: %+v", rows)
 	}
 }
 

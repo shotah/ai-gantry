@@ -15,18 +15,12 @@ const (
 	HoldBrief = "brief"
 	// HoldShort is the 27h idle window (current job).
 	HoldShort = "short"
-	// HoldLong is the 76h idle window (weekend-shaped habit).
-	HoldLong = "long"
 
 	// BriefIdle covers a morning or afternoon without riding overnight.
 	BriefIdle = 6 * time.Hour
 	// ShortIdle is a day plus morning slack.
 	ShortIdle = 27 * time.Hour
-	// LongIdle covers a Friday-to-Monday gap.
-	LongIdle = 76 * time.Hour
 
-	// MaxLong caps long-active rows per session.
-	MaxLong = 4
 	// MaxEnableList caps prefixes in one mcp_enable call.
 	MaxEnableList = 8
 
@@ -35,7 +29,7 @@ const (
 
 	// SourceAgent is an mcp_enable call.
 	SourceAgent = "agent"
-	// SourceHuman is /brief /short /long — the model cannot flip a human hold up to long.
+	// SourceHuman is /brief or /short.
 	SourceHuman = "human"
 )
 
@@ -129,12 +123,8 @@ func LongestKey(name string, keys []string) (string, bool) {
 }
 
 func normalizeHold(hold string) string {
-	switch strings.ToLower(strings.TrimSpace(hold)) {
-	case HoldBrief:
+	if strings.ToLower(strings.TrimSpace(hold)) == HoldBrief {
 		return HoldBrief
-	case HoldLong:
-		return HoldLong
-	default:
-		return HoldShort
 	}
+	return HoldShort
 }

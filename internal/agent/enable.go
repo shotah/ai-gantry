@@ -92,7 +92,7 @@ func parseEnableHoldCommand(text string) (cmd, prefix string, ok bool) {
 		raw = raw[:i]
 	}
 	switch strings.ToLower(raw) {
-	case "/long", "/short", "/brief", "/off":
+	case "/short", "/brief", "/off":
 	default:
 		return "", "", false
 	}
@@ -112,13 +112,10 @@ func (a *Agent) handleEnableHold(ctx context.Context, sessionID, cmd, prefix str
 			return "", err
 		}
 		return "off " + prefix, nil
-	case "/brief", "/short", "/long":
+	case "/brief", "/short":
 		hold := mcpenable.HoldShort
-		switch cmd {
-		case "/brief":
+		if cmd == "/brief" {
 			hold = mcpenable.HoldBrief
-		case "/long":
-			hold = mcpenable.HoldLong
 		}
 		landed, failed, err := a.enable.Enable(ctx, sessionID, []string{prefix}, hold, mcpenable.SourceHuman, now, index)
 		if err != nil {
@@ -139,6 +136,6 @@ func (a *Agent) handleEnableHold(ctx context.Context, sessionID, cmd, prefix str
 		}
 		return b.String(), nil
 	default:
-		return "usage: /brief <prefix> | /short <prefix> | /long <prefix> | /off <prefix>", nil
+		return "usage: /brief <prefix> | /short <prefix> | /off <prefix>", nil
 	}
 }

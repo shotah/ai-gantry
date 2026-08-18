@@ -47,6 +47,9 @@ func (s *Store) migrate() error {
 	if err != nil {
 		return fmt.Errorf("mcpenable: migrate: %w", err)
 	}
+	if _, err := s.db.Exec(`UPDATE mcp_enable SET hold = ? WHERE hold = 'long'`, HoldShort); err != nil {
+		return fmt.Errorf("mcpenable: migrate long hold: %w", err)
+	}
 	return nil
 }
 
@@ -91,25 +94,23 @@ func (s *Store) List(ctx context.Context, sessionID string, now time.Time) ([]Ro
 	return out, rows.Err()
 }
 
-// Expire deletes idle rows (brief 6h / short 27h / long 76h).
+// Expire deletes idle rows (brief 6h / short 27h).
 func (s *Store) Expire(ctx context.Context, now time.Time) error {
 	now = now.UTC()
 	briefCut := stamp(now.Add(-BriefIdle))
 	shortCut := stamp(now.Add(-ShortIdle))
-	longCut := stamp(now.Add(-LongIdle))
 	_, err := s.db.ExecContext(ctx, `
 		DELETE FROM mcp_enable WHERE
 			(hold = ? AND last_used < ?) OR
-			(hold = ? AND last_used < ?) OR
-			(hold = ? AND last_used < ?)`,
-		HoldBrief, briefCut, HoldShort, shortCut, HoldLong, longCut)
+			(hold != ? AND last_used < ?)`,
+		HoldBrief, briefCut, HoldBrief, shortCut)
 	if err != nil {
 		return fmt.Errorf("mcpenable: expire: %w", err)
 	}
 	return nil
 }
 
-// Enable upserts prefixes. hold is brief|short|long. source is agent|human.
+// Enable upserts prefixes. hold is brief|short. source is agent|human.
 func (s *Store) Enable(ctx context.Context, sessionID string, prefixes []string, hold, source string, now time.Time, index []string) (landed, failed []string, err error) {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
@@ -128,12 +129,6 @@ func (s *Store) Enable(ctx context.Context, sessionID string, prefixes []string,
 	if err != nil {
 		return nil, nil, err
 	}
-	longN := 0
-	for _, r := range existing {
-		if r.Hold == HoldLong {
-			longN++
-		}
-	}
 
 	for _, raw := range prefixes {
 		key := strings.TrimSpace(raw)
@@ -149,22 +144,6 @@ func (s *Store) Enable(ctx context.Context, sessionID string, prefixes []string,
 		nextHold := hold
 		if ok && cur.Source == SourceHuman && source == SourceAgent {
 			nextSource = SourceHuman
-			if hold == HoldLong && cur.Hold != HoldLong {
-				failed = append(failed, key+" (operator set "+cur.Hold+")")
-				continue
-			}
-			nextHold = hold
-		}
-		if nextHold == HoldLong && HasSubprefixes(key, index) {
-			failed = append(failed, key+" (long refuses a fat server; use a family prefix)")
-			continue
-		}
-		if nextHold == HoldLong && (!ok || cur.Hold != HoldLong) {
-			if longN >= MaxLong {
-				failed = append(failed, key+" (long cap reached)")
-				continue
-			}
-			longN++
 		}
 		if _, err := s.db.ExecContext(ctx, `
 			INSERT INTO mcp_enable (session_id, prefix, hold, source, last_used)

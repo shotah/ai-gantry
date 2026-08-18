@@ -14,7 +14,7 @@ const helpText = `/new — reset this session's history
 /cancel — stop the in-flight turn
 /status — uptime, model, history, tools, turns
 /tools — prefixed tool catalog (published vs available)
-/brief /short /long /off — prefix hold (6h / 27h / 76h / drop now)
+/brief /short /off — prefix hold (6h / 27h / drop now)
 /examples — one capability idea (on|off for proactive pings)
 /perf — last turns' timing split
 /memstats — memory row counts and consolidation

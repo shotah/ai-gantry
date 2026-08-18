@@ -33,7 +33,7 @@ Size: **S** ≈ an afternoon · **M** ≈ a weekend
 
 ## Next
 
-### 1. Prefix enable (short / long active) — **next** · M
+### 1. Prefix enable (brief / short) — **next** · M
 
 The token / usability win. Not model+tool profiles — that is
 operator fiddling (`mcp.toml` `tools` / `exclude` / `--tool-tier`
@@ -65,16 +65,16 @@ without taking `monster__admin`. No extra binaries. The index lists
 the server prefix and, when that server is fat, the next segment
 already in the names. `mcp.toml` force-on / force-off still wins.
 
-Store **`last_used` + hold** (`short` | `long`). Idle is computed
+Store **`last_used` + hold** (`brief` | `short`). Idle is computed
 (`now - last_used > window`). No `expires_at`. A successful call
 refreshes the **longest matching** row (`google__calendar_list_events`
 touches `google__calendar`, not a sibling `google__gmail`).
 
 ```text
 mcp_enable prefixes=["google__calendar"]           # short (default)
-mcp_enable prefixes=["google__calendar"] hold=long
+mcp_enable prefixes=["flights"] hold=brief
 mcp_enable prefixes=["google__calendar","garmin__sleep","strava"]
-  → last_used = now, hold = short|long  (same hold for the list)
+  → last_used = now, hold = brief|short  (same hold for the list)
   → next Completer call publishes all matching schemas
 successful google__calendar_list_events
   → last_used = now on the longest matching row (hold unchanged)
@@ -84,43 +84,32 @@ quiet cron/watch tick (no Completer)
 
 One builtin, list argument — not a second `mcp_enable_list` schema.
 A morning brief is still **one** extra Completer round (enable the
-set, then the real calls), not one enable per prefix. Unknown or
-fat-refused keys fail that item and the rest still enable; the
-tool result names what landed. Cap the list (e.g. 8) so “enable
-the world” is one blocked call, not a silent full catalog.
+set, then the real calls), not one enable per prefix. Unknown keys
+fail that item and the rest still enable; the tool result names
+what landed. Cap the list (e.g. 8) so “enable the world” is one
+blocked call, not a silent full catalog.
 
-**Short active / long active — better words than lease / pin.**
-Pin sounded permanent. Both are “in use,” both fall off. The only
-difference is the gap you will tolerate.
+**Brief / short — better words than lease / pin.** Pin sounded
+permanent. Both are “in use,” both fall off. The only difference
+is the gap you will tolerate. No third hold: weekend or skip-a-day
+silence is one `mcp_enable` when you come back, not leftover
+schemas on every unrelated chat.
 
-| | Brief | Short (default) | Long |
+| | Brief | Short (default) |
 | --- | --- | --- |
-| Idle | 6h | 27h | 76h |
-| Meaning | This morning / afternoon | Current job | Weekend-shaped habit |
-| Example | flights today only | flights this week | `google__calendar` |
-| Who sets | agent `hold=brief` or `/brief` | agent default or `/short` | agent `hold=long` or `/long` |
+| Idle | 6h | 27h |
+| Meaning | This morning / afternoon | Current job |
+| Example | flights today only | flights this week |
+| Who sets | agent `hold=brief` or `/brief` | agent default or `/short` |
 
 6h = this morning or afternoon (flights after lunch, gone by evening).
 27h = a day plus morning slack (7am → 9:30 next day still hot).
-76h = three days plus slack (Friday 7am → Monday morning still
-hot). A vacation week with no calendar still drops.
 
-The agent sets all three. Default is short. Brief is “only this
-half-day.” Long is a weekend habit, not “this call went well.”
-Human: `/brief` `/short` `/long` `/off`.
-
-**Kernel gates on long** (76h of fat `google` is bounded, not
-harmless):
-
-- Refuse a bare server when the index has sub-prefixes.
-- Cap long-active rows (e.g. 4). Short is uncapped-by-count;
-  the idle clock is the cap.
-- Honor `/short` and `/off` — do not let the model flip it
-  back to long on the next turn.
-- Never auto-promote short → long.
+The agent sets both. Default is short. Brief is “only this
+half-day.” Human: `/brief` `/short` `/off`.
 
 Kernel builtins (memory / `self_note` / cron / watch / `mcp_enable`)
-are actually always-on. `/tools` shows `short` / `long` /
+are actually always-on. `/tools` shows `brief` / `short` /
 `available`.
 
 **Small models / rollback:** `dynamic_tools = false` at the top of

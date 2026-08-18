@@ -9,7 +9,7 @@ import (
 func TestFormatIndex_SortedStable(t *testing.T) {
 	rows := []Row{
 		{Prefix: "strava", Hold: HoldShort},
-		{Prefix: "google__calendar", Hold: HoldLong},
+		{Prefix: "google__calendar", Hold: HoldBrief},
 	}
 	index := []string{"flights", "google", "google__calendar", "google__gmail", "strava"}
 	force := Force{Prefixes: []string{"garmin__sleep"}}
