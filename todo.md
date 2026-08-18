@@ -185,6 +185,10 @@ furniture you refuse to pay enable for on the first morning
 | **Tone regression probe** | Fixture transcript with a planted running joke → fold → fresh context + summary → ask for the callback. One LLM grade, not CI-blocking. Run when a summary/distill prompt changes. | S |
 | **Voice notes in** | Telegram voice → OpenAI-compat `/v1/audio/transcriptions` (`whisper.cpp` locally). Same tagged-text path as photos. | M |
 | **Tiered history (LLM one-liners)** | Go word-list strip already shipped (last 5 verbatim, quotes kept). Middle tier — `user asked X / agent did Y, joked Z` — only if `/tokens` still says history dominates after 32k + the strip. | M |
+| **Apple stack MCP** | Need: APPLE. Reminders / Mail / Calendar. | [apple_todo.md](apple_todo.md) |
+| **Microsoft stack MCP** | Need: WORK. Outlook / Teams / To Do. | [ms_todo.md](ms_todo.md) |
+| **AWS MCP** | Need: BILLING (then alarms). Not the 60-server catalog. | [aws_todo.md](aws_todo.md) |
+| **GCP MCP** | Need: BILLING. Not `google-mcp`. | [gcp_todo.md](gcp_todo.md) |
 
 ---
 
