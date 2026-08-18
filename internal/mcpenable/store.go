@@ -91,23 +91,25 @@ func (s *Store) List(ctx context.Context, sessionID string, now time.Time) ([]Ro
 	return out, rows.Err()
 }
 
-// Expire deletes idle rows (short 27h / long 76h).
+// Expire deletes idle rows (brief 6h / short 27h / long 76h).
 func (s *Store) Expire(ctx context.Context, now time.Time) error {
 	now = now.UTC()
+	briefCut := stamp(now.Add(-BriefIdle))
 	shortCut := stamp(now.Add(-ShortIdle))
 	longCut := stamp(now.Add(-LongIdle))
 	_, err := s.db.ExecContext(ctx, `
 		DELETE FROM mcp_enable WHERE
 			(hold = ? AND last_used < ?) OR
+			(hold = ? AND last_used < ?) OR
 			(hold = ? AND last_used < ?)`,
-		HoldShort, shortCut, HoldLong, longCut)
+		HoldBrief, briefCut, HoldShort, shortCut, HoldLong, longCut)
 	if err != nil {
 		return fmt.Errorf("mcpenable: expire: %w", err)
 	}
 	return nil
 }
 
-// Enable upserts prefixes. hold is short|long. source is agent|human.
+// Enable upserts prefixes. hold is brief|short|long. source is agent|human.
 func (s *Store) Enable(ctx context.Context, sessionID string, prefixes []string, hold, source string, now time.Time, index []string) (landed, failed []string, err error) {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
@@ -145,21 +147,13 @@ func (s *Store) Enable(ctx context.Context, sessionID string, prefixes []string,
 		cur, ok := findRow(existing, key)
 		nextSource := source
 		nextHold := hold
-		if ok && cur.Source == SourceHuman && source == SourceAgent && hold == HoldLong && cur.Hold == HoldShort {
-			failed = append(failed, key+" (operator set short)")
-			continue
-		}
 		if ok && cur.Source == SourceHuman && source == SourceAgent {
 			nextSource = SourceHuman
-			if hold == HoldLong && cur.Hold == HoldShort {
-				failed = append(failed, key+" (operator set short)")
+			if hold == HoldLong && cur.Hold != HoldLong {
+				failed = append(failed, key+" (operator set "+cur.Hold+")")
 				continue
 			}
-			if hold == HoldShort {
-				nextHold = HoldShort
-			} else {
-				nextHold = cur.Hold
-			}
+			nextHold = hold
 		}
 		if nextHold == HoldLong && HasSubprefixes(key, index) {
 			failed = append(failed, key+" (long refuses a fat server; use a family prefix)")

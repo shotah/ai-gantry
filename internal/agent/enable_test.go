@@ -7,6 +7,10 @@ func TestParseEnableHoldCommand(t *testing.T) {
 	if !ok || cmd != "/long" || prefix != "google__calendar" {
 		t.Fatalf("got %q %q %v", cmd, prefix, ok)
 	}
+	cmd, prefix, ok = parseEnableHoldCommand("/brief flights")
+	if !ok || cmd != "/brief" || prefix != "flights" {
+		t.Fatalf("brief: %q %q %v", cmd, prefix, ok)
+	}
 	if _, _, ok := parseEnableHoldCommand("/long"); ok {
 		t.Fatal("bare /long should not parse")
 	}

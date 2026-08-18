@@ -36,7 +36,8 @@ func ToolDef() provider.ToolDef {
 	return provider.ToolDef{
 		Name: ToolName,
 		Description: "Enable MCP tool-name prefixes for this chat so their schemas are sent on the next model call. " +
-			"Default hold is short (27h idle). hold=long is 76h (weekend). " +
+			"Default hold is short (27h idle). hold=brief is 6h (this morning/afternoon only). hold=long is 76h (weekend). " +
+			"Use brief when the job is only today-for-a-few-hours (flights this afternoon). " +
 			"Pass every prefix this turn needs in one call. Do not enable a fat server (google) when google__calendar exists.",
 		Parameters: map[string]any{
 			"type": "object",
@@ -48,7 +49,7 @@ func ToolDef() provider.ToolDef {
 				},
 				"hold": map[string]any{
 					"type":        "string",
-					"description": "short (default) or long",
+					"description": "short (default, 27h), brief (6h), or long (76h)",
 				},
 			},
 			"required": []string{"prefixes"},

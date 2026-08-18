@@ -236,7 +236,8 @@ Prefer MCP-native tiers (`--tool-tier core`) first — see [choices.md](choices.
 
 By default (`dynamic_tools` omitted or `true`) MCP schemas stay **off** until
 the agent calls `mcp_enable` (list of prefixes, next Completer call in the
-same turn). Short hold idles out at 27h; long at 76h. Kernel builtins stay
+same turn). Brief hold idles out at 6h (morning/afternoon); short at 27h;
+long at 76h. Kernel builtins stay
 on. Go-live is from zero — no seed of today's catalog.
 
 Small models / rollback — full catalog every turn, no `mcp_enable`:
@@ -254,7 +255,7 @@ force = true          # whole server prefix; pair with a tight `tools` allowlist
 ```
 
 Or `MCP_ENABLE_FORCE=google__calendar,garmin__sleep`. Human overrides:
-`/long` `/short` `/off`. `/tools` shows published vs available.
+`/brief` `/short` `/long` `/off`. `/tools` shows published vs available.
 
 ---
 

@@ -91,6 +91,30 @@ func TestStore_HumanShortBlocksAgentLong(t *testing.T) {
 	}
 }
 
+func TestStore_BriefExpiresIn6h(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 17, 9, 0, 0, 0, time.UTC)
+	index := []string{"flights"}
+	if _, _, err := s.Enable(ctx, "s", []string{"flights"}, HoldBrief, SourceAgent, now, index); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.List(ctx, "s", now.Add(5*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("still in the afternoon: %+v", rows)
+	}
+	rows, err = s.List(ctx, "s", now.Add(BriefIdle+time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("brief should drop after 6h: %+v", rows)
+	}
+}
+
 func TestStore_EnableListCap(t *testing.T) {
 	s := testStore(t)
 	var prefixes []string

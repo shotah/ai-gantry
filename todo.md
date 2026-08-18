@@ -93,21 +93,21 @@ the world” is one blocked call, not a silent full catalog.
 Pin sounded permanent. Both are “in use,” both fall off. The only
 difference is the gap you will tolerate.
 
-| | Short active | Long active |
+| | Brief | Short (default) | Long |
 | --- | --- | --- |
-| Idle | `now - last_used > 27h` | `now - last_used > 76h` |
-| Meaning | Current job | Weekend-shaped habit |
-| Example | flights this week | `google__calendar`, `garmin__sleep` |
-| Who sets | agent (default) | agent, or human `/long` |
+| Idle | 6h | 27h | 76h |
+| Meaning | This morning / afternoon | Current job | Weekend-shaped habit |
+| Example | flights today only | flights this week | `google__calendar` |
+| Who sets | agent `hold=brief` or `/brief` | agent default or `/short` | agent `hold=long` or `/long` |
 
+6h = this morning or afternoon (flights after lunch, gone by evening).
 27h = a day plus morning slack (7am → 9:30 next day still hot).
 76h = three days plus slack (Friday 7am → Monday morning still
 hot). A vacation week with no calendar still drops.
 
-The agent **does** set both. Default is short. Long is for a
-prefix they expect to need across a weekend, not “this call went
-well.” Human override: `/long google__calendar` / `/short …`
-(demote, `last_used=now`, 27h grace). `/off` drops now.
+The agent sets all three. Default is short. Brief is “only this
+half-day.” Long is a weekend habit, not “this call went well.”
+Human: `/brief` `/short` `/long` `/off`.
 
 **Kernel gates on long** (76h of fat `google` is bounded, not
 harmless):
