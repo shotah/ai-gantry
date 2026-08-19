@@ -9,7 +9,8 @@ const RulesSection = "## Self-notes (`self_note` → SELF.md)\n\n" +
 	"- Skip if the vibe or aim is already in the `SELF.md` bullets in this prompt.\n" +
 	"- Personality / jokes / rituals / standing aims only — not facts, rules, or tool recipes.\n" +
 	"- A standing aim outlives one task. A one-off to-do is memory or cron, not a self_note.\n" +
-	"- Do this **unprompted** when a vibe or aim lands. Full rewrite only on `/new` distill."
+	"- Prefer exact joke wording and nicknames in SELF.md. A vibe word is not a joke.\n" +
+	"- Do this **unprompted** when a vibe or aim lands. `/new` distill merges (does not flatten jokes)."
 
 // LocationSection is the kernel-owned last-pin block injected into RULES.md.
 const LocationSection = "## Location pins\n\n" +

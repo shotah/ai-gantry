@@ -88,7 +88,8 @@ func TestLoad_StampsSelfAndRules(t *testing.T) {
 	if !strings.Contains(got, "Standing aims") || !strings.Contains(got, "- dry humor") {
 		t.Fatalf("SELF stamp missing: %q", got)
 	}
-	if !strings.Contains(got, "A standing aim outlives one task") || !strings.Contains(got, "hold mem") {
+	if !strings.Contains(got, "A standing aim outlives one task") || !strings.Contains(got, "hold mem") ||
+		!strings.Contains(got, "A vibe word is not a joke") {
 		t.Fatalf("RULES stamp missing: %q", got)
 	}
 	if !strings.Contains(got, "## Location pins") || !strings.Contains(got, "[last pin]") {

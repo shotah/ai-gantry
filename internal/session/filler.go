@@ -7,8 +7,9 @@ import (
 )
 
 // KeepRecentUnstripped is how many trailing history messages stay verbatim
-// in the prompt. Older messages lose a closed filler list. SQLite is unchanged.
-const KeepRecentUnstripped = 5
+// in the prompt. Older *user* messages lose a closed filler list. Assistant
+// turns are never stripped — they are the few-shot register. SQLite is unchanged.
+const KeepRecentUnstripped = 40
 
 // Filler list is a *subset* of IR stopwords, not NLTK's 179-word dump.
 //
@@ -56,8 +57,9 @@ var phraseRe = regexp.MustCompile(`(?i)\b(?:` + strings.Join(fillerPhrases, "|")
 
 var spaceRe = regexp.MustCompile(`[ \t]{2,}`)
 
-// StripFillerHistory copies msgs and strips fillers from everything except
-// the last KeepRecentUnstripped messages. Quoted spans are left intact.
+// StripFillerHistory copies msgs and strips fillers from older user turns.
+// The last KeepRecentUnstripped messages stay verbatim. Assistant turns are
+// never stripped. Quoted spans are left intact.
 func StripFillerHistory(msgs []Message) []Message {
 	if len(msgs) <= KeepRecentUnstripped {
 		return msgs
@@ -66,6 +68,9 @@ func StripFillerHistory(msgs []Message) []Message {
 	copy(out, msgs)
 	cut := len(out) - KeepRecentUnstripped
 	for i := 0; i < cut; i++ {
+		if out[i].Role == RoleAssistant {
+			continue
+		}
 		out[i].Content = StripFillerWords(out[i].Content)
 	}
 	return out

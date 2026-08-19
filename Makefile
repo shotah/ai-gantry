@@ -151,7 +151,7 @@ vet: ## Run go vet
 	go vet ./...
 
 .PHONY: lint
-lint: ## Run golangci-lint
+lint: ## Run golangci-lint (CGO_ENABLED=0 — same as the shipped binary)
 	golangci-lint run ./...
 
 .PHONY: fmt
@@ -182,8 +182,11 @@ endif
 
 .PHONY: tools
 tools: ## Install goimports-reviser + golangci-lint v2 into $$GOBIN
-	go install github.com/incu6us/goimports-reviser/v3@latest
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+	# GOTOOLCHAIN=local: @latest modules often say `go 1.25`, and auto toolchain
+	# would rebuild the linter with 1.25 — then it refuses this repo (go 1.26).
+	# CGO_ENABLED=0: SteamOS has no libc headers; golangci-lint does not need cgo.
+	GOTOOLCHAIN=local CGO_ENABLED=0 go install github.com/incu6us/goimports-reviser/v3@latest
+	GOTOOLCHAIN=local CGO_ENABLED=0 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 	@echo Installed to $(GOBIN_DIR). make fmt / the pre-commit hook prepend that dir to PATH.
 
 .PHONY: docker-build

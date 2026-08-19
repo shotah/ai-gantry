@@ -24,15 +24,16 @@ Merge the dropped turns into the prior summary. Reply with ONLY this shape
 (no markdown fences, no preamble):
 
 Facts: <one tight paragraph>
-Voice: <2–4 short lines>
+Voice: <8–12 short lines>
 
-Facts: durable facts, preferences, open tasks, and names. Drop other chitchat.
+Facts: durable facts, preferences, open tasks, and names. Drop other chitchat
+that is not a nickname, game, or running joke — those belong on Voice.
 Standing aims that outlive this session belong in SELF.md (self_note), not Facts.
 Use absolute dates (2006-01-02) for anything time-bound — never yesterday, tomorrow,
 this morning, or a weekday alone (those go stale when the week rolls).
 
 Voice: today's register, nicknames in play, the current game, and running jokes.
-Quote a joke's exact wording — a paraphrased joke is a dead joke. Keep up to 3
+Quote a joke's exact wording — a paraphrased joke is a dead joke. Keep up to 8
 short verbatim quotes (each under ~100 characters).
 Copy the prior Voice block forward UNCHANGED unless a new joke, nickname, or
 game appeared in the dropped turns. When something new lands, add or replace
@@ -43,7 +44,7 @@ If the prior summary has no Voice: line, start one from the dropped turns
 const (
 	maxFoldMsgChars   = 1200
 	maxFoldTotalChars = 12000
-	maxSummaryChars   = 2000
+	maxSummaryChars   = 4000
 )
 
 // Fold returns an updated summary paragraph.

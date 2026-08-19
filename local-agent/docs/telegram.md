@@ -125,6 +125,7 @@ gantry keeps the prompt bounded with env knobs (defaults are sane; all in
 
 - `HISTORY_MAX_MESSAGES=200` — hard message cap
 - `HISTORY_MAX_TOKENS=32000` — estimated (chars/4); oldest turns fold into `Facts:` / `Voice:` first
+- Prompt-only filler strip on **user** turns older than the last 40; assistant replies stay verbatim
 - `TOOL_RESULT_MAX_CHARS=6000` — trims huge single tool results (Gmail / flights / rentals dumps).
   Native/Ollama deploys default to `6000`: results are re-sent on every tool
   loop iteration, so the cap multiplies prefill cost

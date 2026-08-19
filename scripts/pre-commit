@@ -5,6 +5,10 @@ set -eu
 ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT"
 
+# Match Makefile: static / netgo. Unset CGO on SteamOS (gcc without libc
+# headers) makes typecheck fail inside stdlib net/cgo_linux.go.
+export CGO_ENABLED=0
+
 # go install puts binaries in GOPATH/bin; that dir is often not on PATH.
 if command -v go >/dev/null 2>&1; then
 	GOBIN=$(go env GOBIN)

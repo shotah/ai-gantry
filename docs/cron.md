@@ -33,7 +33,7 @@ check-in would be noise.
 | `SPARK_START_HOUR` | `6` | Local window start (inclusive), used when spark is on |
 | `SPARK_END_HOUR` | `21` | Local window end (exclusive), e.g. 21 → last ping before 9pm |
 | `SPARK_PROMPT` | _(built-in check-in pool)_ | One prompt, or one per line (`\n`) — random pick per ping |
-| `SPARK_SKIP_RECENT_MINUTES` | `60` | Skip/defer if the human messaged within this many minutes |
+| `SPARK_SKIP_RECENT_MINUTES` | `30` | Skip/defer if the human messaged within this many minutes |
 | `EXAMPLES_QTY` | `1-2` | **On by default** capability-example pings. Empty or `0` = no proactive pings. `/examples` on-demand still works |
 | `EXAMPLES_START_HOUR` | `6` | Local window start for examples pings |
 | `EXAMPLES_END_HOUR` | `21` | Local window end (exclusive) |
@@ -97,7 +97,7 @@ SPARK_START_HOUR=6
 SPARK_END_HOUR=21
 # Optional: one prompt, or one variant per line (random pick per ping):
 # SPARK_PROMPT=Generate a short Spark of Life check-in. Keep it under 3 sentences. No tools. …
-# SPARK_SKIP_RECENT_MINUTES=60
+# SPARK_SKIP_RECENT_MINUTES=30
 ```
 
 ## Capability examples / training wheels (on by default)

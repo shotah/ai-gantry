@@ -14,9 +14,10 @@ survives `/new`:
 - Boot / SIGHUP: gantry overwrites the `SELF.md` header and the `RULES.md` Self-notes and Location pins sections. Your bullets stay.
 - Mid-chat: builtin `self_note` appends a short line to `PERSONA_DIR/SELF.md`.
 - On history trim: new `Voice:` bits append the same way (no extra model call).
-- On `/new`: a distill pass **rewrites** the whole file from the dying session,
-  the rolling `Voice:` block, and existing notes (not a blind append). Session
-  `Facts:` park in SQLite memory — not `USER.md`.
+- On `/new`: a distill pass **merges** into the file from the dying session,
+  the rolling `Voice:` block, and existing notes. Quoted jokes that the model
+  drops are restored. A bland session (no `Voice:`, no quoted bits) leaves
+  `SELF.md` as-is. Session `Facts:` park in SQLite memory — not `USER.md`.
 - Loaded every turn as part of the persona (after `SOUL.md`). Cap ~4KB.
 
 That is the feature — and the footgun. Notes reinforce themselves: a snarky
@@ -30,8 +31,11 @@ Open `SELF.md` (or wipe it) when:
 - It keeps referencing a game / nickname / bit you are done with
 - **Near-duplicate bullets pile up** (agent treated `self_note` like a rewrite —
   prune dupes; persona should say append-only + skip-if-already-there)
-- A long tool-heavy or argumentative session just ended (distill may have
-  locked in a bad mood)
+- A long tool-heavy or argumentative session just ended and `/new` distilled
+  anyway (Voice or quotes were present) — prune if the mood locked in
+- **Do not `/new` a bland session to “get him back.”** Distill skips when there
+  is no `Voice:` and no quoted bits, but prune `SELF.md` first if it is already
+  vibe-words instead of jokes.
 - You shared the allowlist with someone else and want a clean slate for them
 
 ### How to fix
@@ -96,14 +100,19 @@ reason.
 only `SOUL` / `RULES` / `USER` / `TOOLS` remain → bland reboot.
 
 **With self-notes enabled + writable persona:** `/new` should reply
-`session reset — personality distilled into SELF.md` after a session of at
-least a few turns. Check:
+`session reset — personality distilled into SELF.md` after a session that
+has a `Voice:` line or quoted jokes in the transcript. A bland tool session
+returns plain `session reset` and **leaves `SELF.md` alone**. Check:
 
 1. Boot log: self-notes ready vs disabled.
-2. `SELF.md` on disk after `/new` — did it grow?
+2. `SELF.md` on disk after `/new` — did quoted jokes survive? If the file is
+   vibe-words (`dry`, `sarcastic`) and not quotes, prune it; another `/new`
+   will not grow those back.
 3. Distill is best-effort: if the LLM call fails, reset still happens and the
    log shows `self distill: … failed`. Personality from that session is lost;
-   prior `SELF.md` content is kept.
+   prior `SELF.md` content is kept. Dropped quotes are restored when the
+   model returns a file that omitted them.
+4. `/tokens` prints `Voice: yes` or `Voice: (none)` next to `summary`.
 
 ## Agent keeps calling tools forever / burns tokens
 

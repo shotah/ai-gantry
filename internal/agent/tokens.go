@@ -21,8 +21,12 @@ func (a *Agent) formatTokens(ctx context.Context, sessionID string) (string, err
 		return "", err
 	}
 	summaryEst := 0
+	voiceNote := "Voice: (none)"
 	if s := strings.TrimSpace(summary); s != "" {
 		summaryEst = estChars("[session summary]\n" + s)
+		if _, voice := session.LedgerParts(s); strings.TrimSpace(voice) != "" {
+			voiceNote = "Voice: yes"
+		}
 	}
 
 	n, histEst, err := a.sessions.Stats(ctx, sessionID)
@@ -56,7 +60,7 @@ func (a *Agent) formatTokens(ctx context.Context, sessionID string) (string, err
 	var b strings.Builder
 	b.WriteString("tokens (chars/4 estimates)\n")
 	fmt.Fprintf(&b, "  persona     %d\n", personaEst)
-	fmt.Fprintf(&b, "  summary     %d\n", summaryEst)
+	fmt.Fprintf(&b, "  summary     %d  (%s)\n", summaryEst, voiceNote)
 	fmt.Fprintf(&b, "  history     %d  (%d msgs)\n", histEst, n)
 	fmt.Fprintf(&b, "  hydration   %d  (%s)\n", hydrateEst, hydrateNote)
 	fmt.Fprintf(&b, "  schemas     %d\n", schemaEst)

@@ -189,7 +189,7 @@ One WAL SQLite file: `$DATA_DIR/gantry.db`.
 | `heartbeat` | `heartbeat` | singleton row for `gantry status` |
 
 `/new` deletes the session row (cascade messages + summary) after `Voice:`
-distills into `SELF.md` and `Facts:` park as a memory episode. Memory rows are
+merges into `SELF.md` and `Facts:` park as a memory episode. Memory rows are
 untouched.
 
 ## Prompt assembly (order)

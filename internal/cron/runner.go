@@ -25,7 +25,7 @@ const ExamplesPingPrefix = "[cron] Capability example — inspire the human with
 const DefaultTick = 15 * time.Second
 
 // DefaultSparkSkipRecent is how long a recent user message suppresses a spark ping.
-const DefaultSparkSkipRecent = 60 * time.Minute
+const DefaultSparkSkipRecent = 30 * time.Minute
 
 // RecentUserActivity reports whether the human messaged recently (spark barge-in guard).
 type RecentUserActivity interface {

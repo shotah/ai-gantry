@@ -187,7 +187,7 @@ function Write-NativeEnv {
     $lines.Add("SPARK_QTY=$($src['SPARK_QTY'])")
     $lines.Add("SPARK_START_HOUR=$(if ($src['SPARK_START_HOUR']) { $src['SPARK_START_HOUR'] } else { '6' })")
     $lines.Add("SPARK_END_HOUR=$(if ($src['SPARK_END_HOUR']) { $src['SPARK_END_HOUR'] } else { '21' })")
-    $lines.Add("SPARK_SKIP_RECENT_MINUTES=$(if ($src['SPARK_SKIP_RECENT_MINUTES']) { $src['SPARK_SKIP_RECENT_MINUTES'] } else { '60' })")
+    $lines.Add("SPARK_SKIP_RECENT_MINUTES=$(if ($src['SPARK_SKIP_RECENT_MINUTES']) { $src['SPARK_SKIP_RECENT_MINUTES'] } else { '30' })")
     if ($src['SPARK_PROMPT']) {
       $lines.Add("SPARK_PROMPT=$($src['SPARK_PROMPT'])")
     }

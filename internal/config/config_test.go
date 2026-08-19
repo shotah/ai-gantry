@@ -80,6 +80,9 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if cfg.CronMaxJobs != 50 {
 		t.Errorf("CronMaxJobs = %d, want 50", cfg.CronMaxJobs)
 	}
+	if cfg.SparkSkipRecentMinutes != 30 {
+		t.Errorf("SparkSkipRecentMinutes = %d, want 30", cfg.SparkSkipRecentMinutes)
+	}
 	if cfg.LogLevel != "info" {
 		t.Errorf("LogLevel = %q, want info", cfg.LogLevel)
 	}

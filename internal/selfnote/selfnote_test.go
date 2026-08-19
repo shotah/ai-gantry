@@ -29,7 +29,7 @@ func TestStore_OpenRefreshesStaleHeader(t *testing.T) {
 	if strings.Contains(got, "old header from last year") {
 		t.Fatalf("stale header kept: %q", got)
 	}
-	if !strings.Contains(got, "Standing aims") {
+	if !strings.Contains(got, "Standing aims") || !strings.Contains(got, "Distill on `/new` merges") {
 		t.Fatalf("kernel header missing: %q", got)
 	}
 	if !strings.Contains(got, "- dry humor") {

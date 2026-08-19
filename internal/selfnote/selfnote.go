@@ -31,7 +31,8 @@ const Header = "# SELF.md — Who You Are Becoming\n\n" +
 	"> **`self_note` APPENDS one new `-` line — it does NOT overwrite this file.**\n" +
 	"> Do not re-note something already listed below. Skip if the vibe or aim is already here.\n" +
 	"> Standing aims (things that outlive one task) belong here. One-off to-dos do not.\n" +
-	"> Only `/new` distill rewrites the whole file (merge/dedupe then)."
+	"> Distill on `/new` merges. Keep exact jokes and nicknames. A vibe word\n" +
+	"> (\"dry\") is not a substitute for a quote."
 
 // Store reads and writes SELF.md. Safe for concurrent use.
 type Store struct {

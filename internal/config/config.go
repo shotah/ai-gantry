@@ -50,8 +50,9 @@ type Config struct {
 
 	HistoryMaxMessages int `env:"HISTORY_MAX_MESSAGES" envDefault:"200"`
 	HistoryMaxTokens   int `env:"HISTORY_MAX_TOKENS" envDefault:"32000"` // estimated (chars/4); older turns fold into Facts/Voice
-	// HistoryStripFillers drops a small function-word list from history older
-	// than the last 5 messages at prompt time (SQLite stays verbatim).
+	// HistoryStripFillers drops a small function-word list from older user
+	// history at prompt time. Last 40 messages stay verbatim; assistant turns
+	// are never stripped. SQLite stays verbatim.
 	HistoryStripFillers bool `env:"HISTORY_STRIP_FILLERS" envDefault:"true"`
 	ToolResultMaxChars  int  `env:"TOOL_RESULT_MAX_CHARS" envDefault:"6000"`
 	ToolMaxIterations   int  `env:"TOOL_MAX_ITERATIONS" envDefault:"10"`
@@ -92,7 +93,7 @@ type Config struct {
 	SparkStartHour         int    `env:"SPARK_START_HOUR" envDefault:"6"`
 	SparkEndHour           int    `env:"SPARK_END_HOUR" envDefault:"21"`
 	SparkPrompt            string `env:"SPARK_PROMPT" envDefault:""`
-	SparkSkipRecentMinutes int    `env:"SPARK_SKIP_RECENT_MINUTES" envDefault:"60"`
+	SparkSkipRecentMinutes int    `env:"SPARK_SKIP_RECENT_MINUTES" envDefault:"30"`
 
 	// Capability examples / training wheels (on by default). Empty or "0" = no proactive pings;
 	// /examples on-demand still works. Qty: "1", "1-2".

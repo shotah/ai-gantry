@@ -1125,7 +1125,7 @@ func TestAgent_MemStats(t *testing.T) {
 
 func TestAgent_Tokens(t *testing.T) {
 	hist := newMemHistory()
-	hist.setSummary("s", "chris likes espresso")
+	hist.setSummary("s", "Facts: chris likes espresso\nVoice: gag: \"gull\"")
 	if err := hist.Append(context.Background(), "s",
 		session.Message{Role: session.RoleUser, Content: "hi"},
 		session.Message{Role: session.RoleAssistant, Content: "hello"},
@@ -1147,7 +1147,7 @@ func TestAgent_Tokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"tokens (chars/4 estimates)", "persona", "summary", "history", "hydration", "schemas", "standing", "(2 msgs)", "(off)"} {
+	for _, want := range []string{"tokens (chars/4 estimates)", "persona", "summary", "history", "hydration", "schemas", "standing", "(2 msgs)", "(off)", "Voice: yes"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("tokens missing %q:\n%s", want, got)
 		}
@@ -1445,7 +1445,7 @@ func TestAgent_StripFillersOnOldHistory(t *testing.T) {
 		return &provider.Result{Content: "ok"}, nil
 	}}
 	hist := newMemHistory()
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 25; i++ {
 		if err := hist.Append(context.Background(), "s",
 			session.Message{Role: session.RoleUser, Content: "the calendar on Tuesday"},
 			session.Message{Role: session.RoleAssistant, Content: "the day is clear"},
@@ -1465,10 +1465,13 @@ func TestAgent_StripFillersOnOldHistory(t *testing.T) {
 	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "hi"}); err != nil {
 		t.Fatal(err)
 	}
-	var users []string
+	var users, assistants []string
 	for _, m := range seen {
-		if m.Role == provider.RoleUser {
+		switch m.Role {
+		case provider.RoleUser:
 			users = append(users, m.Content)
+		case provider.RoleAssistant:
+			assistants = append(assistants, m.Content)
 		}
 	}
 	if len(users) < 2 {
@@ -1479,6 +1482,9 @@ func TestAgent_StripFillersOnOldHistory(t *testing.T) {
 	}
 	if users[len(users)-1] != "hi" {
 		t.Fatalf("current user = %q", users[len(users)-1])
+	}
+	if len(assistants) == 0 || assistants[0] != "the day is clear" {
+		t.Fatalf("assistant stripped: %q", assistants)
 	}
 	stored, _ := hist.Messages(context.Background(), "s")
 	if stored[0].Content != "the calendar on Tuesday" {

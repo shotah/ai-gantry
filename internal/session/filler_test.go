@@ -72,13 +72,14 @@ func TestStripFillerWords_PreservesQuotes(t *testing.T) {
 }
 
 func TestStripFillerHistory_LeavesTailVerbatim(t *testing.T) {
-	msgs := make([]session.Message, 8)
+	n := session.KeepRecentUnstripped + 5
+	msgs := make([]session.Message, n)
 	for i := range msgs {
 		msgs[i] = session.Message{Role: session.RoleUser, Content: "the calendar on Tuesday"}
 	}
-	msgs[7].Content = "the last line stays the the the"
+	msgs[n-1].Content = "the last line stays the the the"
 	out := session.StripFillerHistory(msgs)
-	if len(out) != 8 {
+	if len(out) != n {
 		t.Fatalf("len=%d", len(out))
 	}
 	if out[0].Content == "the calendar on Tuesday" {
@@ -87,12 +88,33 @@ func TestStripFillerHistory_LeavesTailVerbatim(t *testing.T) {
 	if !strings.Contains(out[0].Content, "calendar") || strings.Contains(out[0].Content, " the ") {
 		t.Fatalf("head strip: %q", out[0].Content)
 	}
-	if out[7].Content != "the last line stays the the the" {
-		t.Fatalf("tail mutated: %q", out[7].Content)
+	if out[n-1].Content != "the last line stays the the the" {
+		t.Fatalf("tail mutated: %q", out[n-1].Content)
 	}
 	// Original slice must not change (prompt-only).
 	if msgs[0].Content != "the calendar on Tuesday" {
 		t.Fatal("stripped in place — SQLite path would be corrupted")
+	}
+}
+
+func TestStripFillerHistory_SkipsAssistant(t *testing.T) {
+	n := session.KeepRecentUnstripped + 4
+	msgs := make([]session.Message, n)
+	for i := range msgs {
+		role := session.RoleUser
+		content := "the calendar on Tuesday"
+		if i%2 == 1 {
+			role = session.RoleAssistant
+			content = "the day is clear"
+		}
+		msgs[i] = session.Message{Role: role, Content: content}
+	}
+	out := session.StripFillerHistory(msgs)
+	if out[0].Content == "the calendar on Tuesday" {
+		t.Fatalf("old user not stripped: %q", out[0].Content)
+	}
+	if out[1].Content != "the day is clear" {
+		t.Fatalf("assistant stripped: %q", out[1].Content)
 	}
 }
 

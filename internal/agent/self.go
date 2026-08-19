@@ -8,6 +8,7 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/provider"
+	"github.com/shotah/ai-gantry/internal/selfnote"
 	"github.com/shotah/ai-gantry/internal/session"
 )
 
@@ -36,8 +37,9 @@ const (
 const selfDistillPrompt = "[system] This chat session is about to be reset and its history erased. " +
 	"Below are your current self-notes (SELF.md), the dying conversation, and (if present) a " +
 	"[session voice] block — the rolling mood of this chat (jokes, nicknames, games). " +
-	"Rewrite the complete self-notes file so the personality you developed here survives: " +
-	"keep existing notes that still matter and fold in voice, humor, running jokes, games, nicknames, rituals, and standing aims from the voice block and conversation worth keeping. " +
+	"Merge into a complete self-notes file so the personality you developed here survives. " +
+	"Keep every existing SELF.md bullet that is a joke, nickname, game, ritual, or standing aim unless it is a true duplicate. " +
+	"Add from [session voice] using exact wording. Do not replace a quoted joke with a mood word. " +
 	"A standing aim outlives one task; keep those. Do not copy one-off to-dos or Facts: about the human. " +
 	"Prefer exact wording from [session voice] over paraphrasing the transcript. " +
 	"Skip one-off mood weather (\"dry today\"). Do not copy facts about the human into SELF.md. " +
@@ -56,6 +58,9 @@ func (a *Agent) distillSelf(ctx context.Context, sessionID string) bool {
 	}
 	_, voice := a.sessionLedger(ctx, sessionID)
 	if len(history) < selfDistillMinMessages && voice == "" {
+		return false
+	}
+	if voice == "" && !transcriptHasQuotedSpan(history) {
 		return false
 	}
 	current, err := a.selfNotes.Read()
@@ -94,6 +99,9 @@ func (a *Agent) distillSelf(ctx context.Context, sessionID string) bool {
 		a.log.Warn("self distill: empty model reply", "thinking_chars", len(res.Thinking))
 		return false
 	}
+	if current != "" && current != "(none yet)" {
+		content = selfnote.RestoreQuotedLines(current, content)
+	}
 	if err := a.selfNotes.Write(content); err != nil {
 		a.log.Warn("self distill: write failed", "err", err)
 		return false
@@ -112,6 +120,23 @@ func distillTranscript(history []session.Message) string {
 		fmt.Fprintf(&b, "%s: %s\n", m.Role, clipChars(m.Content, selfDistillPerMessage))
 	}
 	return b.String()
+}
+
+func transcriptHasQuotedSpan(history []session.Message) bool {
+	for _, m := range history {
+		if hasQuotedSpan(m.Content) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasQuotedSpan(s string) bool {
+	i := strings.IndexByte(s, '"')
+	if i < 0 {
+		return false
+	}
+	return strings.IndexByte(s[i+1:], '"') >= 0
 }
 
 // parkSessionFacts writes the dying session's Facts: block into SQLite as one

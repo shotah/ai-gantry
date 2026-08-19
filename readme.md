@@ -126,7 +126,7 @@ Gantry keeps that growth on purpose:
 | --- | --- |
 | **`SELF.md`** | Agent-writable notes in `PERSONA_DIR` — voice, humor, running jokes, rituals, standing aims. Gantry stamps the header (and the `RULES.md` Self-notes + Location pins sections) on boot |
 | **`self_note`** | Builtin tool: jot one short line when personality happens mid-chat |
-| **Distill on `/new`** | Before the session wipe: `Voice:` folds into `SELF.md`; `Facts:` park in SQLite memory (not `USER.md`) |
+| **Distill on `/new`** | Before the session wipe: `Voice:` **merges** into `SELF.md` (quoted jokes kept); `Facts:` park in SQLite memory (not `USER.md`) |
 | **Voice on trim** | History fold appends new `Voice:` bits to `SELF.md` so long sessions without `/new` still keep the joke |
 
 Operator files (`SOUL.md` / `RULES.md` / `USER.md` / `TOOLS.md`) stay yours.
@@ -335,7 +335,7 @@ Everything is env or a mount. No config UI, no `config set`, no sync step.
 | `MCP_MANIFEST` | no | `/etc/gantry/mcp.toml` |
 | `HISTORY_MAX_MESSAGES` | no | `200` |
 | `HISTORY_MAX_TOKENS` | no | `32000` (chars/4 estimate; older turns fold into `Facts:` / `Voice:`) |
-| `HISTORY_STRIP_FILLERS` | no | `true` (prompt-only; last 5 history messages stay verbatim; `false` disables) |
+| `HISTORY_STRIP_FILLERS` | no | `true` (prompt-only; last 40 messages verbatim; assistant never stripped; `false` disables) |
 | `TOOL_RESULT_MAX_CHARS` | no | `6000` |
 | `TOOL_MAX_ITERATIONS` | no | `10` (tool rounds per turn; at the cap a final no-tools call forces a text reply) |
 | `TOOL_SCHEMA_MAX_TOKENS` | no | `0` (log estimate only; `>0` = hard fail if over) |
@@ -487,13 +487,13 @@ Bounding rules:
 - Hard cap `HISTORY_MAX_MESSAGES`; drop oldest turns past `HISTORY_MAX_TOKENS`
   (default **32000** est). Token counts are chars/4 **estimates** and are
   labeled as such everywhere they surface (logs, `/status`) — see §9.
-  Persona + last N turns are always protected. Older-than-last-5 history
+  Persona + last N turns are always protected. Older-than-last-40 **user**
   messages drop a small Go word list (`the`/`a`/`is`/…) in the prompt only;
-  quoted jokes and the tail stay verbatim. SQLite is not rewritten.
+  assistant turns, quoted jokes, and the tail stay verbatim. SQLite is not rewritten.
 - When history is trimmed, dropped turns fold into a persistent per-session
   `summary` via the same LLM (one string — `Facts:` + `Voice:`). Facts churn;
-  Voice copies forward so jokes and nicknames survive the trim. Injected as a
-  system block on later turns.
+  Voice is 8–12 short lines with up to 8 verbatim quotes and copies forward
+  so jokes and nicknames survive the trim. Injected as a system block on later turns.
 - Tool results older than the last 2 collapse to one line
   (`[tool gmail.search: N chars, truncated]`); matching tool-call argument
   JSON is stubbed the same way. Session history never stores tool payloads.
@@ -514,9 +514,10 @@ Persona files describe who the agent **should** be. `SELF.md` is who it
   today”) append the same way, so a long session without `/new` still
   graduates tone into `SELF.md`. Already-listed bits are skipped. Cap
   refuse is the same as the tool.
-- On `/new`: full rewrite distill (keep what matters, fold in `[session voice]`
-  + the dying chat, ≤30 bullets) — not a blind append. Session `Facts:` go to
-  memory, not `SELF.md` and not `USER.md`.
+- On `/new`: distill **merges** into `SELF.md` (keep quoted jokes and nicknames;
+  fold in `[session voice]` + the dying chat, ≤30 bullets). A bland tool
+  session without Voice or quoted bits does not rewrite the file. Session
+  `Facts:` go to memory, not `SELF.md` and not `USER.md`.
 - Cap ~4KB; at capacity the tool (and trim append) refuse until distill or you prune.
 - Needs a **writable** persona directory (`SELF_NOTES_ENABLED`, default on).
 

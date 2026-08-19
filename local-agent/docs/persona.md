@@ -46,7 +46,7 @@ self-notes at boot — look for `self-notes disabled` in the logs. Set
 or wipe `SELF.md` — details in
 [../../docs/troubleshooting.md](../../docs/troubleshooting.md#selfmd--personality-drift).
 
-**Append ≠ distill.** `self_note` and history-trim Voice graduate add a line; `/new` rewrites/dedupes.
+**Append ≠ distill.** `self_note` and history-trim Voice graduate add a line; `/new` merges (keeps quoted jokes, does not flatten to vibe words).
 Persona `RULES` / `TOOLS` / `SELF` headers must say so — otherwise models
 re-note the same vibe every few turns until the file fills with duplicates.
 

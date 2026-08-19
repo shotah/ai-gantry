@@ -98,7 +98,7 @@ Boring on purpose:
 
 | Mechanism | Behavior |
 | --- | --- |
-| History caps | Drop oldest past `HISTORY_MAX_MESSAGES` / `HISTORY_MAX_TOKENS` (chars/4 **estimate**). Prompt-only filler strip on messages older than the last 5 |
+| History caps | Drop oldest past `HISTORY_MAX_MESSAGES` / `HISTORY_MAX_TOKENS` (chars/4 **estimate**). Prompt-only filler strip on user messages older than the last 40; assistant turns stay verbatim |
 | Rolling summary | Trimmed turns fold into `session.summary` (`Facts:` + `Voice:`) via the same LLM; Voice copies forward; reinjected later |
 | Tool truncate | Each MCP/memory tool result capped at `TOOL_RESULT_MAX_CHARS` |
 | Tool collapse | Tool payloads older than the last 2 become one-line markers; matching tool-call args are stubbed |
