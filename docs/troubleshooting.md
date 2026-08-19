@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> Pitch + contract: [../readme.md](../readme.md) · Index: [README.md](README.md)
+> Pitch: [../readme.md](../readme.md) · Contract: [design.md](design.md) · Index: [README.md](README.md)
 
 Operator fixes for common “why is it doing that?” moments. Prefer grepping
 logs (`self-notes disabled`, `self distill`, `TOOL_MAX_ITERATIONS`) before

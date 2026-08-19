@@ -2,15 +2,16 @@
 
 ai-gantry is a single static Go binary that hosts one persona, one LLM
 endpoint, and a set of MCP tool processes. Scaling is horizontal: one
-container per brain.
+container (or systemd unit) per brain. Kernel contract (env, loop, memory):
+[design.md](design.md). Hello path: [root readme](../readme.md).
 
 ## Container view
 
 ```mermaid
 flowchart LR
-  TG[Telegram API] <-->|long poll outbound| K
+  CH[Telegram / Discord / Slack] <-->|outbound only| K
 
-  subgraph Container["container — distroless/static-debian12:nonroot"]
+  subgraph Host["host or Distroless container"]
     K[gantry]
     M1[mcp binary A]
     M2[mcp binary B]
@@ -18,32 +19,46 @@ flowchart LR
     K -->|stdio MCP| M2
   end
 
-  K -->|HTTPS OpenAI-compat| LLM[one LLM endpoint]
-  K --- P[("/persona/*.md ro")]
-  K --- MF[("/etc/gantry/mcp.toml ro")]
-  K --- D[("/data/gantry.db")]
-  M1 --- S[("/secrets/... ro")]
+  K -->|OpenAI-compat| LLM[one LLM endpoint]
+  K --- P[("persona/*.md")]
+  K --- MF[("mcp.toml")]
+  K --- D[("data/gantry.db")]
+  M1 --- S[("secrets / .config")]
 ```
 
 Nothing listens inbound. Health is `gantry status` (exit code) reading a
-heartbeat row in SQLite — Docker exec form, no shell.
+heartbeat row in SQLite — Docker exec form, no shell. Persona is writable when
+self-notes are on (`SELF.md`); `:ro` disables that feature.
+
+Deploy shapes: [deploy-native.md](deploy-native.md) ·
+[deploy-docker.md](deploy-docker.md).
 
 ## Package layout
 
 ```text
-cmd/gantry/          run | status | version
+cmd/gantry/          run | init | auth | status | version
 cmd/release/         semver bump → tag → push (dev tooling)
 internal/config/     env parse + fail-fast validation
-internal/channel/    Channel interface; telegram/, stdio/
+internal/channel/    Channel interface; telegram/, discord/, slack/, stdio/
 internal/provider/   OpenAI-compatible Completer (one implementation)
 internal/mcp/        manifest, spawn, list/call tools, truncate, restart
+internal/mcpenable/  dynamic tool prefix grants
 internal/agent/      prompt assembly, tool loop, collapse, reply
 internal/session/    bounded history + rolling summary
 internal/memory/     Memory interface, builtin SQLite/FTS5, MCP adapter, consolidator
 internal/persona/    load + concat /persona/*.md
+internal/selfnote/   SELF.md tool + distill on /new
 internal/heartbeat/  singleton row for Docker healthcheck
 internal/drain/      in-flight turn wait on SIGTERM
+internal/cron/       scheduled turns → agent → channel push
+internal/watch/      poll MCP fetch tools; wake only on new item ids
+internal/examples/   /examples capability pings
+internal/logfwd/     optional slog → chat
 ```
+
+One provider implementation is deliberate: Gemini, Grok, and local models all
+speak OpenAI-compat. Model identity is `LLM_BASE_URL` + `LLM_MODEL` +
+`LLM_API_KEY`.
 
 ## Process model (goroutines)
 
@@ -51,11 +66,12 @@ One OS process. Concurrent work:
 
 | Goroutine | Job |
 | --- | --- |
-| channel poller | Telegram `getUpdates` (or stdio REPL); allowlist filter |
+| channel poller | Telegram `getUpdates` / Discord Gateway / Slack Socket Mode / stdio; allowlist filter |
 | agent handler | per message: assemble → model → tools → reply; follow-ups settle then steer the live turn (Telegram: workers=2 so `/cancel` + barge-in can run) |
 | MCP children | one OS process per manifest server (stdio), supervised by host |
 | heartbeat ticker | upsert `heartbeat` every ~15s |
 | memory consolidator | optional timer (`MEMORY_CONSOLIDATE_MINUTES`; `0` = off) |
+| cron + watch tickers | clock jobs → agent → push; fetch-tool polls → wake only on new ids |
 
 ```mermaid
 flowchart TB
@@ -187,10 +203,11 @@ One WAL SQLite file: `$DATA_DIR/gantry.db`.
 | `session` / `session_message` | `session` | history + rolling `summary` |
 | `memory` / `memory_fts` | `memory` | structured long-term memory |
 | `heartbeat` | `heartbeat` | singleton row for `gantry status` |
+| cron / watch job rows | `cron` / `watch` | scheduled turns and fetch-tool cursors — [cron.md](cron.md) · [watch.md](watch.md) |
 
-`/new` deletes the session row (cascade messages + summary) after `Voice:`
-merges into `SELF.md` and `Facts:` park as a memory episode. Memory rows are
-untouched.
+`SELF.md` lives in `PERSONA_DIR`, not SQLite. `/new` deletes the session row
+(cascade messages + summary) after `Voice:` merges into `SELF.md` and
+`Facts:` park as a memory episode. Memory rows are untouched.
 
 ## Prompt assembly (order)
 
@@ -204,15 +221,15 @@ Tool schemas are attached on the completion request, not as chat messages.
 
 ## External dependencies (import over write)
 
-| Concern | Library |
-| --- | --- |
-| MCP client | `modelcontextprotocol/go-sdk` |
-| SQLite | `modernc.org/sqlite` |
-| Telegram | `go-telegram/bot` |
-| LLM | `openai/openai-go/v3` (custom base URL) |
-| Env | `caarlos0/env/v11` |
-| Manifest | `pelletier/go-toml/v2` |
-| Logs | stdlib `log/slog` → **stderr** |
+| Concern | Library | Why |
+| --- | --- | --- |
+| MCP client | `github.com/modelcontextprotocol/go-sdk` | Official SDK; stdio transport, schema handling |
+| SQLite | `modernc.org/sqlite` | Pure Go (no CGO), FTS5 works, one file DB |
+| Telegram | `github.com/go-telegram/bot` | Zero-dep, maintained, long-poll native |
+| LLM client | `github.com/openai/openai-go/v3` | Official; custom `base_url` covers Gemini, xAI, Ollama |
+| Env config | `github.com/caarlos0/env/v11` | Struct tags → env, tiny |
+| MCP manifest | `github.com/pelletier/go-toml/v2` | Minimal TOML for `mcp.toml` |
+| Logging | stdlib `log/slog` | JSON to **stderr** (stdio REPL stays clean) |
 
 See [choices.md](choices.md) for why each pick stuck.
 

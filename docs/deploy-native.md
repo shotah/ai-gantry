@@ -5,7 +5,8 @@ next to [Ollama](https://ollama.com) and a local chat model (we use
 **Qwen** in production). No Docker on the agent box; MCP tools are plain
 binaries on `PATH`.
 
-Kernel contract: [root readme](../readme.md). Tool naming: [mcp.md](mcp.md).
+Kernel contract: [design.md](design.md). Hello path:
+[root readme](../readme.md). Tool naming: [mcp.md](mcp.md).
 Consumer template (unit + `install.sh`): [examples/native/](../examples/native/).
 Appliance Make targets / host layout: [local-agent/deploy/README.md](../local-agent/deploy/README.md).
 

@@ -1,7 +1,8 @@
 # ai-gantry docs
 
-Operator-oriented design notes for the runtime. The [root readme](../readme.md)
-is the public pitch + product contract; these pages go deeper.
+Operator notes for the runtime. The [root readme](../readme.md) is the public
+pitch and Docker hello path. Kernel contract (env, loop, memory) lives in
+[design.md](design.md); diagrams in [architecture.md](architecture.md).
 
 | Doc | What it covers |
 | --- | --- |

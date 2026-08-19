@@ -354,6 +354,6 @@ Deleted todos stay gone. Also:
 
 ## When something ships
 
-Docs in the same change: env in [readme §4.1](readme.md#41-environment-variables)
+Docs in the same change: env in [design.md](docs/design.md#environment-variables)
 when a new var appears; MCP page + `mcp.toml` snippet when the catalog
 changes. Then delete the row here.

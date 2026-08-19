@@ -121,7 +121,7 @@ the moment SAM starts talking, and it never survives into the finished bubble
 ## Session bounds
 
 gantry keeps the prompt bounded with env knobs (defaults are sane; all in
-[ai-gantry §4.1](https://github.com/shotah/ai-gantry#41-environment-variables)):
+[ai-gantry env table](https://github.com/shotah/ai-gantry/blob/main/docs/design.md#environment-variables)):
 
 - `HISTORY_MAX_MESSAGES=200` — hard message cap
 - `HISTORY_MAX_TOKENS=32000` — estimated (chars/4); oldest turns fold into `Facts:` / `Voice:` first

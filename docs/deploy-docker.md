@@ -14,8 +14,9 @@ local model host.
 
 `:latest` = latest release tag · `:edge` = `main` · pin `:0.x.y` for production.
 
-Kernel contract (env, mounts, MCP): [root readme](../readme.md). Why Hub is the
-stranger path: [positioning.md](positioning.md). Tool naming: [mcp.md](mcp.md).
+Kernel contract (env, mounts, MCP): [design.md](design.md). Hello path:
+[root readme](../readme.md). Why Hub is the stranger path:
+[positioning.md](positioning.md). Tool naming: [mcp.md](mcp.md).
 Full life-stack appliance: [local-agent/](../local-agent/).
 
 ```mermaid

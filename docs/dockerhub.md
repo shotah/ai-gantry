@@ -2,12 +2,11 @@
 
 ![ai-gantry — the frame that holds the tools](https://raw.githubusercontent.com/shotah/ai-gantry/main/assets/banner.png)
 
-**A personal agent you can actually own.** One Distroless Go binary. One persona.
-One OpenAI-compat model. MCP tools you choose. Chat that only dials *out*
-(Telegram, Discord, or Slack). No dashboard. No config UI. **No open ports. Ever.**
+**Run your own agent.** Pull this image, point it at a local model or paste an
+API key, and chat from your phone. No dashboard. No config UI. **No open ports.**
 
 ```text
-static binary + persona + mcp.toml + any OpenAI-compat LLM  →  outbound chat
+container + persona + any OpenAI-compat LLM  →  outbound chat
 ```
 
 Chat, memory, and cron work with **zero MCP servers**. Tools are optional
@@ -120,12 +119,12 @@ Nothing publishes a host port. The bot dials out to Telegram / the LLM only.
 
 ## Who it’s for
 
-Self-hosters and local-LLM operators who want an **outbound-only** assistant,
-**inspectable** SQLite memory, and **MCP as the only plugin surface**.
+Anyone who wants to run a personal agent in Docker and drop in a local model
+or an API key. Tools are optional. Nothing listens on a port.
 
 | Pick this image when… | Pick something else when… |
 | --- | --- |
-| You want small, boring, shippable | You need a web UI or team workspace |
+| You want `docker compose up` and a bot on your phone | You need a web UI or team workspace |
 | Allowlist + no inbound ports | You need WhatsApp / Teams webhooks |
 | Env + mounts is enough config | You want a dashboard or no-code canvas |
 
@@ -143,7 +142,8 @@ Positioning: [docs/positioning.md](https://github.com/shotah/ai-gantry/blob/main
 | MCP host | [mcp.md](https://github.com/shotah/ai-gantry/blob/main/docs/mcp.md) |
 | Observability | [observability.md](https://github.com/shotah/ai-gantry/blob/main/docs/observability.md) |
 | Security | [security.md](https://github.com/shotah/ai-gantry/blob/main/docs/security.md) |
-| Full contract | [readme.md](https://github.com/shotah/ai-gantry/blob/main/readme.md) |
+| Hello path | [readme.md](https://github.com/shotah/ai-gantry/blob/main/readme.md) |
+| Kernel contract | [design.md](https://github.com/shotah/ai-gantry/blob/main/docs/design.md) |
 
 License: MIT — [LICENSE](https://github.com/shotah/ai-gantry/blob/main/LICENSE)
 

@@ -343,8 +343,7 @@ hints without spawning real MCP binaries.
 ## Related
 
 - [architecture.md](architecture.md) — host restart sequence
-- [design.md](design.md) — principles / config contract
+- [design.md](design.md) — env contract + MCP manifest sketch
 - [choices.md](choices.md) — why `{server}__{tool}` and tool-surface budget
 - [security.md](security.md) — MCP child = trusted code
 - [watch.md](watch.md) — poller + `feeds-mcp` / `twitter-mcp`
-- Root [readme.md](../readme.md) §4.2 — manifest sketch

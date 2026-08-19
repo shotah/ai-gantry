@@ -1,16 +1,17 @@
 # Positioning
 
 Product narrative for maintainers and anyone writing about gantry.
-The [root readme](../readme.md) is the public pitch + operator contract;
-this page is the longer “why / who / how we talk about it.”
+The [root readme](../readme.md) is the public pitch and Docker hello path.
+Kernel contract: [design.md](design.md). This page is the longer
+“why / who / how we talk about it.”
 
 ---
 
 ## One-liner
 
-**Outbound-only personal agent you own** — one Distroless Go binary, one
-persona, one OpenAI-compat model, MCP tools you choose. Chat over Telegram,
-Discord, or Slack. **No open ports. Ever.**
+**Run your own agent** — pull a container, point it at a local model or paste
+an API key, chat from your phone. One persona, one OpenAI-compat model, MCP
+tools if you want them. Telegram, Discord, or Slack. **No open ports.**
 
 The name: a **gantry** holds and positions tools; the tools do the work.
 Gantry is the frame. MCP binaries are the tools.
@@ -54,11 +55,15 @@ everyone must run.
 
 ## Who it’s for (ICP)
 
+Lead with the Docker hello. The hardening story is why it *stays* running, not
+a filter on who is allowed to try it.
+
 | Fit | Audience |
 | --- | --- |
-| **Primary** | Self-hosters who want a Telegram/Discord/Slack assistant that never opens a port |
+| **Primary** | Anyone who wants to `docker compose up` a personal agent and drop in Ollama or an API key |
+| **Primary** | Self-hosters who want Telegram/Discord/Slack without opening a port |
 | **Primary** | Local-LLM operators (Ollama / Qwen / …) burned by stacks that assume cloud Flash + huge tool catalogs |
-| **Primary** | MCP authors who need a production-shaped host for their static binaries |
+| **Secondary** | MCP authors who need a production-shaped host for their static binaries |
 | **Secondary** | Solo builders who want inspectable memory + cron/spark without a SaaS agent |
 
 **Anti-ICP** (send them elsewhere, kindly):
@@ -158,22 +163,22 @@ product story.
 
 ## Copy kit (reuse freely)
 
-**Tagline:** A personal agent you can actually own.
+**Tagline:** Run your own agent.
 
 **Constraint line:** No dashboard. No config UI. No open ports. Ever.
 
 **Equation:**
 
 ```text
-static binary + persona + mcp.toml + any OpenAI-compat LLM  →  outbound chat
+container + persona + any OpenAI-compat LLM  →  outbound chat
 ```
 
 **Show HN blurb (draft):**
 
-> ai-gantry — outbound-only personal agent runtime (Go, Distroless). One
-> persona, one model, MCP tools, Telegram/Discord/Slack. Pull
-> `shotah/ai-gantry` from Docker Hub; no inbound ports, SQLite memory you can
-> inspect. Built so local models finish tool turns instead of falling over.
+> ai-gantry — run your own agent in Docker. Point it at Ollama or paste a
+> Gemini/xAI key; chat over Telegram/Discord/Slack. No inbound ports. Tools
+> optional. The same binary is hardened so small local models finish tool
+> turns instead of falling over.
 
 **Hub short description (workflow):** keep ≤100 chars, constraint-first — see
 `.github/workflows/dockerhub-description.yml`.
