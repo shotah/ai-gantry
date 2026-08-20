@@ -78,8 +78,7 @@ sudo -u gantry /opt/gantry/gantry tools-fetch \
 sudo systemctl restart gantry
 ```
 
-Richer remote/native appliance:
-[ai-gantry/local-agent/deploy](https://github.com/shotah/ai-gantry/tree/main/local-agent/deploy).
+A full life-stack is a separate consumer repo, not this template.
 
 ## Day-to-day
 

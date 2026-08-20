@@ -162,6 +162,4 @@ First boot still needs `.env` and persona on disk; CI refreshes the **image** on
 Promote this directory to its own GitHub repository (template or plain). Enable
 Actions secrets/variables above. Pin `image:` in `compose.yml` for production.
 
-Full life-stack (tools baked in) on the same VM:
-[ai-gantry/local-agent](https://github.com/shotah/ai-gantry/tree/main/local-agent)
-— prefer `e2-small` or larger.
+Baking MCP tools into a custom image on the same VM wants `e2-small` or larger.

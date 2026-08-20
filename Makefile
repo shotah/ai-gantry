@@ -60,7 +60,6 @@ help: ## Show available targets
 	@echo   make example-hosting      List GCP/AWS hosting seed targets
 	@echo   make example-hosting-gcp  Seed examples/hosting/gcp (GCE)
 	@echo   make example-hosting-aws  Seed examples/hosting/aws (EC2)
-	@echo   make local-agent-help     LOCAL_AGENT appliance help (make -C local-agent help)
 	@echo   make test           Run all tests
 	@echo   make test-verbose   Run tests with -v
 	@echo   make race           Race detector (needs CGO)
@@ -119,10 +118,6 @@ example-hosting-gcp: ## Seed consumer template examples/hosting/gcp (GCE)
 
 example-hosting-aws: ## Seed consumer template examples/hosting/aws (EC2)
 	$(MAKE) -C examples/hosting/aws init
-
-.PHONY: local-agent-help
-local-agent-help: ## Show local-agent appliance Make targets (local-agent/)
-	$(MAKE) -C local-agent help
 
 .PHONY: test
 test: ## Run all tests

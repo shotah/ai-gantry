@@ -72,8 +72,7 @@ are how ownership means *continuity*, not just *control*.
 but tone and rituals are soft. Undesirable personality is an ops problem —
 treat `SELF.md` like a log you review, not a sacred file you never open.
 
-Related: [../local-agent/docs/persona.md](../local-agent/docs/persona.md) ·
-[security.md](security.md).
+Related: [security.md](security.md).
 
 ## Self-notes silently off
 

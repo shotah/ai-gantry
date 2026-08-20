@@ -17,7 +17,7 @@ local model host.
 Kernel contract (env, mounts, MCP): [design.md](design.md). Hello path:
 [root readme](../readme.md). Why Hub is the stranger path:
 [positioning.md](positioning.md). Tool naming: [mcp.md](mcp.md).
-Full life-stack appliance: [local-agent/](../local-agent/).
+A full life-stack (persona + MCP + compose) lives in a consumer repo, not this kernel.
 
 ```mermaid
 flowchart LR
@@ -95,65 +95,36 @@ Second persona / LLM = second service block. Nothing inbound; health is
 
 ---
 
-## Appliance path (Docker)
-
-For Workspace / Strava / Garmin / Cast / search baked into one image:
-
-```bash
-cd local-agent && make init && make up
-# remote Ubuntu: make remote-deploy  →  docs/deploy.md
-```
-
-See [local-agent/README.md](../local-agent/README.md) and
-[local-agent/docs/deploy.md](../local-agent/docs/deploy.md).
-
----
-
 ## MCP tool auth (browser OAuth)
 
 Chat works with **zero** MCP servers. When you grant tools that need a browser
-login (Google Workspace, Strava, …), authorize **once on the machine that has
-your browser** — usually the laptop running Docker Desktop — then copy tokens
-to the server if the agent runs elsewhere.
+login (Google Workspace, Strava, …), authorize **once**.
+
+**Headless / remote (preferred on a server):** chat `/auth <server>` — PKCE
+paste or device flow, no inbound ports. Tokens land on the box running gantry.
+See **[auth.md](auth.md)**.
+
+**Laptop with a browser:** run the kernel CLI on the machine that will receive
+the localhost callback:
 
 ```bash
-cd local-agent
-make build                 # once: image includes MCP tools (tools-fetch)
-make google-auth           # browser → http://localhost:4100/…
-make ghealth-auth          # browser → http://127.0.0.1:4101/…
-make strava-auth           # browser → http://localhost:19876/…
-# also: make garmin-auth | youtube-auth | …
+gantry auth google      # browser → http://localhost:4100/…
+gantry auth ghealth     # browser → http://127.0.0.1:4101/…
+gantry auth strava      # browser → http://localhost:19876/…
+gantry auth youtube     # device flow (no localhost callback)
+gantry auth garmin      # TTY login, or chat MFA with GARMIN_EMAIL/PASSWORD
 ```
 
 What to expect:
 
-1. A URL prints in the terminal (the container cannot open your browser).
+1. A URL prints in the terminal (a Distroless container cannot open a browser).
 2. Open it, approve access.
-3. The provider redirects to `http://localhost:<port>/…` on **this** machine;
-   Compose publishes that port into the auth container.
-4. Tokens land under `data/.config/…`. If `DEPLOY_HOST` is set, Make pushes
-   them to the server automatically.
+3. The provider redirects to `http://localhost:<port>/…` on **this** machine.
+4. Tokens land under `DATA_DIR` (typically `data/.config/…`). Copy them to the
+   server if gantry runs elsewhere.
 
-| Tool | Make target | Redirect (OAuth client) |
-| --- | --- | --- |
-| Google Workspace | `make google-auth` | `http://localhost:4100/oauth2callback` |
-| Google Health | `make ghealth-auth` | `http://127.0.0.1:4101/oauth2callback` |
-| Strava | `make strava-auth` | callback domain `localhost` (port 19876) |
-| YouTube | `make youtube-auth` | device flow (no localhost callback) |
-| Garmin | `make garmin-auth` or `/auth garmin` | TTY login, or chat MFA with `GARMIN_EMAIL`/`PASSWORD` |
-
-**Do not** run Google/Strava auth over SSH on a headless box — the browser
-callback is `localhost` on *your* PC. Auth locally, then sync secrets (or use
-the Make targets above with `DEPLOY_HOST` set).
-
-**Remote / headless alternative:** chat `/auth <server>` (PKCE paste or device
-flow) — see **[auth.md](auth.md)**. No inbound ports; tokens land on the box
-running gantry.
-
-Per-tool setup: [google-workspace](../local-agent/docs/google-workspace.md) ·
-[google-health](../local-agent/docs/google-health.md) ·
-[strava](../local-agent/docs/strava.md) · [youtube](../local-agent/docs/youtube.md) ·
-[garmin](../local-agent/docs/garmin.md).
+**Do not** run Google/Strava loopback auth over SSH on a headless box — the
+callback is `localhost` on *your* PC. Use chat `/auth` instead.
 
 ---
 

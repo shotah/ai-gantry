@@ -8,7 +8,6 @@ binaries on `PATH`.
 Kernel contract: [design.md](design.md). Hello path:
 [root readme](../readme.md). Tool naming: [mcp.md](mcp.md).
 Consumer template (unit + `install.sh`): [examples/native/](../examples/native/).
-Appliance Make targets / host layout: [local-agent/deploy/README.md](../local-agent/deploy/README.md).
 
 ```mermaid
 flowchart LR
@@ -37,32 +36,28 @@ is local and you care about RAM, keep-alive, and tool-call quality.
 
 ---
 
-## Featured stack (local-agent appliance)
+## Featured stack (`examples/native`)
 
-Production shape we run today:
+Local-model shape this kernel is built for:
 
 | Piece | Choice |
 | --- | --- |
 | Chat | Ollama · `qwen3.6:35b-a3b` (or current pin) |
 | Channel | Telegram allowlist |
 | Supervisor | systemd unit under `/opt/gantry` |
-| Tools | Garmin, Workspace, search, Cast, … via `mcp.toml` |
+| Tools | Optional MCP via `mcp.toml` + `gantry tools-fetch` |
 
-Workstation → remote host:
+On the host:
 
 ```bash
-cd local-agent
-# .env: DEPLOY_HOST, DEPLOY_USER, DEPLOY_PATH=/opt/gantry, Telegram, …
-
-make remote-native-env      # gantry.env with Ollama LLM_* defaults
-make remote-native-check
-make remote-native-deploy   # release binary → install → systemctl start
-# day-to-day from a dirty tree:
-make remote-native-deploy-dev
+make example-native
+cd examples/native
+# gantry.env: Telegram + LLM_* (Ollama defaults in gantry.env.example)
+sudo ./install.sh
 ```
 
-Host layout, secrets under `data/.config/`, cutover from Docker SAM:
-**[local-agent/deploy/README.md](../local-agent/deploy/README.md)**.
+Layout and day-to-day: **[examples/native/README.md](../examples/native/README.md)**.
+A full life-stack (persona + MCP + compose) lives in a consumer repo, not this kernel.
 
 Minimal `LLM_*` for Ollama on the same machine:
 
@@ -128,20 +123,20 @@ journalctl -u ollama -f
 | Lever | Where | Effect |
 | --- | --- | --- |
 | Stable prompt prefix | code — persona/summary/history first, volatile last; `Host.Tools()` sorted | Biggest single win measured on Qwen/890M: a reshuffled tool block broke the prompt cache and cost ~68s of re-prefill per turn instead of ~2s |
-| `OLLAMA_CONTEXT_LENGTH` | [`deploy/ollama-gantry.conf`](../local-agent/deploy/ollama-gantry.conf) | Ollama's default `num_ctx` is small; overflowing it forces context shifting + re-prefill every turn |
-| `OLLAMA_KEEP_ALIVE=-1` | same file | Model stays resident; confirm with `ollama ps` (want `100% GPU`) |
+| `OLLAMA_CONTEXT_LENGTH` | Ollama unit / drop-in env | Ollama's default `num_ctx` is small; overflowing it forces context shifting + re-prefill every turn |
+| `OLLAMA_KEEP_ALIVE=-1` | same | Model stays resident; confirm with `ollama ps` (want `100% GPU`) |
 | `LLM_REASONING_EFFORT=none` | `gantry.env` | Native default. Thinking tokens decode at full price *before* any tool fires |
 | `TOOL_RESULT_MAX_CHARS` | `gantry.env` | Native default `6000`. Results are re-sent each loop iteration, so this multiplies prefill |
 | Shorter replies | persona (`SOUL.md` → "Length") | Decode is a hard ~23 tok/s: a 230-token reply *is* 10s. Halving reply length halves that. Persona text is in the cached prefix, so it costs nothing per turn |
 | Fewer tools | `mcp.toml` `tools` / `exclude`, MCP `--tool-tier` | Schemas are cached once the prefix is stable, but they inflate total context — and prefill rate falls with length (~1000 tok/s at 16k vs ~264 tok/s at 25k) |
 | `COALESCE_SETTLE_MS` | `gantry.env` | Quiet window before a follow-up steers the live turn — lone messages do not wait |
 | `SPINUP_NOTICE_MS` | `gantry.env` | Doesn't make a turn faster — opens the bubble during silent prefill so it stops *feeling* frozen |
-| `OLLAMA_FLASH_ATTENTION` / `OLLAMA_KV_CACHE_TYPE=q8_0` | `ollama-gantry.conf` (commented) | Faster prefill, much smaller KV cache; measure quality before keeping |
+| `OLLAMA_FLASH_ATTENTION` / `OLLAMA_KV_CACHE_TYPE=q8_0` | Ollama unit / drop-in (commented until measured) | Faster prefill, much smaller KV cache; measure quality before keeping |
 | Smaller / router model | `LLM_MODEL`, or a second endpoint | Real work — only worth it once the logs say model time dominates |
 
-`install.sh` reinstalls `ollama-gantry.conf` whenever it changes and restarts
-Ollama, so the first turn after a tuning change is cold. Unchanged means no
-restart, so ordinary redeploys keep the model resident.
+Restarting Ollama after a context / keep-alive change makes the next turn
+cold. Leave the unit alone on ordinary gantry redeploys so the model stays
+resident.
 
 ### Perceived latency
 

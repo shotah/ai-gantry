@@ -75,8 +75,7 @@ docker compose run --rm -it gantry
 3. Mount secrets under `./secrets/…` → `/data/.config/…` as needed.
 4. Prefer MCP `--tool-tier` / gantry `tools = […]` so Flash is not fed huge schemas.
 
-Full appliance with tools pre-baked:
-[ai-gantry/local-agent](https://github.com/shotah/ai-gantry/tree/main/local-agent).
+A full life-stack is a separate consumer repo, not this template.
 
 ## Persistence
 

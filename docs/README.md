@@ -3,9 +3,12 @@
 Operator notes for the runtime. The [root readme](../readme.md) is the public
 pitch and Docker hello path. Kernel contract (env, loop, memory) lives in
 [design.md](design.md); diagrams in [architecture.md](architecture.md).
+What we actually shipped, ranked: [features.md](features.md).
 
 | Doc | What it covers |
 | --- | --- |
+| [features.md](features.md) | **Inventory:** The Great / The Good / The Okay / The Ugly |
+| [gantree.md](gantree.md) | **Proposal:** yard console — UI to plant/manage gantries + MCP grants |
 | [positioning.md](positioning.md) | ICP, competition, Docker Hub story, when (not) to add a site |
 | [dockerhub.md](dockerhub.md) | **Hub overview** synced by CI (keep lean; PNG banner) |
 | [deploy-docker.md](deploy-docker.md) | **Fastest hello:** Hub pull + compose; MCP auth (chat `/auth` or laptop) |
@@ -18,7 +21,6 @@ pitch and Docker hello path. Kernel contract (env, loop, memory) lives in
 | [slack.md](slack.md) | Slack Socket Mode channel (DMs + @mention, no ports) |
 | [milestones.md](milestones.md) | Archived M0–M7 build checklist (shipped) |
 | [../examples/](../examples/) | Consumer templates: [`docker/`](../examples/docker/) · [`native/`](../examples/native/) · [`hosting/`](../examples/hosting/) ([`gcp/`](../examples/hosting/gcp/) · [`aws/`](../examples/hosting/aws/)) |
-| [../local-agent/](../local-agent/) | Full local-agent appliance (MCP tools + remote deploy + auth helpers) |
 | [architecture.md](architecture.md) | Process model, packages, mermaid diagrams + sequences |
 | [design.md](design.md) | Principles, agent loop, memory, config/ops contract |
 | [security.md](security.md) | Threat model, tradeoffs, residual risks |
@@ -29,7 +31,9 @@ pitch and Docker hello path. Kernel contract (env, loop, memory) lives in
 | [watch.md](watch.md) | Poll MCP fetch tools; `feeds-mcp` / `twitter-mcp` adapters |
 
 Start with **deploy-docker** (Hub pull) or **deploy-native** for a running bot;
-**auth** for headless MCP login; **positioning** for who/why; **architecture**
-for the code; **mcp** before wiring tools; **security** before exposing an
-allowlist with real tool credentials. Audit grown personality in
-**troubleshooting** (`SELF.md`) whenever the vibe drifts.
+**features** for the honest inventory; **gantree** for the proposed yard
+console (not this kernel); **auth** for headless MCP login;
+**positioning** for who/why; **architecture** for the code; **mcp** before
+wiring tools; **security** before exposing an allowlist with real tool
+credentials. Audit grown personality in **troubleshooting** (`SELF.md`)
+whenever the vibe drifts.

@@ -52,7 +52,7 @@ Exact name: `google-search__web_search`. New event + place → search if needed,
 
 ## YouTube
 
-`youtube__videos_search`, `youtube__videos_get`, `youtube__library_list_playlists`, `youtube__playlists_get`, `youtube__library_list_liked_videos`, `youtube__cast_format_target`. Optional `musicOnly=true`. Hand `videoId` to `cast__youtube_beam_video` (bare id, not a watch URL). Auth: `make youtube-auth`.
+`youtube__videos_search`, `youtube__videos_get`, `youtube__library_list_playlists`, `youtube__playlists_get`, `youtube__library_list_liked_videos`, `youtube__cast_format_target`. Optional `musicOnly=true`. Hand `videoId` to `cast__youtube_beam_video` (bare id, not a watch URL). Auth: `gantry auth youtube`.
 
 ## House Cast
 

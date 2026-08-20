@@ -42,6 +42,6 @@ make example-hosting-aws
 # or: make example-hosting   # prints both
 ```
 
-Full life-stack (MCP tools baked in):
-[local-agent](../../local-agent/) — use a slightly larger instance (`e2-small` /
-`t3.small` or bigger).
+Baking MCP tools into a custom image needs a slightly larger instance
+(`e2-small` / `t3.small` or bigger). A full life-stack lives in a consumer
+repo (persona + MCP + compose), not this kernel.

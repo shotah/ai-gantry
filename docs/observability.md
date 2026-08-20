@@ -184,8 +184,8 @@ sqlite3 data/gantry.db "
   PRAGMA page_count; PRAGMA page_size;"
 ```
 
-In the local-agent appliance, `make shell` drops you into an Alpine box with
-`./data` mounted when the host has no `sqlite3`.
+If the host has no `sqlite3`, copy `data/gantry.db` off the box and query it
+locally.
 
 ---
 

@@ -304,17 +304,6 @@ make up
 MCP servers stay commented until you grant them. Same `/tools` / `/status`
 commands on Telegram once the bot is up.
 
-### C — local-agent appliance
-
-Full life-stack (Workspace, search, Strava, …): see
-[local-agent/README.md](../local-agent/README.md). Tool-specific setup:
-
-| Capability | Guide |
-| --- | --- |
-| Web search | [local-agent/docs/web-search.md](../local-agent/docs/web-search.md) |
-| Google Workspace | [local-agent/docs/google-workspace.md](../local-agent/docs/google-workspace.md) |
-| Local / alternate chat models | [local-agent/docs/models.md](../local-agent/docs/models.md) |
-
 For native Ollama + Qwen deploys, keep exact names in `persona/TOOLS.md` and
 rely on alias + suggestions when the model mangles hyphens.
 

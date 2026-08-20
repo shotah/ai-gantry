@@ -1,7 +1,7 @@
 # Auth from chat (remote OAuth, no inbound ports)
 
 Headless boxes cannot complete the usual laptop OAuth dance
-(`make google-auth` → localhost callback → scp tokens). Chat `/auth` fixes
+(`gantry auth google` → localhost callback → copy tokens). Chat `/auth` fixes
 that with **zero inbound ports**.
 
 Full design notes: [slash_commands_todo.md](../slash_commands_todo.md) § `/auth`.
@@ -46,7 +46,7 @@ laptop flow):
 
 ### Google: you need a **Web application** client
 
-A **Desktop** OAuth client (what laptop `make google-auth` uses) only allows
+A **Desktop** OAuth client (what laptop `gantry auth google` uses) only allows
 `http://localhost:…` redirects. Chat `/auth` sends users to the GitHub Pages
 catch URI above — Google rejects that on Desktop (`redirect_uri_mismatch` /
 “invalid request”).
@@ -87,13 +87,13 @@ For chat `/auth`, set:
    **Authorization Callback Domain** = `shotah.github.io`
    (or your fork’s Pages host).
 2. Leave localhost alone — Strava always whitelists `localhost` /
-   `127.0.0.1`, so laptop `make strava-auth` still works with that domain set.
+   `127.0.0.1`, so laptop `gantry auth strava` still works with that domain set.
 
 Chat `/auth strava` is implemented but **not fully smoke-tested** end-to-end
 yet — confirm the authorize URL lands on the catch page and
 `/auth strava <code>` writes tokens before relying on it in prod.
 
-Localhost interactive auth (`gantry auth <server>` / `make *-auth`) is
+Localhost interactive auth (`gantry auth <server>`) is
 **unchanged** and still uses `http://localhost:…`.
 
 ---
@@ -156,18 +156,17 @@ GARMIN_PASSWORD=…
 ```
 
 Then `/auth garmin` → if Garmin sends MFA, paste `/auth garmin <code>`.
-Laptop TTY `make garmin-auth` / `garmin login` still works.
+Laptop TTY `gantry auth garmin` still works.
 ---
 
 ## Laptop path (still preferred when you have a browser nearby)
 
 ```bash
-cd local-agent
-make google-auth    # localhost:4100
-make strava-auth    # localhost:19876
-make ghealth-auth   # 127.0.0.1:4101
-make youtube-auth   # device flow in the terminal
-make garmin-auth    # interactive TTY
+gantry auth google      # localhost:4100
+gantry auth strava      # localhost:19876
+gantry auth ghealth     # 127.0.0.1:4101
+gantry auth youtube     # device flow in the terminal
+gantry auth garmin      # interactive TTY
 ```
 
 See [deploy-docker.md § MCP tool auth](deploy-docker.md#mcp-tool-auth-browser-oauth).

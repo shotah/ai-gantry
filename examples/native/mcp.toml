@@ -1,9 +1,8 @@
 # MCP server manifest — listed = granted (process may start).
 # Binaries on PATH (/opt/gantry/bin via systemd unit).
-# Fetch: gantry tools-fetch --manifest /opt/gantry/mcp.toml --outdir /opt/gantry/bin
 #
 # Kernel-only: leave everything commented until static binaries exist.
-# Appliance: https://github.com/shotah/ai-gantry/tree/main/local-agent/deploy
+# Fetch: gantry tools-fetch --manifest /opt/gantry/mcp.toml --outdir /opt/gantry/bin
 
 # --- Google (shotah/google-mcp) ---------------------------------------------
 # [[server]]

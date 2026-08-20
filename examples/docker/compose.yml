@@ -3,7 +3,7 @@
 #
 # No ports. Healthcheck is an exit code. MCP binaries are not in this image —
 # uncomment servers in mcp.toml only after static tool binaries are on PATH
-# (custom image FROM shotah/ai-gantry, or the upstream local-agent appliance).
+# (custom image FROM shotah/ai-gantry).
 
 services:
   gantry:

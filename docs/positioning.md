@@ -47,9 +47,10 @@ Want another brain? Another process. Not another settings page.
    Published images on [Docker Hub](https://hub.docker.com/r/shotah/ai-gantry)
    (`shotah/ai-gantry`) and GHCR on every `main` / tag build.
 
-Kernel vs appliance: sell the **kernel**. Point at
-[`local-agent/`](../local-agent/) as a reference life-stack, not the product
-everyone must run.
+Sell the **kernel**. A life-stack (Workspace, Strava, …) is a consumer you
+own. Operating N isolated agents is a proposed sibling console
+([gantree.md](gantree.md)), not a folder in this checkout. Hello path: Hub
+compose or [`examples/`](../examples/).
 
 ---
 
@@ -82,7 +83,7 @@ a filter on who is allowed to try it.
 
 | Camp | Examples | Our line |
 | --- | --- | --- |
-| Personal agent runtimes | OpenClaw-style stacks, assorted local-agent repos | Smaller surface; outbound-only; Go static + Distroless; local-model loop work |
+| Personal agent runtimes | OpenClaw-style stacks, assorted appliance repos | Smaller surface; outbound-only; Go static + Distroless; local-model loop work |
 | Orchestration libraries | LangGraph, AutoGen, CrewAI | Deployable kernel, not a Python framework |
 | Automation platforms | n8n, Home Assistant + LLM | Agent loop + memory + MCP, not a workflow canvas |
 | Hosted agents | Custom GPTs, SaaS “tasks” bots | You own process + data dir |
@@ -103,7 +104,7 @@ Priority order for strangers:
    [`examples/hosting/`](../examples/hosting/) ([GCP](../examples/hosting/gcp/) · [AWS](../examples/hosting/aws/)) · [`examples/native/`](../examples/native/)
    (standalone repos that pull Hub / releases).
 3. **Native + Ollama** — featured for people who want the full local story:
-   [deploy-native.md](deploy-native.md) + [`local-agent/`](../local-agent/).
+   [deploy-native.md](deploy-native.md) + [`examples/native/`](../examples/native/).
 4. **GoReleaser binaries** — systemd on metal without Docker.
 
 CI already publishes multi-arch images to Hub **and** `ghcr.io/shotah/ai-gantry`

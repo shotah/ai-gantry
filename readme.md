@@ -92,8 +92,8 @@ LLM_MODEL=grok-4
 | **[examples/hosting/gcp/](examples/hosting/gcp/)** · **[aws](examples/hosting/aws/)** | Small always-on VM |
 | `make init && make run` | Hack on the binary (`CHANNEL=stdio`) |
 
-Full life-stack (tools already wired): **[local-agent/](local-agent/)**.
 Cookbook: **[examples/README.md](examples/README.md)**.
+A full life-stack (persona + MCP + compose) lives in a consumer repo, not this kernel.
 
 ---
 
@@ -124,6 +124,7 @@ can delete any line you don’t like. Details:
 
 | If you want… | Go here |
 | --- | --- |
+| What we actually built (honest inventory) | **[docs/features.md](docs/features.md)** |
 | How the process is put together | **[docs/architecture.md](docs/architecture.md)** |
 | Env, memory, agent loop, packaging | **[docs/design.md](docs/design.md)** |
 | Wiring MCP tools | **[docs/mcp.md](docs/mcp.md)** |

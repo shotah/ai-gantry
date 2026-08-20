@@ -327,8 +327,7 @@ residency) stay one `ssh` away ([observability.md](observability.md)).
 | Photos | Inbound → vision; outbound `SendPhoto` for image URLs in the reply |
 
 Telegram refreshes the `/` menu on every bot start (`setMyCommands`). Headless
-tool OAuth: [auth.md](auth.md). Multi-bubble details:
-[local-agent/docs/telegram.md](../local-agent/docs/telegram.md).
+tool OAuth: [auth.md](auth.md).
 
 Dev: `make build|test|lint|run|ci|check`; `make install-hooks` for pre-commit.
 

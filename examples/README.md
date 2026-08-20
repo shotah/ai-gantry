@@ -19,8 +19,7 @@ Also here (kernel scaffolding, not consumer templates):
 | [`persona/*.example.md`](persona/) | Embedded by `gantry init` in the kernel repo |
 | [`mcp.toml.example`](mcp.toml.example) / [`env.example`](env.example) | Same |
 
-Production appliance with tools baked in:
-[`../local-agent/`](../local-agent/).
+A full life-stack (persona + MCP + compose) lives in a consumer repo, not this kernel.
 
 ```mermaid
 flowchart LR

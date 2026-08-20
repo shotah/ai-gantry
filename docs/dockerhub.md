@@ -78,9 +78,8 @@ Also on GHCR: `ghcr.io/shotah/ai-gantry` (same tags). Multi-arch: `linux/amd64`,
 - Channels: Telegram (default), Discord, Slack, or `stdio`
 
 MCP tool binaries are **not** baked in. Grant tools by baking/mounting static
-binaries + uncommenting `mcp.toml`, or use the fuller
-[local-agent](https://github.com/shotah/ai-gantry/tree/main/local-agent)
-appliance.
+binaries + uncommenting `mcp.toml`. A full life-stack is a separate consumer
+(persona + MCP + compose in a repo you own), not this image.
 
 ---
 
