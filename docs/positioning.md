@@ -7,6 +7,29 @@ Kernel contract: [design.md](design.md). This page is the longer
 
 ---
 
+## How we argue (repeat this)
+
+Not “fewer features than a platform.” **We spent the engineering budget on
+the part of the system you actually interact with.**
+
+The agent is the product. The management plane is infrastructure
+([gantree.md](gantree.md) — proposal). Dashboards are not an argument
+against this kernel; they are an argument for keeping them *out of the
+thing you talk to all day*.
+
+Aim:
+
+> Make a local agent small enough to understand, efficient enough to run
+> continuously, resilient enough for imperfect local models, and stateful
+> enough that it remains a useful personality rather than becoming a
+> stateless chatbot every time context gets expensive.
+
+Gantry is not trying to be the most complete local-agent platform. The
+focus is making the **agent loop** exceptionally good: tool calling, MCP,
+context economics, reliable operation with local models.
+
+---
+
 ## One-liner
 
 **Run your own agent** — pull a container, point it at a local model or paste
@@ -74,8 +97,9 @@ a filter on who is allowed to try it.
 - Want no-code automation canvases (n8n / Make)
 - Want “Cursor/Claude for the company” — wrong category
 
-**Pick gantry** when you want small, boring, shippable.  
-**Pick something else** when you need dashboards, pairing, or platform gravity.
+**Pick gantry** when you want the loop to be excellent and the binary small.  
+**Pick something else** when you need a platform on day one. A yard console
+is a sibling, not a missing tab in this process.
 
 ---
 

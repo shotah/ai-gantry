@@ -17,9 +17,14 @@
 > **gantry** *(n.)* — the rigid frame in a CNC machine or crane that holds and
 > positions tools. The frame does nothing by itself; the tools do everything.
 
+> Make a local agent small enough to understand, efficient enough to run
+> continuously, resilient enough for imperfect local models, and stateful
+> enough that it remains a useful personality rather than becoming a
+> stateless chatbot every time context gets expensive.
+
 **Run your own agent.** Pull a container, point it at a local model or paste an
-API key, and chat from your phone. No dashboard. No config UI. Nothing listens
-on a port.
+API key, and chat from your phone. No dashboard in the thing you talk to.
+Nothing listens on a port.
 
 ```text
 container + persona + any OpenAI-compat LLM  →  outbound chat
@@ -28,10 +33,15 @@ container + persona + any OpenAI-compat LLM  →  outbound chat
 Gemini or Grok with a key. Ollama on the same machine. Chat, memory, and
 reminders work with **zero extra tools** — add MCP binaries later if you want.
 
-This is for someone who wants to try a personal agent they actually own, not
-for someone who wants a multi-agent platform. If it clicks, the same binary
-grows with you (persona files, inspectable SQLite, optional tools). If you
-need a web UI or a team workspace, this is the wrong repo — and that’s fine.
+We spent the engineering budget on the part of the system you actually
+interact with: the **agent loop** — tool calling, MCP, context economics,
+and finishing turns on small local models. The agent is the product. A
+management plane is infrastructure ([gantree](docs/gantree.md), proposal)
+and stays out of the kernel. Completeness of the platform is not the goal.
+
+If it clicks, the same binary grows with you (persona files, inspectable
+SQLite, optional tools). If you need a team workspace on day one, this is
+the wrong repo — and that’s fine.
 
 ---
 
@@ -131,9 +141,10 @@ can delete any line you don’t like. Details:
 | Why outbound-only / who it’s for | **[docs/positioning.md](docs/positioning.md)** |
 | Security notes | **[docs/security.md](docs/security.md)** |
 
-The kernel is a small static Go binary. Tools are optional MCP processes. The
-loop is built so a **small local model** can finish a tool turn instead of
-erroring — that’s the production story, not a requirement to start.
+The kernel is a small static Go binary. Tools are optional MCP processes.
+We spent the budget on the loop so a **small local model** can finish a
+tool turn instead of ERROR — that’s the production story, not a requirement
+to start.
 
 ## License
 
