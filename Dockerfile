@@ -1,22 +1,29 @@
 # syntax=docker/dockerfile:1
 
-# Build on Alpine (musl toolchain is fine — we link statically).
-FROM golang:1.26-alpine AS build
+# Compile on the builder's native arch ($BUILDPLATFORM) and cross-compile with
+# GOOS/GOARCH. CGO is off, so linux/arm64 does not need QEMU.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 WORKDIR /src
 
 RUN apk add --no-cache git ca-certificates
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY . .
 
+ARG TARGETOS
+ARG TARGETARCH
 ARG VERSION=dev
 ARG COMMIT=none
 ARG DATE=unknown
 
 ENV CGO_ENABLED=0
-RUN go build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build \
     -trimpath \
     -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" \
     -o /out/gantry \

@@ -1,7 +1,7 @@
 # ai-gantry 🏗️
 
 <p align="center">
-  <img src="assets/banner.svg" alt="ai-gantry — an AI harness, the frame that holds the tools" width="100%">
+  <img src="assets/banner.svg" alt="ai-gantry — an AI harness for long-horizon planning" width="100%">
 </p>
 
 <!-- Hub uses docs/dockerhub.md + assets/banner.png (SVG/mermaid break on Docker Hub). -->
@@ -92,7 +92,7 @@ The agent does not care which vendor you picked. Set these three and restart:
 
 ```bash
 # examples/docker/.env — xAI, for instance
-LLM_BASE_URL=https://api.x.ai/v1
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
 LLM_API_KEY=...
 LLM_MODEL=gemini-3.5-flash
 ```

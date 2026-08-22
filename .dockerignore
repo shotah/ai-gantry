@@ -1,0 +1,8 @@
+.git
+.github
+.cursor
+docs
+assets
+bin
+coverage.*
+*.out

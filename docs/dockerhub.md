@@ -1,6 +1,6 @@
 # ai-gantry
 
-![ai-gantry — an AI harness, the frame that holds the tools](https://raw.githubusercontent.com/shotah/ai-gantry/main/assets/banner.png)
+![ai-gantry — an AI harness for long-horizon planning](https://raw.githubusercontent.com/shotah/ai-gantry/main/assets/banner.png)
 
 **Run your own agent.** Pull this image, point it at a local model or paste an
 API key, and chat from your phone. No dashboard. No config UI. **No open ports.**
