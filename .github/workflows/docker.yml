@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     # make release pushes HEAD then the v* tag. Both would rebuild the same SHA;
     # the tag job publishes :edge + semver + :latest, so skip the main copy.
-    if: ${{ github.event_name != 'push' || startsWith(github.ref, 'refs/tags/v') || !startsWith(github.event.head_commit.message, 'chore: release ') }}
+    if: "${{ github.event_name != 'push' || startsWith(github.ref, 'refs/tags/v') || !startsWith(github.event.head_commit.message, 'chore: release ') }}"
     steps:
       - uses: actions/checkout@v4
 
