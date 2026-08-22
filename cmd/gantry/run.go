@@ -68,8 +68,12 @@ func run() int {
 		"telegram_error_reporting", cfg.TelegramErrorReporting,
 	)
 
-	if err := persona.SyncKernel(cfg.PersonaDir); err != nil {
-		logger.Warn("RULES.md kernel section not written (persona dir not writable?)", "err", err)
+	removed, err := persona.SyncKernel(cfg.PersonaDir)
+	if err != nil {
+		logger.Warn("PERSONA.md kernel section not written (persona dir not writable?)", "err", err)
+	}
+	if len(removed) > 0 {
+		logger.Info("removed legacy persona files", "files", removed)
 	}
 	personaText, err := persona.Load(cfg.PersonaDir)
 	if err != nil {
@@ -81,7 +85,7 @@ func run() int {
 	tzName, tzLoc, tzSource := persona.ResolveTimezone(personaText, cfg.CronTZ)
 	logger.Info("human timezone", "tz", tzName, "source", tzSource)
 	if strings.EqualFold(tzName, "UTC") {
-		logger.Warn("human timezone is UTC; set Timezone in USER.md (or CRON_TZ) to the human's IANA zone")
+		logger.Warn("human timezone is UTC; set Timezone in PERSONA.md (or CRON_TZ) to the human's IANA zone")
 	}
 
 	completer := provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel).

@@ -1,6 +1,8 @@
 package persona
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +14,7 @@ func stampSELF(raw string) string {
 	return selfnote.Stamp(raw)
 }
 
-func stampRules(raw string) string {
+func stampPersona(raw string) string {
 	raw = strings.TrimSpace(raw)
 	raw = upsertSection(raw, "## Self-notes", selfnote.RulesSection)
 	raw = upsertSection(raw, "## Location pins", selfnote.LocationSection)
@@ -64,11 +66,23 @@ func nextHeading(raw string) int {
 	return -1
 }
 
-// SyncKernel writes kernel RULES sections (Self-notes, Location pins) to disk
-// when the file is writable. Best-effort: a read-only mount leaves the prompt
-// stamp (Load) in place and returns the write error.
-func SyncKernel(dir string) error {
-	path := filepath.Join(dir, "RULES.md")
+// SyncKernel migrates leftover SOUL/RULES/USER/TOOLS into PERSONA.md when that
+// file is missing, deletes those legacy files, then writes kernel sections
+// (Self-notes, Location pins) into PERSONA.md. Best-effort: a read-only mount
+// leaves the prompt stamp (Load) in place and returns the write/remove error.
+func SyncKernel(dir string) (removed []string, err error) {
+	removed, err = reconcileLegacy(dir)
+	if err != nil {
+		return removed, err
+	}
+	if err := stampPersonaFile(dir); err != nil {
+		return removed, err
+	}
+	return removed, nil
+}
+
+func stampPersonaFile(dir string) error {
+	path := filepath.Join(dir, FilePersona)
 	b, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -76,9 +90,69 @@ func SyncKernel(dir string) error {
 		}
 		return err
 	}
-	next := stampRules(string(b))
+	next := stampPersona(string(b))
 	if strings.TrimSpace(string(b)) == next {
 		return nil
 	}
 	return os.WriteFile(path, []byte(next+"\n"), 0o644)
+}
+
+func reconcileLegacy(dir string) ([]string, error) {
+	if err := migrateLegacy(dir); err != nil {
+		return nil, err
+	}
+	return removeLegacy(dir)
+}
+
+func migrateLegacy(dir string) error {
+	personaPath := filepath.Join(dir, FilePersona)
+	_, err := os.Stat(personaPath)
+	if err == nil {
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("persona: stat %s: %w", personaPath, err)
+	}
+
+	var parts []string
+	for _, name := range LegacyFiles {
+		text, err := readOptional(filepath.Join(dir, name))
+		if err != nil {
+			return err
+		}
+		if text != "" {
+			parts = append(parts, text)
+		}
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("persona: mkdir %s: %w", dir, err)
+	}
+	body := strings.Join(parts, "\n\n") + "\n"
+	if err := os.WriteFile(personaPath, []byte(body), 0o644); err != nil {
+		return fmt.Errorf("persona: migrate %s: %w", personaPath, err)
+	}
+	return nil
+}
+
+func removeLegacy(dir string) ([]string, error) {
+	var (
+		removed []string
+		errs    []error
+	)
+	for _, name := range LegacyFiles {
+		path := filepath.Join(dir, name)
+		err := os.Remove(path)
+		if err == nil {
+			removed = append(removed, name)
+			continue
+		}
+		if os.IsNotExist(err) {
+			continue
+		}
+		errs = append(errs, fmt.Errorf("persona: remove %s: %w", path, err))
+	}
+	return removed, errors.Join(errs...)
 }

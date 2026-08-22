@@ -4,6 +4,9 @@
 The agent already runs. Deleted ideas stay deleted — they were non-starters,
 not a backlog. This is not a lockdown / hardening / “safe the agent” list.
 
+This binary is an **AI harness**. The goal is **long-horizon planning**.
+Fit gates below keep new work in that category.
+
 Shipped work is not listed here. See [docs/milestones.md](docs/milestones.md),
 [docs/choices.md](docs/choices.md), [docs/watch.md](docs/watch.md).
 
@@ -18,8 +21,8 @@ Size: **S** ≈ an afternoon · **M** ≈ a weekend
    (what Telegram/Slack already are). An inbound port is discussable if we
    can say why poll is not enough **and** how it stays locked down (not
    `0.0.0.0` + hope).
-2. **MCP or nothing.** Kernel work only for things a tool server cannot do
-   (channel, loop, memory, cron, and a watch wake).
+2. **MCP or nothing.** Harness work only for things a tool server cannot do
+   (channel, loop, memory, cron, watch wake, long-horizon personality).
 3. **Native compiled binary. No JIT.** Go / C / C++ / Rust. Never Python,
    Node, `npx`, `uvx`, Bun, JVM. Things we author stay **Go**
    (`CGO_ENABLED=0`).
@@ -108,7 +111,7 @@ schemas on every unrelated chat.
 The agent sets both. Default is short. Brief is “only this
 half-day.” Human: `/brief` `/short` `/off`.
 
-Kernel builtins (memory / `self_note` / cron / watch / `mcp_enable`)
+Harness builtins (memory / `self_note` / cron / watch / `mcp_enable`)
 are actually always-on. `/tools` shows `brief` / `short` /
 `available`.
 
@@ -136,7 +139,7 @@ A cap that evicts `max(now - last_used)` would surprise a still-
 live job (“flights was 3h ago, I enabled six other things, now
 the schema is gone mid-search”). Revisit only if `/tokens` shows
 the agent enabling the world and leaving it hot. Then: evict
-unforced rows by greatest idle, never kernel / `mcp.toml`
+unforced rows by greatest idle, never harness builtins / `mcp.toml`
 force-on, stop when under the cap. `TOOL_SCHEMA_MAX_TOKENS`
 stays the boot backstop for the *full* catalog, not this loop.
 
@@ -171,7 +174,7 @@ Do not seed on process restart. `/new` must not wipe rows
 (same Telegram chat / `session_id`) — once something is in
 use, it stays across a session reset.
 
-`mcp.toml` force-on is the only “already on” besides kernel
+`mcp.toml` force-on is the only “already on” besides harness
 builtins (memory / `self_note` / cron / watch). Use it for
 furniture you refuse to pay enable for on the first morning
 (calendar / Garmin sleep). Everything else starts from 0.
@@ -216,7 +219,7 @@ Default answer: **already covered.**
 | Cron + watch | The actual wakes |
 | Google Tasks (or calendar) | A real long-running to-do with a due date |
 
-A kernel “objective row” would only be a folder that stamps `[objective 7]`
+A harness “objective row” would only be a folder that stamps `[objective 7]`
 onto those wakes so they share notes. If you are so deep in parallel jobs
 that memory and Tasks cannot hold it, the fix is better task tracking —
 not a second job database inside gantry.
@@ -283,7 +286,7 @@ Not a todo. Written down so a bad week has a ladder, not a scramble. A
 tagged release is the hard floor.
 
 **Recovery that is not this ladder:** [voice_restore_todo.md](voice_restore_todo.md)
-(spare assistant history, richer `Voice:`, distill merge, SOUL/SELF/RULES
+(spare assistant history, richer `Voice:`, distill merge, PERSONA/SELF
 stamps). Prefer that before rung 2.
 
 **When to even look:** a running joke or nickname that was in recent

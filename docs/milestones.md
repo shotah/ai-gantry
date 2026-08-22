@@ -1,6 +1,9 @@
 # Milestone archive (build order)
 
-Historical checklist for how ai-gantry was built (M0–M7). All shipped;
+Historical checklist for how the **AI harness** was built (M0–M7). All shipped.
+The goal those milestones were aiming at — even before we used the words — is
+**long-horizon planning**: a loop that finishes turns, memory that outlives
+`/new`, and cron that wakes the same agent later.
 
 ---
 
@@ -57,7 +60,7 @@ Historical checklist for how ai-gantry was built (M0–M7). All shipped;
 
 ## Milestone 6 — cron / scheduled turns
 
-Proactive jobs are **kernel work**: fire time → run the normal agent loop
+Proactive jobs are **harness work** (long-horizon): fire time → run the normal agent loop
 (tools/MCP allowed) → **push the reply on Telegram** (no inbound user message).
 
 - [x] `internal/cron`: SQLite `job` rows (one-shot + simple schedules), timezone via env (`CRON_TZ`)

@@ -1,9 +1,11 @@
 # Cloud VM hosting templates
 
 Consumer templates that run the published [`shotah/ai-gantry`](https://hub.docker.com/r/shotah/ai-gantry)
-kernel on a small **always-on VM** with Docker Compose. Same contract as
+**AI harness** on a small **always-on VM** with Docker Compose. Same contract as
 [`examples/docker/`](../docker/) — persona, `mcp.toml`, and SQLite stay in the
 consumer repo. Chat channels dial **out** only (no app inbound ports).
+Always-on is the point: long-horizon planning needs the process to still be
+there tomorrow.
 
 | Template | Cloud | Supervisor |
 | --- | --- | --- |
@@ -15,7 +17,7 @@ long-poll chat + local SQLite.
 
 ```mermaid
 flowchart LR
-  K[ai-gantry kernel · Hub]
+  K[ai-gantry harness · Hub]
   K --> G[hosting/gcp · GCE]
   K --> A[hosting/aws · EC2]
 ```
@@ -44,4 +46,4 @@ make example-hosting-aws
 
 Baking MCP tools into a custom image needs a slightly larger instance
 (`e2-small` / `t3.small` or bigger). A full life-stack lives in a consumer
-repo (persona + MCP + compose), not this kernel.
+repo (persona + MCP + compose), not this harness.

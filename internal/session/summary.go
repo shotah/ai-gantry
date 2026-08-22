@@ -28,7 +28,8 @@ Voice: <8–12 short lines>
 
 Facts: durable facts, preferences, open tasks, and names. Drop other chitchat
 that is not a nickname, game, or running joke — those belong on Voice.
-Standing aims that outlive this session belong in SELF.md (self_note), not Facts.
+North-star aims (how you show up for months) belong in SELF.md (self_note), not Facts.
+Progress, dates, and open loops belong in Facts / memory — not SELF.md.
 Use absolute dates (2006-01-02) for anything time-bound — never yesterday, tomorrow,
 this morning, or a weekday alone (those go stale when the week rolls).
 

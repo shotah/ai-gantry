@@ -1,9 +1,10 @@
 # Event watches
 
-A watch is a **cursor + poll**, not a chat loop. The kernel calls an MCP fetch
+A watch is a **cursor + poll**, not a chat loop. The harness calls an MCP fetch
 tool on an interval. Quiet ticks never touch the model. New item ids wake the
 same agent loop as cron, then **push** — or skip the push if the reply is
-`[silent]`.
+`[silent]`. This is long-horizon attention: notice the world later without
+billing a Completer on every tick.
 
 Do not implement this as `cron_schedule` + “fetch the feed; if nothing new,
 `[silent]`.” That would spend a Completer call on every tick.

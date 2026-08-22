@@ -4,21 +4,24 @@
 
 Operator fixes for common “why is it doing that?” moments. Prefer grepping
 logs (`self-notes disabled`, `self distill`, `TOOL_MAX_ITERATIONS`) before
-rewriting persona.
+rewriting persona. Long-horizon personality lives in `SELF.md` — prune it
+like you would a friend’s inside jokes. Writing a tight `PERSONA.md` (no MCP
+catalog, north-star vs tracker): [persona.md](persona.md). Horizon split:
+[persona.md](persona.md#where-the-horizon-lives).
 
 ## `SELF.md` — personality drift
 
-Gantry’s **self-notes** feature lets the agent grow a personality that
-survives `/new`:
+Gantry’s **self-notes** feature is long-horizon personality: the agent grows
+a voice that survives `/new`. That is harness work, not a plugin.
 
-- Boot / SIGHUP: gantry overwrites the `SELF.md` header and the `RULES.md` Self-notes and Location pins sections. Your bullets stay.
+- Boot / SIGHUP: gantry overwrites the `SELF.md` header and the `PERSONA.md` Self-notes and Location pins sections. Your bullets stay.
 - Mid-chat: builtin `self_note` appends a short line to `PERSONA_DIR/SELF.md`.
 - On history trim: new `Voice:` bits append the same way (no extra model call).
 - On `/new`: a distill pass **merges** into the file from the dying session,
   the rolling `Voice:` block, and existing notes. Quoted jokes that the model
   drops are restored. A bland session (no `Voice:`, no quoted bits) leaves
-  `SELF.md` as-is. Session `Facts:` park in SQLite memory — not `USER.md`.
-- Loaded every turn as part of the persona (after `SOUL.md`). Cap ~4KB.
+  `SELF.md` as-is. Session `Facts:` park in SQLite memory — not `PERSONA.md`.
+- Loaded every turn as part of the persona (after `PERSONA.md`). Cap ~4KB.
 
 That is the feature — and the footgun. Notes reinforce themselves: a snarky
 line becomes “who I am,” then the next distill keeps it. **You own the veto.**
@@ -36,6 +39,9 @@ Open `SELF.md` (or wipe it) when:
 - **Do not `/new` a bland session to “get him back.”** Distill skips when there
   is no `Voice:` and no quoted bits, but prune `SELF.md` first if it is already
   vibe-words instead of jokes.
+- **Progress logs / mileage / open loops in `SELF.md`** — that is the tracker.
+  One north-star sentence can stay; the rest is `memory_store` (`aim/<area>`).
+  See [persona.md](persona.md#where-the-horizon-lives).
 - You shared the allowlist with someone else and want a clean slate for them
 
 ### How to fix
@@ -68,7 +74,7 @@ memory until:
 Telegram history. `/new` or a context blow-up lobotomizes them. Self-notes
 are how ownership means *continuity*, not just *control*.
 
-**Why audit:** the agent cannot violate `RULES.md` by design of the prompt,
+**Why audit:** the agent cannot violate `PERSONA.md` by design of the prompt,
 but tone and rituals are soft. Undesirable personality is an ops problem —
 treat `SELF.md` like a log you review, not a sacred file you never open.
 
@@ -96,7 +102,7 @@ reason.
 ## Agent “forgot” who it was after `/new`
 
 **Expected without self-notes:** session history + rolling summary are wiped;
-only `SOUL` / `RULES` / `USER` / `TOOLS` remain → bland reboot.
+only `PERSONA.md` remains → bland reboot.
 
 **With self-notes enabled + writable persona:** `/new` should reply
 `session reset — personality distilled into SELF.md` after a session that

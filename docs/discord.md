@@ -1,7 +1,8 @@
 # Discord channel
 
 Outbound-only Discord Gateway (WebSocket). Same security model as Telegram:
-allowlist, no pairing, **no inbound ports**.
+allowlist, no pairing, **no inbound ports**. One `CHANNEL` per harness
+process — the long-horizon loop is unchanged.
 
 ## Setup
 

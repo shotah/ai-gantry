@@ -1,8 +1,9 @@
 # Architecture
 
-ai-gantry is a single static Go binary that hosts one persona, one LLM
-endpoint, and a set of MCP tool processes. Scaling is horizontal: one
-container (or systemd unit) per brain. Kernel contract (env, loop, memory):
+ai-gantry is a single static Go binary — an **AI harness** that hosts one
+persona, one LLM endpoint, and a set of MCP tool processes so the agent can
+**plan on a long horizon**. Scaling is horizontal: one container (or systemd
+unit) per brain. Harness contract (env, loop, memory):
 [design.md](design.md). Hello path: [root readme](../readme.md).
 
 ## Container view
@@ -20,7 +21,7 @@ flowchart LR
   end
 
   K -->|OpenAI-compat| LLM[one LLM endpoint]
-  K --- P[("persona/*.md")]
+  K --- P[("PERSONA.md + SELF.md")]
   K --- MF[("mcp.toml")]
   K --- D[("data/gantry.db")]
   M1 --- S[("secrets / .config")]
@@ -46,7 +47,7 @@ internal/mcpenable/  dynamic tool prefix grants
 internal/agent/      prompt assembly, tool loop, collapse, reply
 internal/session/    bounded history + rolling summary
 internal/memory/     Memory interface, builtin SQLite/FTS5, MCP adapter, consolidator
-internal/persona/    load + concat /persona/*.md
+internal/persona/    load PERSONA.md + SELF.md
 internal/selfnote/   SELF.md tool + distill on /new
 internal/heartbeat/  singleton row for Docker healthcheck
 internal/drain/      in-flight turn wait on SIGTERM
@@ -125,6 +126,9 @@ sequenceDiagram
 ```
 
 ## Message / agent loop
+
+One turn is execution. Long-horizon planning is those turns chained across
+memory, cron, watches, and `SELF.md` — same loop, later.
 
 ```mermaid
 sequenceDiagram
@@ -211,7 +215,7 @@ One WAL SQLite file: `$DATA_DIR/gantry.db`.
 
 ## Prompt assembly (order)
 
-1. System: persona markdown (+ memory persona-precedence note when memory on)
+1. System: `PERSONA.md` then `SELF.md` (+ memory persona-precedence note when memory on)
 2. System: `[memory]` hydration block (optional, ≤ ~30 rows)
 3. System: `[session summary]` (optional)
 4. History: user/assistant turns (bounded)

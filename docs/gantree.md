@@ -1,9 +1,11 @@
 # Gantree (proposal)
 
-Sibling product. **Not built yet.** Not this kernel. Not anyone’s house git.
+Sibling product. **Not built yet.** Not this harness. Not anyone’s house git.
 
-`ai-gantry` is the crane: one process, one persona, one model, one `data/`.
-It talks to a human in Telegram. It does **not** grow a settings page.
+`ai-gantry` is the **AI harness** (the crane): one process, one persona, one
+model, one `data/`. It talks to a human in Telegram. It does **not** grow a
+settings page. Its goal is **long-horizon planning** — hold aims and
+personality across days.
 
 **Gantree** is the yard console — the product you open when you *operate*
 cranes. See them. Plant a new one. Grant Google, yank Strava, notice a dead
@@ -24,20 +26,22 @@ The gap is what happens on week two: two people, three bots, a pile of
 `mcp.toml`, OAuth that only works on a laptop, a container that looks
 “healthy” with zero tools, and SSH folklore you will not remember at 11pm.
 
-Gantree is **the control plane for personal agents**.
+Gantree is **the control plane for personal agents**. The harness stays in
+`gantry`; the yard is here.
 
-| Kernel (`gantry`) | Gantree |
+| Harness (`gantry`) | Gantree |
 | --- | --- |
 | Talks to the human | Talks to the operator |
 | Outbound chat, no listen port | A UI you open (LAN / Tailscale / localhost) |
 | Hosts MCP children | **Grants** which children exist |
 | `status` is an exit code | Fleet view, per-agent doctor, logs |
 | Unaware of other processes | Inventory of every gantry on the box |
+| Long-horizon loop (memory / cron / `SELF.md`) | Does not sit in the token path |
 
 If it feels like “a nicer rsync,” we missed. The CLI is a back door. The
 product is the yard you can *see*.
 
-**Tagline:** the kernel is a crane; gantree is where you run the yard.
+**Tagline:** the harness is a crane; gantree is where you run the yard.
 
 **Name:** `shotah/gantree`, CLI/binary `gantree`. Plural in copy: gantries.
 Do not reuse a private inventory repo’s name.
@@ -68,12 +72,12 @@ cloud, API that plants a gantry per customer, metering, isolation
 between strangers, support, scale.
 
 That is a different company. It wants tenancy, inbound admin APIs,
-abuse, regional failover, and a kernel that is no longer “one process
+abuse, regional failover, and a harness that is no longer “one process
 you SSH to.” It would fight everything this stack chose (outbound-only
 agents, files on disk, no dashboard in the hot path).
 
 If that business appears later, it is a **new product** on top of the
-kernel, not a mode toggle in Gantree. Gantree stays: one operator, one
+harness, not a mode toggle in Gantree. Gantree stays: one operator, one
 Docker host, a handful of named pets.
 
 ---
@@ -88,7 +92,7 @@ Click through. Not a Kubernetes dashboard. A handful of pets, named.
 
 ### Plant
 
-New gantry wizard: **yard type first** (home Mini vs cloud VM), then slug, persona seed (or blank SOUL), model (Gemini / Grok /
+New gantry wizard: **yard type first** (home Mini vs cloud VM), then slug, persona seed (or blank PERSONA.md), model (Gemini / Grok /
 Ollama), channel + bot token + allowlist, profile (`slim` / `life` /
 `life-cast`). Writes an isolated directory, fetches bins, recreates, shows
 doctor. Two minutes, not an afternoon of compose.
@@ -112,8 +116,8 @@ UI is a structured editor of the same file, not a second source of truth.
 
 ### Persona + secrets
 
-Markdown for SOUL / RULES / USER / TOOLS; `SELF.md` with a prune hint (the
-kernel will keep writing it). Secrets as a form that writes `.env` /
+Markdown for `PERSONA.md`; `SELF.md` with a prune hint (the
+harness will keep writing it). Secrets as a form that writes `.env` /
 `data/` — never git. Token push is explicit and scary. Deploy of config
 never copies `data/` by default.
 
@@ -142,7 +146,7 @@ Gantree does **not** sell agents. No customer signup, no per-seat
 metering, no “spin a bot for Acme.” A friend in your yard is still
 *your* VM, *their* allowlist, *their* OAuth — a guest, not a tenant.
 
-Gantree does **not** live inside `ai-gantry`. A dashboard in the kernel
+Gantree does **not** live inside `ai-gantry`. A dashboard in the harness
 would tax every turn and break Distroless-as-the-sandbox. Different
 binary, different repo, different job.
 
@@ -181,7 +185,7 @@ explicit token push.
 Still **your** machine. `gantree init --yard cloud --provider gcp|aws`.
 Same stack on an `e2-small` / `t3.small` (bigger if you bake MCP bins).
 Layout follows [examples/hosting](../examples/hosting/) — `/opt/gantree`,
-compose, CI pulls the kernel image. You are an advanced home user who
+compose, CI pulls the harness image. You are an advanced home user who
 did not want a Mini humming in the closet.
 
 The VM has no living-room browser and no Chromecast. So:
@@ -197,7 +201,7 @@ in EC2 + SSM. Both are “I rented a Linux box,” not “I run a platform.”
 ### What is identical
 
 Inventory, plant wizard, MCP toggles, doctor, recreate, backups, file
-layout (`gantries/<id>/`). Vinext app. Kernel image pin. Isolation
+layout (`gantries/<id>/`). Vinext app. Harness image pin. Isolation
 (one human, one bot, one `data/`).
 
 ### What is not
@@ -239,7 +243,7 @@ gantree revoke kit strava
 ## Stack
 
 **Decision:** Vinext (TypeScript) for the console, running as **Node on the
-Docker host** — Mini *and* GCE/EC2. Kernel stays Go. Dashboard is not Go.
+Docker host** — Mini *and* GCE/EC2. Harness stays Go. Dashboard is not Go.
 
 Write `app/` like Next. Run `vinext`. v1 target is `--platform=node` (or
 standalone). Dockerode / compose / `tools-fetch` live in route handlers,
@@ -251,7 +255,7 @@ need that: Tailscale or Cloudflare Tunnel in front of the Node console is
 how you reach a cloud VM.
 
 **Avoid:** Next-on-Vercel as the host (`docker.sock` does not live there).
-A SPA plus a mystery API. Kernel + console in one Distroless image.
+A SPA plus a mystery API. Harness + console in one Distroless image.
 
 ---
 
@@ -271,7 +275,7 @@ menu”; toggles are the real grant.
 
 ---
 
-## Kernel vs gantree
+## Harness vs gantree
 
 **Push into `ai-gantry` when every consumer benefits**
 
@@ -288,7 +292,7 @@ menu”; toggles are the real grant.
 - Docker lifecycle, image pins, SSH-or-local host
 - Isolation rules, backup, operator auth to the console itself
 
-The kernel never learns instance names. Gantree never sits in the token path
+The harness never learns instance names. Gantree never sits in the token path
 of a chat turn.
 
 ---
@@ -334,11 +338,11 @@ Tailscale to the console from a laptop, plant `slim`, laptop OAuth, same
 Tools screen. Agents still have no inbound ports.
 
 A stranger does either story without reading anyone’s private git. This
-kernel repo still hello-paths at `docker compose up` with **zero** tools
+harness repo still hello-paths at `docker compose up` with **zero** tools
 and **no** UI.
 
 Open a new public repo when we scaffold. Do not copy `.env` or `data/`
 from any private checkout into it.
 
-Kernel: [design.md](design.md) · [features.md](features.md) ·
+Harness: [design.md](design.md) · [features.md](features.md) ·
 [mcp.md](mcp.md).

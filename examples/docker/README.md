@@ -1,8 +1,9 @@
 # gantry-compose
 
 Template **consumer** repository for [ai-gantry](https://github.com/shotah/ai-gantry).
-Pulls the published kernel image and runs it with Compose — persona, `mcp.toml`,
-and SQLite data stay in this repo. No kernel source tree required.
+Pulls the published **AI harness** image and runs it with Compose — persona, `mcp.toml`,
+and SQLite data stay in this repo. No harness source tree required. Long-horizon
+planning (memory, cron, `SELF.md`) is in the image; MCP tools are optional.
 
 | Consumes | [`shotah/ai-gantry`](https://hub.docker.com/r/shotah/ai-gantry) (`:latest` / `:edge` / `:0.x.y`) |
 | Channel | Telegram by default (Discord / Slack / stdio via `.env`) |
@@ -89,7 +90,7 @@ A full life-stack is a separate consumer repo, not this template.
 ### Persona write access (`SELF.md`)
 
 `compose.yml` mounts `./persona` **writable** so the agent can keep
-`SELF.md` (voice / jokes / rituals / standing aims) via the `self_note` tool and a distill
+`SELF.md` (voice / jokes / rituals / a few north-star aims) via the `self_note` tool and a distill
 pass on `/new`. Only that one file is agent-written; the rest are still
 yours to edit. Mounting `:ro` (or a read-only host dir) makes self-notes
 auto-disable at boot — check logs for `self-notes disabled`. Set

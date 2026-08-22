@@ -1,12 +1,15 @@
 # MCP host
 
-How gantry loads tools, names them for the model, recovers from common
+How the harness loads tools, names them for the model, recovers from common
 hallucinations, and how to exercise that path locally.
 
-Capabilities live in **external MCP stdio binaries**. The kernel only
+Capabilities live in **external MCP stdio binaries**. The harness only
 supervises them: spawn → list → call → truncate → restart. See
 [architecture.md](architecture.md) for the process diagram; this page is the
 operator contract for naming and local use.
+
+Long-horizon planning uses tools over days (cron, watches). The host has to
+repair names and finish turns or the horizon collapses into ERROR.
 
 ---
 
@@ -14,7 +17,7 @@ operator contract for naming and local use.
 
 | Goal | How MCP helps |
 | --- | --- |
-| Keep the kernel small | Calendar, search, Cast, etc. stay out of `gantry` |
+| Keep the harness small | Calendar, search, Cast, etc. stay out of `gantry` |
 | Clear grant model | A server in `mcp.toml` is granted; omit it and it does not exist |
 | Distroless-friendly | Static Go binaries over stdio — no shell, no npm in the image |
 | Swappable brains | Same tool schemas work for Gemini, Grok, Ollama — OpenAI-compat tool calls |
@@ -90,8 +93,9 @@ Typical failure spiral:
 3. Model “fixes” the prefix to `google_search__web_search` → unknown prefix  
 4. Hint degrades to a bare prefix list → more guessing → think-stall
 
-That is a **runtime** problem, not a persona typo. Persona `TOOLS.md` should
-still spell exact names; the host also hardens the call path.
+That is a **runtime** problem, not a persona typo. Exact names come from the
+live catalog (tool schemas + `[mcp prefixes]` + `/tools`); the host also
+hardens the call path.
 
 ### Alias resolve (automatic)
 
@@ -204,8 +208,7 @@ just a different guess.
 ### What aliasing does *not* fix
 
 - Invented tool suffixes (`…__web_search`) — no real name to repair to, so these
-  still need a retry with the suggested name (or a tighter `TOOLS.md` / smaller
-  tool surface)
+  still need a retry with the suggested name (or a smaller published tool surface)
 - Wrong arguments (e.g. passing a time range as `event_id`) — MCP/API errors
 - Think-only turns with no tool call — agent nudge / stall path in
   `internal/agent` (separate from naming)
@@ -237,8 +240,7 @@ Prefer MCP-native tiers (`--tool-tier core`) first — see [choices.md](choices.
 By default (`dynamic_tools` omitted or `true`) MCP schemas stay **off** until
 the agent calls `mcp_enable` (list of prefixes, next Completer call in the
 same turn). Brief hold idles out at 6h (morning/afternoon); short at 27h.
-Kernel builtins stay
-on. Go-live is from zero — no seed of today's catalog.
+Harness builtins stay on. Go-live is from zero — no seed of today's catalog.
 
 Small models / rollback — full catalog every turn, no `mcp_enable`:
 
@@ -293,7 +295,7 @@ $env:MCP_MANIFEST="./deploy/mcp.toml"
 make run
 ```
 
-### B — Personal-assistant compose (kernel + optional MCP)
+### B — Personal-assistant compose (harness + optional MCP)
 
 ```bash
 make example-docker
@@ -304,8 +306,9 @@ make up
 MCP servers stay commented until you grant them. Same `/tools` / `/status`
 commands on Telegram once the bot is up.
 
-For native Ollama + Qwen deploys, keep exact names in `persona/TOOLS.md` and
-rely on alias + suggestions when the model mangles hyphens.
+For native Ollama + Qwen deploys, trust `/tools` + alias/suggestions when the
+model mangles hyphens. Do not copy the MCP catalog into `PERSONA.md`
+([persona.md](persona.md)).
 
 ### Unit tests (no LLM)
 
@@ -322,8 +325,7 @@ hints without spawning real MCP binaries.
 
 - [ ] Only list servers this persona should have (`mcp.toml` = grant)
 - [ ] Prefer MCP `--tool-tier` / `tools = […]` so Flash/local models see tens of tools, not hundreds
-- [ ] Put exact call names in persona `TOOLS.md` (especially hyphenated prefixes)
-- [ ] After deploy, `/tools` once and confirm the names you documented
+- [ ] After deploy, `/tools` once and confirm the published names
 - [ ] On weird tool loops: check logs for `aliased` vs repeated `unknown tool`
 - [ ] Static MCP binaries only if you ship distroless (no libc/shell for children)
 
@@ -333,6 +335,7 @@ hints without spawning real MCP binaries.
 
 - [architecture.md](architecture.md) — host restart sequence
 - [design.md](design.md) — env contract + MCP manifest sketch
+- [persona.md](persona.md) — `PERSONA.md` is not the tool catalog
 - [choices.md](choices.md) — why `{server}__{tool}` and tool-surface budget
 - [security.md](security.md) — MCP child = trusted code
 - [watch.md](watch.md) — poller + `feeds-mcp` / `twitter-mcp`

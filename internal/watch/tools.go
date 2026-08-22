@@ -29,7 +29,7 @@ func ToolDefs() []provider.ToolDef {
 	return []provider.ToolDef{
 		{
 			Name: ToolAdd,
-			Description: "Subscribe to an MCP fetch tool. The kernel polls it on an interval " +
+			Description: "Subscribe to an MCP fetch tool. The harness polls it on an interval " +
 				"and wakes this chat only when new item ids appear. Quiet polls never call the model. " +
 				"The first poll seeds the cursor (no flood of old items). " +
 				"tool must be a prefixed MCP name (e.g. feeds__items_list). " +

@@ -9,7 +9,8 @@ aimed at a GCP project that already uses Gemini / Workspace / search APIs.
 | CI | Optional `.github/workflows/deploy-gce.yml` — pull + restart after image publish |
 
 Skip Cloud Run (request-shaped; poor fit for polling + SQLite). Prefer a tiny
-always-on VM + Docker. Chat channels dial **out** only — no app inbound ports.
+always-on VM + Docker — long-horizon planning needs the process still there
+tomorrow. Chat channels dial **out** only — no app inbound ports.
 
 ```mermaid
 flowchart LR
@@ -123,7 +124,7 @@ gcloud compute ssh "$INSTANCE" --zone="$ZONE" --command='
 
 Upstream [ai-gantry `docker` workflow](https://github.com/shotah/ai-gantry/blob/main/.github/workflows/docker.yml)
 publishes `:edge` / `:latest`. This consumer’s workflow only **pulls and restarts**
-on the VM — it does not build the kernel.
+on the VM — it does not build the harness.
 
 ```mermaid
 sequenceDiagram

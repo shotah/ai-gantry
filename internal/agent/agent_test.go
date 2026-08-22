@@ -893,7 +893,7 @@ func TestAgent_Handle_UsesUserMarkdownTimezone(t *testing.T) {
 	}
 	got := last.Messages[n-1].Content
 	if !strings.Contains(got, "America/Los_Angeles") {
-		t.Fatalf("USER.md tz ignored: %q", got)
+		t.Fatalf("PERSONA.md tz ignored: %q", got)
 	}
 	if strings.Contains(got, "UTC-") || strings.Contains(got, "UTC+") {
 		t.Fatalf("still labeled UTC: %q", got)

@@ -1,4 +1,4 @@
-# Build the distroless kernel image and push to Docker Hub (+ GHCR).
+# Build the distroless harness image and push to Docker Hub (+ GHCR).
 # Secrets (same pattern as hytale-server-container):
 #   DOCKER_HUB_USERNAME
 #   DOCKER_HUB_ACCESS_TOKEN

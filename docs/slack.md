@@ -1,7 +1,8 @@
 # Slack channel (Socket Mode)
 
 Outbound-only Slack via **Socket Mode** (WebSocket). Same security model as
-Telegram/Discord: allowlist, no pairing, **no inbound ports**.
+Telegram/Discord: allowlist, no pairing, **no inbound ports**. One `CHANNEL`
+per harness process — the long-horizon loop is unchanged.
 
 HTTP Events API (public Request URL) is a **non-goal** — it would require
 opening a port.

@@ -1,8 +1,9 @@
 # gantry-native
 
 Template **consumer** repository for [ai-gantry](https://github.com/shotah/ai-gantry).
-Installs the static release binary under systemd — no Docker, no kernel checkout.
-Default LLM is **Ollama on localhost**; `LLM_*` can point at Gemini/Grok instead.
+Installs the static **AI harness** release binary under systemd — no Docker, no
+harness checkout. Default LLM is **Ollama on localhost**; `LLM_*` can point at
+Gemini/Grok instead. Same long-horizon contract as Docker.
 
 | Consumes | `gantry` from [GitHub Releases](https://github.com/shotah/ai-gantry/releases) |
 | Channel | Telegram by default |

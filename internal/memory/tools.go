@@ -27,12 +27,12 @@ func ToolDefs() []provider.ToolDef {
 	return []provider.ToolDef{
 		{
 			Name:        ToolStore,
-			Description: "Store one atomic memory (fact|preference|person|episode|insight). Use deliberately; never auto-save guesses.",
+			Description: "Store one atomic memory (fact|preference|person|episode|insight). Months-scale plans: kind=insight, subject=aim/<area>. Progress updates: kind=fact. Never auto-save guesses. Jokes go in self_note, not here.",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"kind":    map[string]any{"type": "string", "description": "fact|preference|person|episode|insight"},
-					"subject": map[string]any{"type": "string", "description": "short topic key, e.g. chris, climbing, mom"},
+					"subject": map[string]any{"type": "string", "description": "short topic key, e.g. chris, aim/training, skill/gmail"},
 					"content": map[string]any{"type": "string", "description": "one atomic statement"},
 				},
 				"required": []string{"kind", "subject", "content"},

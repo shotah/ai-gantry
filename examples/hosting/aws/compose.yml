@@ -1,4 +1,4 @@
-# Consumes the published ai-gantry kernel on Amazon EC2 (no kernel source here).
+# Consumes the published ai-gantry harness on Amazon EC2 (no harness source here).
 #   make init   # workstation
 #   docker compose up -d   # on the instance under /opt/gantry-hosting
 #

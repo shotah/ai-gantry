@@ -1,9 +1,10 @@
 # Deploy: Docker (Hub / compose)
 
-Run gantry as a **distroless container**: outbound chat only, mounts for
-persona + `mcp.toml` + data. Fastest path when you want a cloud
+Run the **AI harness** as a **distroless container**: outbound chat only,
+mounts for persona + `mcp.toml` + data. Fastest path when you want a cloud
 OpenAI-compatible LLM (Gemini is the cookbook default) without installing a
-local model host.
+local model host. Long-horizon pieces (memory, cron, `SELF.md`) are in this
+image; MCP tools are optional extras you grant.
 
 **Published images** (CI on every `main` push and `v*` tag):
 
@@ -14,10 +15,10 @@ local model host.
 
 `:latest` = latest release tag · `:edge` = `main` · pin `:0.x.y` for production.
 
-Kernel contract (env, mounts, MCP): [design.md](design.md). Hello path:
+Harness contract (env, mounts, MCP): [design.md](design.md). Hello path:
 [root readme](../readme.md). Why Hub is the stranger path:
 [positioning.md](positioning.md). Tool naming: [mcp.md](mcp.md).
-A full life-stack (persona + MCP + compose) lives in a consumer repo, not this kernel.
+A full life-stack (persona + MCP + compose) lives in a consumer repo, not this harness.
 
 ```mermaid
 flowchart LR
@@ -104,7 +105,7 @@ login (Google Workspace, Strava, …), authorize **once**.
 paste or device flow, no inbound ports. Tokens land on the box running gantry.
 See **[auth.md](auth.md)**.
 
-**Laptop with a browser:** run the kernel CLI on the machine that will receive
+**Laptop with a browser:** run the harness CLI on the machine that will receive
 the localhost callback:
 
 ```bash

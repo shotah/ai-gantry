@@ -1,14 +1,14 @@
 # Observability (no dashboard, still measurable)
 
-Gantry ships **no metrics endpoint, no dashboard, no `/metrics` port** — on
-purpose (no open ports, ever). That does not mean the stack is a black box.
-Everything people ask about — memory, GPU, timing, token spend — is already
-observable from three places:
+The harness ships **no metrics endpoint, no dashboard, no `/metrics` port** —
+on purpose (no open ports, ever). That does not mean a long-horizon agent is
+a black box. Everything people ask about — memory, GPU, timing, token spend
+— is already observable from three places:
 
 | Signal | Source | Where to look |
 | --- | --- | --- |
 | Per-turn timing + token estimates | gantry's JSON `slog` on stderr | `journalctl -u gantry` / `docker logs` |
-| Slow turn / memory health / tool offender / prompt size | slash commands (kernel-side) | `/perf` · `/memstats` · `/toolstats` · `/tokens` in chat |
+| Slow turn / memory health / tool offender / prompt size | slash commands (harness-side) | `/perf` · `/memstats` · `/toolstats` · `/tokens` in chat |
 | Process CPU / RAM (gantry + MCP children) | the supervisor's cgroup accounting | `systemctl status` / `docker stats` |
 | Model RAM / VRAM, residency, offload split | Ollama's own CLI + GPU tools | `ollama ps`, `nvidia-smi`, … |
 | Memory rows, session size, disk | the SQLite file itself | `sqlite3 data/gantry.db` · or `/memstats` |
@@ -64,7 +64,7 @@ journalctl -u ollama --since -1h | grep -E 'offload|memory'
 
 ## gantry's own footprint (and the MCP children)
 
-The kernel is a single static Go binary; MCP tools are its child processes.
+The harness is a single static Go binary; MCP tools are its child processes.
 Under systemd they all live in **one cgroup**, so the unit's memory number
 already includes every MCP server — no need to hunt PIDs:
 
@@ -77,7 +77,7 @@ To break it down per process anyway:
 
 ```bash
 ps -o pid,rss,etime,cmd --ppid "$(pgrep -x gantry)"   # each MCP child
-ps -o pid,rss,etime,cmd -p "$(pgrep -x gantry)"       # the kernel itself
+ps -o pid,rss,etime,cmd -p "$(pgrep -x gantry)"       # the harness itself
 ```
 
 Liveness is an exit code, not a port:
@@ -203,4 +203,4 @@ locally.
 
 If you genuinely need dashboards, don't add a port to gantry — ship the
 journal (`promtail`, `vector`, `journald` → Loki) and graph the same JSON
-fields there. The kernel's contract stays: logs out, nothing in.
+fields there. The harness contract stays: logs out, nothing in.

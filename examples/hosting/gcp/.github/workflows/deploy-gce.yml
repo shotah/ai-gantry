@@ -1,4 +1,4 @@
-# Redeploy Compose on a GCE VM (consumer repo — does not build the kernel).
+# Redeploy Compose on a GCE VM (consumer repo — does not build the harness).
 #
 # Auth — configure ONE path:
 #

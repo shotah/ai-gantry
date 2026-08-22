@@ -1,4 +1,4 @@
-// Command gantry is the ai-gantry agent runtime binary.
+// Command gantry is the ai-gantry AI harness binary.
 //
 //	gantry run         — start the daemon (default)
 //	gantry init        — scaffold persona + mcp.toml from examples/
@@ -52,7 +52,7 @@ func main() {
 }
 
 func printHelp() {
-	fmt.Fprintf(os.Stderr, `gantry — stupid-simple agent runtime
+	fmt.Fprintf(os.Stderr, `gantry — stupid-simple AI harness (long-horizon personal agent)
 
 Usage:
   gantry [run]        Start the daemon (default)

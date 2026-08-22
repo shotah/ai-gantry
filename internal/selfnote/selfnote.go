@@ -1,7 +1,7 @@
 // Package selfnote persists SELF.md — personality notes the agent maintains
 // about itself (voice, humor, running jokes, rituals) so who it has become
 // survives /new and history trimming. SELF.md is the only persona file the
-// agent may write; SOUL/RULES/USER/TOOLS stay operator-only.
+// agent may write; PERSONA.md stays operator-only.
 package selfnote
 
 import (
@@ -29,8 +29,8 @@ const Header = "# SELF.md — Who You Are Becoming\n\n" +
 	"> Agent-written file. Cap ~4KB; the operator may prune any line.\n" +
 	">\n" +
 	"> **`self_note` APPENDS one new `-` line — it does NOT overwrite this file.**\n" +
-	"> Do not re-note something already listed below. Skip if the vibe or aim is already here.\n" +
-	"> Standing aims (things that outlive one task) belong here. One-off to-dos do not.\n" +
+	"> Do not re-note something already listed below. Skip if the vibe or north-star is already here.\n" +
+	"> A few north-star aims (how you show up for months) belong here. Progress logs are memory, not this file.\n" +
 	"> Distill on `/new` merges. Keep exact jokes and nicknames. A vibe word\n" +
 	"> (\"dry\") is not a substitute for a quote."
 

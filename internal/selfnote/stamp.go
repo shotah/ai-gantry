@@ -2,17 +2,17 @@ package selfnote
 
 import "strings"
 
-// RulesSection is the kernel-owned Self-notes block injected into RULES.md.
+// RulesSection is the kernel-owned Self-notes block injected into PERSONA.md.
 // Operators do not edit this; gantry overwrites the section on load/sync.
 const RulesSection = "## Self-notes (`self_note` → SELF.md)\n\n" +
 	"- **Append-only.** One short `-` line. Does **not** rewrite `SELF.md`.\n" +
-	"- Skip if the vibe or aim is already in the `SELF.md` bullets in this prompt.\n" +
-	"- Personality / jokes / rituals / standing aims only — not facts, rules, or tool recipes.\n" +
-	"- A standing aim outlives one task. A one-off to-do is memory or cron, not a self_note.\n" +
+	"- Skip if the vibe or north-star is already in the `SELF.md` bullets in this prompt.\n" +
+	"- Personality / jokes / rituals / a few north-star aims only — not facts, progress logs, or tool recipes.\n" +
+	"- A north-star is one sentence that changes how you show up for months. Progress, dates, and open loops are memory_store. A one-off to-do is memory or cron.\n" +
 	"- Prefer exact joke wording and nicknames in SELF.md. A vibe word is not a joke.\n" +
-	"- Do this **unprompted** when a vibe or aim lands. `/new` distill merges (does not flatten jokes)."
+	"- Do this **unprompted** when a vibe or north-star lands. `/new` distill merges (does not flatten jokes)."
 
-// LocationSection is the kernel-owned last-pin block injected into RULES.md.
+// LocationSection is the kernel-owned last-pin block injected into PERSONA.md.
 const LocationSection = "## Location pins\n\n" +
 	"- A Telegram location or venue updates this chat's **last pin** (coords + time).\n" +
 	"- Use `[last pin]` in the time footer for maps, places, directions, \"near me.\" Do not invent a city.\n" +

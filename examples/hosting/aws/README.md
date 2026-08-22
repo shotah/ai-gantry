@@ -10,8 +10,8 @@ Gemini over HTTPS (no AWS LLM required).
 | CI | Optional `.github/workflows/deploy-ec2.yml` — pull + restart after image publish |
 
 Skip Lambda / App Runner (request-shaped; poor fit for polling + SQLite). Prefer a
-tiny always-on instance + Docker. Chat channels dial **out** only — no app
-inbound ports.
+tiny always-on instance + Docker — long-horizon planning needs the process still
+there tomorrow. Chat channels dial **out** only — no app inbound ports.
 
 ```mermaid
 flowchart LR
@@ -147,7 +147,7 @@ ssh "${SSH_USER}@${INSTANCE_HOST}" '
 
 Upstream [ai-gantry `docker` workflow](https://github.com/shotah/ai-gantry/blob/main/.github/workflows/docker.yml)
 publishes `:edge` / `:latest`. This consumer’s workflow only **pulls and restarts**
-on the instance — it does not build the kernel.
+on the instance — it does not build the harness.
 
 ```mermaid
 sequenceDiagram

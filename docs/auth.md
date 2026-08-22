@@ -2,7 +2,8 @@
 
 Headless boxes cannot complete the usual laptop OAuth dance
 (`gantry auth google` → localhost callback → copy tokens). Chat `/auth` fixes
-that with **zero inbound ports**.
+that with **zero inbound ports** so a long-horizon harness on a VM can still
+grant tools.
 
 Full design notes: [slash_commands_todo.md](../slash_commands_todo.md) § `/auth`.
 

@@ -4,9 +4,10 @@ The [root readme](../readme.md) is the pitch. This page is everything we
 actually built, ranked by how proud we are of it — not by how loudly it
 shows up in a hello path.
 
-This repo is the **kernel** (`gantry`): one static Go binary — persona + one
-OpenAI-compat model + optional MCP children + SQLite. Chat, memory, cron,
-watches, personality — **zero MCP required**.
+This repo is the **AI harness** (`gantry`): one static Go binary — persona +
+one OpenAI-compat model + optional MCP children + SQLite. The goal is
+**long-horizon planning**: chat, memory, cron, watches, personality that
+survives `/new` — **zero MCP required**.
 
 A full life-stack (Workspace / Strava / Garmin / …) is **not this tree**.
 One-off consumers: [`examples/`](../examples/). N isolated agents on a box
@@ -17,8 +18,9 @@ folder in this checkout.
 
 ## The Great
 
-The stuff that is the product. Other stacks skip these, or do them as a
-SaaS feature you cannot inspect.
+The stuff that is the product — the harness work that makes a long-horizon
+agent, not a chatbot. Other stacks skip these, or do them as a SaaS feature
+you cannot inspect.
 
 ### Personality that survives `/new`
 
@@ -27,14 +29,15 @@ them. Gantry keeps the growth on purpose.
 
 | Piece | What it does |
 | --- | --- |
-| **`SELF.md`** | Agent-writable notes in `PERSONA_DIR` — voice, jokes, rituals, standing aims. Kernel stamps the header (and the `RULES.md` Self-notes + Location pins sections) on boot / SIGHUP. Cap ~4KB. |
+| **`SELF.md`** | Agent-writable notes in `PERSONA_DIR` — voice, jokes, rituals, a few north-star aims (not progress logs). The harness stamps the header (and the `PERSONA.md` Self-notes + Location pins sections) on boot / SIGHUP. Cap ~4KB. |
 | **`self_note`** | Builtin tool: append one short line when personality happens mid-chat. Skip if it is already in the file. Not for facts about the human. |
 | **Voice graduate on trim** | When history folds, new `Voice:` bits append to `SELF.md` **without another Completer call**. Mood weather (`dry today`) is skipped. Already-listed bits are skipped. |
-| **Distill on `/new`** | Before the wipe: merge quoted jokes, nicknames, games, standing aims into `SELF.md`. Bland tool sessions (no Voice, no quoted bits, short history) **do not rewrite the file**. |
+| **Distill on `/new`** | Before the wipe: merge quoted jokes, nicknames, games, north-star aims into `SELF.md`. Bland tool sessions (no Voice, no quoted bits, short history) **do not rewrite the file**. |
 | **You own the veto** | Delete lines. Wipe the file. Mount persona `:ro` to disable. Treat it like a friend’s inside jokes — keep what’s good, cut what isn’t. |
 
-`USER.md` is operator-owned and is **never** written. Facts about you park in
-SQLite, not in the soul file. Details:
+`PERSONA.md` is operator-owned (kernel only stamps Self-notes / Location pins).
+Facts about you park in SQLite, not in the persona file. How to write one:
+[persona.md](persona.md). Drift:
 [troubleshooting.md](troubleshooting.md#selfmd--personality-drift).
 
 ### Voice vs Facts (token tuning that keeps the person)
@@ -209,7 +212,7 @@ Works. Has seams. Don’t be surprised.
 | **Location pin** | In-memory. Restart = amnesia. Not a Completer wake. |
 | **Memory auto-save** | Off on purpose. Models forget to `memory_store`. You will re-teach facts. |
 | **Consolidator** | Same chat LLM, batch of 20, can quarantine a batch. Not a second “memory model.” |
-| **Persona concat** | Fixed file order, missing files tolerated. No DAG, no includes, no “skills.” |
+| **Persona concat** | Two files (`PERSONA.md` then `SELF.md`). Extra `*.md` ignored. No DAG, no includes, no MCP catalog in persona. |
 | **Fail-soft MCP** | A broken server does not take down the agent — and silently omits that whole capability until you read logs. |
 | **Cron live-data refuse** | Stops invented Garmin numbers after one nudge. Still not a proof the pull was the *right* pull. |
 | **Signal** | Planned sidecar (`signal-cli`). Not a Bot API. Not shipped. |
@@ -288,6 +291,7 @@ out of *this* git.
 
 | Area | Pieces | Where |
 | --- | --- | --- |
+| Category | AI harness; goal is long-horizon planning | [positioning](positioning.md) · [design](design.md#harness-and-long-horizon-planning) |
 | Personality | `SELF.md`, `self_note`, Voice graduate, distill on `/new`, operator prune | [troubleshooting](troubleshooting.md#selfmd--personality-drift) |
 | History / tokens | Caps, filler strip, `Facts:`/`Voice:` fold, tool collapse, `/tokens` | [design](design.md) |
 | Tool loop | Parallel batch, alias, closest-name, grammar retry, salvage, CoT promote, landing call, signatures | [mcp](mcp.md) · [design](design.md#local-model-hardening) |
@@ -297,7 +301,7 @@ out of *this* git.
 | MCP | Manifest grant, fetch/plan, filters, `mcp_enable`, fail-soft, Distroless children | [mcp](mcp.md) |
 | Chat ops | Slash cmds, `/auth`, stream, thinking, tool trace, steer, spin-up, photos, reactions, pin | [auth](auth.md) · [observability](observability.md) |
 | Channels | Telegram / Discord / Slack / stdio, allowlist, no ports | [discord](discord.md) · [slack](slack.md) |
-| Persona files | `SOUL` → `SELF` → `RULES` → `USER` → `TOOLS`, kernel stamps | [design](design.md) |
+| Persona files | `PERSONA.md` → `SELF.md`, harness stamps | [design](design.md) |
 | Runtime | Static Go, Distroless, heartbeat, drain, SIGHUP, logfwd | [architecture](architecture.md) |
 | Deploy | Hub compose, native systemd+Ollama, GCP/AWS templates | [deploy-docker](deploy-docker.md) · [deploy-native](deploy-native.md) |
 | Yard | **Proposal** — console to plant/manage gantries + MCP grants | [gantree](gantree.md) |

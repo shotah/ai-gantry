@@ -2,7 +2,8 @@
 
 > Design context: [design.md](design.md) · [docs index](README.md)
 
-Builtin memory lives in the same SQLite file as sessions:
+Builtin memory is how the harness keeps **long-horizon** facts: the same
+SQLite file as sessions, greppable and deletable.
 
 ```text
 $DATA_DIR/gantry.db
@@ -65,7 +66,7 @@ FTS triggers keep `memory_fts` in sync on insert/update/delete.
 | kind | typical TTL | notes |
 |------|-------------|--------|
 | `episode` | 30 days | raw notes; consolidator reads these |
-| `fact` / `preference` / `person` / `insight` | none | durable; hydrated into the prompt |
+| `fact` / `preference` / `person` / `insight` | none | durable; hydrated into the prompt. Months-scale plans: `insight` with subject `aim/<area>` ([persona.md](persona.md#where-the-horizon-lives)). |
 
 `consolidated = 1` means the consolidator already processed that episode (hidden from
 hydrate/recall). `consolidated = 2` is quarantined after repeated parse failures.

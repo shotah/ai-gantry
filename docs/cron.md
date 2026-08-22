@@ -1,8 +1,10 @@
 # Cron / scheduled turns
 
-Proactive jobs live in SQLite and fire inside the gantry: run the normal agent
-loop (MCP tools allowed), then **push** the reply on Telegram (or print on
-stdio). Pure-MCP cron cannot deliver outbound chat by itself.
+Proactive jobs are **long-horizon harness work**: they live in SQLite and
+fire inside gantry — run the normal agent loop (MCP tools allowed), then
+**push** the reply on Telegram (or print on stdio). Pure-MCP cron cannot
+deliver outbound chat by itself. A reminder next Tuesday is planning;
+a chatbot that only answers now is not.
 
 Live-data jobs (calendar, mail, fitness, search, sheets) get a tool-first
 wrapper plus a last-token system note so the model calls tools before drafting
@@ -11,6 +13,10 @@ nudges once; a second no-tool draft is refused instead of shipping invented
 metrics. Prior `[cron]` turns are omitted from that job's prompt so yesterday's
 digest cannot few-shot the next one. Plain reminders ("submit my timecard")
 are unchanged.
+
+A months-scale **aim** is not a cron by itself. North-star sentences live in
+`SELF.md`; progress in memory (`aim/<area>`); cron is the wake. A goal with
+no wake is a dusty row — [persona.md](persona.md#where-the-horizon-lives).
 
 Cron has no Telegram streaming / tool-trace bubble — only the final `Push`.
 Live-data replies append `— tools: name, …` or `— tools: (none)` so a skipped

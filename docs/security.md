@@ -1,8 +1,10 @@
 # Security
 
-ai-gantry is a **personal agent runtime** with full tool autonomy inside a
+ai-gantry is a personal **AI harness** with full tool autonomy inside a
 container. Security is mostly composition + least exposure, not an in-process
-permission framework.
+permission framework. Long-horizon planning (memory, cron, `SELF.md`) means
+state lives on disk — treat `$DATA_DIR` and `PERSONA_DIR` as the crown
+jewels.
 
 ## Threat model (who / what)
 
@@ -53,7 +55,7 @@ profiles per tool, enterprise SSO.
 - Static MCP binaries required — smaller, fewer shared-lib surprises.
 - Manifest mounts stay **read-only**. Persona is **writable** by default so
   `SELF.md` can grow (`SELF_NOTES_ENABLED`); only that file is agent-written
-  (capped ~4KB). SOUL/RULES/USER/TOOLS remain operator-edited. A `:ro` persona
+  (capped ~4KB). `PERSONA.md` remains operator-edited. A `:ro` persona
   mount auto-disables self-notes at boot. **Operator duty:** audit or delete
   `SELF.md` if grown personality turns undesirable —
   [troubleshooting.md](troubleshooting.md#selfmd--personality-drift).

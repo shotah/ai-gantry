@@ -1,9 +1,11 @@
 # ai-gantry
 
-![ai-gantry — the frame that holds the tools](https://raw.githubusercontent.com/shotah/ai-gantry/main/assets/banner.png)
+![ai-gantry — an AI harness, the frame that holds the tools](https://raw.githubusercontent.com/shotah/ai-gantry/main/assets/banner.png)
 
 **Run your own agent.** Pull this image, point it at a local model or paste an
 API key, and chat from your phone. No dashboard. No config UI. **No open ports.**
+This image is an **AI harness** for **long-horizon planning** — memory, cron,
+and personality survive `/new`.
 
 ```text
 container + persona + any OpenAI-compat LLM  →  outbound chat
@@ -71,7 +73,9 @@ Also on GHCR: `ghcr.io/shotah/ai-gantry` (same tags). Multi-arch: `linux/amd64`,
 
 ## What this image is
 
-- **Kernel only** — Distroless `static-debian12:nonroot`, no shell
+- **AI harness only** — Distroless `static-debian12:nonroot`, no shell, no MCP
+  tools baked in. Long-horizon pieces (memory, cron, watches, `SELF.md`) are
+  in this binary.
 - Entrypoint: `gantry` (`run` | `status` | `version` | …)
 - Healthcheck: `["CMD","/usr/local/bin/gantry","status"]` (exit code; **no port**)
 - Config: env + bind mounts (`PERSONA_DIR`, `MCP_MANIFEST`, `DATA_DIR`)
@@ -118,8 +122,9 @@ Nothing publishes a host port. The bot dials out to Telegram / the LLM only.
 
 ## Who it’s for
 
-Anyone who wants to run a personal agent in Docker and drop in a local model
-or an API key. Tools are optional. Nothing listens on a port.
+Anyone who wants to run a long-horizon personal agent in Docker and drop in a
+local model or an API key. Tools are optional. Nothing listens on a port.
+The image is the harness; you bring the model and the chat token.
 
 | Pick this image when… | Pick something else when… |
 | --- | --- |
@@ -142,7 +147,7 @@ Positioning: [docs/positioning.md](https://github.com/shotah/ai-gantry/blob/main
 | Observability | [observability.md](https://github.com/shotah/ai-gantry/blob/main/docs/observability.md) |
 | Security | [security.md](https://github.com/shotah/ai-gantry/blob/main/docs/security.md) |
 | Hello path | [readme.md](https://github.com/shotah/ai-gantry/blob/main/readme.md) |
-| Kernel contract | [design.md](https://github.com/shotah/ai-gantry/blob/main/docs/design.md) |
+| Harness contract | [design.md](https://github.com/shotah/ai-gantry/blob/main/docs/design.md) |
 
 License: MIT — [LICENSE](https://github.com/shotah/ai-gantry/blob/main/LICENSE)
 
@@ -160,6 +165,7 @@ Hub’s ~25KB cap. Do **not** paste the full root `readme.md` here.
 2. **Developer tools**
 3. **Security** *(outbound-only / allowlist story)*
 
-**Short description** is set by the same workflow (≤100 chars). Banner must be
-**PNG** with an absolute `raw.githubusercontent.com` URL — Hub does not render
-our SVG reliably.
+**Short description** is set by the same workflow (≤100 chars):
+`Long-horizon AI harness. Local model or API key. Telegram/Discord/Slack. No open ports.`
+Banner must be **PNG** with an absolute `raw.githubusercontent.com` URL — Hub
+does not render our SVG reliably.

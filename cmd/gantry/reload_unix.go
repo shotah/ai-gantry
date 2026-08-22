@@ -24,8 +24,12 @@ func watchPersonaReload(ctx context.Context, dir string, ag *agent.Agent, log *s
 		case <-ctx.Done():
 			return
 		case <-ch:
-			if err := persona.SyncKernel(dir); err != nil {
-				log.Warn("RULES.md kernel section not written", "err", err)
+			removed, err := persona.SyncKernel(dir)
+			if err != nil {
+				log.Warn("PERSONA.md kernel section not written", "err", err)
+			}
+			if len(removed) > 0 {
+				log.Info("removed legacy persona files", "files", removed)
 			}
 			text, err := persona.Load(dir)
 			if err != nil {

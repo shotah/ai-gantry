@@ -7,9 +7,12 @@ Short record of locked decisions. Product narrative stays in
 
 **Pick:** repo `ai-gantry`, binary `gantry`.
 
-A gantry holds and positions tools; the tools do the work. Earlier names lost
-to collisions (`noclaw` in claw-benchmark lineage, `armature` as a Python YAML
-harness).
+A gantry holds and positions tools; the tools do the work. The industry name
+for that frame is **AI harness**. The product goal is **long-horizon
+planning** — hold aims, personality, and work across days, not a single
+turn. Earlier names lost to collisions (`noclaw` in claw-benchmark lineage,
+`armature` as a Python YAML harness). We kept *gantry* and now say the
+category out loud.
 
 ## One provider implementation
 
@@ -64,6 +67,21 @@ schema can grow an `embedding` blob later behind the same recall interface.
 Auto-saved hallucinations (wrong emails, invented prefs) hurt more than
 missing recall. Model stores deliberately; consolidator promotes episodes.
 
+## Horizon state: three layers, no goal kind
+
+**Pick:** north-star sentences in `SELF.md` (always-on, 3–5); progress in
+SQLite (`insight` / subject `aim/<area>`, updates as `fact`); wakes in
+cron/watch. Dated to-dos stay in calendar/tasks. No new `goal` memory kind.
+No harness “objective row.”
+
+**Rejected:** stuffing months-scale trackers into `SELF.md` (4KB, distill
+treats notes like personality, jokes compete with project plans — the same
+overspill as MCP recipes in persona).
+**Rejected:** putting all aims only in SQL (hydrate ≤ ~30, `insight` sorts
+last — a six-month aim falls out of the standing prompt).
+
+Operator guide: [persona.md](persona.md#where-the-horizon-lives).
+
 ## Channel auth
 
 **Pick:** allowlist only on every chat channel; empty allowlist fails boot
@@ -96,8 +114,9 @@ problem. Cron pushes stay buffered (no ReplyWriter on that path).
 
 ## Scheduled / cron turns
 
-**Pick:** Milestone 6 — builtin scheduler in the kernel (SQLite jobs + tools),
-not a pure-MCP cron.
+**Pick:** Milestone 6 — builtin scheduler in the harness (SQLite jobs + tools),
+not a pure-MCP cron. Long-horizon planning needs the same loop later, plus a
+channel push.
 
 Firing a job must run `agent.Handle` and **push** on Telegram. An MCP server
 alone cannot outbound to the channel. External `docker exec` poke remains a
@@ -105,12 +124,12 @@ valid interim escape hatch but is not the product surface.
 
 ## Event watches
 
-**Pick:** kernel poller (`watch` table + `Host.CallRaw` + id cursor), not
+**Pick:** harness poller (`watch` table + `Host.CallRaw` + id cursor), not
 `cron_schedule` + a silent fetch prompt.
 
 Quiet ticks must not call the Completer. The first successful poll seeds the
 cursor (no backlog flood). `[silent]` still skips the Push when the agent does
-run. Fetch adapters stay MCP children; the kernel does not know RSS vs Twitter.
+run. Fetch adapters stay MCP children; the harness does not know RSS vs Twitter.
 
 ## Tool naming
 
@@ -129,7 +148,7 @@ Local models (Qwen/Ollama, etc.) routinely emit `google_search__google_search`
 when the catalog has `google-search__google_search`. Failing closed forced
 multi-iteration guessing and think-stalls. Aliasing the prefix is a one-line
 runtime fix; inventing tool *suffixes* (`web_search`) still needs suggestions
-+ persona `TOOLS.md`. Full write-up: [mcp.md](mcp.md).
++ a smaller published catalog. Full write-up: [mcp.md](mcp.md).
 
 **Rejected:** rewrite hyphens inside tool suffixes (would break real names like
 `google_search`); silent fuzzy match across unrelated servers.
@@ -172,6 +191,7 @@ All three messengers are outbound-only + allowlist (no inbound ports). Slack use
 ## Related
 
 - [design.md](design.md)
+- [persona.md](persona.md)
 - [architecture.md](architecture.md)
 - [mcp.md](mcp.md)
 - [security.md](security.md)

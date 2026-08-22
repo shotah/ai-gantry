@@ -19,7 +19,7 @@ func temporalAnchor(now time.Time, tzName string) string {
 	yesterday := now.AddDate(0, 0, -1)
 	tomorrow := now.AddDate(0, 0, 1)
 	// "-07:00" is Go's layout token (like "2006-01-02"), not a fixed Pacific
-	// offset — it prints whatever zone `now` is in (USER.md / CRON_TZ).
+	// offset — it prints whatever zone `now` is in (PERSONA.md / CRON_TZ).
 	offset := now.Format("-07:00")
 	part, already, ahead := dayPart(now.Hour())
 	notUTC := ""

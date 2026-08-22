@@ -1,11 +1,12 @@
 # Deploy: Native (Linux + systemd + local model)
 
-Run the same **static `gantry` binary** on the host under systemd — typically
-next to [Ollama](https://ollama.com) and a local chat model (we use
+Run the same static **AI harness** (`gantry`) on the host under systemd —
+typically next to [Ollama](https://ollama.com) and a local chat model (we use
 **Qwen** in production). No Docker on the agent box; MCP tools are plain
-binaries on `PATH`.
+binaries on `PATH`. Same long-horizon contract as Docker: memory, cron,
+watches, `SELF.md`.
 
-Kernel contract: [design.md](design.md). Hello path:
+Harness contract: [design.md](design.md). Hello path:
 [root readme](../readme.md). Tool naming: [mcp.md](mcp.md).
 Consumer template (unit + `install.sh`): [examples/native/](../examples/native/).
 
@@ -29,7 +30,7 @@ flowchart LR
 | --- | --- |
 | Own the weights | Ollama (or any OpenAI-compat) on the same box |
 | Skip container tax | One process, journald logs, host networking for Cast/mDNS |
-| Same agent contract | Identical env + persona + `mcp.toml` as Docker |
+| Same harness contract | Identical env + persona + `mcp.toml` as Docker |
 
 Cloud LLMs still work (`LLM_*` → Gemini/Grok). Native shines when the brain
 is local and you care about RAM, keep-alive, and tool-call quality.
@@ -38,7 +39,7 @@ is local and you care about RAM, keep-alive, and tool-call quality.
 
 ## Featured stack (`examples/native`)
 
-Local-model shape this kernel is built for:
+Local-model shape this harness is built for:
 
 | Piece | Choice |
 | --- | --- |
@@ -57,7 +58,7 @@ sudo ./install.sh
 ```
 
 Layout and day-to-day: **[examples/native/README.md](../examples/native/README.md)**.
-A full life-stack (persona + MCP + compose) lives in a consumer repo, not this kernel.
+A full life-stack (persona + MCP + compose) lives in a consumer repo, not this harness.
 
 Minimal `LLM_*` for Ollama on the same machine:
 
@@ -72,7 +73,7 @@ LLM_MODEL=qwen3.6:35b-a3b
 ## How gantry tackles local-model rough edges
 
 Small / thinking models (Qwen) are great offline brains but messy with tools.
-The kernel hardens the loop so SAM finishes multi-step turns:
+The harness hardens the loop so SAM finishes multi-step turns:
 
 | Failure mode | What gantry does |
 | --- | --- |
@@ -83,7 +84,7 @@ The kernel hardens the loop so SAM finishes multi-step turns:
 | Prompt cache thrash | Stable message prefix (persona / summary / history); volatile blocks last |
 | Schema token blowups | `TOOL_SCHEMA_MAX_TOKENS` + boot `est_tokens` logging |
 
-Persona still spells exact names (`TOOLS.md`). Runtime fixes catch the rest.
+The live catalog spells exact names (`/tools` + schemas). Runtime fixes catch the rest.
 
 ---
 
@@ -127,7 +128,7 @@ journalctl -u ollama -f
 | `OLLAMA_KEEP_ALIVE=-1` | same | Model stays resident; confirm with `ollama ps` (want `100% GPU`) |
 | `LLM_REASONING_EFFORT=none` | `gantry.env` | Native default. Thinking tokens decode at full price *before* any tool fires |
 | `TOOL_RESULT_MAX_CHARS` | `gantry.env` | Native default `6000`. Results are re-sent each loop iteration, so this multiplies prefill |
-| Shorter replies | persona (`SOUL.md` → "Length") | Decode is a hard ~23 tok/s: a 230-token reply *is* 10s. Halving reply length halves that. Persona text is in the cached prefix, so it costs nothing per turn |
+| Shorter replies | persona (`PERSONA.md` → Communication) | Decode is a hard ~23 tok/s: a 230-token reply *is* 10s. Halving reply length halves that. Persona text is in the cached prefix, so it costs nothing per turn |
 | Fewer tools | `mcp.toml` `tools` / `exclude`, MCP `--tool-tier` | Schemas are cached once the prefix is stable, but they inflate total context — and prefill rate falls with length (~1000 tok/s at 16k vs ~264 tok/s at 25k) |
 | `COALESCE_SETTLE_MS` | `gantry.env` | Quiet window before a follow-up steers the live turn — lone messages do not wait |
 | `SPINUP_NOTICE_MS` | `gantry.env` | Doesn't make a turn faster — opens the bubble during silent prefill so it stops *feeling* frozen |

@@ -1,8 +1,9 @@
 # MCP tool naming guidelines
 
-Canonical contract for **shotah** MCP binaries consumed by ai-gantry (and any
-host that prefixes `{server}__{tool}`). Sibling packages should link here from
-their `TODO.md` / README rather than inventing a local dialect.
+Canonical contract for **shotah** MCP binaries consumed by the ai-gantry
+**AI harness** (and any host that prefixes `{server}__{tool}`). Sibling
+packages should link here from their `TODO.md` / README rather than inventing
+a local dialect.
 
 **Audience:** authors of google-mcp, go-garmin, go-strava-mcp, youtube-go-mcp,
 mcp-beam, mcp-go-math, mcp-gemini-search, flights-search-mcp, rentals-search-mcp,
@@ -10,7 +11,8 @@ cars-search-mcp, feeds-mcp, twitter-mcp, google-maps-mcp, and future MCPs.
 **Why it matters:** small models (Qwen) and host closest-match repair pick tools
 by **name tokens + description**. Synonyms and double prefixes break matching.
 
-Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
+Related: host behavior ([mcp.md](mcp.md)). Tool recipes live in MCP descriptions
+and the live catalog, not in `PERSONA.md` ([persona.md](persona.md)).
 
 ---
 
@@ -42,7 +44,7 @@ Related: host behavior ([mcp.md](mcp.md)), persona recipes (`TOOLS.md`).
 
 3. **No dual aliases**
    One name set per release. Breaking renames get a semver bump + host
-   `TOOLS.md` update in the same change.
+   `mcp.toml` / `/tools` check in the same change.
 
 4. **Stable verb set** (prefer these; don’t invent synonyms)
 
@@ -132,10 +134,10 @@ call — **suffixes are never rewritten**.
 - [ ] Every tool is `{service}_{verb}_{object…}` with no server-id prefix
 - [ ] Diff verbs/nouns against this table + google-mcp before inventing a third synonym
 - [ ] Descriptions lead with agent intent
-- [ ] Args snake_case; hot paths documented in ai-gantry `TOOLS.md` when shipped
+- [ ] Args snake_case; hot paths documented in the tool description when shipped
 - [ ] Name assertion tests; no dual registration
 - [ ] Release notes include old→new map; bump semver on break
-- [ ] Update ai-gantry persona + docs in the same consumer PR
+- [ ] Update ai-gantry docs in the same consumer PR; do not dump the catalog into `PERSONA.md`
 
 ---
 

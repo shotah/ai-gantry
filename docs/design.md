@@ -1,8 +1,12 @@
 # Design
 
-Kernel contract: principles, env, agent loop, memory, ops, packaging.
+Harness contract: principles, env, agent loop, memory, ops, packaging.
 Pitch and hello path: [root readme](../readme.md). Diagrams:
 [architecture.md](architecture.md). ICP: [positioning.md](positioning.md).
+
+Gantry is an **AI harness** — the runtime around one model so an agent can
+**plan on a long horizon**. The model predicts tokens. The harness makes a
+turn finish, a tool call land, and a goal survive tomorrow.
 
 ## Problem
 
@@ -14,7 +18,7 @@ process = persona + model + MCP set + data dir
 ```
 
 Want another LLM or persona? Another process (second compose service or
-systemd unit). No in-process routing, no dashboard — a kernel that does
+systemd unit). No in-process routing, no dashboard — a harness that does
 exactly that and nothing else.
 
 Deploy shapes: [deploy-docker.md](deploy-docker.md) (Hub) ·
@@ -33,8 +37,9 @@ Deploy shapes: [deploy-docker.md](deploy-docker.md) (Hub) ·
 3. **Highly portable.** `CGO_ENABLED=0` static binary — systemd or Distroless
    (no shell in the image). No glibc dependency in our binary.
 4. **Plugin-centric.** Capabilities come from external binaries over MCP
-   stdio. The gantry hosts tools; it does not implement them (except three
-   builtin memory tools). Import libraries over writing our own.
+   stdio. The gantry **is the harness**: it hosts tools; it does not implement
+   them (except a few builtins: memory, cron, watch, `self_note`). Import
+   libraries over writing our own.
 5. **1:1, always.** No multi-provider config, no multi-agent config, no peer
    routing. Scaling = more processes.
 6. **Env + files is the config plane.** Secrets and scalars via env. Structure
@@ -42,6 +47,34 @@ Deploy shapes: [deploy-docker.md](deploy-docker.md) (Hub) ·
 7. **Memory is structured and inspectable.** SQLite rows you can read and
    delete with `sqlite3`, not opaque embedding blobs. Persona files always
    outrank recalled memory.
+8. **Long-horizon.** The harness holds goals, personality, and work across
+   sessions. Memory, cron, watches, history fold, and `SELF.md` are first-class
+   — not extras you add when a chatbot gets boring.
+
+## Harness and long-horizon planning
+
+Industry language for what this binary always was.
+
+An **AI harness** is everything around the model at runtime: the tool loop,
+MCP host, context bounds, memory, persona, and the channel. The model is a
+stateless token predictor. The harness is why a turn finishes, a name typo
+still calls the right tool, and yesterday’s aim is still on the board after
+`/new`.
+
+**Long-horizon planning** is the goal: hold aims, personality, and work across
+days and weeks — not a chatbot that dies when the context window gets
+expensive. That is why these pieces live in the harness, not in an MCP:
+
+| Horizon work | What the harness does |
+| --- | --- |
+| Standing goals | Cron + watches fire the same loop later; spark keeps presence |
+| Personality | `SELF.md` / `self_note` / Voice distill outlive `/new` |
+| Facts | SQLite memory + consolidator; persona files outrank recall |
+| Context that does not rot | History caps, `Facts:`/`Voice:` fold, tool collapse |
+| Turns that actually finish | Tool repair, landing call, local-model hardening |
+
+A single chat turn is the unit of *execution*. The horizon is the unit of
+*product*. We named it; we did not invent a second architecture.
 
 ## Non-goals
 
@@ -61,10 +94,11 @@ stream). Full checklist: [milestones.md](milestones.md). Cron:
 
 ## Local-model hardening
 
-Most agent stacks assume frontier cloud models and huge tool catalogs. Gantry
-is hardened where 4–30B local models actually fail — and the same levers cut
-prompt tokens on Flash/Grok (schemas, history, and tool results are re-billed
-every turn).
+Most agent stacks assume frontier cloud models and huge tool catalogs. This
+harness is hardened where 4–30B local models actually fail — and the same
+levers cut prompt tokens on Flash/Grok (schemas, history, and tool results
+are re-billed every turn). Long-horizon work is worthless if a mid-chain
+tool turn 400s.
 
 | Lever | What we do | Why it matters |
 | --- | --- | --- |
@@ -181,17 +215,22 @@ Same three directories whether Docker bind-mounts them or systemd points at
 | MCP manifest | `MCP_MANIFEST` → `/etc/gantry/mcp.toml` or `/opt/gantry/mcp.toml` |
 | SQLite + secrets | `DATA_DIR` → `/data` or `/opt/gantry/data` |
 
-All `*.md` under `PERSONA_DIR` are concatenated in a fixed order. Missing
-files are tolerated; empty persona is allowed but unusual.
+Only `PERSONA.md` (you) then `SELF.md` (the agent) load. Extra `*.md` is
+ignored. Missing files are tolerated; empty persona is allowed but unusual.
+Boot migrates leftover `SOUL.md` / `RULES.md` / `USER.md` / `TOOLS.md` into
+`PERSONA.md` if needed, then deletes them. MCP tool names belong in the live
+catalog, not persona — how to write one: [persona.md](persona.md).
 
 ## Agent loop & context bounds
 
-This is the part that earns its keep. Keep it boring and bounded:
+This is the heart of the harness. Keep it boring and bounded. A long-horizon
+agent is still one turn at a time; the loop is how those turns chain without
+losing the plot:
 
-1. **Assemble prompt**: persona markdown (concat, fixed order) + memory
-   hydration + session history (bounded) + user message.
+1. **Assemble prompt**: `PERSONA.md` + `SELF.md` + memory hydration + session
+   history (bounded) + user message. MCP names are **not** in persona.
 2. **Call model** with MCP tool schemas (loaded eagerly at boot; refreshed on
-   server restart).
+   server restart; this is the live catalog).
 3. **Tool iteration**: execute calls via MCP host (repair unambiguous prefix
    mistakes, else suggest closest real names *and* constrain the next call to
    them), truncate each result to `TOOL_RESULT_MAX_CHARS`, loop until final
@@ -215,7 +254,7 @@ difference between a prefill problem and a slow MCP —
 | Iteration cap | `TOOL_MAX_ITERATIONS` tool rounds, then one landing call with tools withheld |
 
 `/new` wipes the session. `Voice:` folds into `SELF.md` (when self-notes are
-enabled). `Facts:` park as a memory episode — `USER.md` is operator-owned and
+enabled). `Facts:` park as a memory episode — `PERSONA.md` is operator-owned and
 is never written. Existing memory rows stay.
 
 ### Self-notes (`SELF.md`)
@@ -223,8 +262,8 @@ is never written. Existing memory rows stay.
 Persona files describe who the agent **should** be. `SELF.md` is who it
 **became** with you — and unlike chat history, it outlives `/new`.
 
-- Lives in `PERSONA_DIR`, loaded in the stable prompt prefix (`SOUL` → `SELF`
-  → `RULES` → `USER` → `TOOLS`).
+- Lives in `PERSONA_DIR`, loaded in the stable prompt prefix (`PERSONA.md` →
+  `SELF.md`).
 - Mid-chat: `self_note` appends one short line.
 - On history trim: new `Voice:` bits append the same way.
 - On `/new`: distill **merges** into `SELF.md` (keep quoted jokes and
@@ -233,16 +272,21 @@ Persona files describe who the agent **should** be. `SELF.md` is who it
   you prune.
 - Needs a **writable** persona directory (`SELF_NOTES_ENABLED`, default on).
   Docker `:ro` silently disables the feature.
+- **North-star aims** (how you show up for months) may live here as a few
+  sentences. Progress, dates, and open loops are SQLite (`insight` /
+  `aim/<area>`), not this file — [persona.md](persona.md#where-the-horizon-lives).
 
 **Operator duty:** audit or delete `SELF.md` if the agent drifts.
-[troubleshooting.md](troubleshooting.md#selfmd--personality-drift).
+[troubleshooting.md](troubleshooting.md#selfmd--personality-drift). Write a
+tight `PERSONA.md` (examples, no MCP catalog): [persona.md](persona.md).
 
 ## Memory design
 
-Direction taken from Google's Always-On Memory Agent (2026): **no embeddings,
-no vector DB — an LLM writes structured rows into SQLite and a background job
-consolidates them.** At personal-agent scale, structured + FTS5 beats ANN
-search and stays greppable/deletable. Hand inspection: [memory.md](memory.md).
+Long-horizon planning needs facts that outlive a session. Direction taken
+from Google's Always-On Memory Agent (2026): **no embeddings, no vector DB —
+an LLM writes structured rows into SQLite and a background job consolidates
+them.** At personal-agent scale, structured + FTS5 beats ANN search and stays
+greppable/deletable. Hand inspection: [memory.md](memory.md).
 
 ### Store
 
@@ -268,7 +312,7 @@ CREATE VIRTUAL TABLE memory_fts USING fts5(subject, content, content=memory);
 
 | Tool | Role |
 | --- | --- |
-| `memory_store` | Atomic `kind` / `subject` / `content` |
+| `memory_store` | Atomic `kind` / `subject` / `content`. Months-scale plans: `insight` / `aim/<area>` ([persona.md](persona.md#where-the-horizon-lives)) |
 | `memory_recall` | FTS5 + recency |
 | `memory_forget` | By id or query — memory must be correctable |
 
@@ -293,7 +337,7 @@ At session start and on `memory_recall`, hydrate at most ~30 rows: active
 facts/preferences + FTS5 hits for the current message, rendered as a compact
 `[memory]` block.
 
-**Persona precedence is law**: anything in `USER.md` outranks memory;
+**Persona precedence is law**: anything in `PERSONA.md` outranks memory;
 contradictions get surfaced, not obeyed.
 
 ### Why not vectors
@@ -331,7 +375,7 @@ tool OAuth: [auth.md](auth.md).
 
 Dev: `make build|test|lint|run|ci|check`; `make install-hooks` for pre-commit.
 
-No port is opened by the gantry, ever.
+No port is opened by the harness, ever.
 
 ## Packaging
 
@@ -356,7 +400,9 @@ No port is opened by the gantry, ever.
 Locked choices are summarized here; full rationale lives in
 **[choices.md](choices.md)**.
 
-1. **Name: ai-gantry 🏗️** — frame that holds tools; binary `gantry`.
+1. **Name: ai-gantry 🏗️** — frame that holds tools; binary `gantry`. The
+   industry name for that frame is **AI harness**; the product goal is
+   **long-horizon planning**.
 2. **Token counting: estimates** (chars/4), labeled as estimates.
 3. **Memory: builtin SQLite, replaceable** via `MEMORY_BACKEND=mcp:<name>`.
 4. **Streaming replies: on by default** (`STREAM_REPLIES=true`).

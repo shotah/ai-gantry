@@ -9,7 +9,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/persona"
 )
 
-func TestLoad_FixedOrderAndExtras(t *testing.T) {
+func TestLoad_PersonaThenSelfIgnoresExtras(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, body string) {
 		t.Helper()
@@ -18,9 +18,9 @@ func TestLoad_FixedOrderAndExtras(t *testing.T) {
 		}
 	}
 	write("ZZZ.md", "extra-z")
-	write("USER.md", "user-body")
+	write("PERSONA.md", "persona-body")
 	write("SELF.md", "self-body")
-	write("SOUL.md", "soul-body")
+	write("SOUL.md", "soul-leftover")
 	write("AAA.md", "extra-a")
 	write("notes.txt", "ignored")
 
@@ -29,19 +29,18 @@ func TestLoad_FixedOrderAndExtras(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	soul := strings.Index(got, "soul-body")
-	self := strings.Index(got, "self-body")
-	user := strings.Index(got, "user-body")
-	aaa := strings.Index(got, "extra-a")
-	zzz := strings.Index(got, "extra-z")
-	if soul < 0 || self < 0 || user < 0 || aaa < 0 || zzz < 0 {
+	personaIdx := strings.Index(got, "persona-body")
+	selfIdx := strings.Index(got, "self-body")
+	if personaIdx < 0 || selfIdx < 0 {
 		t.Fatalf("missing parts in %q", got)
 	}
-	if soul >= self || self >= user || user >= aaa || aaa >= zzz {
+	if personaIdx >= selfIdx {
 		t.Fatalf("order wrong in %q", got)
 	}
-	if strings.Contains(got, "ignored") {
-		t.Fatalf("non-md file included: %q", got)
+	for _, bad := range []string{"extra-z", "soul-leftover", "extra-a", "ignored"} {
+		if strings.Contains(got, bad) {
+			t.Fatalf("unexpected %q in %q", bad, got)
+		}
 	}
 }
 
@@ -57,25 +56,25 @@ func TestLoad_MissingDir(t *testing.T) {
 
 func TestLoad_MissingPreferredTolerant(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "USER.md"), []byte("only-user"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "PERSONA.md"), []byte("only-persona"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	got, err := persona.Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got != "only-user" {
-		t.Fatalf("got %q, want only-user", got)
+	if !strings.Contains(got, "only-persona") {
+		t.Fatalf("got %q, want to contain only-persona", got)
 	}
 }
 
-func TestLoad_StampsSelfAndRules(t *testing.T) {
+func TestLoad_StampsSelfAndPersona(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "SELF.md"), []byte("# SELF.md — Who You Are Becoming\n\n> stale\n\n- dry humor\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	rules := "# RULES.md\n\n## Identity lock\n\nhold id\n\n## Self-notes (`self_note` → SELF.md)\n\n- stale rule\n\n## Memory hygiene\n\nhold mem\n"
-	if err := os.WriteFile(filepath.Join(dir, "RULES.md"), []byte(rules), 0o644); err != nil {
+	body := "# PERSONA.md\n\n## Identity lock\n\nhold id\n\n## Self-notes (`self_note` → SELF.md)\n\n- stale rule\n\n## Memory hygiene\n\nhold mem\n"
+	if err := os.WriteFile(filepath.Join(dir, "PERSONA.md"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	got, err := persona.Load(dir)
@@ -85,28 +84,32 @@ func TestLoad_StampsSelfAndRules(t *testing.T) {
 	if strings.Contains(got, "stale") || strings.Contains(got, "stale rule") {
 		t.Fatalf("stale kernel text kept: %q", got)
 	}
-	if !strings.Contains(got, "Standing aims") || !strings.Contains(got, "- dry humor") {
+	if !strings.Contains(got, "north-star aims") || !strings.Contains(got, "- dry humor") {
 		t.Fatalf("SELF stamp missing: %q", got)
 	}
-	if !strings.Contains(got, "A standing aim outlives one task") || !strings.Contains(got, "hold mem") ||
+	if !strings.Contains(got, "A north-star is one sentence") || !strings.Contains(got, "hold mem") ||
 		!strings.Contains(got, "A vibe word is not a joke") {
-		t.Fatalf("RULES stamp missing: %q", got)
+		t.Fatalf("PERSONA stamp missing: %q", got)
 	}
 	if !strings.Contains(got, "## Location pins") || !strings.Contains(got, "[last pin]") {
 		t.Fatalf("location stamp missing: %q", got)
 	}
 }
 
-func TestSyncKernel_RewritesRulesSection(t *testing.T) {
+func TestSyncKernel_RewritesPersonaSection(t *testing.T) {
 	dir := t.TempDir()
-	old := "# RULES.md\n\n## Self-notes (`self_note` → SELF.md)\n\n- stale\n\n## Memory hygiene\n\nok\n"
-	if err := os.WriteFile(filepath.Join(dir, "RULES.md"), []byte(old), 0o644); err != nil {
+	old := "# PERSONA.md\n\n## Self-notes (`self_note` → SELF.md)\n\n- stale\n\n## Memory hygiene\n\nok\n"
+	if err := os.WriteFile(filepath.Join(dir, "PERSONA.md"), []byte(old), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := persona.SyncKernel(dir); err != nil {
+	removed, err := persona.SyncKernel(dir)
+	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := os.ReadFile(filepath.Join(dir, "RULES.md"))
+	if len(removed) != 0 {
+		t.Fatalf("removed=%v, want none", removed)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "PERSONA.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +117,7 @@ func TestSyncKernel_RewritesRulesSection(t *testing.T) {
 	if strings.Contains(got, "- stale") {
 		t.Fatalf("stale section kept: %q", got)
 	}
-	if !strings.Contains(got, "A standing aim outlives one task") || !strings.Contains(got, "## Memory hygiene") {
+	if !strings.Contains(got, "A north-star is one sentence") || !strings.Contains(got, "## Memory hygiene") {
 		t.Fatalf("sync missing kernel or rest of file: %q", got)
 	}
 	if !strings.Contains(got, "## Location pins") {
@@ -122,7 +125,92 @@ func TestSyncKernel_RewritesRulesSection(t *testing.T) {
 	}
 }
 
-func TestTimezone_FromUserMarkdown(t *testing.T) {
+func TestSyncKernel_MigratesAndRemovesLegacy(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("SOUL.md", "soul-body")
+	write("RULES.md", "## Memory hygiene\n\nrules-body")
+	write("USER.md", "user-body")
+	write("TOOLS.md", "tools-body")
+	write("SELF.md", "self-body")
+	write("keep.md", "should-stay")
+
+	removed, err := persona.SyncKernel(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(removed) != len(persona.LegacyFiles) {
+		t.Fatalf("removed=%v", removed)
+	}
+	for _, name := range persona.LegacyFiles {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatalf("%s still present: %v", name, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "keep.md")); err != nil {
+		t.Fatalf("unrelated file deleted: %v", err)
+	}
+
+	b, err := os.ReadFile(filepath.Join(dir, "PERSONA.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(b)
+	for _, want := range []string{"soul-body", "rules-body", "user-body", "tools-body"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("migrated PERSONA.md missing %q: %q", want, got)
+		}
+	}
+	if !strings.Contains(got, "A north-star is one sentence") {
+		t.Fatalf("stamp missing after migrate: %q", got)
+	}
+
+	loaded, err := persona.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(loaded, "soul-body") || !strings.Contains(loaded, "self-body") {
+		t.Fatalf("Load missing migrated content: %q", loaded)
+	}
+	if strings.Contains(loaded, "should-stay") {
+		t.Fatalf("Load included extra file: %q", loaded)
+	}
+}
+
+func TestSyncKernel_KeepsExistingPersonaWhenRemovingLegacy(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "PERSONA.md"), []byte("keep-me\n\n## Memory hygiene\n\nok\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "SOUL.md"), []byte("old-soul"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := persona.SyncKernel(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(removed) != 1 || removed[0] != "SOUL.md" {
+		t.Fatalf("removed=%v", removed)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "PERSONA.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "keep-me") {
+		t.Fatalf("existing PERSONA.md overwritten: %q", b)
+	}
+	if strings.Contains(string(b), "old-soul") {
+		t.Fatalf("legacy content merged into existing PERSONA.md: %q", b)
+	}
+}
+
+func TestTimezone_FromPersonaMarkdown(t *testing.T) {
 	t.Parallel()
 	for _, in := range []string{
 		"- **Timezone:** America/Los_Angeles\n- **Location:** Seattle",
@@ -141,10 +229,10 @@ func TestTimezone_FromUserMarkdown(t *testing.T) {
 	}
 }
 
-func TestResolveTimezone_PrefersUserMarkdown(t *testing.T) {
+func TestResolveTimezone_PrefersPersonaMarkdown(t *testing.T) {
 	t.Parallel()
 	name, loc, source := persona.ResolveTimezone("- **Timezone:** America/Los_Angeles", "UTC")
-	if name != "America/Los_Angeles" || source != "USER.md" || loc == nil {
+	if name != "America/Los_Angeles" || source != "PERSONA.md" || loc == nil {
 		t.Fatalf("name=%q source=%q loc=%v", name, source, loc)
 	}
 	name, _, source = persona.ResolveTimezone("", "America/New_York")

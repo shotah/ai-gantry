@@ -16,17 +16,17 @@ Revert ladder if this line was wrong: [todo.md](todo.md#revert-plan-history-32k-
    is no `Voice:` and no quoted bits in the transcript.
 4. **Kernel stamps** (`Header`, `RulesSection`): merge, not flatten; exact
    jokes beat vibe words. Boot / SIGHUP overwrites live `SELF.md` header and
-   `RULES.md` Self-notes.
-5. **SOUL Communication:** tight on **tasks**, not on **chat**. Examples +
-   `deploy/persona/SOUL.md`. **Live `SOUL.md` is operator-owned — patch by
-   hand** (or `make persona-force` only if you accept wiping identity).
+   `PERSONA.md` Self-notes.
+5. **PERSONA.md Communication:** tight on **tasks**, not on **chat**. Examples +
+   `deploy/persona/PERSONA.md`. **Live `PERSONA.md` is operator-owned — patch by
+   hand** (or `make init` only if you accept wiping identity).
 6. **`/tokens`** prints `Voice: yes` or `Voice: (none)` next to `summary`.
 
 ---
 
 ## Watch (live)
 
-- Patch running `PERSONA_DIR/SOUL.md` Communication to match the example (gitignored).
+- Patch running `PERSONA_DIR/PERSONA.md` Communication to match the example (gitignored).
 - If `SELF.md` is vibe-words, prune and put the real nicknames/quotes back.
   Restart or SIGHUP so stamps + persona reload.
 - `HISTORY_STRIP_FILLERS=false` is no longer required for grow-back.

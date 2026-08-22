@@ -38,14 +38,14 @@ const selfDistillPrompt = "[system] This chat session is about to be reset and i
 	"Below are your current self-notes (SELF.md), the dying conversation, and (if present) a " +
 	"[session voice] block — the rolling mood of this chat (jokes, nicknames, games). " +
 	"Merge into a complete self-notes file so the personality you developed here survives. " +
-	"Keep every existing SELF.md bullet that is a joke, nickname, game, ritual, or standing aim unless it is a true duplicate. " +
+	"Keep every existing SELF.md bullet that is a joke, nickname, game, ritual, or north-star aim unless it is a true duplicate. " +
 	"Add from [session voice] using exact wording. Do not replace a quoted joke with a mood word. " +
-	"A standing aim outlives one task; keep those. Do not copy one-off to-dos or Facts: about the human. " +
+	"A north-star aim is a months-scale sentence; keep those. Do not copy progress logs, one-off to-dos, or Facts: about the human. " +
 	"Prefer exact wording from [session voice] over paraphrasing the transcript. " +
 	"Skip one-off mood weather (\"dry today\"). Do not copy facts about the human into SELF.md. " +
 	"Rules: output only the file content; start with the heading \"# SELF.md — Who You Are Becoming\"; " +
-	"short \"- \" bullet lines, at most 30; notes describe YOUR personality, shared rituals, and standing aims — " +
-	"not facts about the human, not rules, not tool recipes."
+	"short \"- \" bullet lines, at most 30; notes describe YOUR personality, shared rituals, and a few north-star aims — " +
+	"not facts about the human, not progress logs, not rules, not tool recipes."
 
 // distillSelf folds the dying session's personality into SELF.md before a
 // reset. Best-effort: every failure is logged and the reset proceeds — losing
@@ -140,7 +140,7 @@ func hasQuotedSpan(s string) bool {
 }
 
 // parkSessionFacts writes the dying session's Facts: block into SQLite as one
-// episode so the consolidator can split it into durable rows. USER.md is
+// episode so the consolidator can split it into durable rows. PERSONA.md is
 // operator-owned and is never written here.
 func (a *Agent) parkSessionFacts(ctx context.Context, sessionID string) bool {
 	if a.memory == nil {

@@ -41,5 +41,5 @@ jobs:
           repository: shotah/ai-gantry
           readme-filepath: ./docs/dockerhub.md
           # Max 100 chars — shows in Hub search / docker search
-          short-description: Run your own agent in Docker. Local model or API key. Telegram/Discord/Slack. No open ports.
+          short-description: Long-horizon AI harness. Local model or API key. Telegram/Discord/Slack. No open ports.
           enable-url-completion: true

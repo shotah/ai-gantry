@@ -1,6 +1,6 @@
 # Apple stack MCP — hunt
 
-Attack this file. Kernel loop work stays in [todo.md](todo.md).
+Attack this file. Harness loop work stays in [todo.md](todo.md).
 Siblings: [ms_todo.md](ms_todo.md) · [aws_todo.md](aws_todo.md) ·
 [gcp_todo.md](gcp_todo.md).
 

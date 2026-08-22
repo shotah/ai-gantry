@@ -1,4 +1,4 @@
-# Consumes the published ai-gantry kernel (no kernel source in this repo).
+# Consumes the published ai-gantry harness (no harness source in this repo).
 #   make init && make up
 #
 # No ports. Healthcheck is an exit code. MCP binaries are not in this image —
@@ -35,7 +35,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       # Persona is writable so SELF.md (agent personality notes) can grow.
-      # Only SELF.md is agent-written; SOUL/RULES/USER/TOOLS stay operator-edited.
+      # Only SELF.md is agent-written; PERSONA.md stays operator-edited.
       # Use :ro here only if you set SELF_NOTES_ENABLED=false.
       - ./persona:/persona
       - ./mcp.toml:/etc/gantry/mcp.toml:ro

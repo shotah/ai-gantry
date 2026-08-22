@@ -1,7 +1,7 @@
 # ai-gantry 🏗️
 
 <p align="center">
-  <img src="assets/banner.svg" alt="ai-gantry — the frame that holds the tools" width="100%">
+  <img src="assets/banner.svg" alt="ai-gantry — an AI harness, the frame that holds the tools" width="100%">
 </p>
 
 <!-- Hub uses docs/dockerhub.md + assets/banner.png (SVG/mermaid break on Docker Hub). -->
@@ -16,11 +16,14 @@
 
 > **gantry** *(n.)* — the rigid frame in a CNC machine or crane that holds and
 > positions tools. The frame does nothing by itself; the tools do everything.
+> That frame is an **AI harness**: the runtime around the model (loop, tools,
+> memory, context) so the agent can **plan on a long horizon** — days and
+> weeks, not a single chat turn.
 
-> Make a local agent small enough to understand, efficient enough to run
+> Make a local harness small enough to understand, efficient enough to run
 > continuously, resilient enough for imperfect local models, and stateful
-> enough that it remains a useful personality rather than becoming a
-> stateless chatbot every time context gets expensive.
+> enough for long-horizon planning: a useful personality and standing goals
+> rather than a stateless chatbot every time context gets expensive.
 
 **Run your own agent.** Pull a container, point it at a local model or paste an
 API key, and chat from your phone. No dashboard in the thing you talk to.
@@ -33,11 +36,12 @@ container + persona + any OpenAI-compat LLM  →  outbound chat
 Gemini or Grok with a key. Ollama on the same machine. Chat, memory, and
 reminders work with **zero extra tools** — add MCP binaries later if you want.
 
-We spent the engineering budget on the part of the system you actually
-interact with: the **agent loop** — tool calling, MCP, context economics,
-and finishing turns on small local models. The agent is the product. A
-management plane is infrastructure ([gantree](docs/gantree.md), proposal)
-and stays out of the kernel. Completeness of the platform is not the goal.
+We spent the engineering budget on the **harness** — tool calling, MCP,
+context economics, memory that outlives a session, and finishing turns on
+small local models. The harness is the product. A management plane is
+infrastructure ([gantree](docs/gantree.md), proposal) and stays out of this
+binary. Completeness of the platform is not the goal. Long-horizon
+planning is.
 
 If it clicks, the same binary grows with you (persona files, inspectable
 SQLite, optional tools). If you need a team workspace on day one, this is
@@ -103,7 +107,7 @@ LLM_MODEL=grok-4
 | `make init && make run` | Hack on the binary (`CHANNEL=stdio`) |
 
 Cookbook: **[examples/README.md](examples/README.md)**.
-A full life-stack (persona + MCP + compose) lives in a consumer repo, not this kernel.
+A full life-stack (persona + MCP + compose) lives in a consumer repo, not this harness.
 
 ---
 
@@ -121,12 +125,24 @@ Type `/help` anytime.
 Telegram is the default. Discord and Slack are shipped (one `CHANNEL` per
 process). Headless OAuth: **[docs/auth.md](docs/auth.md)**.
 
-### Personality that survives `/new`
+### Two files, not a catalog
 
-Most agents *feel* like someone after a long chat, then `/new` wipes them.
-Gantry writes voice, jokes, and rituals into `SELF.md` so they last — and you
-can delete any line you don’t like. Details:
-**[docs/troubleshooting.md](docs/troubleshooting.md#selfmd--personality-drift)**.
+Long-horizon means the person is still there tomorrow. Most agents *feel*
+like someone after a long chat, then `/new` wipes them.
+
+| File | Who writes it |
+| --- | --- |
+| `PERSONA.md` | You — who it should be, who you are, harness-builtin policy |
+| `SELF.md` | The agent — voice, jokes, rituals, a few north-star aims that survive `/new` (you can delete any line) |
+
+MCP tools are **not** listed in `PERSONA.md`. They come from the live catalog
+(`/tools`, this turn’s schemas, `[mcp prefixes]`). Keep `PERSONA.md` short
+(2–4k characters, examples over rule dumps) or the middle of it gets ignored.
+Progress logs and dated to-dos are memory / cron, not persona.
+
+How to write one: **[docs/persona.md](docs/persona.md)**.
+Horizon split: **[docs/persona.md](docs/persona.md#where-the-horizon-lives)**.
+`SELF.md` drift: **[docs/troubleshooting.md](docs/troubleshooting.md#selfmd--personality-drift)**.
 
 ---
 
@@ -135,16 +151,18 @@ can delete any line you don’t like. Details:
 | If you want… | Go here |
 | --- | --- |
 | What we actually built (honest inventory) | **[docs/features.md](docs/features.md)** |
-| How the process is put together | **[docs/architecture.md](docs/architecture.md)** |
-| Env, memory, agent loop, packaging | **[docs/design.md](docs/design.md)** |
+| How to write `PERSONA.md` (tight, no MCP catalog, where the horizon lives) | **[docs/persona.md](docs/persona.md)** |
+| How the harness is put together | **[docs/architecture.md](docs/architecture.md)** |
+| Env, loop, memory, long-horizon contract | **[docs/design.md](docs/design.md)** |
 | Wiring MCP tools | **[docs/mcp.md](docs/mcp.md)** |
 | Why outbound-only / who it’s for | **[docs/positioning.md](docs/positioning.md)** |
 | Security notes | **[docs/security.md](docs/security.md)** |
 
-The kernel is a small static Go binary. Tools are optional MCP processes.
+The harness is a small static Go binary. Tools are optional MCP processes.
 We spent the budget on the loop so a **small local model** can finish a
 tool turn instead of ERROR — that’s the production story, not a requirement
-to start.
+to start. Long-horizon planning is the reason the loop, memory, cron, and
+`SELF.md` exist.
 
 ## License
 
