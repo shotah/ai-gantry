@@ -73,7 +73,7 @@ repairs those instead of erroring the turn.
 | **Landing call** | At `TOOL_MAX_ITERATIONS` a final **no-tools** call forces a real reply (warning at ~70% of the budget) |
 | **Gemini 3 signatures** | `thought_signature` on tool rounds is preserved (and synthesized when stream deltas omit it) so multi-step cloud turns don’t 400 |
 
-Same levers cut prompt tokens on Flash/Grok: schemas, history, and tool
+Same levers cut prompt tokens on Flash/ChatGPT: schemas, history, and tool
 results are re-billed **every** turn.
 
 ### Parallel tool calling

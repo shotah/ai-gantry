@@ -96,7 +96,7 @@ stream). Full checklist: [milestones.md](milestones.md). Cron:
 
 Most agent stacks assume frontier cloud models and huge tool catalogs. This
 harness is hardened where 4–30B local models actually fail — and the same
-levers cut prompt tokens on Flash/Grok (schemas, history, and tool results
+levers cut prompt tokens on Flash/ChatGPT (schemas, history, and tool results
 are re-billed every turn). Long-horizon work is worthless if a mid-chain
 tool turn 400s.
 

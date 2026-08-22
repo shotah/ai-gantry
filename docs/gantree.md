@@ -92,7 +92,7 @@ Click through. Not a Kubernetes dashboard. A handful of pets, named.
 
 ### Plant
 
-New gantry wizard: **yard type first** (home Mini vs cloud VM), then slug, persona seed (or blank PERSONA.md), model (Gemini / Grok /
+New gantry wizard: **yard type first** (home Mini vs cloud VM), then slug, persona seed (or blank PERSONA.md), model (Gemini / ChatGPT /
 Ollama), channel + bot token + allowlist, profile (`slim` / `life` /
 `life-cast`). Writes an isolated directory, fetches bins, recreates, shows
 doctor. Two minutes, not an afternoon of compose.

@@ -18,7 +18,7 @@ category out loud.
 
 **Pick:** OpenAI-compatible client only (`openai-go` + custom `base_URL`).
 
-Gemini, Grok, Ollama, etc. already speak the shape. Model identity is
+Gemini, ChatGPT, Ollama, etc. already speak the shape. Model identity is
 `LLM_BASE_URL` + `LLM_MODEL` + `LLM_API_KEY`. A provider registry would be
 multi-agent platform gravity we don't want.
 

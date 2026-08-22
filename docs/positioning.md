@@ -205,6 +205,10 @@ product story.
 
 **Category:** AI harness for long-horizon planning.
 
+**GitHub About** (≤350 chars; paste in the repo Settings → General → Description):
+
+> Long-horizon AI harness you actually own: one static Go binary, one persona, any OpenAI-compat LLM (Ollama, Gemini, ChatGPT), MCP tools, chat via Telegram/Discord/Slack. Outbound-only — no dashboard, no config UI, no open ports, ever. Hardened so small local models finish tool calls.
+
 **Constraint line:** No dashboard. No config UI. No open ports. Ever.
 
 **Equation:**

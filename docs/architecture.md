@@ -57,7 +57,7 @@ internal/examples/   /examples capability pings
 internal/logfwd/     optional slog → chat
 ```
 
-One provider implementation is deliberate: Gemini, Grok, and local models all
+One provider implementation is deliberate: Gemini, ChatGPT, and local models all
 speak OpenAI-compat. Model identity is `LLM_BASE_URL` + `LLM_MODEL` +
 `LLM_API_KEY`.
 

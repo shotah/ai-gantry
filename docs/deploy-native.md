@@ -32,7 +32,7 @@ flowchart LR
 | Skip container tax | One process, journald logs, host networking for Cast/mDNS |
 | Same harness contract | Identical env + persona + `mcp.toml` as Docker |
 
-Cloud LLMs still work (`LLM_*` → Gemini/Grok). Native shines when the brain
+Cloud LLMs still work (`LLM_*` → Gemini/ChatGPT). Native shines when the brain
 is local and you care about RAM, keep-alive, and tool-call quality.
 
 ---

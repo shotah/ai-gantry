@@ -28,7 +28,7 @@ flowchart LR
     M[MCP binaries]
     G -->|stdio| M
   end
-  G -->|HTTPS OpenAI-compat| LLM[Gemini / Grok / …]
+  G -->|HTTPS OpenAI-compat| LLM[Gemini / ChatGPT / …]
 ```
 
 ---
@@ -134,7 +134,7 @@ callback is `localhost` on *your* PC. Use chat `/auth` instead.
 | Prefer Docker / Hub when… | Prefer [native](deploy-native.md) when… |
 | --- | --- |
 | You want `docker pull` + compose in minutes | You want Ollama/Qwen on metal (no container tax) |
-| Cloud LLM (Gemini/Grok) is fine | Local model + systemd on a mini-PC |
+| Cloud LLM (Gemini/ChatGPT) is fine | Local model + systemd on a mini-PC |
 | Distroless sandbox is the grant story | Host PATH + `/opt/gantry` tree is enough |
 
 Model swap is always `LLM_BASE_URL` + `LLM_API_KEY` + `LLM_MODEL` — same

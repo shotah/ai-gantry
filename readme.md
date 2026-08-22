@@ -33,7 +33,7 @@ Nothing listens on a port.
 container + persona + any OpenAI-compat LLM  →  outbound chat
 ```
 
-Gemini or Grok with a key. Ollama on the same machine. Chat, memory, and
+Gemini or ChatGPT with a key. Ollama on the same machine. Chat, memory, and
 reminders work with **zero extra tools** — add MCP binaries later if you want.
 
 We spent the engineering budget on the **harness** — tool calling, MCP,
@@ -94,7 +94,7 @@ The agent does not care which vendor you picked. Set these three and restart:
 # examples/docker/.env — xAI, for instance
 LLM_BASE_URL=https://api.x.ai/v1
 LLM_API_KEY=...
-LLM_MODEL=grok-4
+LLM_MODEL=gemini-3.5-flash
 ```
 
 ### Other ways to run

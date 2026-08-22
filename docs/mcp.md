@@ -20,7 +20,7 @@ repair names and finish turns or the horizon collapses into ERROR.
 | Keep the harness small | Calendar, search, Cast, etc. stay out of `gantry` |
 | Clear grant model | A server in `mcp.toml` is granted; omit it and it does not exist |
 | Distroless-friendly | Static Go binaries over stdio — no shell, no npm in the image |
-| Swappable brains | Same tool schemas work for Gemini, Grok, Ollama — OpenAI-compat tool calls |
+| Swappable brains | Same tool schemas work for Gemini, ChatGPT, Ollama — OpenAI-compat tool calls |
 
 Chat, memory, and cron work with **zero** MCP servers. Tools are optional.
 
