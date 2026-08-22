@@ -13,7 +13,7 @@ image; MCP tools are optional extras you grant.
 | [Docker Hub](https://hub.docker.com/r/shotah/ai-gantry) | `shotah/ai-gantry:latest` / `:edge` / `:0.x.y` |
 | GHCR | `ghcr.io/shotah/ai-gantry:…` (same tags) |
 
-`:latest` = latest release tag · `:edge` = `main` · pin `:0.x.y` for production.
+`:latest` / `:edge` = `main` · pin `:0.x.y` for production.
 
 Harness contract (env, mounts, MCP): [design.md](design.md). Hello path:
 [root readme](../readme.md). Why Hub is the stranger path:

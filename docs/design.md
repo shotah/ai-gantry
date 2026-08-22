@@ -427,8 +427,8 @@ No port is opened by the harness, ever.
 - Release: `make release` (or `BUMP=minor|major` / `TAG=vX.Y.Z`);
   `.github/workflows/release.yml` runs GoReleaser on `v*` tags.
 - Images: `.github/workflows/docker.yml` pushes multi-arch Distroless to
-  `shotah/ai-gantry` (Hub) and `ghcr.io/shotah/ai-gantry` — `:edge` on `main`,
-  `:latest` + semver on `v*` tags. Hub overview syncs from
+  `shotah/ai-gantry` (Hub) and `ghcr.io/shotah/ai-gantry` — `:latest` and
+  `:edge` on `main`, plus semver on `v*` tags. Hub overview syncs from
   [`dockerhub.md`](dockerhub.md) (PNG banner; root readme is the pitch, not
   the Hub page).
 

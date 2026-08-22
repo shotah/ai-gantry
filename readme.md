@@ -77,7 +77,7 @@ make logs
 Message the bot, then send `/status`. Walkthrough:
 **[docs/deploy-docker.md](docs/deploy-docker.md)**.
 
-Images: `shotah/ai-gantry:latest` (release), `:edge` (`main`), `:0.x.y` (pin).
+Images: `shotah/ai-gantry:latest` (current `main`), `:edge` (`main`), `:0.x.y` (pin).
 Same tags on `ghcr.io/shotah/ai-gantry`.
 
 ### Drop in a different model

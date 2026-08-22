@@ -135,7 +135,7 @@ planning**.
 
 Priority order for strangers:
 
-1. **Docker Hub pull** — `shotah/ai-gantry:latest` (release) / `:edge` (`main`) /
+1. **Docker Hub pull** — `shotah/ai-gantry:latest` / `:edge` (`main`) /
    `:0.x.y` (pin). No clone required to try the harness.
    Walkthrough: [deploy-docker.md](deploy-docker.md).
 2. **Consumer templates** — [`examples/docker/`](../examples/docker/) ·

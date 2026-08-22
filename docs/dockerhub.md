@@ -61,7 +61,7 @@ Guide: [docs/auth.md](https://github.com/shotah/ai-gantry/blob/main/docs/auth.md
 
 | Tag | Meaning |
 | --- | --- |
-| `latest` | Latest release |
+| `latest` | Last successful publish (`main` or a `v*` tag) |
 | `edge` | Tip of `main` (moving) |
 | `0.x.y` / `0.x` | Pinned release (prefer for production) |
 | `sha-<commit>` | Exact CI build |
