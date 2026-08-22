@@ -7,8 +7,8 @@ a black box. Everything people ask about — memory, GPU, timing, token spend
 
 | Signal | Source | Where to look |
 | --- | --- | --- |
-| Per-turn timing + token estimates | gantry's JSON `slog` on stderr | `journalctl -u gantry` / `docker logs` |
-| Slow turn / memory health / tool offender / prompt size | slash commands (harness-side) | `/perf` · `/memstats` · `/toolstats` · `/tokens` in chat |
+| Per-turn trajectory + token estimates | gantry's JSON `slog` on stderr | `journalctl -u gantry` / `docker logs` |
+| Slow / serial / recovery-heavy turns, memory, prompt size | slash commands (harness-side) | `/perf` · `/memstats` · `/toolstats` · `/tokens` in chat |
 | Process CPU / RAM (gantry + MCP children) | the supervisor's cgroup accounting | `systemctl status` / `docker stats` |
 | Model RAM / VRAM, residency, offload split | Ollama's own CLI + GPU tools | `ollama ps`, `nvidia-smi`, … |
 | Memory rows, session size, disk | the SQLite file itself | `sqlite3 data/gantry.db` · or `/memstats` |
@@ -100,16 +100,16 @@ journalctl -u gantry -f | grep -E 'model call|tool done|turn perf'
 | --- | --- | --- |
 | `model call` | `first_token_ms`, `dur_ms`, `prompt_est_tokens`, `volatile_est_tokens`, `schema_est_tokens`, `tool_calls`, `finish_reason` | `first_token_ms` ≈ prefill; rest of `dur_ms` is decode; `*_est_tokens` are chars/4 estimates |
 | `tool done` | `name`, `dur_ms`, `result_chars` | slow MCP vs slow model |
-| `turn perf` | `iterations`, `model_ms`, `tool_ms`, `total_ms`, `hydration_est_tokens` | which half of the turn to attack |
+| `turn perf` | `iterations`, `tool_calls`, `max_batch`, `recoveries`, `prompt_est_tokens`, `gen_est_tokens`, `tools_per_inv`, `model_ms`, `tool_ms`, `total_ms`, `outcome` | Trajectory: work per Completer round, not just which half of the wall clock |
 
 Because the logs are structured JSON, `jq` turns them into ad-hoc metrics —
 `-o cat` strips journald's prefix so lines parse cleanly:
 
 ```bash
-# Slowest turns in the last day: total / model / tool ms + iterations
+# Slowest turns in the last day: wall / model / tool + trajectory
 journalctl -u gantry --since -1d -o cat \
   | jq -r 'select(.msg=="turn perf")
-           | [.total_ms,.model_ms,.tool_ms,.iterations] | @tsv' \
+           | [.total_ms,.model_ms,.tool_ms,.iterations,.tool_calls,.max_batch,.recoveries,.prompt_est_tokens,.gen_est_tokens,.outcome] | @tsv' \
   | sort -rn | head
 
 # Which tool is the bottleneck, by cumulative time
@@ -137,8 +137,8 @@ journalctl -u gantry -b | grep -E 'tools_listed|tools_published|est_tokens'
 In-chat, `/status` shows session bounds and estimates without touching the
 host; `/tokens` breaks the standing prompt into persona / summary / history /
 hydration / schemas; `/perf` / `/memstats` / `/toolstats` answer the usual
-follow-ups (why was that turn slow, is memory consolidating, which MCP is
-chronic) without SSH. `TELEGRAM_ERROR_REPORTING=error` tees error-level logs
+follow-ups (did that objective fan out or recover-loop, is memory
+consolidating, which MCP is chronic) without SSH. `TELEGRAM_ERROR_REPORTING=error` tees error-level logs
 into the chat as expandable blocks when you can't reach a terminal.
 
 ---
@@ -197,8 +197,9 @@ locally.
 | "Where did my system RAM go?" | `ollama ps` + `amdgpu_top` (GTT) — not `top` |
 | "Is the model still loaded?" | `ollama ps` → UNTIL column |
 | "Why was that answer slow?" | `journalctl -u gantry -o cat \| jq 'select(.msg=="turn perf")'` |
+| "Did it fan out or recover-loop?" | `/perf` → `iters` / `tools` / `batch` / `rec` |
 | "Is it the model or a tool?" | `model_ms` vs `tool_ms` in the same line |
-| "What does a turn cost in tokens?" | `model call` → `prompt_est_tokens` (estimate) |
+| "What did the trajectory cost in tokens?" | `turn perf` → `prompt_est_tokens` + `gen_est_tokens` (estimates) |
 | "Is the bot alive?" | `gantry status; echo $?` |
 
 If you genuinely need dashboards, don't add a port to gantry — ship the

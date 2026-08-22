@@ -152,8 +152,8 @@ sequenceDiagram
     loop until final text (at TOOL_MAX_ITERATIONS a no-tools landing call forces one)
       A->>A: collapse tool results older than last 2 (and stub their args)
       A->>L: Complete(messages, tool schemas)
-      alt tool_calls
-        loop each call
+      alt tool_calls (one parallel batch)
+        loop concurrent batch (results stay in call order)
           A->>T: Call(name, args)
           T-->>A: truncated result
         end

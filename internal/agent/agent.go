@@ -1,4 +1,5 @@
-// Package agent implements the agent loop: prompt assembly, model calls, tool iteration, and reply.
+// Package agent implements the agent loop: assemble context, call the model,
+// fan out independent tools, consolidate, repeat until the objective is done.
 package agent
 
 import (
@@ -55,14 +56,16 @@ const compactCallsHeader = "Making Calls:"
 const budgetExhaustedNote = "[system] Tool budget exhausted: all %d tool rounds for this turn are used and no more tool calls are possible. " +
 	"Write your final reply to the user now: summarize what you accomplished, what you found, and what is still unfinished."
 
-// toolNarrationNote is appended to the system persona when tools are wired so
-// the visible trace carries a "why" line ahead of each call's ✓/✗ marks.
-const toolNarrationNote = `Before each tool call, write one short line of visible reply text saying what you are doing and why (e.g. "Searching contacts for Joe"). Keep it under a dozen words and make the call in the same response.`
+// toolNarrationNote is appended to the system persona when tools are wired.
+// It is recency-weighted (end of the cached prefix): fan out independent
+// calls in one Completer response so the standing prompt is not re-billed
+// per lookup. One visible line for the batch feeds TOOL_TRACE.
+const toolNarrationNote = `When you need tools, emit every independent call in this same response — they run together. One short visible line for the whole batch (e.g. "Checking calendar, mail, and memory"), under a dozen words, then the calls. A later round is only for calls that need a prior result.`
 
 // cronToolFirstNote sits after the clock on scheduled turns so the last
 // instruction is "tools first" — cron user text otherwise reads like a
 // finished-report spec and small models draft numbers instead of calling.
-const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data, emit tool calls now and wait for results. Do not invent metrics, events, or search results. Write the user-facing report only after tool results are in context. If no tools are needed, reply now."
+const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data, emit independent tool calls now in one response and wait for results. Do not invent metrics, events, or search results. Write the user-facing report only after tool results are in context. If no tools are needed, reply now."
 
 // Options configures the agent.
 type Options struct {
@@ -106,7 +109,7 @@ type Options struct {
 	EnableForce mcpenable.Force
 }
 
-// Agent runs the prompt → model → (tools) → reply loop.
+// Agent runs one objective: Completer rounds with parallel tool batches until a reply.
 type Agent struct {
 	personaMu     sync.RWMutex
 	persona       string
@@ -546,18 +549,45 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 		reply = withCronToolFooter(reply, called)
 	}()
 
-	// Latency accounting: local models spend most of a turn in prefill/decode,
-	// so split model vs tool time to know which one to attack.
+	// Trajectory accounting: the standing prompt is re-billed every Completer
+	// call, so progress per invocation (tools / iters, max batch, recoveries)
+	// is the number that says whether a "cheap" local loop actually won.
 	turnStart := time.Now()
 	iters := 0
 	var modelTime, toolTime time.Duration
 	var firstTokenMS int64
 	var volatileEst int
+	var recoveries, toolCalls, maxBatch, promptEstSum, genEstSum int
+	var usedLanding bool
+	outcomeHint := ""
 	cold := !a.warmed.Load()
 	defer func() {
 		totalMS := time.Since(turnStart).Milliseconds()
+		outcome := "ok"
+		switch {
+		case err != nil && (errors.Is(err, context.Canceled) || ctx.Err() != nil):
+			outcome = "cancel"
+		case err != nil:
+			outcome = "error"
+		case outcomeHint != "":
+			outcome = outcomeHint
+		case usedLanding:
+			outcome = "landing"
+		}
+		toolsPerInv := 0.0
+		if iters > 0 {
+			toolsPerInv = float64(toolCalls) / float64(iters)
+		}
 		a.log.Info("turn perf",
+			"source", source,
+			"outcome", outcome,
 			"iterations", iters,
+			"tool_calls", toolCalls,
+			"max_batch", maxBatch,
+			"recoveries", recoveries,
+			"tools_per_inv", toolsPerInv,
+			"prompt_est_tokens", promptEstSum,
+			"gen_est_tokens", genEstSum,
 			"model_ms", modelTime.Milliseconds(),
 			"tool_ms", toolTime.Milliseconds(),
 			"total_ms", totalMS,
@@ -570,9 +600,15 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 				modelMS:      modelTime.Milliseconds(),
 				toolMS:       toolTime.Milliseconds(),
 				iters:        iters,
+				toolCalls:    toolCalls,
+				maxBatch:     maxBatch,
+				recoveries:   recoveries,
+				promptEst:    promptEstSum,
+				genEst:       genEstSum,
 				firstTokenMS: firstTokenMS,
 				volatileEst:  volatileEst,
 				source:       source,
+				outcome:      outcome,
 				cold:         cold,
 			})
 		}
@@ -595,6 +631,9 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 		}
 		final := iter == a.maxToolIters
 		iters = iter + 1
+		if final {
+			usedLanding = true
+		}
 		if a.tools != nil && !final {
 			toolDefs = a.publishedTools(ctx, sessionID)
 			shape.schemas = mcp.EstimateToolSchemaTokens(toolDefs)
@@ -613,6 +652,9 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 		}
 		// One-shot: a repair either lands or the turn continues unconstrained.
 		constrained := len(forceNames) > 0
+		if constrained {
+			recoveries++
+		}
 		forceNames = nil
 		promptTokens := estTokens(bounded) + shape.schemas
 		// The re-evaluated remainder: hydration + clock + user message, plus
@@ -665,6 +707,8 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 			return "", err
 		}
 		a.warmed.Store(true)
+		promptEstSum += promptTokens
+		genEstSum += resultGenEst(res)
 		if iter == 0 {
 			volatileEst = volatileTokens
 			if !firstTokenAt.IsZero() {
@@ -711,6 +755,7 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 				)
 				res.ToolCalls = []provider.ToolCall{call}
 				res.Content = ""
+				recoveries++
 			}
 		}
 		if len(res.ToolCalls) == 0 {
@@ -743,10 +788,11 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 					}
 					if !nudged {
 						nudged = true
+						recoveries++
 						messages = append(messages, provider.Message{
 							Role: provider.RoleSystem,
 							Content: "[system] Your previous response contained only internal reasoning — no visible reply and no tool call. " +
-								"Act now: call the tool you decided on (use the exact tool name from the tools list), " +
+								"Act now: call the tool(s) you decided on in one response (exact names from the tools list), " +
 								"or write your final answer as plain assistant text (not only inside thinking). Your reasoning was:\n" +
 								clipChars(res.Thinking, 600),
 						})
@@ -778,21 +824,22 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 					"cron_skipped_live", cronSkippedLive,
 				)
 				nudged = true
+				recoveries++
 				messages = append(messages, provider.Message{
 					Role:    provider.RoleAssistant,
 					Content: res.Content,
 				})
 				nudge := "[system] You described or claimed a tool action, but no tool call was made — nothing actually happened. " +
-					"Emit the real tool call now using the exact name from the tools list. " +
-					"Do not narrate and never report results you did not receive from a tool."
+					"Emit the real tool call(s) now using exact names from the tools list. " +
+					"Independent lookups belong in one response. Do not narrate and never report results you did not receive from a tool."
 				if deferral {
 					nudge = "[system] You said you would continue (try again / one moment / access next), but no tool call was made — the human is left hanging. " +
-						"Act now: emit the real tool call using the exact name from the tools list, " +
+						"Act now: emit the real tool call(s) using exact names from the tools list, " +
 						"OR give a final answer that reports the tool error and stops. Giving up is fine. " +
 						"Do not ask for a moment or promise another attempt without calling a tool."
 				} else if cronSkippedLive {
 					nudge = "[system] This scheduled job needs live data, but you wrote the user-facing result without calling any tools. " +
-						"Emit the real tool calls now using exact names from the tools list. " +
+						"Emit the real tool calls now in one response using exact names from the tools list. " +
 						"Do not invent metrics, events, or search results. After tools return, then write the report. " +
 						"If a tool fails, report the failure."
 				}
@@ -809,6 +856,7 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 					"iteration", iter+1,
 				)
 				giveUp := "I couldn't finish that — tools failed and I stalled instead of retrying or giving up clearly. Please try again."
+				outcomeHint = "stall"
 				var steered bool
 				messages, giveUp, steered, err = a.finishText(ctx, sessionID, messages, giveUp)
 				if err != nil {
@@ -828,6 +876,7 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 				)
 				var steered bool
 				reply := cronSkippedLiveReply
+				outcomeHint = "refuse"
 				messages, reply, steered, err = a.finishText(ctx, sessionID, messages, reply)
 				if err != nil {
 					return "", err
@@ -873,6 +922,12 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 
 		round, canceled := a.runToolRound(ctx, res.ToolCalls, iter, hasProgress, progress)
 		toolTime += round.wall
+		if n := len(round.results); n > 0 {
+			toolCalls += n
+			if n > maxBatch {
+				maxBatch = n
+			}
+		}
 		if canceled {
 			return "", context.Canceled
 		}
@@ -895,7 +950,7 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 			messages = append(messages, provider.Message{
 				Role: provider.RoleSystem,
 				Content: fmt.Sprintf(
-					"[system] Tool budget: %d of %d tool rounds used this turn; %d remain before you must answer. Finish the most important remaining step or wrap up now.",
+					"[system] Tool budget: %d of %d tool rounds used this turn; %d remain before you must answer. Batch remaining independent calls, or wrap up now.",
 					iters, a.maxToolIters, a.maxToolIters-iters),
 			})
 		}
@@ -1354,4 +1409,20 @@ func estTokens(messages []provider.Message) int {
 		}
 	}
 	return n
+}
+
+// resultGenEst is a chars/4 estimate of what the model emitted this round
+// (visible text, thinking, and tool-call arguments).
+func resultGenEst(res *provider.Result) int {
+	if res == nil {
+		return 0
+	}
+	n := len(res.Content) + len(res.Thinking)
+	for _, tc := range res.ToolCalls {
+		n += len(tc.Name) + len(tc.Arguments)
+	}
+	if n == 0 {
+		return 0
+	}
+	return (n + 3) / 4
 }

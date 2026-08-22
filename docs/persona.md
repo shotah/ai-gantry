@@ -76,9 +76,11 @@ A 16k-character file that restates “don’t bluff” three times is worse than
 3k file with two examples.
 
 **Budget:** aim **2–4k characters** on disk (~500–1k tokens). Kernel stamps add
-a bit more at boot. Past that you are competing with history for attention.
-Personality that stays short still steers a long chat; a wall of rules becomes
-background noise around message 20.
+a bit more at boot. Past that you are competing with history for attention —
+and the whole prefix is **re-billed every Completer round**, so a fat persona
+makes serial tool loops even more expensive. Personality that stays short
+still steers a long chat; a wall of rules becomes background noise around
+message 20.
 
 **Altitude:** specific enough to change behavior, not a brittle if-else dump
 and not “be helpful.” Testable always/never beats vibes. “2–4 sentences, answer
@@ -88,8 +90,9 @@ first” beats “be concise.”
 forty rules:
 
 ```text
-“what’s on today?” → call the live calendar tool from this turn’s list, then
-two sentences. Never a fake empty calendar.
+“what’s on today?” → calendar + mail + memory_recall in ONE response
+(independent lookups), then two sentences. Never a fake empty calendar.
+Never serial calendar-then-mail.
 “how’s the long goal going?” → recall `aim/` then live tools. Never invent
 progress.
 A running joke → quote SELF.md. Don’t paraphrase it.
@@ -102,13 +105,14 @@ example that only restates a bullet you already wrote.
 
 1. Identity + voice (who, how it talks)
 2. A few examples (include one long-horizon recall)
-3. Hard do/don’t (tools-first, identity lock, ask-first)
+3. Hard do/don’t (tools-first **and batch independent calls**, identity lock, ask-first)
 4. **Memory hygiene** — the three-layer split (north-star / tracker / wake).
    Keep that section; do not grow it into a project plan. Kernel stamps
    Self-notes + Location pins.
 5. **About you** (timezone as `- **Timezone:** Area/City`)
 6. One load-bearing closer at the **end** (recency): if a tool is in this
-   turn’s list, call it; don’t invent live facts
+   turn’s list, call it; independent lookups all in this response; don’t
+   invent live facts
 
 Put the rule that must never slip on the last line. Models weight the last
 instruction they saw.
@@ -117,9 +121,6 @@ instruction they saw.
 anything `/tools` already shows, **progress logs / mileage / open loops**
 (those are memory, not persona). If a sentence does not change behavior,
 delete it.
-
-When you next edit this file: do not fold the tracker into `SELF.md` or add a
-`goal` kind. The split is locked in [choices.md](choices.md#horizon-state-three-layers-no-goal-kind).
 
 Canonical seed: [`examples/persona/PERSONA.example.md`](../examples/persona/PERSONA.example.md)
 (`make init`).

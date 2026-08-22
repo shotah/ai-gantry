@@ -42,6 +42,28 @@ gantry `tools` / `exclude` in `mcp.toml`. Cap schemas via
 Flash models degrade when fed ~150 tool schemas. Curating to tens of tools
 is the largest latency/quality win after the thought-signature fix.
 
+## Trajectory cost, not per-call thrift
+
+**Pick:** optimize Completer **rounds**. Independent tool calls go in one
+model message; the harness runs the batch concurrently. Persona + a kernel
+narration note teach the fan-out. `/perf` records invocations, tools, max
+batch, recoveries, and prompt/gen estimates so a “cheap” local loop is
+visible as an expensive trajectory.
+
+The standing prompt is re-billed every Completer call. Twenty thin rounds
+with recovery nudges burn more tokens and minutes than six fat parallel
+batches — even when the fat round generates more tokens. Win the trajectory,
+not the individual call.
+
+**Rejected:** teaching “aim ≤6 calls” as a per-round cap — models serialize
+lookups and then spend the budget on recovery.
+
+**Rejected:** sending OpenAI `parallel_tool_calls: true` on every Completer
+request. Gemini’s OpenAI-compat has 400’d on that field
+(`Unknown name "parallel_tool_calls"`); Gemini already fans out by default.
+The prompt and the Go batch runner are the levers that work on every
+backend.
+
 ## Token counting
 
 **Pick:** chars/4 **estimates**, labeled (`est_tokens`, “estimated”).

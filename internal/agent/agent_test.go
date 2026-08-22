@@ -221,6 +221,32 @@ func TestAgent_Handle_MemoryHydration(t *testing.T) {
 	}
 }
 
+// Kernel narration note (end of cached prefix) must ask for a parallel batch.
+func TestAgent_Handle_PersonaAsksForParallelToolBatch(t *testing.T) {
+	var last provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		last = req
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Persona:   "you are SAM",
+		Completer: fc,
+		Sessions:  newMemHistory(),
+		Tools:     &fakeTools{defs: []provider.ToolDef{{Name: "demo__echo"}}},
+		Model:     "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "hi"}); err != nil {
+		t.Fatal(err)
+	}
+	got := last.Messages[0].Content
+	if !strings.Contains(got, "every independent call in this same response") {
+		t.Fatalf("persona missing parallel-batch note: %q", got)
+	}
+}
+
 // Qwen-style stall: thinking present, no answer, no tool call. The agent must
 // nudge the model to act (once) instead of returning an empty reply.
 func TestAgent_Handle_ThinkingOnlyGetsNudged(t *testing.T) {
@@ -332,6 +358,13 @@ func TestAgent_Handle_ProseToolPromiseGetsNudged(t *testing.T) {
 	}
 	if reqs != 3 {
 		t.Fatalf("completions = %d, want 3", reqs)
+	}
+	perf, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "/perf"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(perf, " rec=1 ") {
+		t.Fatalf("nudge should count as a recovery: %q", perf)
 	}
 }
 
@@ -1032,6 +1065,10 @@ func TestAgent_Perf(t *testing.T) {
 	if !strings.HasPrefix(lines[1], "#2 ") || strings.Contains(lines[1], "← cold") {
 		t.Fatalf("newest = %q", lines[1])
 	}
+	if !strings.Contains(lines[1], " user ") || !strings.Contains(lines[1], " tools=0 ") ||
+		!strings.Contains(lines[1], " batch=0 ") || !strings.Contains(lines[1], " rec=0 ") {
+		t.Fatalf("newest missing trajectory fields: %q", lines[1])
+	}
 	if !strings.HasPrefix(lines[2], "#1 ") || !strings.Contains(lines[2], "← cold") {
 		t.Fatalf("oldest = %q", lines[2])
 	}
@@ -1565,5 +1602,12 @@ func TestAgent_ToolRoundRunsInParallel(t *testing.T) {
 	want := []string{"c1=ok-search__web", "c2=ok-calendar__list"}
 	if len(toolsOut) != 2 || toolsOut[0] != want[0] || toolsOut[1] != want[1] {
 		t.Fatalf("tool results = %v, want original order %v", toolsOut, want)
+	}
+	perf, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "/perf"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(perf, " tools=2 ") || !strings.Contains(perf, " batch=2 ") {
+		t.Fatalf("parallel batch missing from /perf: %q", perf)
 	}
 }

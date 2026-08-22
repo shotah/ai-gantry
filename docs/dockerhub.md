@@ -49,7 +49,7 @@ Discord / Slack / stdio).
 
 | Command | Use it for |
 | --- | --- |
-| `/status` `/perf` `/memstats` `/toolstats` `/tokens` | Health, slow turns, memory, MCP timing, prompt size |
+| `/status` `/perf` `/memstats` `/toolstats` `/tokens` | Health, trajectory, memory, MCP timing, prompt size |
 | `/tools` `/examples` `/new` `/cancel` `/help` | Catalog, capability ideas, reset, abort, command list |
 | `/auth` | **Headless OAuth** (Google / Strava / …) — no laptop `localhost` callback |
 

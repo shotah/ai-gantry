@@ -18,6 +18,7 @@ against this binary; they are an argument for keeping them *out of the
 thing you talk to all day*.
 
 Category: **AI harness**. Goal: **long-horizon planning**.
+Optimize **progress per model invocation**, not tokens on a single call.
 
 Aim:
 
@@ -70,7 +71,8 @@ Want another brain? Another process. Not another settings page.
    recall; no cloud vector store in the hot path. This is how long-horizon
    facts survive `/new`.
 4. **Local-model hardening** — tool-name repair, CoT promotion, printed-call
-   parsing, schema budget — so Qwen/Ollama finishes turns instead of ERROR.
+   parsing, schema budget, **parallel batches** so the standing prompt is not
+   re-billed twenty times — Qwen/Ollama finishes turns instead of ERROR.
 5. **Boring ops** — env + mounts, static binary, Distroless or systemd.
    Published images on [Docker Hub](https://hub.docker.com/r/shotah/ai-gantry)
    (`shotah/ai-gantry`) and GHCR on every `main` / tag build.

@@ -127,8 +127,11 @@ saved) instead of an error that drops the work. A soft warning fires around
 70% of the budget.
 
 If you still see anonymous `✓ ✓ ✓ …` with no narration, check `TOOL_TRACE`
-and whether the model is emitting a one-line reason before each call (persona
-nudges this). Raise or lower the budget via env; see [design.md](design.md).
+and whether the model is emitting a one-line reason before the **batch**
+(persona + kernel note ask for independent calls in one response). Serial
+3-tools-per-round over twenty Completer calls re-bills the standing prompt
+each time — `/perf` `iters` / `tools` / `batch` / `rec` is the tell. Raise
+or lower the round budget via env; see [design.md](design.md).
 
 ## More
 

@@ -118,7 +118,7 @@ Type `/help` anytime.
 
 | Command | What it does |
 | --- | --- |
-| `/status` `/perf` `/tokens` | Session bounds, last-turn timing, prompt size |
+| `/status` `/perf` `/tokens` | Session bounds, trajectory (invocations / tools / batch), prompt size |
 | `/tools` `/examples` `/new` `/cancel` | Catalog, ideas, reset session, abort a turn |
 | `/auth` | Headless MCP login — paste a code; no laptop callback |
 

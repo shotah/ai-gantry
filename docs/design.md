@@ -30,10 +30,11 @@ Deploy shapes: [deploy-docker.md](deploy-docker.md) (Hub) ·
    needs a diagram to explain, it probably belongs in an MCP binary, not here.
 2. **Highly performant.** Pure Go, static binary, no CGO, small RSS, no
    background frameworks. Long-poll + goroutines; nothing dials in. Speed is a
-   product feature: curated tool schemas, in-process FTS memory (no embedding
-   round-trip), and a Gemini 3–compatible tool loop that preserves
-   `thought_signature` so multi-step turns finish instead of 400’ing. See
-   **Local-model hardening** below.
+   product feature: curated tool schemas, parallel tool batches (progress per
+   Completer call), in-process FTS memory (no embedding round-trip), and a
+   Gemini 3–compatible tool loop that preserves `thought_signature` so
+   multi-step turns finish instead of 400’ing. See **Local-model hardening**
+   below.
 3. **Highly portable.** `CGO_ENABLED=0` static binary — systemd or Distroless
    (no shell in the image). No glibc dependency in our binary.
 4. **Plugin-centric.** Capabilities come from external binaries over MCP
@@ -73,8 +74,40 @@ expensive. That is why these pieces live in the harness, not in an MCP:
 | Context that does not rot | History caps, `Facts:`/`Voice:` fold, tool collapse |
 | Turns that actually finish | Tool repair, landing call, local-model hardening |
 
-A single chat turn is the unit of *execution*. The horizon is the unit of
-*product*. We named it; we did not invent a second architecture.
+## Progress per invocation
+
+A Completer invocation is the expensive unit. The **completed objective** is
+what we optimize. The horizon is the unit of *product*.
+
+Stop optimizing turns. Optimize **progress per model invocation**.
+
+The standing prompt (persona, history, schemas) is re-billed every Completer
+call. Serial lookups — think → tool → think → tool — multiply that prefix and
+invite recovery loops. Independent work belongs in one batch:
+
+```text
+context → plan the next state transition → fan out tools → consolidate → repeat
+```
+
+That is why these pieces live in the harness:
+
+| Piece | Trajectory job |
+| --- | --- |
+| Compact persona | Stable behavioral prior without eating context |
+| SQLite memory | Don't rediscover the world every round |
+| Caps, collapse, `mcp_enable` | Enough context for a large decision, not everything |
+| Parallel tool batches | Maximize work between Completer calls |
+| MCP | Expand the action surface without stuffing tools into the prompt |
+| Go runtime | Actual concurrent execution of a batch |
+| Cron / watches / `SELF.md` | Preserve trajectory across days |
+| Token accounting | Trajectory cost (invocations × prefix), not tokens on one call |
+
+A slightly more expensive individual round can be a dramatically cheaper
+trajectory. `/perf` records the comparison: invocations, tools, max batch,
+recoveries, prompt/gen estimates, wall time, outcome.
+
+A single chat turn is still how one user message *executes*. The horizon is
+still why the loop exists. We named it; we did not invent a second architecture.
 
 ## Non-goals
 
@@ -231,19 +264,23 @@ losing the plot:
    history (bounded) + user message. MCP names are **not** in persona.
 2. **Call model** with MCP tool schemas (loaded eagerly at boot; refreshed on
    server restart; this is the live catalog).
-3. **Tool iteration**: execute calls via MCP host (repair unambiguous prefix
-   mistakes, else suggest closest real names *and* constrain the next call to
-   them), truncate each result to `TOOL_RESULT_MAX_CHARS`, loop until final
-   text or `TOOL_MAX_ITERATIONS`. At ~70% of the budget the model is told how
-   many rounds remain; at the cap one landing call runs with tools withheld so
-   the turn ends in a real reply. Each call appends a trace line to a
-   streaming reply so long chains show motion.
+3. **Tool iteration**: execute a **batch** via the MCP host (independent
+   calls run concurrently; same-server stdio still serializes). Repair
+   unambiguous prefix mistakes, else suggest closest real names *and*
+   constrain the next call to them. Truncate each result to
+   `TOOL_RESULT_MAX_CHARS`. Loop until final text or `TOOL_MAX_ITERATIONS`.
+   At ~70% of the budget the model is told how many rounds remain; at the
+   cap one landing call runs with tools withheld so the turn ends in a real
+   reply. Each call appends a trace line to a streaming reply so long
+   chains show motion.
 4. **Reply** on the channel; append turn to session.
 
-Every turn logs its own cost: `model call`, `tool done`, and `turn perf`
-(`model_ms` / `tool_ms` / `total_ms`). On local models that split is the
-difference between a prefill problem and a slow MCP —
-[deploy-native.md](deploy-native.md#latency-measure-before-tuning).
+Every objective logs its trajectory: `model call`, `tool done`, and `turn perf`
+(`iterations`, `tool_calls`, `max_batch`, `recoveries`, `prompt_est_tokens`,
+`gen_est_tokens`, `model_ms` / `tool_ms` / `total_ms`, `outcome`). On local
+models the model/tool split is still which half to attack —
+[deploy-native.md](deploy-native.md#latency-measure-before-tuning). `/perf`
+shows the same numbers in chat.
 
 | Mechanism | Behavior |
 | --- | --- |
@@ -251,7 +288,7 @@ difference between a prefill problem and a slow MCP —
 | Rolling summary | Trimmed turns fold into `session.summary` (`Facts:` + `Voice:`) via the same LLM; Voice copies forward; reinjected later |
 | Tool truncate | Each MCP/memory tool result capped at `TOOL_RESULT_MAX_CHARS` |
 | Tool collapse | Tool payloads older than the last 2 become one-line markers; matching tool-call args are stubbed. Session history never stores tool payloads. |
-| Iteration cap | `TOOL_MAX_ITERATIONS` tool rounds, then one landing call with tools withheld |
+| Iteration cap | `TOOL_MAX_ITERATIONS` Completer rounds with tools, then one landing call with tools withheld |
 
 `/new` wipes the session. `Voice:` folds into `SELF.md` (when self-notes are
 enabled). `Facts:` park as a memory episode — `PERSONA.md` is operator-owned and

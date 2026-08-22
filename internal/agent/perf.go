@@ -10,7 +10,7 @@ import (
 // perfRingSize is the fixed in-process history for /perf (not an env knob).
 const perfRingSize = 12
 
-// perfRecord is one completed turn's latency split (same numbers as "turn perf").
+// perfRecord is one completed objective's trajectory (same numbers as "turn perf").
 type perfRecord struct {
 	seq          uint64
 	when         time.Time
@@ -18,9 +18,15 @@ type perfRecord struct {
 	modelMS      int64
 	toolMS       int64
 	iters        int
+	toolCalls    int
+	maxBatch     int
+	recoveries   int
+	promptEst    int
+	genEst       int
 	firstTokenMS int64  // iteration 1 only; 0 = non-streaming
 	volatileEst  int    // iteration 1 volatile token estimate
-	source       string // user | cron | reaction
+	source       string // user | cron | watch | reaction
+	outcome      string // ok | landing | stall | refuse | error | cancel
 	cold         bool   // first turn after boot
 }
 
@@ -98,16 +104,29 @@ func (a *Agent) formatPerf() string {
 		if a.loc != nil {
 			when = when.In(a.loc)
 		}
-		line := fmt.Sprintf("#%d %s  total=%s model=%s tool=%s iters=%d first_token=%s volatile≈%s",
+		src := rec.source
+		if src == "" {
+			src = "user"
+		}
+		line := fmt.Sprintf("#%d %s  %s  total=%s model=%s tool=%s iters=%d tools=%d batch=%d rec=%d prompt≈%s gen≈%s first_token=%s volatile≈%s",
 			rec.seq,
 			when.Format("15:04:05"),
+			src,
 			formatSec(rec.totalMS),
 			formatSec(rec.modelMS),
 			formatSec(rec.toolMS),
 			rec.iters,
+			rec.toolCalls,
+			rec.maxBatch,
+			rec.recoveries,
+			formatVolatileK(rec.promptEst),
+			formatVolatileK(rec.genEst),
 			formatSec(rec.firstTokenMS),
 			formatVolatileK(rec.volatileEst),
 		)
+		if rec.outcome != "" && rec.outcome != "ok" {
+			line += "  " + rec.outcome
+		}
 		if rec.cold {
 			line += "  ← cold"
 		}

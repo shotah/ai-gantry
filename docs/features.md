@@ -83,6 +83,15 @@ concurrently; results are appended in the original `tool_call_id` order.
 Same-server stdio still serializes inside the MCP host (one child, one pipe).
 Long chains show motion in the bubble (`TOOL_TRACE`).
 
+The standing prompt is **re-billed every Completer round**. A “cheap” local
+loop — 20 rounds × 3 serial tools, recovery nudges — costs more tokens and
+wall time than a fatter batch: 6 rounds × 12 parallel calls, clean
+trajectory. Win the trajectory, not the individual call. Persona + the
+kernel narration note teach: independent lookups in one response; chain only
+when a later call needs an earlier result. `/perf` shows invocations, tools,
+max batch, recoveries, prompt/gen estimates so you can see whether a change
+did more work per decision.
+
 ### Quiet watches
 
 A watch is a **cursor + poll**, not a chat loop. Quiet ticks call an MCP
@@ -125,7 +134,8 @@ miss them.
 - Tool payloads older than the last 2 collapse to one-line markers; matching
   tool-call args are stubbed. Session history never stores fat payloads
 - `thought_signature` kept even when args are stubbed
-- Per-turn logs: `model_ms` / `tool_ms` / `total_ms`, schema estimates
+- Per-objective logs: `iterations` / `tool_calls` / `max_batch` / `recoveries` /
+  `prompt_est_tokens` / `gen_est_tokens` / `model_ms` / `tool_ms` / `total_ms`
 - Fail-fast env: missing required vars = clear error + exit 1
 
 ### Streaming UX
@@ -294,7 +304,7 @@ out of *this* git.
 | Category | AI harness; goal is long-horizon planning | [positioning](positioning.md) · [design](design.md#harness-and-long-horizon-planning) |
 | Personality | `SELF.md`, `self_note`, Voice graduate, distill on `/new`, operator prune | [troubleshooting](troubleshooting.md#selfmd--personality-drift) |
 | History / tokens | Caps, filler strip, `Facts:`/`Voice:` fold, tool collapse, `/tokens` | [design](design.md) |
-| Tool loop | Parallel batch, alias, closest-name, grammar retry, salvage, CoT promote, landing call, signatures | [mcp](mcp.md) · [design](design.md#local-model-hardening) |
+| Tool loop | Parallel batch, alias, closest-name, grammar retry, salvage, CoT promote, landing call, signatures; `/perf` trajectory | [mcp](mcp.md) · [design](design.md#progress-per-invocation) |
 | Memory | store / recall / forget, FTS5, consolidator, persona precedence, no auto-save | [memory](memory.md) |
 | Time | Temporal footer, cron, spark, examples, `[silent]`, live-data nudge | [cron](cron.md) |
 | Events | Watch cursor + poll, Completer only on new ids | [watch](watch.md) |
