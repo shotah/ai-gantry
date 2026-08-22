@@ -276,7 +276,7 @@ losing the plot:
 4. **Reply** on the channel; append turn to session.
 
 Every objective logs its trajectory: `model call`, `tool done`, and `turn perf`
-(`iterations`, `tool_calls`, `max_batch`, `recoveries`, `prompt_est_tokens`,
+(`source`, `user_id`, `session_id`, `iterations`, `tool_calls`, `max_batch`, `recoveries`, `prompt_est_tokens`,
 `gen_est_tokens`, `model_ms` / `tool_ms` / `total_ms`, `outcome`). On local
 models the model/tool split is still which half to attack —
 [deploy-native.md](deploy-native.md#latency-measure-before-tuning). `/perf`

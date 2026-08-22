@@ -100,7 +100,7 @@ journalctl -u gantry -f | grep -E 'model call|tool done|turn perf'
 | --- | --- | --- |
 | `model call` | `first_token_ms`, `dur_ms`, `prompt_est_tokens`, `volatile_est_tokens`, `schema_est_tokens`, `tool_calls`, `finish_reason` | `first_token_ms` ≈ prefill; rest of `dur_ms` is decode; `*_est_tokens` are chars/4 estimates |
 | `tool done` | `name`, `dur_ms`, `result_chars` | slow MCP vs slow model |
-| `turn perf` | `iterations`, `tool_calls`, `max_batch`, `recoveries`, `prompt_est_tokens`, `gen_est_tokens`, `tools_per_inv`, `model_ms`, `tool_ms`, `total_ms`, `outcome` | Trajectory: work per Completer round, not just which half of the wall clock |
+| `turn perf` | `source`, `user_id`, `session_id`, `iterations`, `tool_calls`, `max_batch`, `recoveries`, `prompt_est_tokens`, `gen_est_tokens`, `tools_per_inv`, `model_ms`, `tool_ms`, `total_ms`, `outcome` | Trajectory: work per Completer round; `user_id` is the channel identity gantree ranks spend by |
 
 Because the logs are structured JSON, `jq` turns them into ad-hoc metrics —
 `-o cat` strips journald's prefix so lines parse cleanly:

@@ -134,7 +134,7 @@ miss them.
 - Tool payloads older than the last 2 collapse to one-line markers; matching
   tool-call args are stubbed. Session history never stores fat payloads
 - `thought_signature` kept even when args are stubbed
-- Per-objective logs: `iterations` / `tool_calls` / `max_batch` / `recoveries` /
+- Per-objective logs: `source` / `user_id` / `session_id` / `iterations` / `tool_calls` / `max_batch` / `recoveries` /
   `prompt_est_tokens` / `gen_est_tokens` / `model_ms` / `tool_ms` / `total_ms`
 - Fail-fast env: missing required vars = clear error + exit 1
 

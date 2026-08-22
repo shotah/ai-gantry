@@ -287,6 +287,8 @@ menu”; toggles are the real grant.
 - Tool errors a model (and a UI) can tell apart: no binary vs no key vs no
   OAuth
 - Stable enough file/env contract that a console can write them
+- `user_id` + `session_id` on every `turn perf` line so a yard can
+  rank spend by person without sitting in the token path
 
 **Keep in gantree**
 

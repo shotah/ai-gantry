@@ -515,7 +515,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		"est_tokens", estTokens(messages)+shape.schemas,
 	)
 
-	reply, err := a.runLoop(turnCtx, msg.SessionID, messages, toolDefs, shape, turnSource(text))
+	reply, err := a.runLoop(turnCtx, msg.SessionID, msg.UserID, messages, toolDefs, shape, turnSource(text))
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return "", nil
@@ -544,7 +544,7 @@ type promptShape struct {
 	schemas   int // est tokens in the tool schema block
 }
 
-func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provider.Message, toolDefs []provider.ToolDef, shape promptShape, source string) (reply string, err error) {
+func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages []provider.Message, toolDefs []provider.ToolDef, shape promptShape, source string) (reply string, err error) {
 	streamer, canStream := a.completer.(provider.Streamer)
 	writer, hasWriter := channel.ReplyWriterFrom(ctx)
 	progress, hasProgress := channel.ProgressWriterFrom(ctx)
@@ -593,6 +593,8 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 		}
 		a.log.Info("turn perf",
 			"source", source,
+			"user_id", userID,
+			"session_id", sessionID,
 			"outcome", outcome,
 			"iterations", iters,
 			"tool_calls", toolCalls,
