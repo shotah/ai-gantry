@@ -11,8 +11,8 @@ survives `/new` — **zero MCP required**.
 
 A full life-stack (Workspace / Strava / Garmin / …) is **not this tree**.
 One-off consumers: [`examples/`](../examples/). N isolated agents on a box
-is a proposed sibling console — [gantree.md](gantree.md) — not an appliance
-folder in this checkout.
+is a sibling console — [gantree](https://github.com/shotah/gantree) — not an
+appliance folder in this checkout.
 
 ---
 
@@ -295,8 +295,8 @@ what landed in `SELF.md`.
 Strangers who want two bots, SSH deploy, and laptop OAuth will not find that
 as a tree next to `cmd/gantry`. Hello is still Hub compose with **zero**
 tools ([deploy-docker.md](deploy-docker.md)). N instances is a different
-product: [gantree.md](gantree.md) (yard console, proposal). Keep house keys
-out of *this* git.
+product: [gantree](https://github.com/shotah/gantree) (yard console). Keep
+house keys out of *this* git.
 
 ---
 
@@ -317,7 +317,7 @@ out of *this* git.
 | Persona files | `PERSONA.md` → `SELF.md`, harness stamps | [design](design.md) |
 | Runtime | Static Go, Distroless, heartbeat, drain, SIGHUP, logfwd | [architecture](architecture.md) |
 | Deploy | Hub compose, native systemd+Ollama, GCP/AWS templates | [deploy-docker](deploy-docker.md) · [deploy-native](deploy-native.md) |
-| Yard | **Proposal** — console to plant/manage gantries + MCP grants | [gantree](gantree.md) |
+| Yard | Console, metrics, grant tools, several agents | [gantree](https://github.com/shotah/gantree) |
 | Won’t | Dashboard, pairing, inbound webhooks, WhatsApp/Teams, multi-agent router | [positioning](positioning.md) |
 
 Contract (env table, loop bounds): [design.md](design.md).

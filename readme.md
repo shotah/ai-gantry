@@ -38,10 +38,11 @@ reminders work with **zero extra tools** — add MCP binaries later if you want.
 
 We spent the engineering budget on the **harness** — tool calling, MCP,
 context economics, memory that outlives a session, and finishing turns on
-small local models. The harness is the product. A management plane is
-infrastructure ([gantree](docs/gantree.md), proposal) and stays out of this
-binary. Completeness of the platform is not the goal. Long-horizon
-planning is.
+small local models. The harness is the product. Console, metrics, and
+fleet automation live one layer up in
+**[gantree](https://github.com/shotah/gantree)** — the shipping yard — and
+stay out of this binary. Completeness of the platform is not the goal.
+Long-horizon planning is.
 
 If it clicks, the same binary grows with you (persona files, inspectable
 SQLite, optional tools). If you need a team workspace on day one, this is
@@ -104,6 +105,7 @@ LLM_MODEL=gemini-3.5-flash
 | **[examples/docker/](examples/docker/)** | Laptop / any Docker host *(start here)* |
 | **[examples/native/](examples/native/)** | Linux + systemd + a local model |
 | **[examples/hosting/gcp/](examples/hosting/gcp/)** · **[aws](examples/hosting/aws/)** | Small always-on VM |
+| **[gantree](https://github.com/shotah/gantree)** | Console, metrics, grant tools, several agents |
 | `make init && make run` | Hack on the binary (`CHANNEL=stdio`) |
 
 Cookbook: **[examples/README.md](examples/README.md)**.
@@ -113,8 +115,11 @@ A full life-stack (persona + MCP + compose) lives in a consumer repo, not this h
 
 ## Chat is the console
 
-Ops live in the same chat you already opened. No second UI, no inbound port.
-Type `/help` anytime.
+Ops live in the same chat you already opened. No second UI in *this*
+binary, no inbound port. Type `/help` anytime. Graphs, a board of
+agents, MCP grants without SSH — that is
+**[gantree](https://github.com/shotah/gantree)**. It never sits in a
+chat turn.
 
 | Command | What it does |
 | --- | --- |
@@ -156,6 +161,7 @@ Horizon split: **[docs/persona.md](docs/persona.md#where-the-horizon-lives)**.
 | Env, loop, memory, long-horizon contract | **[docs/design.md](docs/design.md)** |
 | Wiring MCP tools | **[docs/mcp.md](docs/mcp.md)** |
 | Why outbound-only / who it’s for | **[docs/positioning.md](docs/positioning.md)** |
+| Console, metrics, or several agents | **[gantree](https://github.com/shotah/gantree)** |
 | Security notes | **[docs/security.md](docs/security.md)** |
 
 The harness is a small static Go binary. Tools are optional MCP processes.

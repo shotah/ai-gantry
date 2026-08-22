@@ -1,6 +1,7 @@
-# Gantree (proposal)
+# Gantree
 
-Sibling product. **Not built yet.** Not this harness. Not anyone’s house git.
+Sibling product. **Ships in [shotah/gantree](https://github.com/shotah/gantree).**
+Not this harness. Not anyone’s house git.
 
 `ai-gantry` is the **AI harness** (the crane): one process, one persona, one
 model, one `data/`. It talks to a human in Telegram. It does **not** grow a
@@ -12,7 +13,8 @@ cranes. See them. Plant a new one. Grant Google, yank Strava, notice a dead
 token, recreate, read logs. Chat stays the agent’s mouth. Gantree is the
 operator’s.
 
-This page is the pitch + design for a **new public repo**. Nothing here ships
+This page is the harness-side design note. Hello and install live in
+[shotah/gantree](https://github.com/shotah/gantree). Nothing here ships
 in the `gantry` binary. Hello for a single agent is still
 [deploy-docker.md](deploy-docker.md).
 

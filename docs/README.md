@@ -10,7 +10,7 @@ long-horizon planning) lives in [design.md](design.md); diagrams in
 | --- | --- |
 | [features.md](features.md) | **Inventory:** The Great / The Good / The Okay / The Ugly |
 | [persona.md](persona.md) | **Write `PERSONA.md`:** two files, tight budget, no MCP catalog, north-star vs memory vs cron |
-| [gantree.md](gantree.md) | **Proposal:** yard console — UI to plant/manage gantries + MCP grants (not this harness) |
+| [gantree.md](gantree.md) | Yard console (sibling): [shotah/gantree](https://github.com/shotah/gantree) — metrics, grants, several agents |
 | [positioning.md](positioning.md) | ICP, competition, Docker Hub story, when (not) to add a site |
 | [dockerhub.md](dockerhub.md) | **Hub overview** synced by CI (keep lean; PNG banner) |
 | [deploy-docker.md](deploy-docker.md) | **Fastest hello:** Hub pull + compose; MCP auth (chat `/auth` or laptop) |
@@ -33,8 +33,9 @@ long-horizon planning) lives in [design.md](design.md); diagrams in
 | [watch.md](watch.md) | Poll MCP fetch tools; `feeds-mcp` / `twitter-mcp` adapters |
 
 Start with **deploy-docker** (Hub pull) or **deploy-native** for a running bot;
-**features** for the honest inventory; **gantree** for the proposed yard
-console (not this harness); **auth** for headless MCP login;
+**features** for the honest inventory;
+**[gantree](https://github.com/shotah/gantree)** for the yard console
+(not this harness); **auth** for headless MCP login;
 **positioning** for who/why; **architecture** for the code; **mcp** before
 wiring tools; **security** before exposing an allowlist with real tool
 credentials. Audit grown personality in **troubleshooting** (`SELF.md`)

@@ -13,9 +13,9 @@ Not “fewer features than a platform.” **We spent the engineering budget on
 the harness** — the runtime around the model that you actually talk to.
 
 The harness is the product. The management plane is infrastructure
-([gantree.md](gantree.md) — proposal). Dashboards are not an argument
-against this binary; they are an argument for keeping them *out of the
-thing you talk to all day*.
+([gantree](https://github.com/shotah/gantree)). Dashboards are not an
+argument against this binary; they are an argument for keeping them
+*out of the thing you talk to all day*.
 
 Category: **AI harness**. Goal: **long-horizon planning**.
 Optimize **progress per model invocation**, not tokens on a single call.
@@ -80,9 +80,9 @@ Want another brain? Another process. Not another settings page.
    fold. A turn is execution; the horizon is the product.
 
 Sell the **harness**. A life-stack (Workspace, Strava, …) is a consumer you
-own. Operating N isolated agents is a proposed sibling console
-([gantree.md](gantree.md)), not a folder in this checkout. Hello path: Hub
-compose or [`examples/`](../examples/).
+own. Operating N isolated agents is a sibling console
+([gantree](https://github.com/shotah/gantree)), not a folder in this
+checkout. Hello path: Hub compose or [`examples/`](../examples/).
 
 ---
 
