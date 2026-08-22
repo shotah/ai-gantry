@@ -155,6 +155,57 @@ func TestRunner_SilentReplySkipsPush(t *testing.T) {
 	}
 }
 
+func TestRunner_SparkPingAllowsTools(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+
+	store, err := cron.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().UTC().Add(-time.Minute)
+	_, err = store.Schedule(ctx, cron.DefaultSparkPrompt, cron.SparkPingParsed(past, "UTC"), cron.Delivery{
+		SessionID: "telegram:1:2", UserID: "2", ChatID: "1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pusher := &memPusher{}
+	var handled string
+	var sawNoTools bool
+	runner := &cron.Runner{
+		Store: store,
+		Handle: func(ctx context.Context, msg channel.Message) (string, error) {
+			sawNoTools = channel.NoToolsFrom(ctx)
+			handled = msg.Text
+			return cron.SilentToken, nil
+		},
+		Pusher: pusher,
+	}
+	runner.FireDueForTest(ctx)
+
+	if sawNoTools {
+		t.Fatal("spark_ping must allow tools")
+	}
+	if !cron.IsSparkTurn(handled) {
+		t.Fatalf("prompt=%q", handled)
+	}
+	if !strings.Contains(handled, "aim/") && !strings.Contains(handled, "SELF.md") {
+		t.Fatalf("spark prompt should mention aims: %q", handled)
+	}
+	pusher.mu.Lock()
+	n := len(pusher.msgs)
+	pusher.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("silent spark must not push, got %d", n)
+	}
+}
+
 func TestRunner_StartAndNil(t *testing.T) {
 	(&cron.Runner{}).Start(context.Background()) // no-op
 

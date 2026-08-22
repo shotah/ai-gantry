@@ -1,6 +1,7 @@
 package cron_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,17 @@ func TestParseSparkPrompts(t *testing.T) {
 	defaults := cron.ParseSparkPrompts("")
 	if len(defaults) < 5 {
 		t.Fatalf("empty → default pool, got %d entries: %#v", len(defaults), defaults)
+	}
+	for _, p := range defaults {
+		if strings.Contains(strings.ToLower(p), "no tools") {
+			t.Fatalf("default spark prompt must allow tools: %q", p)
+		}
+		if !strings.Contains(p, "aim/") && !strings.Contains(p, "SELF.md") && !strings.Contains(p, "cron") {
+			t.Fatalf("default spark prompt must be horizon work: %q", p)
+		}
+		if !strings.Contains(p, "[silent]") && !strings.Contains(p, "silent") {
+			t.Fatalf("default spark prompt must mention silent: %q", p)
+		}
 	}
 	fromConst := cron.ParseSparkPrompts(cron.DefaultSparkPrompt)
 	if len(fromConst) != len(defaults) {
@@ -149,5 +161,18 @@ func TestParseSchedule_Spark(t *testing.T) {
 	}
 	if p.Expr != "4-6@06-21" {
 		t.Fatalf("expr=%q", p.Expr)
+	}
+}
+
+func TestIsSparkTurn(t *testing.T) {
+	t.Parallel()
+	if !cron.IsSparkTurn(cron.SparkPingPrefix + "recall aim/") {
+		t.Fatal("prefix + body should be a spark turn")
+	}
+	if cron.IsSparkTurn(cron.JobUserPrefix + "Fetch Garmin sleep") {
+		t.Fatal("scheduled job is not a spark turn")
+	}
+	if cron.IsSparkTurn("hey") {
+		t.Fatal("user chat is not a spark turn")
 	}
 }

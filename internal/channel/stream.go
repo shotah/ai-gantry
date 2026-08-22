@@ -7,7 +7,7 @@ type replyWriterKey struct{}
 type noToolsKey struct{}
 
 // WithNoTools marks the context so the agent omits tool schemas and calls.
-// Used for spark_ping presence turns ("No tools" must be enforced, not prompt-only).
+// Used for examples_ping turns ("propose only" must be enforced, not prompt-only).
 func WithNoTools(ctx context.Context) context.Context {
 	return context.WithValue(ctx, noToolsKey{}, true)
 }

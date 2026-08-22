@@ -12,20 +12,18 @@ import (
 // KindSpark is the daily planner: rolls qty and inserts KindSparkPing jobs for the day.
 const KindSpark = "spark"
 
-// KindSparkPing is one presence ping created by the planner (one-shot).
+// KindSparkPing is one horizon-planning wake created by the planner (one-shot).
 const KindSparkPing = "spark_ping"
 
 // DefaultSparkPrompt is used when SPARK_PROMPT is empty but spark is enabled.
 // One variant per line; PickSparkPrompt chooses randomly at fire time.
+// Every line is horizon work (aims / memory / cron / live tools), not a chat ping.
 const DefaultSparkPrompt = "" +
-	"Share a fascinating, hyper-specific lab-energy curiosity — biometric, recovery, focus, or craft. No tools. Under 3 sentences. No dad jokes or canned games.\n" +
-	"Offer a sharp, dry observation about tech or everyday friction. No tools. Under 3 sentences. Present, not preachy.\n" +
-	"Drop a slightly sarcastic take on outdoor culture or training habits. No tools. Under 3 sentences. Authentic, not a template game.\n" +
-	"Send a raw midday check-in with one concrete, non-generic insight. No tools. Under 3 sentences. Skip jokes and internet games.\n" +
-	"Notice something oddly specific about modern work or tools, then land it lightly. No tools. Under 3 sentences.\n" +
-	"Share one athletic-recovery or focus insight that feels researched, not motivational-poster. No tools. Under 3 sentences.\n" +
-	"Make a dry, present observation about weather, place, or the weirdness of being online all day. No tools. Under 3 sentences.\n" +
-	"Offer a curious craft or systems thought — specific enough to feel real. No tools. Under 3 sentences. No would-you-rathers or two-truths."
+	"First: memory_recall aim/. If SELF.md has no north-star and recall is empty, recall subject aim/bootstrap. Already asked and no answer → [silent]. Never asked → ONE months-scale question (what should we be aiming at for the next few months?). Do not invent. memory_store fact subject aim/bootstrap that you asked.\n" +
+	"If aims exist: replan today. In one response: cron_list plus live tools in this turn's list (calendar, mail, fitness — mcp_enable a prefix if it is off and needed). If the day shifted or they are off track, one sentence. If nothing changed, [silent]. Ask-first: no email, spend, or posts.\n" +
+	"Pick one north-star from SELF.md. memory_recall aim/<area> and cron_list in one response. If that aim has no wake, cron_schedule one (live-data jobs must name the tools and say not to invent numbers). If a live tool would update progress, call it. memory_store a short progress fact. Then [silent] unless a hole needs the human.\n" +
+	"Audit cron_list against SELF.md north-stars and memory aim/. Cancel wakes that no longer match. Schedule missing ones. Reply [silent] if the board is already right.\n" +
+	"Look at SELF.md aims plus [current time] and today's live context. If something is due, stalled, or the morning plan broke, do the work with tools (or schedule the next wake). Reply [silent] when the work is only for you."
 
 // ParseSparkPrompts splits a prompt pool on newlines (literal \n in env is expanded).
 // Empty input → default pool. One line → single prompt (commas/colons fine).
@@ -44,7 +42,7 @@ func ParseSparkPrompts(s string) []string {
 		}
 	}
 	if len(out) == 0 {
-		return []string{"Be present with a short joke or check-in. No tools. 1–3 sentences."}
+		return []string{"Wake and make progress on north-star aims. Recall aim/, check cron_list, call tools or schedule wakes. Reply [silent] unless the human needs a message."}
 	}
 	return out
 }

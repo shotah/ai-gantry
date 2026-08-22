@@ -68,7 +68,7 @@ expensive. That is why these pieces live in the harness, not in an MCP:
 
 | Horizon work | What the harness does |
 | --- | --- |
-| Standing goals | Cron + watches fire the same loop later; spark keeps presence |
+| Standing goals | Cron + watches fire the same loop later; spark randomly wakes to progress aims |
 | Personality | `SELF.md` / `self_note` / Voice distill outlive `/new` |
 | Facts | SQLite memory + consolidator; persona files outrank recall |
 | Context that does not rot | History caps, `Facts:`/`Voice:` fold, tool collapse |
@@ -192,7 +192,7 @@ Boot is fail-fast: missing required env = clear error + exit 1.
 | `CRON_TICK_SECONDS` | no | `15` |
 | `WATCH_ENABLED` | no | `true` — [watch.md](watch.md) |
 | `WATCH_MAX` | no | `50` |
-| `SPARK_QTY` | no | empty = off (`5`, `4-6`) |
+| `SPARK_QTY` | no | `2-3` (empty/`0` = off) |
 | `SPARK_START_HOUR` / `SPARK_END_HOUR` | no | `6` / `21` |
 | `SPARK_PROMPT` | no | empty |
 | `SPARK_SKIP_RECENT_MINUTES` | no | `30` |

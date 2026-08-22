@@ -18,7 +18,7 @@ func ToolDefs() []provider.ToolDef {
 		Name: ToolNote,
 		Description: "APPEND one short new line to SELF.md (does not overwrite or distill the file). " +
 			"Only for a vibe, joke, ritual, or north-star aim that is NOT already in the SELF.md bullets in your prompt — skip if it is already there or only a paraphrase. " +
-			"A north-star is one sentence for months (how you show up). Progress logs and one-off to-dos are memory_store or cron, not this. " +
+			"A north-star is one sentence for months (how you show up). When they state one, write it here. Progress logs and one-off to-dos are memory_store or cron, not this. " +
 			"/new distill merges (does not flatten jokes). Not for facts about the human — use memory_store for those.",
 		Parameters: map[string]any{
 			"type": "object",

@@ -144,6 +144,19 @@ Firing a job must run `agent.Handle` and **push** on Telegram. An MCP server
 alone cannot outbound to the channel. External `docker exec` poke remains a
 valid interim escape hatch but is not the product surface.
 
+## Spark of life is horizon work, not presence
+
+**Pick:** spark wakes run the full tool loop (memory, cron, MCP). `[silent]`
+is the default push skip when the human does not need a ping. A zero-tool
+joke is nudged once; a second skip stays silent so it is not shipped.
+Default qty is `2-3` (`SPARK_QTY=0` off). An empty board asks **once** for a
+north-star; we do not seed a fake aim.
+
+**Rejected:** no-tools joke/check-in pings. Presence without progress is a
+chatbot with a timer. The long-horizon product is aims + wakes; spark is the
+random planner that moves the bar.
+**Rejected:** inventing a first aim at spawn. The human has to name it.
+
 ## Event watches
 
 **Pick:** harness poller (`watch` table + `Host.CallRaw` + id cursor), not

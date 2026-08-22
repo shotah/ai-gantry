@@ -24,8 +24,8 @@ pull is visible in chat. Server logs still show `tool call` / `model call`.
 
 The model can skip the push by replying with `[silent]` (first line). The job
 still runs and the turn is stored; nothing is sent to chat. Use that for
-all-clear / work-only jobs (dead-man, health checks) and for spark when a
-check-in would be noise.
+all-clear / work-only jobs (dead-man, health checks) and for spark when the
+work does not need a human-facing message.
 
 ## Config
 
@@ -35,10 +35,10 @@ check-in would be noise.
 | `CRON_TZ` | `America/Los_Angeles` | IANA timezone for clock times (Pacific — SJ / SF / SEA / LA) |
 | `CRON_MAX_JOBS` | `50` | Cap on enabled jobs |
 | `CRON_TICK_SECONDS` | `15` | Due-job poll interval |
-| `SPARK_QTY` | _(empty)_ | **Opt-in** spark-of-life. Empty = off. `5` or `4-6` (random count/day) |
+| `SPARK_QTY` | `2-3` | **On by default** spark-of-life. Empty or `0` = off. `2-3` or `5` (random count/day) |
 | `SPARK_START_HOUR` | `6` | Local window start (inclusive), used when spark is on |
 | `SPARK_END_HOUR` | `21` | Local window end (exclusive), e.g. 21 → last ping before 9pm |
-| `SPARK_PROMPT` | _(built-in check-in pool)_ | One prompt, or one per line (`\n`) — random pick per ping |
+| `SPARK_PROMPT` | _(built-in horizon pool)_ | One prompt, or one per line (`\n`) — random pick per wake |
 | `SPARK_SKIP_RECENT_MINUTES` | `30` | Skip/defer if the human messaged within this many minutes |
 | `EXAMPLES_QTY` | `1-2` | **On by default** capability-example pings. Empty or `0` = no proactive pings. `/examples` on-demand still works |
 | `EXAMPLES_START_HOUR` | `6` | Local window start for examples pings |
@@ -62,7 +62,7 @@ check-in would be noise.
 | `17:00` | `daily` | Every day at 5pm |
 | `every:1h` | — | Interval from now |
 | RFC3339 | `once` | Absolute UTC/offset time |
-| `4-6@06-21` | `spark` | Random 4–6 presence pings/day between 6am and 9pm |
+| `2-3@06-21` | `spark` | Random 2–3 horizon-planning wakes/day between 6am and 9pm |
 | `1-2@06-21` | _(boot)_ | Examples planner uses the same qty@HH-HH shape (`examples` / `examples_ping` kinds) |
 
 Example prompts the model can schedule:
@@ -73,14 +73,16 @@ At 5pm daily: summarize calendar + work email for the past 8 hours.
 At midnight daily: check last 48h of chat + Garmin. If all-clear, reply [silent].
 ```
 
-## Spark of life (opt-in)
+## Spark of life (on by default)
 
-Random presence pings — short authentic check-ins, not ops digests.
-**Off unless `SPARK_QTY` is set.**
+Random **horizon wakes** — replan today against `SELF.md` north-stars and memory
+`aim/`, call tools, and `cron_schedule` the next wake. Empty board: ask **one**
+months-scale question (do not invent an aim), then `self_note` + `memory_store`
+`aim/<area>` when they answer. Not jokes. **Off when `SPARK_QTY` is empty or `0`.**
 
 On Telegram, boot auto-binds a spark **planner** per allowlisted DM (`chat_id` =
-user id) and seeds that day's pings. Other channels: `cron_schedule`
-(`repeat=spark`, `when=4-6@06-21`).
+user id) and seeds that day's wakes. Other channels: `cron_schedule`
+(`repeat=spark`, `when=2-3@06-21`).
 
 How it works:
 
@@ -91,18 +93,21 @@ How it works:
 3. Before each seed (planner wake or boot catch-up), pending `spark_ping` rows for that
    session are cancelled — prior-day leftovers and restarts do **not** compound.
    Once today is planned (planner `next_run` is tomorrow), reboot does not roll a second set.
-4. Each ping picks one line from `SPARK_PROMPT` (if multi-line) and runs the agent;
-   if the human messaged within `SPARK_SKIP_RECENT_MINUTES`, that ping is deferred
-   once, then dropped if still chatting. The agent can also reply `[silent]` to
-   skip the push when a check-in would feel like noise.
-5. Cancelling the spark planner (`cron_cancel`) also disables pending pings for that session.
+4. Each wake picks one line from `SPARK_PROMPT` (if multi-line) and runs the **full
+   agent loop** (memory, cron, MCP tools). A zero-tool joke is nudged once; a second
+   skip stays `[silent]` so it is not pushed. If the human messaged within
+   `SPARK_SKIP_RECENT_MINUTES`, that wake is deferred once, then dropped if still chatting.
+5. Work-only is the default: reply `[silent]` unless a hole needs the human (or the
+   board is empty and it is time to ask once). Ask-first still applies (no email,
+   spend, or public posts from a spark).
+6. Cancelling the spark planner (`cron_cancel`) also disables pending pings for that session.
 
 ```env
-SPARK_QTY=4-6
+SPARK_QTY=2-3
 SPARK_START_HOUR=6
 SPARK_END_HOUR=21
-# Optional: one prompt, or one variant per line (random pick per ping):
-# SPARK_PROMPT=Generate a short Spark of Life check-in. Keep it under 3 sentences. No tools. …
+# SPARK_QTY=0   # disable proactive spark; cron_schedule repeat=spark still works
+# Empty SPARK_PROMPT uses the built-in horizon pool (replan / first aim / [silent]).
 # SPARK_SKIP_RECENT_MINUTES=30
 ```
 

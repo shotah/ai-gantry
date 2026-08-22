@@ -51,7 +51,7 @@ is the same overspill as putting MCP recipes in `PERSONA.md`.
 | --- | --- | --- |
 | `SELF.md` | Yes (cap ~4KB) | Who you became: voice, jokes, rituals, **3–5 north-star sentences** that change how you show up for months. Not mileage, due dates, or this week’s open loops. |
 | SQLite memory | Hydrate ≤ ~30 rows (FTS + recency; `insight` sorts last) | The tracker. Months-scale plan: `insight` / subject `aim/<area>`. Progress: `fact`. Recipes: `skill/<area>`. Forget when the aim moves. |
-| cron / watch | No — wakes a later turn | The loop. A goal with no wake is a dusty row. |
+| cron / watch / spark | No — wakes a later turn | The loop. Spark replans the day against aims; empty board asks once. A goal with no wake is a dusty row. |
 | Calendar / Tasks (MCP) | No | Dated to-dos with a real due date. |
 
 **Not all SQL.** Hydration is lossy. A six-month aim that was not mentioned
@@ -95,11 +95,14 @@ forty rules:
 Never serial calendar-then-mail.
 “how’s the long goal going?” → recall `aim/` then live tools. Never invent
 progress.
+“[cron] Spark of life” → recall north-stars + `aim/` + cron_list, then tools
+or cron_schedule. Empty board: ask ONE months-scale question (don’t invent).
+`[silent]` unless the human needs a message. Never a joke ping.
 A running joke → quote SELF.md. Don’t paraphrase it.
 ```
 
-Diverse: one task, one **horizon** (`aim/` recall), one voice. Don’t add an
-example that only restates a bullet you already wrote.
+Diverse: one task, one **horizon** (`aim/` recall *and* spark as the autonomous
+wake), one voice. Don’t add an example that only restates a bullet you already wrote.
 
 **Shape that works:**
 

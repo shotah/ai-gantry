@@ -84,6 +84,9 @@ func TestTurnSource(t *testing.T) {
 	if got := turnSource("hey"); got != "user" {
 		t.Fatalf("user source=%q", got)
 	}
+	if !cron.IsSparkTurn(cron.SparkPingPrefix + "recall aim/") {
+		t.Fatal("spark prefix should be a spark turn")
+	}
 }
 
 func TestLastUserContent(t *testing.T) {

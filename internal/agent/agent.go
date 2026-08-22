@@ -67,6 +67,10 @@ const toolNarrationNote = `When you need tools, emit every independent call in t
 // finished-report spec and small models draft numbers instead of calling.
 const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data, emit independent tool calls now in one response and wait for results. Do not invent metrics, events, or search results. Write the user-facing report only after tool results are in context. If no tools are needed, reply now."
 
+// sparkToolFirstNote sits after the clock on spark-of-life turns. Spark is
+// horizon work (aims / cron / live tools), not a presence joke.
+const sparkToolFirstNote = "[system] Spark-of-life turn: this is horizon work, not a chat ping. Emit independent tool calls now — memory_recall for aim/ (and aim/bootstrap if the board is empty), cron_list, then live tools or cron_schedule. If there is no north-star and no aim/, ask ONE months-scale question — do not invent an aim. mcp_enable a prefix if it is off and needed. Do not invent progress. Do not send a joke. After the work, reply with exactly [silent] unless the human needs a specific hole or next step."
+
 // Options configures the agent.
 type Options struct {
 	Persona       string
@@ -488,9 +492,13 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		toolDefs = a.publishedTools(turnCtx, msg.SessionID)
 	}
 	if turnSource(text) == "cron" && len(toolDefs) > 0 {
+		note := cronToolFirstNote
+		if cron.IsSparkTurn(text) {
+			note = sparkToolFirstNote
+		}
 		messages = append(messages, provider.Message{
 			Role:    provider.RoleSystem,
-			Content: cronToolFirstNote,
+			Content: note,
 		})
 	}
 	shape.schemas = mcp.EstimateToolSchemaTokens(toolDefs)
@@ -812,8 +820,10 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 			// Cron live-data jobs are a separate miss: the model drafts the
 			// digest (fake scores, agenda) with zero theater cues.
 			preToolTheater := !sawTools && (promisesToolCall(res.Content, res.Thinking) || claimsToolSuccess(res.Content))
+			userContent := lastUserContent(messages)
+			sparkHorizon := cron.IsSparkTurn(userContent)
 			cronSkippedLive := !sawTools && source == "cron" && len(toolDefs) > 0 &&
-				cronJobImpliesLiveTools(lastUserContent(messages))
+				(sparkHorizon || cronJobImpliesLiveTools(userContent))
 			deferral := sawTools && defersPendingWork(res.Content)
 			if (preToolTheater || deferral || cronSkippedLive) && !nudged {
 				a.log.Warn("model narrated tool action in prose without calling",
@@ -822,6 +832,7 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 					"saw_tools", sawTools,
 					"deferral", deferral,
 					"cron_skipped_live", cronSkippedLive,
+					"spark_horizon", sparkHorizon,
 				)
 				nudged = true
 				recoveries++
@@ -837,6 +848,12 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 						"Act now: emit the real tool call(s) using exact names from the tools list, " +
 						"OR give a final answer that reports the tool error and stops. Giving up is fine. " +
 						"Do not ask for a moment or promise another attempt without calling a tool."
+				} else if sparkHorizon {
+					nudge = "[system] This spark-of-life turn is for making progress on north-star aims, not a chat ping. " +
+						"Call tools now in one response: memory_recall for aim/ (and aim/bootstrap if empty), cron_list, then any live tools or cron_schedule that would move an aim. " +
+						"If the board is empty, ask ONE months-scale question — do not invent an aim. " +
+						"mcp_enable a prefix if it is off and needed. Do not invent progress. Do not send a joke. " +
+						"If the human does not need a message after the work, reply with exactly [silent]."
 				} else if cronSkippedLive {
 					nudge = "[system] This scheduled job needs live data, but you wrote the user-facing result without calling any tools. " +
 						"Emit the real tool calls now in one response using exact names from the tools list. " +
@@ -870,12 +887,17 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 			if cronSkippedLive && nudged {
 				// Second draft after nudge is still a no-tool report — do not
 				// ship invented metrics (Flash will happily rewrite the table).
+				// Spark stays silent so a failed joke ping is not pushed.
 				a.log.Warn("cron live-data job skipped tools after nudge; refusing invented report",
 					"chars", len(res.Content),
 					"iteration", iter+1,
+					"spark_horizon", sparkHorizon,
 				)
 				var steered bool
 				reply := cronSkippedLiveReply
+				if sparkHorizon {
+					reply = cron.SilentToken
+				}
 				outcomeHint = "refuse"
 				messages, reply, steered, err = a.finishText(ctx, sessionID, messages, reply)
 				if err != nil {

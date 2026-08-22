@@ -624,6 +624,109 @@ func TestAgent_Handle_CronLiveDataReportAfterNudgeRefused(t *testing.T) {
 	}
 }
 
+// Spark-of-life is horizon work: a joke/check-in with zero tools must be nudged.
+func TestAgent_Handle_SparkHorizonWithoutToolsGetsNudged(t *testing.T) {
+	ctx := context.Background()
+	var reqs int
+	var firstReq provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		reqs++
+		switch reqs {
+		case 1:
+			firstReq = req
+			return &provider.Result{Content: "Here's a dry observation about modern work."}, nil
+		case 2:
+			last := req.Messages[len(req.Messages)-1]
+			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "spark-of-life turn is for making progress") {
+				t.Fatalf("missing spark horizon nudge: %+v", last)
+			}
+			return &provider.Result{ToolCalls: []provider.ToolCall{
+				{ID: "c1", Name: "memory_recall", Arguments: `{"subject":"aim/training"}`},
+			}}, nil
+		default:
+			return &provider.Result{Content: cron.SilentToken}, nil
+		}
+	}}
+	tools := &fakeTools{
+		defs: []provider.ToolDef{{Name: "memory_recall", Parameters: map[string]any{"type": "object"}}},
+		out:  `{"items":[]}`,
+	}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := cron.SparkPingPrefix + cron.PickSparkPrompt("")
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: text})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cron.IsSilentReply(reply) {
+		t.Fatalf("reply = %q, want silent", reply)
+	}
+	if len(tools.calls) != 1 || tools.calls[0] != "memory_recall" {
+		t.Fatalf("tools = %v", tools.calls)
+	}
+	if reqs != 3 {
+		t.Fatalf("completions = %d, want 3", reqs)
+	}
+	foundNote := false
+	for _, m := range firstReq.Messages {
+		if strings.Contains(m.Content, "Spark-of-life turn: this is horizon work") {
+			foundNote = true
+			break
+		}
+	}
+	if !foundNote {
+		t.Fatal("missing spark tool-first system note on first completion")
+	}
+}
+
+// After a spark nudge, a second no-tool joke must not be pushed.
+func TestAgent_Handle_SparkHorizonAfterNudgeStaysSilent(t *testing.T) {
+	ctx := context.Background()
+	var reqs int
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		reqs++
+		return &provider.Result{Content: "Here's a dry observation about modern work."}, nil
+	}}
+	tools := &fakeTools{
+		defs: []provider.ToolDef{{Name: "memory_recall", Parameters: map[string]any{"type": "object"}}},
+	}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := cron.SparkPingPrefix + "Pick one north-star from SELF.md and recall aim/."
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: text})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cron.IsSilentReply(reply) {
+		t.Fatalf("reply = %q, want silent", reply)
+	}
+	if strings.Contains(reply, "dry observation") {
+		t.Fatalf("shipped joke ping: %q", reply)
+	}
+	if len(tools.calls) != 0 {
+		t.Fatalf("tools = %v", tools.calls)
+	}
+	if reqs != 2 {
+		t.Fatalf("completions = %d, want 2 (draft + nudged draft)", reqs)
+	}
+}
+
 // Prior scheduled digests must not appear in the next cron prompt (few-shot bait).
 func TestAgent_Handle_CronOmitsPriorCronHistory(t *testing.T) {
 	ctx := context.Background()

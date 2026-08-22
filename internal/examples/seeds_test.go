@@ -47,16 +47,35 @@ func TestEligibleAndPick_FiltersByLiveServers(t *testing.T) {
 }
 
 func TestPick_NoMatch(t *testing.T) {
-	_, ok := examples.PickFrom(examples.DefaultSeeds, nil)
+	_, ok := examples.PickFrom(nil, nil)
 	if ok {
-		t.Fatal("empty defs should not match")
+		t.Fatal("empty seed pool should not match")
 	}
-	_, ok = examples.Pick([]provider.ToolDef{{Name: "math__expression_evaluate"}})
-	// math-sheets needs google too; garmin-sleep needs garmin — may or may not match
-	// Only math alone: math-sheets requires google, so no match from DefaultSeeds with only math.
-	if ok {
-		// If a math-only seed exists this would fail — currently none.
-		t.Fatal("only-math catalog should not match multi-server seeds that need google")
+}
+
+func TestPick_HarnessMatchesZeroMCP(t *testing.T) {
+	got, ok := examples.PickFrom(examples.DefaultSeeds, nil)
+	if !ok {
+		t.Fatal("harness seeds should match a zero-MCP catalog")
+	}
+	if len(got.Servers) != 0 {
+		t.Fatalf("expected harness seed, got %+v", got)
+	}
+}
+
+func TestDefaultSeeds_HarnessAlwaysEligible(t *testing.T) {
+	elig := examples.Eligible(examples.DefaultSeeds, map[string]bool{})
+	ids := map[string]bool{}
+	for _, s := range elig {
+		ids[s.ID] = true
+	}
+	for _, want := range []string{"first-aim", "cron-reminder", "memory-skill", "mcp-enable"} {
+		if !ids[want] {
+			t.Fatalf("zero-MCP catalog missing harness seed %q (eligible=%v)", want, ids)
+		}
+	}
+	if ids["math-eval"] || ids["google-calendar-contact"] {
+		t.Fatal("MCP seeds should not match a zero-MCP catalog")
 	}
 }
 
@@ -80,6 +99,9 @@ func TestPolishAndFallback(t *testing.T) {
 	}
 	if !strings.Contains(p, "last pin") {
 		t.Fatal("polish should mention Telegram last-pin guidance")
+	}
+	if !strings.Contains(p, "self_note") || !strings.Contains(p, "mcp_enable") {
+		t.Fatal("polish should mention first-aim / mcp_enable guidance")
 	}
 	f := examples.FallbackFormat(s)
 	if !strings.Contains(f, "Demo title") || !strings.Contains(f, examples.OffHint) {
@@ -181,5 +203,52 @@ func TestDefaultSeeds_FeedsAndTwitter(t *testing.T) {
 	}
 	if ids["feeds-nws-watch"] {
 		t.Fatal("feeds-nws-watch should not match twitter-only catalog")
+	}
+}
+
+func TestDefaultSeeds_MathSearchYoutube(t *testing.T) {
+	mathOnly := examples.ServerPrefixes([]provider.ToolDef{
+		{Name: "math__expression_evaluate"},
+	})
+	elig := examples.Eligible(examples.DefaultSeeds, mathOnly)
+	ids := map[string]bool{}
+	for _, s := range elig {
+		ids[s.ID] = true
+	}
+	if !ids["math-eval"] || !ids["first-aim"] {
+		t.Fatalf("math catalog missing math-eval/first-aim: %v", ids)
+	}
+	if ids["math-sheets"] {
+		t.Fatal("math-sheets needs google")
+	}
+
+	searchOnly := examples.ServerPrefixes([]provider.ToolDef{
+		{Name: "google-search__web_search"},
+	})
+	elig = examples.Eligible(examples.DefaultSeeds, searchOnly)
+	ids = map[string]bool{}
+	for _, s := range elig {
+		ids[s.ID] = true
+	}
+	if !ids["search-decide"] {
+		t.Fatalf("search catalog missing search-decide: %v", ids)
+	}
+	if ids["search-calendar-event"] {
+		t.Fatal("search-calendar-event needs google")
+	}
+
+	ytOnly := examples.ServerPrefixes([]provider.ToolDef{
+		{Name: "youtube__videos_search"},
+	})
+	elig = examples.Eligible(examples.DefaultSeeds, ytOnly)
+	ids = map[string]bool{}
+	for _, s := range elig {
+		ids[s.ID] = true
+	}
+	if !ids["youtube-find"] {
+		t.Fatalf("youtube catalog missing youtube-find: %v", ids)
+	}
+	if ids["youtube-cast"] {
+		t.Fatal("youtube-cast needs cast")
 	}
 }

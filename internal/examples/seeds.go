@@ -21,6 +21,46 @@ type Seed struct {
 // DefaultSeeds is the v1 curated pool. Filter with Eligible / Pick against live tools.
 var DefaultSeeds = []Seed{
 	{
+		ID:      "first-aim",
+		Title:   "First aim: pick a months-scale north-star, store it, and put a wake on the calendar",
+		Servers: nil, // harness builtins — always eligible
+		Steps: []string{
+			"Ask one months-scale question (what should we be aiming at for the next few months?) — do not invent an aim",
+			"After they answer: self_note the north-star sentence and memory_store insight subject aim/<area>",
+			"Offer to cron_schedule a wake that would move that aim (daily/weekly; live-data jobs name the tools)",
+		},
+	},
+	{
+		ID:      "cron-reminder",
+		Title:   "Cron: a reminder that survives this chat — later today or every weekday",
+		Servers: nil,
+		Steps: []string{
+			"Pick something they actually forget (timecard, meds, a weekly review)",
+			"cron_schedule it (once or daily) with a prompt that says what to do when it fires",
+			"Work-only jobs can reply [silent]; otherwise they get the reminder in this chat",
+		},
+	},
+	{
+		ID:      "memory-skill",
+		Title:   "Memory: save a fiddly recipe as skill/<area> so you stop re-teaching it",
+		Servers: nil,
+		Steps: []string{
+			"Name one annoying workflow (how they like mail labeled, how they log training)",
+			"memory_store kind=insight or fact, subject skill/<area>, with exact names and one pitfall",
+			"Next time that area comes up, memory_recall skill/<area> before guessing",
+		},
+	},
+	{
+		ID:      "mcp-enable",
+		Title:   "mcp_enable: turn on a tool prefix for this chat instead of carrying 150 schemas every turn",
+		Servers: nil,
+		Steps: []string{
+			"Look at [mcp prefixes] / /tools for something that's mounted but not in this turn's list",
+			"mcp_enable that prefix (short ~27h or brief ~6h)",
+			"Then actually use a tool from it in the next step",
+		},
+	},
+	{
 		ID:      "google-calendar-contact",
 		Title:   "Calendar: look up a contact, check free/busy, schedule an event",
 		Servers: []string{"google"},
@@ -286,6 +326,95 @@ var DefaultSeeds = []Seed{
 			"Call maps__route_eta (bike → mode=bicycling) and include the Maps URL",
 		},
 	},
+	{
+		ID:      "math-eval",
+		Title:   "Numbers: let the math tool do the arithmetic (no mental math)",
+		Servers: []string{"math"},
+		Steps: []string{
+			"State the real numbers (split a bill, a pace, a percent)",
+			"Call math__expression_evaluate — don't guess the result",
+			"Give the answer in one sentence",
+		},
+	},
+	{
+		ID:      "search-decide",
+		Title:   "Web search: look up a real decision, then cite what came back",
+		Servers: []string{"google-search"},
+		Steps: []string{
+			"google-search__web_search the thing they need to decide",
+			"Summarize what the tool returned — don't invent extra sources",
+			"Offer one next step (calendar block, a task, or just the answer)",
+		},
+	},
+	{
+		ID:      "youtube-find",
+		Title:   "YouTube: find a video worth watching and send the link",
+		Servers: []string{"youtube"},
+		Steps: []string{
+			"youtube videos_search for what they asked",
+			"Pick one and share the URL — don't invent views or duration",
+			"If Cast is also connected, mention they can say 'put it on the TV'",
+		},
+	},
+	{
+		ID:      "commute-to-event",
+		Title:   "Leave-by: next calendar event plus a route from the last pin",
+		Servers: []string{"google", "maps"},
+		Steps: []string{
+			"List today's Google Calendar and pick the next place they have to be",
+			"Use [last pin] as origin (ask for a Telegram pin if it's stale)",
+			"maps__route_eta to that place and tell them when to leave",
+		},
+	},
+	{
+		ID:      "garmin-deadman",
+		Title:   "Quiet health check: daily Garmin pull that stays [silent] when you're fine",
+		Servers: []string{"garmin"},
+		Steps: []string{
+			"Pull last night's garmin__sleep_get / recovery",
+			"If all-clear, reply [silent] — no pep talk",
+			"Offer to cron_schedule this at a morning hour they choose (prompt must say [silent] unless something is off)",
+		},
+	},
+	{
+		ID:      "ghealth-deadman",
+		Title:   "Quiet health check: daily Google Health pull that stays [silent] when you're fine",
+		Servers: []string{"ghealth"},
+		Steps: []string{
+			"Pull last night's ghealth__sleep_get / recovery",
+			"If all-clear, reply [silent] — no pep talk",
+			"Offer to cron_schedule this at a morning hour they choose (prompt must say [silent] unless something is off)",
+		},
+	},
+	{
+		ID:      "google-week-board",
+		Title:   "This week: calendar + tasks, what's slipping",
+		Servers: []string{"google"},
+		Steps: []string{
+			"List the next 7 days of Google Calendar",
+			"List open Google Tasks",
+			"Two sentences: what's packed, what has no time block",
+		},
+	},
+	{
+		ID:      "strava-last",
+		Title:   "Last session: recap the most recent Strava activity",
+		Servers: []string{"strava"},
+		Steps: []string{
+			"List recent Strava activities and pick the latest",
+			"Summarize distance/time/effort in plain language — only numbers the tool returned",
+		},
+	},
+	{
+		ID:      "search-place-maps",
+		Title:   "Find a place on the web, then a route from the last pin",
+		Servers: []string{"google-search", "maps"},
+		Steps: []string{
+			"Search for the place or venue they named",
+			"If [last pin] is stale, ask for a Telegram location pin",
+			"maps__route_eta and share the Maps URL",
+		},
+	},
 }
 
 // ServerPrefixes returns the set of MCP server prefixes present in defs
@@ -301,9 +430,14 @@ func ServerPrefixes(defs []provider.ToolDef) map[string]bool {
 }
 
 // Eligible returns seeds whose required servers are all present in live.
+// Seeds with no Servers list are harness builtins (memory / cron / self_note) and
+// always match — including a zero-MCP catalog.
 func Eligible(seeds []Seed, live map[string]bool) []Seed {
-	if len(seeds) == 0 || live == nil {
+	if len(seeds) == 0 {
 		return nil
+	}
+	if live == nil {
+		live = map[string]bool{}
 	}
 	out := make([]Seed, 0, len(seeds))
 	for _, s := range seeds {
@@ -316,7 +450,7 @@ func Eligible(seeds []Seed, live map[string]bool) []Seed {
 
 func seedOK(s Seed, live map[string]bool) bool {
 	if len(s.Servers) == 0 {
-		return false
+		return true
 	}
 	for _, srv := range s.Servers {
 		if !live[srv] {
@@ -363,6 +497,8 @@ func PolishPrompt(s Seed) string {
 	b.WriteString("If the recipe mentions cron_schedule / a recurring reminder, pitch scheduling it (daily or weekly) — still propose only. ")
 	b.WriteString("If the recipe mentions watch_add / a feed or X subscription, pitch setting up the watch — still propose only. ")
 	b.WriteString("If the recipe mentions a Telegram pin or [last pin], mention sending a location pin from the phone. ")
+	b.WriteString("If the recipe mentions self_note / a north-star / aim/, pitch setting a first months-scale aim — still propose only. ")
+	b.WriteString("If the recipe mentions mcp_enable, mention turning a prefix on for this chat. ")
 	b.WriteString("Do not call tools. Do not invent tools outside this recipe. ")
 	fmt.Fprintf(&b, "End with a short note: %s", OffHint)
 	return b.String()

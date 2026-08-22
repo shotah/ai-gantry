@@ -468,10 +468,10 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 	}
 }
 
-// ensureSparkJobs installs opt-in spark-of-life cron jobs when SPARK_QTY is set.
-// Telegram DMs use chat_id == user_id from the allowlist.
+// ensureSparkJobs installs spark-of-life horizon wakes when SPARK_QTY is on
+// (default 2-3; empty or "0" = off). Telegram DMs use chat_id == user_id from the allowlist.
 func ensureSparkJobs(ctx context.Context, cfg *config.Config, store *cron.Store, log *slog.Logger, tzName string) error {
-	if strings.TrimSpace(cfg.SparkQty) == "" || store == nil {
+	if cfg == nil || !cfg.SparkEnabled() || store == nil {
 		return nil
 	}
 	if strings.TrimSpace(tzName) == "" {

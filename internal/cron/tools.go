@@ -29,7 +29,7 @@ func ToolDefs() []provider.ToolDef {
 	return []provider.ToolDef{
 		{
 			Name: ToolSchedule,
-			Description: "Schedule a proactive agent turn (reminder, digest, or spark-of-life). " +
+			Description: "Schedule a proactive agent turn (reminder, digest, or spark-of-life horizon wake). " +
 				"Fires later, runs tools, and pushes the reply to this chat. " +
 				"Work-only jobs can reply [silent] to skip the push (all-clear / no need to ping). " +
 				`when: RFC3339, "15:04", "in 30m", or for spark "4-6@06-21". ` +

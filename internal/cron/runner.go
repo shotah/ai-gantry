@@ -15,8 +15,17 @@ import (
 // split wrapper from job body when deciding whether live tools were skipped.
 const JobUserPrefix = "[cron] Scheduled job — execute now. If this job needs live data, call those tools first — do not write the report, tables, or numbers until tool results are in context. Never guess metrics; if a tool fails, say so. If the human does not need a message (all-clear or work-only), reply with exactly [silent] and nothing else.\n\n"
 
-// SparkPingPrefix wraps spark-of-life presence pings.
-const SparkPingPrefix = "[cron] Spark of life — check in only if it would feel welcome. If you've already been talking, the vibe is warm, or a ping would be noise, reply with exactly [silent] and nothing else:\n\n"
+// SparkTurnMarker is the start of SparkPingPrefix. Agent and tests use it to
+// recognize a spark horizon turn (tools required, not a chat ping).
+const SparkTurnMarker = "[cron] Spark of life"
+
+// SparkPingPrefix wraps spark-of-life horizon wakes.
+const SparkPingPrefix = SparkTurnMarker + " — replan today against north-star aims (SELF.md) and memory aim/. Call tools: recall aims, cron_list, then live tools or cron_schedule. If SELF.md has no north-star and aim/ is empty: recall subject aim/bootstrap; if you already asked, reply [silent]; if not, ask ONE months-scale question (do not invent an aim) and memory_store fact subject aim/bootstrap that you asked. Work-only is the default — if the human does not need a message, reply with exactly [silent] and nothing else. Do not send a joke, check-in, or pep talk:\n\n"
+
+// IsSparkTurn reports whether this user text is a spark-of-life horizon wake.
+func IsSparkTurn(userText string) bool {
+	return strings.HasPrefix(strings.TrimSpace(userText), SparkTurnMarker)
+}
 
 // ExamplesPingPrefix wraps capability-example pings.
 const ExamplesPingPrefix = "[cron] Capability example — inspire the human with one concrete idea (propose only). If a ping would be noise, reply with exactly [silent] and nothing else:\n\n"
@@ -152,7 +161,6 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 	case KindSparkPing:
 		prefix = SparkPingPrefix
 		prompt = PickSparkPrompt(job.Prompt)
-		handleCtx = channel.WithNoTools(ctx)
 	case KindExamplesPing:
 		prefix = ExamplesPingPrefix
 		if r.Examples != nil {
