@@ -28,7 +28,7 @@ if ! command -v goimports-reviser >/dev/null 2>&1; then
 	echo "goimports-reviser not found. Run: make tools" >&2
 	exit 1
 fi
-goimports-reviser -format -recursive .
+goimports-reviser -format -recursive -excludes='repos/' .
 
 echo "==> Autofix: golangci-lint"
 if ! command -v golangci-lint >/dev/null 2>&1; then

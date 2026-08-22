@@ -27,5 +27,8 @@ Thumbs.db
 *.db
 *.db-*
 
+# Nested local checkouts (MCP siblings, personal fleet). Own git remotes.
+/repos/
+
 # Go
 vendor/

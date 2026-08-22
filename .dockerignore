@@ -4,5 +4,6 @@
 docs
 assets
 bin
+repos
 coverage.*
 *.out

@@ -151,7 +151,7 @@ lint: ## Run golangci-lint (CGO_ENABLED=0 — same as the shipped binary)
 
 .PHONY: fmt
 fmt: ## Autofix imports/code (goimports-reviser + golangci-lint fmt/fix)
-	goimports-reviser -format -recursive .
+	goimports-reviser -format -recursive -excludes='repos/' .
 	-golangci-lint fmt ./...
 	-golangci-lint run --fix ./...
 
