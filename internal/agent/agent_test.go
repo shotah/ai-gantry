@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -418,6 +419,160 @@ func TestAgent_Handle_FakeSuccessClaimGetsNudged(t *testing.T) {
 	}
 	if reqs != 3 {
 		t.Fatalf("completions = %d, want 3", reqs)
+	}
+}
+
+// Gemini often returns empty after a mixed narration+tool call (Tim's Telegram
+// "empty assistant content" after self_note). Keep the already-streamed prose
+// instead of erroring the handler and dropping history.
+func TestAgent_Handle_EmptyFollowUpKeepsNarration(t *testing.T) {
+	ctx := context.Background()
+	narration := "I've tucked that into my internal compass — I'll show up warmer next time."
+	var reqs int
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		reqs++
+		switch reqs {
+		case 1:
+			return &provider.Result{
+				Content: narration,
+				ToolCalls: []provider.ToolCall{
+					{ID: "c1", Name: "self_note", Arguments: `{"note":"be warmer"}`},
+				},
+			}, nil
+		default:
+			return nil, fmt.Errorf("%w (finish_reason=%q)", provider.ErrEmptyContent, "stop")
+		}
+	}}
+	hist := newMemHistory()
+	tools := &fakeTools{
+		defs: []provider.ToolDef{{Name: "self_note", Parameters: map[string]any{"type": "object"}}},
+		out:  "noted",
+	}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     hist,
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "remember this vibe"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != narration {
+		t.Fatalf("reply = %q, want narration kept", reply)
+	}
+	if len(tools.calls) != 1 || tools.calls[0] != "self_note" {
+		t.Fatalf("tools = %v", tools.calls)
+	}
+	msgs, err := hist.Messages(ctx, "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 || msgs[1].Content != narration {
+		t.Fatalf("history = %+v, want user+assistant persisted", msgs)
+	}
+}
+
+// A short "I've added…" claim still gets a theater nudge; if that follow-up
+// is empty, ship the original prose instead of a Telegram handler error.
+func TestAgent_Handle_TheaterNudgeEmptyKeepsProse(t *testing.T) {
+	ctx := context.Background()
+	claim := "You got it! I've added a new task list in Google Tasks for you."
+	var reqs int
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		reqs++
+		switch reqs {
+		case 1:
+			return &provider.Result{Content: claim}, nil
+		default:
+			last := req.Messages[len(req.Messages)-1]
+			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "nothing actually happened") {
+				t.Fatalf("missing fake-success nudge: %+v", last)
+			}
+			return nil, provider.ErrEmptyContent
+		}
+	}}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "google__tasks_create_tasklist"}}},
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "create a list"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != claim {
+		t.Fatalf("reply = %q, want original prose", reply)
+	}
+	if reqs != 2 {
+		t.Fatalf("completions = %d, want 2", reqs)
+	}
+}
+
+// A long design essay that mentions "I've added…" as example copy must not be
+// treated as a fake tool success — that extra Completer round is what Gemini
+// returns empty on.
+func TestAgent_Handle_LongEssayWithAddedPhraseIsNotNudged(t *testing.T) {
+	ctx := context.Background()
+	essay := strings.Repeat("Design note. ", 130) +
+		`I've added a little note to my internal compass as the example copy.`
+	if len(essay) < 1500 {
+		t.Fatalf("fixture too short: %d", len(essay))
+	}
+	var reqs int
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		reqs++
+		if reqs != 1 {
+			t.Fatalf("unexpected extra completion %d (theater nudge on a finished essay)", reqs)
+		}
+		return &provider.Result{Content: essay, FinishReason: "stop"}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "self_note"}}},
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "how should vibe updates work?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != essay {
+		t.Fatalf("reply length %d, want essay", len(reply))
+	}
+	if reqs != 1 {
+		t.Fatalf("completions = %d, want 1", reqs)
+	}
+}
+
+func TestAgent_Handle_EmptyContentFirstTurnStillErrors(t *testing.T) {
+	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		return nil, provider.ErrEmptyContent
+	}}
+	a, err := agent.New(agent.Options{
+		Completer: fc,
+		Sessions:  newMemHistory(),
+		Model:     "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "hi"})
+	if !errors.Is(err, provider.ErrEmptyContent) {
+		t.Fatalf("err = %v, want ErrEmptyContent", err)
 	}
 }
 

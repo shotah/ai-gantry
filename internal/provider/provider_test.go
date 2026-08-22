@@ -3,6 +3,7 @@ package provider_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -219,8 +220,8 @@ func TestClient_Complete_EmptyContent(t *testing.T) {
 	_, err := c.Complete(context.Background(), provider.Request{
 		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
 	})
-	if err == nil || !strings.Contains(err.Error(), "empty assistant content") {
-		t.Fatalf("err = %v", err)
+	if !errors.Is(err, provider.ErrEmptyContent) {
+		t.Fatalf("err = %v, want ErrEmptyContent", err)
 	}
 }
 

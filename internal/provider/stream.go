@@ -182,7 +182,7 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onProgress fun
 	// Thinking-only is valid for Qwen/Ollama when max_tokens is spent on CoT;
 	// callers (agent + Telegram stream) can finish without a hard error.
 	if out.Content == "" && len(out.ToolCalls) == 0 && out.Thinking == "" {
-		return nil, fmt.Errorf("provider: empty assistant content")
+		return nil, fmt.Errorf("%w (finish_reason=%q)", ErrEmptyContent, finishReason)
 	}
 	return out, nil
 }

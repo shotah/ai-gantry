@@ -4,6 +4,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,6 +13,9 @@ import (
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/shared"
 )
+
+// ErrEmptyContent is returned when a completion has no text, tool calls, or thinking.
+var ErrEmptyContent = errors.New("provider: empty assistant content")
 
 // Role is a chat message role.
 type Role string
@@ -227,7 +231,7 @@ func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
 		}
 	}
 	if out.Content == "" && len(out.ToolCalls) == 0 && out.Thinking == "" {
-		return nil, fmt.Errorf("provider: empty assistant content")
+		return nil, fmt.Errorf("%w (finish_reason=%q)", ErrEmptyContent, out.FinishReason)
 	}
 	return out, nil
 }

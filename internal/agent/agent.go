@@ -71,6 +71,11 @@ const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data,
 // horizon work (aims / cron / live tools), not a presence joke.
 const sparkToolFirstNote = "[system] Spark-of-life turn: this is horizon work, not a chat ping. Emit independent tool calls now — memory_recall for aim/ (and aim/bootstrap if the board is empty), cron_list, then live tools or cron_schedule. If there is no north-star and no aim/, ask ONE months-scale question — do not invent an aim. mcp_enable a prefix if it is off and needed. Do not invent progress. Do not send a joke. After the work, reply with exactly [silent] unless the human needs a specific hole or next step."
 
+// theaterCueMaxChars: a stop reply this long is already the answer. Matching
+// "I've added…" or a server__tool name inside a design essay must not start
+// another Completer round — Gemini often returns empty on that follow-up.
+const theaterCueMaxChars = 1500
+
 // Options configures the agent.
 type Options struct {
 	Persona       string
@@ -625,6 +630,10 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 	// Names to force on the next call, set when a tool name failed to resolve.
 	var forceNames []string
 	budgetWarned := false
+	// User-facing prose from an earlier round this turn. Gemini often returns
+	// empty after a mixed narration+tool call (or after a theater nudge); keep
+	// that text instead of erroring the Telegram handler.
+	var lastNarration string
 	// The loop grants maxToolIters tool rounds plus one landing call: tools are
 	// withheld on that last call so the model must answer with text — the turn
 	// ends with a real reply (and persisted history) instead of an error that
@@ -712,6 +721,25 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 				iter--
 				continue
 			}
+			if errors.Is(err, provider.ErrEmptyContent) {
+				if prior := strings.TrimSpace(lastNarration); prior != "" {
+					a.log.Warn("model returned empty content; keeping prior reply",
+						"chars", len(prior),
+						"iteration", iter+1,
+						"saw_tools", sawTools,
+						"err", err,
+					)
+					var steered bool
+					messages, prior, steered, err = a.finishText(ctx, sessionID, messages, prior)
+					if err != nil {
+						return "", err
+					}
+					if steered {
+						continue
+					}
+					return prior, nil
+				}
+			}
 			return "", err
 		}
 		a.warmed.Store(true)
@@ -765,6 +793,9 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 				res.Content = ""
 				recoveries++
 			}
+		}
+		if c := strings.TrimSpace(res.Content); c != "" {
+			lastNarration = c
 		}
 		if len(res.ToolCalls) == 0 {
 			if res.Content == "" {
@@ -820,6 +851,13 @@ func (a *Agent) runLoop(ctx context.Context, sessionID string, messages []provid
 			// Cron live-data jobs are a separate miss: the model drafts the
 			// digest (fake scores, agenda) with zero theater cues.
 			preToolTheater := !sawTools && (promisesToolCall(res.Content, res.Thinking) || claimsToolSuccess(res.Content))
+			if preToolTheater && len(res.Content) >= theaterCueMaxChars {
+				a.log.Info("skipping tool-theater nudge on substantial reply",
+					"chars", len(res.Content),
+					"iteration", iter+1,
+				)
+				preToolTheater = false
+			}
 			userContent := lastUserContent(messages)
 			sparkHorizon := cron.IsSparkTurn(userContent)
 			cronSkippedLive := !sawTools && source == "cron" && len(toolDefs) > 0 &&
