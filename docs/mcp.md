@@ -74,8 +74,11 @@ Inspect what the running agent sees:
 - Boot logs: `mcp server connected` (`tools_listed` vs `tools_published`), then
   `tool schema estimate` + one `tool schema by server` line per prefix
 - **Fail-soft boot:** if one `[[server]]` fails to spawn/initialize (missing API
-  key, broken binary, EOF), gantry logs `mcp server boot skipped` and continues
-  with the rest. A single optional tool must not take down the agent.
+  key, broken binary, EOF), gantry logs `mcp server boot skipped` with a stable
+  `reason` (`no_binary` / `no_key` / `no_oauth` / `connect`) and continues.
+  Calling a skipped prefix returns `tool error [<reason>]: … is skipped — do
+  not invent <name>__* names`. A single optional tool must not take down the
+  agent. Operator JSON: [gantree-contract.md](gantree-contract.md).
 
 ---
 

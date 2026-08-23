@@ -11,6 +11,7 @@ long-horizon planning) lives in [design.md](design.md); diagrams in
 | [features.md](features.md) | **Inventory:** The Great / The Good / The Okay / The Ugly |
 | [persona.md](persona.md) | **Write `PERSONA.md`:** two files, tight budget, no MCP catalog, north-star vs memory vs cron |
 | [gantree.md](gantree.md) | Yard console (sibling): [shotah/gantree](https://github.com/shotah/gantree) — metrics, grants, several agents |
+| [gantree-contract.md](gantree-contract.md) | File/env/`gantry status` JSON the console may write and read |
 | [positioning.md](positioning.md) | ICP, competition, Docker Hub story, when (not) to add a site |
 | [dockerhub.md](dockerhub.md) | **Hub overview** synced by CI (keep lean; PNG banner) |
 | [deploy-docker.md](deploy-docker.md) | **Fastest hello:** Hub pull + compose; MCP auth (chat `/auth` or laptop) |

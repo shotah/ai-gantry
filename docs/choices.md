@@ -197,7 +197,10 @@ closed at boot.
 
 ## Healthcheck
 
-**Pick:** SQLite heartbeat row + `gantry status` exit code.
+**Pick:** SQLite heartbeat row + `gantry status` exit code. Stdout is a
+JSON doctor for operators and gantree ([gantree-contract.md](gantree-contract.md)).
+Exit 0 stays **liveness** so an all-skipped or empty manifest does not
+restart the container.
 
 Avoids opening a port “just for k8s/docker.” Proves process liveness + DB
 writability, not end-to-end Telegram/LLM health (accepted limitation — see

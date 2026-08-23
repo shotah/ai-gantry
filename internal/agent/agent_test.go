@@ -1,11 +1,13 @@
 package agent_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,6 +90,30 @@ func (m *memHistory) setSummary(id, s string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.summary[id] = s
+}
+
+func TestAgent_TurnPerfIncludesUserAndSession(t *testing.T) {
+	var buf bytes.Buffer
+	log := slog.New(slog.NewJSONHandler(&buf, nil))
+	a, err := agent.New(agent.Options{
+		Completer: &fakeCompleter{},
+		Sessions:  newMemHistory(),
+		Logger:    log,
+		Model:     "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s-1", UserID: "42", Text: "hi"}); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, `"msg":"turn perf"`) {
+		t.Fatalf("missing turn perf: %s", out)
+	}
+	if !strings.Contains(out, `"user_id":"42"`) || !strings.Contains(out, `"session_id":"s-1"`) {
+		t.Fatalf("missing ids: %s", out)
+	}
 }
 
 type fakeTools struct {

@@ -397,7 +397,7 @@ residency) stay one `ssh` away ([observability.md](observability.md)).
 | Command / signal | Behavior |
 | --- | --- |
 | `gantry run` | Daemon (default) |
-| `gantry status` | Exit 0 if heartbeat fresh (≤ ~60s); Docker healthcheck |
+| `gantry status` | Exit 0 if heartbeat fresh (≤ ~60s); JSON doctor on stdout; Docker healthcheck. `gantry doctor` is an alias. |
 | `gantry version` | Build ldflags |
 | SIGTERM / Interrupt | Stop channel → drain in-flight turn → close MCP → close DB |
 | Logs | JSON `slog` on stderr (`journalctl` / `docker logs`) |

@@ -5,7 +5,8 @@
 //	gantry auth        — run an MCP server's declared auth flow (mcp.toml)
 //	gantry tools-plan  — JSON release/command inventory from mcp.toml
 //	gantry tools-fetch — download + install MCP binaries from mcp.toml
-//	gantry status      — exit-code healthcheck (Docker healthcheck)
+//	gantry status      — exit-code healthcheck + JSON doctor (Docker healthcheck)
+//	gantry doctor      — alias of status
 //	gantry version     — build info
 package main
 
@@ -38,7 +39,7 @@ func main() {
 		os.Exit(toolsPlanCmd())
 	case "tools-fetch":
 		os.Exit(toolsFetchCmd())
-	case "status":
+	case "status", "doctor":
 		os.Exit(status())
 	case "version":
 		fmt.Printf("gantry %s (commit=%s date=%s)\n", version, commit, date)
@@ -60,7 +61,8 @@ Usage:
   gantry auth         Run MCP auth flows declared in mcp.toml (gantry auth [server])
   gantry tools-plan   JSON MCP binary inventory from mcp.toml
   gantry tools-fetch  Download + install MCP binaries declared in mcp.toml
-  gantry status       Exit 0 if healthy (Docker healthcheck)
+  gantry status       Exit 0 if alive (heartbeat). JSON doctor on stdout
+  gantry doctor       Alias of status
   gantry version      Print build info
   gantry help         Show this help
 

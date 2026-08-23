@@ -129,11 +129,18 @@ func Start(ctx context.Context, opts Options) (*Host, error) {
 		if err := h.connectServer(ctx, spec); err != nil {
 			failed++
 			h.skipped = append(h.skipped, ServerStatus{
-				Name:  spec.Name,
-				State: ServerSkipped,
-				Note:  clipHealthNote(err.Error()),
+				Name:   spec.Name,
+				State:  ServerSkipped,
+				Note:   clipHealthNote(err.Error()),
+				Reason: ReasonOf(err),
+				Auth:   spec.AuthConfigured(),
+				Prefix: prefixFor(spec),
 			})
-			h.log.Error("mcp server boot skipped", "server", spec.Name, "err", err)
+			h.log.Error("mcp server boot skipped",
+				"server", spec.Name,
+				"reason", ReasonOf(err),
+				"err", err,
+			)
 			continue
 		}
 	}
@@ -197,6 +204,10 @@ func (h *Host) CallRaw(ctx context.Context, toolName string, arguments json.RawM
 func (h *Host) call(ctx context.Context, toolName string, arguments json.RawMessage) (string, error) {
 	tool, resolved, ok := h.resolve(toolName)
 	if !ok {
+		if u := h.unavailable(toolName); u != nil {
+			h.recordUnknownTool(false)
+			return "", u
+		}
 		hint, candidates := h.suggest(toolName)
 		h.recordUnknownTool(len(candidates) > 0)
 		return "", &UnknownToolError{Name: toolName, Hint: hint, Candidates: candidates}
@@ -359,6 +370,36 @@ func hyphenatePrefix(toolName string) (string, bool) {
 		return "", false
 	}
 	return altPrefix + "__" + rest, true
+}
+
+// unavailable returns a model-facing classified error when the requested
+// prefix belongs to a boot-skipped server. Cheap: in-memory skip list.
+func (h *Host) unavailable(toolName string) *UnavailableError {
+	prefix, _, hasPrefix := strings.Cut(toolName, "__")
+	if !hasPrefix {
+		prefix = toolName
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if row := h.skippedMatchingLocked(prefix); row != nil {
+		return &UnavailableError{Server: row.Name, Reason: row.Reason, Note: row.Note}
+	}
+	if alt := strings.ReplaceAll(prefix, "_", "-"); alt != prefix {
+		if row := h.skippedMatchingLocked(alt); row != nil {
+			return &UnavailableError{Server: row.Name, Reason: row.Reason, Note: row.Note}
+		}
+	}
+	return nil
+}
+
+func (h *Host) skippedMatchingLocked(prefix string) *ServerStatus {
+	for i := range h.skipped {
+		s := &h.skipped[i]
+		if s.Name == prefix || s.Prefix == prefix {
+			return s
+		}
+	}
+	return nil
 }
 
 // UnknownToolError reports a tool name that could not be resolved. Candidates
@@ -641,6 +682,15 @@ func (h *Host) restartServer(ctx context.Context, name string) error {
 }
 
 func defaultDial(ctx context.Context, spec ServerSpec, stderr io.Writer) (Conn, error) {
+	if missing := emptyEnvKeys(spec.Env); len(missing) > 0 {
+		return nil, &ClassifiedError{
+			Reason: ReasonNoKey,
+			Err:    fmt.Errorf("missing env %s", strings.Join(missing, ", ")),
+		}
+	}
+	if _, err := exec.LookPath(spec.Command); err != nil {
+		return nil, &ClassifiedError{Reason: ReasonNoBinary, Err: err}
+	}
 	// Do not bind the child to the boot/signal context: SIGTERM must let the
 	// agent finish the in-flight turn before Host.Close kills MCP children.
 	cmd := exec.Command(spec.Command, spec.Args...) //nolint:gosec // G204: command comes from operator mcp.toml
@@ -689,7 +739,7 @@ func (c *sdkConn) CallTool(ctx context.Context, name string, arguments map[strin
 	}
 	text := contentToString(res)
 	if res.IsError {
-		return "", fmt.Errorf("tool error: %s", text)
+		return "", classifiedToolError(text)
 	}
 	return text, nil
 }

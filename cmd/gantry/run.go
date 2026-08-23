@@ -20,6 +20,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/channel/telegram"
 	"github.com/shotah/ai-gantry/internal/config"
 	"github.com/shotah/ai-gantry/internal/cron"
+	"github.com/shotah/ai-gantry/internal/doctor"
 	"github.com/shotah/ai-gantry/internal/drain"
 	"github.com/shotah/ai-gantry/internal/examples"
 	"github.com/shotah/ai-gantry/internal/heartbeat"
@@ -130,6 +131,9 @@ func run() int {
 			logger.Error("mcp host close failed", "err", err)
 		}
 	}()
+	if err := doctor.WriteSnapshot(cfg.DataDir, mcpHost.ServerHealth()); err != nil {
+		logger.Warn("doctor snapshot write failed", "err", err)
+	}
 
 	var (
 		memBackend memory.Memory

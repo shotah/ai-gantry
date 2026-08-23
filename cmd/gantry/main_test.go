@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -11,7 +12,9 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/channel/stdio"
 	"github.com/shotah/ai-gantry/internal/config"
+	"github.com/shotah/ai-gantry/internal/doctor"
 	"github.com/shotah/ai-gantry/internal/heartbeat"
+	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/session"
 )
 
@@ -29,16 +32,85 @@ func TestStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = store.Close()
+	if err := doctor.WriteSnapshot(dir, nil); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Setenv("DATA_DIR", dir)
-	if code := status(); code != 0 {
-		t.Fatalf("status() = %d, want 0", code)
+	t.Setenv("PERSONA_DIR", dir)
+	t.Setenv("MCP_MANIFEST", filepath.Join(dir, "missing.toml"))
+	t.Setenv("CHANNEL", "stdio")
+
+	code, out := captureStdout(t, status)
+	if code != 0 {
+		t.Fatalf("status() = %d, want 0; out=%s", code, out)
+	}
+	var rep doctor.Report
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatalf("json %q: %v", out, err)
+	}
+	if !rep.Alive || !rep.OK || rep.Channel != "stdio" {
+		t.Fatalf("%+v from %s", rep, out)
 	}
 
 	t.Setenv("DATA_DIR", filepath.Join(dir, "missing"))
-	if code := status(); code != 1 {
+	code, _ = captureStdout(t, status)
+	if code != 1 {
 		t.Fatalf("status() = %d, want 1", code)
 	}
+}
+
+func TestStatus_AllSkippedStillExitZero(t *testing.T) {
+	dir := t.TempDir()
+	store, err := session.Open(dir, 10, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hb, err := heartbeat.OpenDB(store.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := hb.Touch(context.Background(), "test"); err != nil {
+		t.Fatal(err)
+	}
+	_ = store.Close()
+	if err := doctor.WriteSnapshot(dir, []mcp.ServerStatus{
+		{Name: "google", State: mcp.ServerSkipped, Reason: mcp.ReasonNoOAuth, Auth: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("DATA_DIR", dir)
+	t.Setenv("PERSONA_DIR", dir)
+	t.Setenv("MCP_MANIFEST", filepath.Join(dir, "missing.toml"))
+	t.Setenv("CHANNEL", "telegram")
+
+	code, out := captureStdout(t, status)
+	if code != 0 {
+		t.Fatalf("alive-but-skipped must exit 0 (docker health), got %d %s", code, out)
+	}
+	var rep doctor.Report
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatal(err)
+	}
+	if !rep.Alive || rep.OK || rep.Reason != "mcp_all_skipped" {
+		t.Fatalf("%+v", rep)
+	}
+}
+
+func captureStdout(t *testing.T, fn func() int) (int, string) {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	code := fn()
+	_ = w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(r)
+	return code, buf.String()
 }
 
 func TestPrintHelp(t *testing.T) {
@@ -54,8 +126,9 @@ func TestPrintHelp(t *testing.T) {
 
 	var buf bytes.Buffer
 	_, _ = buf.ReadFrom(r)
-	if !strings.Contains(buf.String(), "gantry") {
-		t.Fatalf("help = %q", buf.String())
+	help := buf.String()
+	if !strings.Contains(help, "gantry") || !strings.Contains(help, "JSON doctor") {
+		t.Fatalf("help = %q", help)
 	}
 }
 

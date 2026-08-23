@@ -564,8 +564,87 @@ command = "unused"
 	if health[0].Name != "broken" || health[0].State != mcp.ServerSkipped || !strings.Contains(health[0].Note, "cannot spawn") {
 		t.Fatalf("skipped=%#v", health[0])
 	}
+	if health[0].Reason != mcp.ReasonConnect {
+		t.Fatalf("reason=%q", health[0].Reason)
+	}
 	if health[1].Name != "ok" || health[1].State != mcp.ServerIdle {
 		t.Fatalf("ok=%#v", health[1])
+	}
+}
+
+func TestHost_CallSkippedServerClassified(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "google"
+command = "unused"
+auth_args = ["auth"]
+
+[[server]]
+name = "math"
+command = "unused"
+`)
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		Dial: func(_ context.Context, spec mcp.ServerSpec, _ io.Writer) (mcp.Conn, error) {
+			if spec.Name == "google" {
+				return nil, fmt.Errorf("oauth token missing")
+			}
+			return &fakeConn{tools: []mcp.Tool{{OriginalName: "ping"}}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	_, err = host.Call(context.Background(), "google__calendar_list_events", nil)
+	if err == nil {
+		t.Fatal("want unavailable")
+	}
+	var u *mcp.UnavailableError
+	if !errors.As(err, &u) || u.Reason != mcp.ReasonNoOAuth || u.Server != "google" {
+		t.Fatalf("%v", err)
+	}
+	if !strings.Contains(err.Error(), "tool error [no_oauth]") || !strings.Contains(err.Error(), "do not invent google__*") {
+		t.Fatalf("%v", err)
+	}
+
+	// Underscored prefix still maps to the skipped server.
+	_, err = host.Call(context.Background(), "google__x", nil)
+	if err == nil || !strings.Contains(err.Error(), "no_oauth") {
+		t.Fatalf("%v", err)
+	}
+
+	health := host.ServerHealth()
+	var google mcp.ServerStatus
+	for _, row := range health {
+		if row.Name == "google" {
+			google = row
+		}
+	}
+	if google.State != mcp.ServerSkipped || google.Reason != mcp.ReasonNoOAuth || !google.Auth {
+		t.Fatalf("%#v", google)
+	}
+}
+
+func TestHost_MissingBinarySkip(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "gone"
+command = "gantry-test-missing-mcp-binary-xyz"
+`)
+	host, err := mcp.Start(context.Background(), mcp.Options{ManifestPath: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+	health := host.ServerHealth()
+	if len(health) != 1 || health[0].State != mcp.ServerSkipped || health[0].Reason != mcp.ReasonNoBinary {
+		t.Fatalf("%#v", health)
+	}
+	_, err = host.Call(context.Background(), "gone__ping", nil)
+	if err == nil || !strings.Contains(err.Error(), "tool error [no_binary]") {
+		t.Fatalf("%v", err)
 	}
 }
 

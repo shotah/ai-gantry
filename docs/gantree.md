@@ -14,9 +14,10 @@ token, recreate, read logs. Chat stays the agent’s mouth. Gantree is the
 operator’s.
 
 This page is the harness-side design note. Hello and install live in
-[shotah/gantree](https://github.com/shotah/gantree). Nothing here ships
-in the `gantry` binary. Hello for a single agent is still
-[deploy-docker.md](deploy-docker.md).
+[shotah/gantree](https://github.com/shotah/gantree). The yard UI does not
+ship in the `gantry` binary; `gantry status` JSON and the file/env
+contract do ([gantree-contract.md](gantree-contract.md)). Hello for a
+single agent is still [deploy-docker.md](deploy-docker.md).
 
 ---
 
@@ -279,13 +280,17 @@ menu”; toggles are the real grant.
 
 ## Harness vs gantree
 
-**Push into `ai-gantry` when every consumer benefits**
+Work list: [../gantree_todo.md](../gantree_todo.md).
+Stable file/env/`gantry status` JSON: [gantree-contract.md](gantree-contract.md).
 
-- `gantry doctor` / richer `status`: channel, each MCP connected vs skipped,
-  auth yes/no, persona files present
-- Refuse “healthy” when the manifest is all skipped
-- Tool errors a model (and a UI) can tell apart: no binary vs no key vs no
-  OAuth
+**Push into `ai-gantry` when every consumer benefits** — shipped here:
+
+- `gantry status` / `doctor`: JSON on stdout — channel, each MCP connected vs
+  skipped, auth declared yes/no, persona files present
+- Operator `ok` is false when the manifest is all skipped. Docker **exit
+  code stays heartbeat** (chat-only must not restart)
+- Tool errors a model (and a UI) can tell apart: `no_binary` vs `no_key` vs
+  `no_oauth`
 - Stable enough file/env contract that a console can write them
 - `user_id` + `session_id` on every `turn perf` line so a yard can
   rank spend by person without sitting in the token path
@@ -297,7 +302,7 @@ menu”; toggles are the real grant.
 - Isolation rules, backup, operator auth to the console itself
 
 The harness never learns instance names. Gantree never sits in the token path
-of a chat turn.
+of a chat turn. Status is pull (`docker exec`); the snapshot is boot-only.
 
 ---
 

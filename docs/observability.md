@@ -83,7 +83,7 @@ ps -o pid,rss,etime,cmd -p "$(pgrep -x gantry)"       # the harness itself
 Liveness is an exit code, not a port:
 
 ```bash
-gantry status; echo $?        # 0 = heartbeat row is fresh
+gantry status; echo $?        # 0 = heartbeat row is fresh; JSON doctor on stdout
 ```
 
 ---
@@ -160,7 +160,10 @@ docker compose logs --no-log-prefix --since 1h gantry \
 `docker stats` counts the whole container cgroup, so MCP children are
 included — same guarantee as the systemd unit. Health is the same exit-code
 story (`docker inspect --format '{{.State.Health.Status}}' gantry`, backed by
-`["CMD","gantry","status"]`).
+`["CMD","gantry","status"]`). Stdout is a JSON doctor (channel, MCP
+connected vs skipped, persona files). Exit 0 is still **liveness only** —
+see [gantree-contract.md](gantree-contract.md). Chat-only (empty manifest)
+must not go Docker-unhealthy.
 
 In the usual Docker shape the model is a **cloud endpoint**, so there is no
 GPU to watch — consumption is token spend, and the `model call` /
@@ -200,7 +203,7 @@ locally.
 | "Did it fan out or recover-loop?" | `/perf` → `iters` / `tools` / `batch` / `rec` |
 | "Is it the model or a tool?" | `model_ms` vs `tool_ms` in the same line |
 | "What did the trajectory cost in tokens?" | `turn perf` → `prompt_est_tokens` + `gen_est_tokens` (estimates) |
-| "Is the bot alive?" | `gantry status; echo $?` |
+| "Is the bot alive?" | `gantry status; echo $?` (JSON `alive`; exit 0 is heartbeat) |
 
 If you genuinely need dashboards, don't add a port to gantry — ship the
 journal (`promtail`, `vector`, `journald` → Loki) and graph the same JSON

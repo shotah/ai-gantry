@@ -33,11 +33,20 @@ func TestFormatServerHealth_OmitsSkippedAndListsIdle(t *testing.T) {
 
 func TestFormatServerHealthLine_Skipped(t *testing.T) {
 	got := mcp.FormatServerHealthLine(mcp.ServerStatus{
+		Name:   "cast",
+		State:  mcp.ServerSkipped,
+		Reason: mcp.ReasonNoBinary,
+		Note:   "executable not found",
+	}, time.Now())
+	if got != "skipped  no_binary  executable not found" {
+		t.Fatalf("%q", got)
+	}
+	legacy := mcp.FormatServerHealthLine(mcp.ServerStatus{
 		Name:  "cast",
 		State: mcp.ServerSkipped,
 		Note:  "executable not found",
 	}, time.Now())
-	if got != "skipped  executable not found" {
-		t.Fatalf("%q", got)
+	if legacy != "skipped  executable not found" {
+		t.Fatalf("%q", legacy)
 	}
 }

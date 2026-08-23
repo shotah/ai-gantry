@@ -21,11 +21,14 @@ const healthNoteMax = 80
 
 // ServerStatus is the last observed call for one manifest server.
 type ServerStatus struct {
-	Name  string
-	State string
-	At    time.Time // zero when idle or skipped
-	Tool  string    // last prefixed tool name
-	Note  string    // last error (or boot skip reason)
+	Name   string
+	State  string
+	At     time.Time // zero when idle or skipped
+	Tool   string    // last prefixed tool name
+	Note   string    // last error (or boot skip reason)
+	Reason Reason    // no_binary | no_key | no_oauth | connect; empty when idle/ok
+	Auth   bool      // mcp.toml declares auth_args / auth_command
+	Prefix string    // tools_prefix or name; used to match model-invented calls
 }
 
 // ServerHealthOf forwards ServerHealth through composite tool runners.
@@ -39,10 +42,16 @@ func ServerHealthOf(v any) []ServerStatus {
 // ServerHealth lists every connected server (tools in the catalog) plus
 // boot-skipped manifest servers. Sorted by name.
 func (h *Host) ServerHealth() []ServerStatus {
+	type meta struct {
+		auth   bool
+		prefix string
+	}
 	h.mu.RLock()
 	names := make([]string, 0, len(h.servers))
-	for name := range h.servers {
+	info := make(map[string]meta, len(h.servers))
+	for name, ms := range h.servers {
 		names = append(names, name)
+		info[name] = meta{auth: ms.spec.AuthConfigured(), prefix: prefixFor(ms.spec)}
 	}
 	skipped := append([]ServerStatus(nil), h.skipped...)
 	h.mu.RUnlock()
@@ -56,7 +65,7 @@ func (h *Host) ServerHealth() []ServerStatus {
 
 	out := make([]ServerStatus, 0, len(names)+len(skipped))
 	for _, name := range names {
-		row := ServerStatus{Name: name, State: ServerIdle}
+		row := ServerStatus{Name: name, State: ServerIdle, Auth: info[name].auth, Prefix: info[name].prefix}
 		if lc, ok := last[name]; ok {
 			row.At = lc.at
 			row.Tool = lc.tool
@@ -65,6 +74,7 @@ func (h *Host) ServerHealth() []ServerStatus {
 				row.State = ServerOK
 			} else {
 				row.State = ServerError
+				row.Reason = ClassifyReason(lc.note)
 			}
 		}
 		out = append(out, row)
@@ -130,10 +140,16 @@ func FormatServerHealth(rows []ServerStatus, now time.Time) string {
 // FormatServerHealthLine is one operator line for /tools (includes skipped).
 func FormatServerHealthLine(r ServerStatus, now time.Time) string {
 	if r.State == ServerSkipped {
-		if r.Note == "" {
+		switch {
+		case r.Reason != "" && r.Note != "":
+			return "skipped  " + string(r.Reason) + "  " + r.Note
+		case r.Reason != "":
+			return "skipped  " + string(r.Reason)
+		case r.Note == "":
 			return "skipped"
+		default:
+			return "skipped  " + r.Note
 		}
-		return "skipped  " + r.Note
 	}
 	if r.State == ServerIdle || r.At.IsZero() {
 		return "idle"
@@ -148,6 +164,12 @@ func FormatServerHealthLine(r ServerStatus, now time.Time) string {
 	note := r.Note
 	if suf := shortToolSuffix(r.Tool); suf != "" && note != "" {
 		note = suf + ": " + note
+	}
+	if r.Reason != "" {
+		if note == "" {
+			return "error  " + age + "  " + string(r.Reason)
+		}
+		return "error  " + age + "  " + string(r.Reason) + "  " + note
 	}
 	if note == "" {
 		return "error  " + age
