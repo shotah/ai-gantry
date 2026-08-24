@@ -81,6 +81,8 @@ alive. `gantry doctor` is an alias.
   "alive": true,
   "ok": false,
   "reason": "mcp_all_skipped",
+  "version": "0.1.70",
+  "commit": "b2f7cfe",
   "channel": "telegram",
   "persona": { "dir": "/persona", "persona_md": true, "self_md": false },
   "mcp": {
@@ -105,6 +107,8 @@ alive. `gantry doctor` is an alias.
 | `alive` | Heartbeat row fresh (≤ ~60s). **This** is Docker exit 0/1. |
 | `ok` | Operator health. False when `alive` is false, or listed MCP are all skipped / none connected. Empty manifest (chat-only) stays `ok` if alive. |
 | `reason` | `no_heartbeat` · `mcp_all_skipped` |
+| `version` | Harness semver from the binary ldflags (`gantry version`). Present even when `alive` is false — same image, same stamp. Compose `:latest` is not this. |
+| `commit` | Short git sha when the image was built (`none` omitted) |
 | `mcp.servers[].state` | `connected` · `skipped` · `unknown` (no boot snapshot yet) |
 | `mcp.servers[].reason` | `no_binary` · `no_key` · `no_oauth` · `connect` |
 | `mcp.servers[].auth` | `mcp.toml` declared `auth_args` / `auth_command` |

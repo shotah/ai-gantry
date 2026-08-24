@@ -24,10 +24,15 @@ const SnapshotFile = "doctor.json"
 // Exit 0 means Alive (heartbeat fresh). OK is operator health and may
 // be false while Alive is true — chat-only and all-skipped must not
 // restart the container.
+//
+// Version / Commit are the binary ldflags, filled by `gantry status`
+// (Collect is files-only and leaves them empty).
 type Report struct {
 	Alive   bool         `json:"alive"`
 	OK      bool         `json:"ok"`
 	Reason  string       `json:"reason,omitempty"`
+	Version string       `json:"version,omitempty"`
+	Commit  string       `json:"commit,omitempty"`
 	Channel string       `json:"channel"`
 	Persona PersonaFiles `json:"persona"`
 	MCP     MCPReport    `json:"mcp"`

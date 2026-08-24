@@ -286,7 +286,8 @@ Stable file/env/`gantry status` JSON: [gantree-contract.md](gantree-contract.md)
 **Push into `ai-gantry` when every consumer benefits** — shipped here:
 
 - `gantry status` / `doctor`: JSON on stdout — channel, each MCP connected vs
-  skipped, auth declared yes/no, persona files present
+  skipped, auth declared yes/no, persona files present, **`version`** (binary
+  stamp so `:latest` is not the only number)
 - Operator `ok` is false when the manifest is all skipped. Docker **exit
   code stays heartbeat** (chat-only must not restart)
 - Tool errors a model (and a UI) can tell apart: `no_binary` vs `no_key` vs

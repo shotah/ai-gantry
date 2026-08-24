@@ -35,6 +35,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # or link only against libs present here (effectively: none).
 FROM gcr.io/distroless/static-debian12:nonroot
 
+ARG VERSION=dev
+ARG COMMIT=none
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.revision="${COMMIT}"
+
 COPY --from=build /out/gantry /usr/local/bin/gantry
 
 USER nonroot

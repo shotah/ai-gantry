@@ -40,6 +40,11 @@ not “tools are up.”
       bump before Mini cranes emit it; gantree pin may lag)
 - [x] Stable file/env contract docs the console can write against
       ([docs/gantree-contract.md](docs/gantree-contract.md))
+- [x] Harness `version` on `gantry status` JSON (same binary stamp as
+      `gantry version`) so a `:latest` pin still shows 0.1.67 vs 0.1.70.
+      No extra port; doctor already execs this. OCI
+      `org.opencontainers.image.version` on the image for inspect-only
+      board cards.
 
 `gantry doctor` is an alias of `status`.
 

@@ -52,6 +52,9 @@ func TestStatus(t *testing.T) {
 	if !rep.Alive || !rep.OK || rep.Channel != "stdio" {
 		t.Fatalf("%+v from %s", rep, out)
 	}
+	if rep.Version == "" {
+		t.Fatalf("status JSON missing version: %s", out)
+	}
 
 	t.Setenv("DATA_DIR", filepath.Join(dir, "missing"))
 	code, _ = captureStdout(t, status)

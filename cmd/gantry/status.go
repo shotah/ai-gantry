@@ -9,11 +9,16 @@ import (
 )
 
 // status is the Docker healthcheck command: exit 0 when the heartbeat row is
-// fresh. Operator JSON (channel, MCP connected vs skipped, persona files)
-// is printed on stdout. Exit code is liveness only — an all-skipped manifest
-// is operator-unhealthy (`ok:false`) but must not restart a chat-only crane.
+// fresh. Operator JSON (version, channel, MCP connected vs skipped, persona
+// files) is printed on stdout. Exit code is liveness only — an all-skipped
+// manifest is operator-unhealthy (`ok:false`) but must not restart a chat-only
+// crane.
 func status() int {
 	rep := doctor.Collect(doctor.PathsFromEnv())
+	rep.Version = version
+	if commit != "" && commit != "none" {
+		rep.Commit = commit
+	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetEscapeHTML(false)
 	if err := enc.Encode(rep); err != nil {
