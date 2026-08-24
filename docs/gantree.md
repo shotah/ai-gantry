@@ -294,6 +294,9 @@ Stable file/env/`gantry status` JSON: [gantree-contract.md](gantree-contract.md)
 - Stable enough file/env contract that a console can write them
 - `user_id` + `session_id` on every `turn perf` line so a yard can
   rank spend by person without sitting in the token path
+- `source` always `user` / `cron` / `watch` / `reaction`; native
+  OpenAI-compat `usage` (`prompt_tokens` …) plus `model` / `finish_reason`
+  on the same line when the Completer already returned them
 
 **Keep in gantree**
 

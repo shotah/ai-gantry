@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/openai/openai-go/v3"
 )
 
 // Streamer is an optional Completer that can emit progressive text.
@@ -109,13 +111,17 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onProgress fun
 	if err != nil {
 		return nil, err
 	}
+	// Without this, STREAM_REPLIES (the default) never sees usage — OpenAI-compat
+	// only puts the blob on a trailing empty-choices chunk when asked.
+	params.StreamOptions.IncludeUsage = openai.Bool(true)
 
 	stream := c.client.Chat.Completions.NewStreaming(ctx, params)
 	sawTool := false
 	var full strings.Builder
 	var thinking strings.Builder
 	var tools streamToolBuf
-	var finishReason string
+	var finishReason, model, serviceTier string
+	var usage Usage
 
 	emit := func() error {
 		if sawTool || onProgress == nil {
@@ -126,6 +132,17 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onProgress fun
 
 	for stream.Next() {
 		chunk := stream.Current()
+		if chunk.Model != "" {
+			model = chunk.Model
+		}
+		if t := string(chunk.ServiceTier); t != "" {
+			serviceTier = t
+		}
+		if chunk.JSON.Usage.Valid() {
+			usage = usageFrom(true, chunk.Usage)
+		} else if u := usageFrom(false, chunk.Usage); u.Present() {
+			usage = u
+		}
 		if len(chunk.Choices) == 0 {
 			continue
 		}
@@ -166,6 +183,9 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onProgress fun
 		Content:      strings.TrimSpace(full.String()),
 		Thinking:     strings.TrimSpace(thinking.String()),
 		FinishReason: finishReason,
+		Model:        model,
+		ServiceTier:  serviceTier,
+		Usage:        usage,
 	}
 	for _, acc := range tools.order {
 		if acc == nil || (acc.name == "" && acc.id == "") {

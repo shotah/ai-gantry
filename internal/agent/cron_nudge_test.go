@@ -75,14 +75,27 @@ func TestDropCronHistory(t *testing.T) {
 
 func TestTurnSource(t *testing.T) {
 	t.Parallel()
-	if got := turnSource("[watch] New items"); got != "watch" {
-		t.Fatalf("watch source=%q", got)
+	cases := []struct {
+		in, want string
+	}{
+		{in: "[watch] New items", want: sourceWatch},
+		{in: "[cron] Scheduled job", want: sourceCron},
+		{in: cron.SparkPingPrefix + "recall aim/", want: sourceCron},
+		{in: cron.ExamplesPingPrefix + "try /tools", want: sourceCron},
+		{in: "[reaction] 👍 on: earlier reply", want: sourceReaction},
+		{in: "hey", want: sourceUser},
+		{in: "  ", want: sourceUser},
+		{in: "", want: sourceUser},
 	}
-	if got := turnSource("[cron] Scheduled job"); got != "cron" {
-		t.Fatalf("cron source=%q", got)
-	}
-	if got := turnSource("hey"); got != "user" {
-		t.Fatalf("user source=%q", got)
+	for _, tc := range cases {
+		if got := turnSource(tc.in); got != tc.want {
+			t.Fatalf("turnSource(%q)=%q want %q", tc.in, got, tc.want)
+		}
+		switch turnSource(tc.in) {
+		case sourceUser, sourceCron, sourceWatch, sourceReaction:
+		default:
+			t.Fatalf("unknown-creep source %q from %q", turnSource(tc.in), tc.in)
+		}
 	}
 	if !cron.IsSparkTurn(cron.SparkPingPrefix + "recall aim/") {
 		t.Fatal("spark prefix should be a spark turn")

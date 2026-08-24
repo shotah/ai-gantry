@@ -5,6 +5,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shotah/ai-gantry/internal/provider"
 )
 
 // perfRingSize is the fixed in-process history for /perf (not an env knob).
@@ -77,18 +79,62 @@ func (r *perfRing) turnCount() uint64 {
 	return r.total
 }
 
+// Turn source values on `turn perf`. Keep this set stable — Gantree charts
+// anything else as spend "unknown". Spark / examples wake as cron ([cron] prefix).
+const (
+	sourceUser     = "user"
+	sourceCron     = "cron"
+	sourceWatch    = "watch"
+	sourceReaction = "reaction"
+)
+
 func turnSource(text string) string {
 	t := strings.TrimSpace(text)
 	switch {
 	case strings.HasPrefix(t, "[cron]"):
-		return "cron"
+		return sourceCron
 	case strings.HasPrefix(t, "[watch]"):
-		return "watch"
+		return sourceWatch
 	case strings.HasPrefix(t, "[reaction]"):
-		return "reaction"
+		return sourceReaction
 	default:
-		return "user"
+		return sourceUser
 	}
+}
+
+// nativeUsageAttrs copies Completer usage onto slog. Omit the keys when the
+// provider sent nothing so Gantree can keep using chars/4 without a fake 0.
+func nativeUsageAttrs(u provider.Usage) []any {
+	if !u.Present() {
+		return nil
+	}
+	attrs := []any{
+		"prompt_tokens", u.PromptTokens,
+		"completion_tokens", u.CompletionTokens,
+		"total_tokens", u.TotalTokens,
+	}
+	if u.CachedTokens != 0 {
+		attrs = append(attrs, "cached_tokens", u.CachedTokens)
+	}
+	if u.CacheWriteTokens != 0 {
+		attrs = append(attrs, "cache_write_tokens", u.CacheWriteTokens)
+	}
+	if u.ReasoningTokens != 0 {
+		attrs = append(attrs, "reasoning_tokens", u.ReasoningTokens)
+	}
+	if u.PromptAudioTokens != 0 {
+		attrs = append(attrs, "prompt_audio_tokens", u.PromptAudioTokens)
+	}
+	if u.CompletionAudioTokens != 0 {
+		attrs = append(attrs, "completion_audio_tokens", u.CompletionAudioTokens)
+	}
+	if u.AcceptedPredictionTokens != 0 {
+		attrs = append(attrs, "accepted_prediction_tokens", u.AcceptedPredictionTokens)
+	}
+	if u.RejectedPredictionTokens != 0 {
+		attrs = append(attrs, "rejected_prediction_tokens", u.RejectedPredictionTokens)
+	}
+	return attrs
 }
 
 func (a *Agent) formatPerf() string {

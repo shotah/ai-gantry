@@ -25,7 +25,7 @@ func renderIndex(active, idle []string) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("[mcp prefixes] enable with mcp_enable. ")
+	b.WriteString("[mcp prefixes] Review on vs off this turn. Need an off prefix? mcp_enable it (schemas on the next model call), then call the tool. Never bluff a missing tool that is listed off. ")
 	if len(active) > 0 {
 		b.WriteString("on: " + strings.Join(active, "; "))
 	} else {

@@ -20,6 +20,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/mcp"
+	"github.com/shotah/ai-gantry/internal/mcpenable"
 	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/provider"
 	"github.com/shotah/ai-gantry/internal/session"
@@ -92,6 +93,26 @@ func (m *memHistory) setSummary(id, s string) {
 	m.summary[id] = s
 }
 
+func lastTurnPerf(t *testing.T, logs string) map[string]any {
+	t.Helper()
+	var last map[string]any
+	for _, line := range strings.Split(logs, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || !strings.Contains(line, `"msg":"turn perf"`) {
+			continue
+		}
+		var m map[string]any
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			t.Fatalf("turn perf json: %v\n%s", err, line)
+		}
+		last = m
+	}
+	if last == nil {
+		t.Fatalf("missing turn perf: %s", logs)
+	}
+	return last
+}
+
 func TestAgent_TurnPerfIncludesUserAndSession(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewJSONHandler(&buf, nil))
@@ -107,12 +128,170 @@ func TestAgent_TurnPerfIncludesUserAndSession(t *testing.T) {
 	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s-1", UserID: "42", Text: "hi"}); err != nil {
 		t.Fatal(err)
 	}
-	out := buf.String()
-	if !strings.Contains(out, `"msg":"turn perf"`) {
-		t.Fatalf("missing turn perf: %s", out)
+	rec := lastTurnPerf(t, buf.String())
+	if rec["user_id"] != "42" || rec["session_id"] != "s-1" {
+		t.Fatalf("ids: %v", rec)
 	}
-	if !strings.Contains(out, `"user_id":"42"`) || !strings.Contains(out, `"session_id":"s-1"`) {
-		t.Fatalf("missing ids: %s", out)
+	if rec["source"] != "user" {
+		t.Fatalf("source=%v want user", rec["source"])
+	}
+	if rec["model"] != "m" {
+		t.Fatalf("model=%v want configured fallback", rec["model"])
+	}
+	if _, ok := rec["duration_ms"]; !ok {
+		t.Fatalf("missing duration_ms: %v", rec)
+	}
+	if _, ok := rec["prompt_tokens"]; ok {
+		t.Fatalf("native usage leaked without Completer blob: %v", rec)
+	}
+}
+
+func TestAgent_TurnPerfUserIDFallsBackToChatID(t *testing.T) {
+	var buf bytes.Buffer
+	log := slog.New(slog.NewJSONHandler(&buf, nil))
+	a, err := agent.New(agent.Options{
+		Completer: &fakeCompleter{},
+		Sessions:  newMemHistory(),
+		Logger:    log,
+		Model:     "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", ChatID: "99", Text: "hi"}); err != nil {
+		t.Fatal(err)
+	}
+	rec := lastTurnPerf(t, buf.String())
+	if rec["source"] != "user" || rec["user_id"] != "99" {
+		t.Fatalf("want user + chat id, got %v", rec)
+	}
+}
+
+func TestAgent_TurnPerfCronOmitsEmptyUserID(t *testing.T) {
+	var buf bytes.Buffer
+	log := slog.New(slog.NewJSONHandler(&buf, nil))
+	a, err := agent.New(agent.Options{
+		Completer: &fakeCompleter{},
+		Sessions:  newMemHistory(),
+		Logger:    log,
+		Model:     "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := cron.JobUserPrefix + "Remind me to submit my timecard."
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: text}); err != nil {
+		t.Fatal(err)
+	}
+	rec := lastTurnPerf(t, buf.String())
+	if rec["source"] != "cron" {
+		t.Fatalf("source=%v want cron", rec["source"])
+	}
+	if _, ok := rec["user_id"]; ok {
+		t.Fatalf("cron must omit empty user_id: %v", rec)
+	}
+}
+
+func TestAgent_TurnPerfSources(t *testing.T) {
+	cases := []struct {
+		text string
+		want string
+	}{
+		{text: "hello", want: "user"},
+		{text: cron.JobUserPrefix + "x", want: "cron"},
+		{text: cron.SparkPingPrefix + "recall aim/", want: "cron"},
+		{text: cron.ExamplesPingPrefix + "try /tools", want: "cron"},
+		{text: "[watch] New items from a subscription.\n\n- id=nws-1", want: "watch"},
+		{text: "[reaction] 👍 on: earlier reply", want: "reaction"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.want+"_"+tc.text[:min(12, len(tc.text))], func(t *testing.T) {
+			var buf bytes.Buffer
+			log := slog.New(slog.NewJSONHandler(&buf, nil))
+			a, err := agent.New(agent.Options{
+				Completer: &fakeCompleter{},
+				Sessions:  newMemHistory(),
+				Logger:    log,
+				Model:     "m",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", UserID: "7", Text: tc.text}); err != nil {
+				t.Fatal(err)
+			}
+			rec := lastTurnPerf(t, buf.String())
+			if rec["source"] != tc.want {
+				t.Fatalf("source=%v want %s", rec["source"], tc.want)
+			}
+			switch rec["source"] {
+			case "user", "cron", "watch", "reaction":
+			default:
+				t.Fatalf("unknown-creep source=%v", rec["source"])
+			}
+		})
+	}
+}
+
+func TestAgent_TurnPerfNativeUsageSumsRounds(t *testing.T) {
+	var buf bytes.Buffer
+	log := slog.New(slog.NewJSONHandler(&buf, nil))
+	n := 0
+	fc := &fakeCompleter{fn: func(_ provider.Request) (*provider.Result, error) {
+		n++
+		if n == 1 {
+			return &provider.Result{
+				FinishReason: "tool_calls",
+				Model:        "gemini-echo",
+				Usage: provider.Usage{
+					PromptTokens:     10,
+					CompletionTokens: 5,
+					TotalTokens:      15,
+					CachedTokens:     3,
+					ReasoningTokens:  2,
+				},
+				ToolCalls: []provider.ToolCall{{ID: "c1", Name: "demo__echo", Arguments: `{}`}},
+			}, nil
+		}
+		return &provider.Result{
+			Content:      "done",
+			FinishReason: "stop",
+			Model:        "gemini-echo",
+			ServiceTier:  "flex",
+			Usage:        provider.Usage{PromptTokens: 20, CompletionTokens: 8, TotalTokens: 28},
+		}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Completer: fc,
+		Sessions:  newMemHistory(),
+		Logger:    log,
+		Model:     "configured-model",
+		Tools:     &fakeTools{defs: []provider.ToolDef{{Name: "demo__echo"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", UserID: "1", Text: "run it"}); err != nil {
+		t.Fatal(err)
+	}
+	rec := lastTurnPerf(t, buf.String())
+	if rec["source"] != "user" || rec["model"] != "gemini-echo" || rec["finish_reason"] != "stop" {
+		t.Fatalf("meta: %v", rec)
+	}
+	if rec["service_tier"] != "flex" {
+		t.Fatalf("service_tier=%v", rec["service_tier"])
+	}
+	if rec["prompt_tokens"] != float64(30) || rec["completion_tokens"] != float64(13) || rec["total_tokens"] != float64(43) {
+		t.Fatalf("native totals: %v", rec)
+	}
+	if rec["cached_tokens"] != float64(3) || rec["reasoning_tokens"] != float64(2) {
+		t.Fatalf("details: %v", rec)
+	}
+	if rec["usage_rounds"] != float64(2) {
+		t.Fatalf("usage_rounds=%v", rec["usage_rounds"])
+	}
+	if rec["prompt_est_tokens"] == nil || rec["gen_est_tokens"] == nil {
+		t.Fatalf("keep chars/4 fallback: %v", rec)
 	}
 }
 
@@ -195,6 +374,76 @@ func TestAgent_Handle_ToolsHealthBlock(t *testing.T) {
 	}
 	if !strings.Contains(listed, "error") || !strings.Contains(listed, "cast: skipped") {
 		t.Fatalf("/tools = %q", listed)
+	}
+}
+
+func TestAgent_Handle_DynamicToolsPrompt(t *testing.T) {
+	sess, err := session.Open(t.TempDir(), 20, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := mcpenable.OpenDB(sess.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var last provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		last = req
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Persona:   "you are kit",
+		Completer: fc,
+		Sessions:  newMemHistory(),
+		Tools: &fakeTools{defs: []provider.ToolDef{
+			{Name: "memory_store"},
+			{Name: "mcp_enable"},
+			{Name: "google__calendar_list_events"},
+			{Name: "flights__offers_search"},
+		}},
+		Enable: store,
+		Model:  "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "what's on today?"}); err != nil {
+		t.Fatal(err)
+	}
+
+	var index, review string
+	var published []string
+	for _, d := range last.Tools {
+		published = append(published, d.Name)
+	}
+	for _, m := range last.Messages {
+		if strings.Contains(m.Content, "[mcp prefixes]") && strings.Contains(m.Content, "on:") {
+			index = m.Content
+		}
+		if strings.Contains(m.Content, "Review [mcp prefixes] on vs off this turn") {
+			review = m.Content
+		}
+	}
+	if index == "" {
+		t.Fatal("missing [mcp prefixes] on/off index")
+	}
+	if !strings.Contains(index, "off: flights") || !strings.Contains(index, "google") {
+		t.Fatalf("index missing off prefixes: %q", index)
+	}
+	if !strings.Contains(index, "Review on vs off") {
+		t.Fatalf("index must tell the model to review on/off: %q", index)
+	}
+	if review == "" {
+		t.Fatal("missing recency note to review on/off and mcp_enable")
+	}
+	joined := strings.Join(published, ",")
+	if !strings.Contains(joined, "mcp_enable") || !strings.Contains(joined, "memory_store") {
+		t.Fatalf("builtins missing from published tools: %v", published)
+	}
+	if strings.Contains(joined, "calendar") || strings.Contains(joined, "flights") {
+		t.Fatalf("off MCP schemas leaked into first call: %v", published)
 	}
 }
 

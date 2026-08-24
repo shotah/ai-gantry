@@ -102,9 +102,9 @@ journalctl -u gantry -f | grep -E 'model call|tool done|turn perf'
 
 | Log line | Fields | Read it as |
 | --- | --- | --- |
-| `model call` | `first_token_ms`, `dur_ms`, `volatile_est_tokens`, `prompt_est_tokens`, `schema_est_tokens` | `first_token_ms` ≈ prefill; the rest of `dur_ms` is decode |
+| `model call` | `first_token_ms`, `dur_ms`, `volatile_est_tokens`, `prompt_est_tokens`, `schema_est_tokens`, native `prompt_tokens` when sent | `first_token_ms` ≈ prefill; the rest of `dur_ms` is decode |
 | `tool done` | `dur_ms`, `result_chars` | Slow MCP vs slow model; `result_chars` lands in the volatile tail |
-| `turn perf` | `source`, `user_id`, `session_id`, `iterations`, `tool_calls`, `max_batch`, `recoveries`, `prompt_est_tokens`, `gen_est_tokens`, `model_ms`, `tool_ms`, `total_ms`, `outcome` | Trajectory: work per Completer round |
+| `turn perf` | `source`, `user_id`, `session_id`, `iterations`, `tool_calls`, `max_batch`, `recoveries`, `prompt_est_tokens`, `gen_est_tokens`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `model`, `finish_reason`, `model_ms`, `tool_ms`, `total_ms`, `outcome` | Trajectory: work per Completer round |
 
 **`volatile_est_tokens` is the number that predicts `first_token_ms`, not
 `prompt_est_tokens`.** The prefix (persona + summary + history) is byte-stable

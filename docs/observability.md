@@ -98,9 +98,9 @@ journalctl -u gantry -f | grep -E 'model call|tool done|turn perf'
 
 | Log line | Key fields | Read it as |
 | --- | --- | --- |
-| `model call` | `first_token_ms`, `dur_ms`, `prompt_est_tokens`, `volatile_est_tokens`, `schema_est_tokens`, `tool_calls`, `finish_reason` | `first_token_ms` ≈ prefill; rest of `dur_ms` is decode; `*_est_tokens` are chars/4 estimates |
+| `model call` | `first_token_ms`, `dur_ms`, `prompt_est_tokens`, `volatile_est_tokens`, `schema_est_tokens`, `tool_calls`, `finish_reason`, `model`, `prompt_tokens` / `completion_tokens` / `total_tokens` when the Completer sent `usage` | `first_token_ms` ≈ prefill; rest of `dur_ms` is decode; `*_est_tokens` are chars/4; native `*_tokens` are provider counts |
 | `tool done` | `name`, `dur_ms`, `result_chars` | slow MCP vs slow model |
-| `turn perf` | `source`, `user_id`, `session_id`, `iterations`, `tool_calls`, `max_batch`, `recoveries`, `prompt_est_tokens`, `gen_est_tokens`, `tools_per_inv`, `model_ms`, `tool_ms`, `total_ms`, `outcome` | Trajectory: work per Completer round; `user_id` is the channel identity gantree ranks spend by |
+| `turn perf` | `source` (`user` / `cron` / `watch` / `reaction`), `user_id`, `session_id`, `iterations`, `tool_calls`, `max_batch`, `recoveries`, `prompt_est_tokens`, `gen_est_tokens`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `model`, `finish_reason`, `tools_per_inv`, `model_ms`, `tool_ms`, `total_ms`, `duration_ms`, `outcome` | Trajectory: work per Completer round; `source` is why spend is not unknown; native tokens when the provider sent `usage` (summed); `*_est_tokens` remain the chars/4 fallback |
 
 Because the logs are structured JSON, `jq` turns them into ad-hoc metrics —
 `-o cat` strips journald's prefix so lines parse cleanly:
@@ -123,10 +123,13 @@ journalctl -u gantry --since -1d -o cat \
   | awk '{s+=$1; n++} END {print s" est tokens over "n" calls"}'
 ```
 
-Token counts are chars/4 **estimates** everywhere (logs, `/status`) — good
-for trends and comparisons, not billing math. For exact cloud spend, the
-provider's usage console is the source of truth; these logs tell you *which
-turn* caused it.
+Token counts: `prompt_est_tokens` / `gen_est_tokens` are chars/4 **estimates**
+(logs, `/status`) — good for trends when the provider omits `usage`. When the
+Completer response includes OpenAI-compat `usage`, the same `turn perf` line
+also has `prompt_tokens` / `completion_tokens` / `total_tokens` (and cache /
+reasoning / audio / prediction details when sent). Those native counts are
+what to use for cloud spend; the estimates stay as the fallback. No second
+HTTP call — we copy the blob already on the completion.
 
 Boot cost is logged too — schema weight per MCP server:
 
@@ -202,7 +205,7 @@ locally.
 | "Why was that answer slow?" | `journalctl -u gantry -o cat \| jq 'select(.msg=="turn perf")'` |
 | "Did it fan out or recover-loop?" | `/perf` → `iters` / `tools` / `batch` / `rec` |
 | "Is it the model or a tool?" | `model_ms` vs `tool_ms` in the same line |
-| "What did the trajectory cost in tokens?" | `turn perf` → `prompt_est_tokens` + `gen_est_tokens` (estimates) |
+| "What did the trajectory cost in tokens?" | `turn perf` → native `prompt_tokens` + `completion_tokens` when present; else `prompt_est_tokens` + `gen_est_tokens` |
 | "Is the bot alive?" | `gantry status; echo $?` (JSON `alive`; exit 0 is heartbeat) |
 
 If you genuinely need dashboards, don't add a port to gantry — ship the

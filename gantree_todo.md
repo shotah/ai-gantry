@@ -42,3 +42,34 @@ not “tools are up.”
       ([docs/gantree-contract.md](docs/gantree-contract.md))
 
 `gantry doctor` is an alias of `status`.
+
+---
+
+## Slog what Completer already returned
+
+No second HTTP call. No provider usage API. No `/metrics`. Copy fields
+off the Completer response you already have onto the existing
+`turn perf` line. If it would add latency to a Telegram turn, it is
+wrong.
+
+Gantree parses these keys. Native-token tiles fill when `usage` was on
+the Completer response; chars/4 stays the fallback. Spend `unknown` is
+only a missing/invalid `source` (legacy logs before this line), not a
+guess.
+
+- [x] **`source` is always on `turn perf`.** `user` / `cron` / `watch` /
+      `reaction` — that set only (Gantree charts anything else as
+      **unknown**). Spark / examples wake as `cron`. Cron may omit
+      `user_id`. A user turn with a channel id falls back to `chat_id`
+      and must not omit `user_id`. Empty `source` is never logged.
+- [x] **Native OpenAI-compat `usage` on the same line** when the
+      Completer response had it: `prompt_tokens`, `completion_tokens`,
+      `total_tokens` (summed across rounds). Details when the provider
+      sent them: `cached_tokens`, `cache_write_tokens`,
+      `reasoning_tokens`, audio / prediction counts. Keep
+      `prompt_est_tokens` / `gen_est_tokens` as the chars/4 fallback.
+      Streaming requests `stream_options.include_usage` so the trailing
+      usage chunk is not dropped (no extra HTTP call).
+- [x] **`model` + `finish_reason`** on that line when the response
+      had them (`model` falls back to `LLM_MODEL`). `service_tier` and
+      `duration_ms` (alias of `total_ms`) go with them.

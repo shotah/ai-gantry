@@ -62,14 +62,19 @@ const budgetExhaustedNote = "[system] Tool budget exhausted: all %d tool rounds 
 // per lookup. One visible line for the batch feeds TOOL_TRACE.
 const toolNarrationNote = `When you need tools, emit every independent call in this same response — they run together. One short visible line for the whole batch (e.g. "Checking calendar, mail, and memory"), under a dozen words, then the calls. A later round is only for calls that need a prior result.`
 
+// enableReviewNote sits after the clock when dynamic tools are on so the
+// on/off index is not dropped in a long chat. mcp_enable must precede the
+// real MCP call — schemas land on the next Completer round of this turn.
+const enableReviewNote = "[system] Review [mcp prefixes] on vs off this turn. If you need a tool whose prefix is off, call mcp_enable with every prefix this turn needs (one call). Schemas land on the next model call in this same turn — then call the tool. Do not claim you lack a tool that is listed off."
+
 // cronToolFirstNote sits after the clock on scheduled turns so the last
 // instruction is "tools first" — cron user text otherwise reads like a
 // finished-report spec and small models draft numbers instead of calling.
-const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data, emit independent tool calls now in one response and wait for results. Do not invent metrics, events, or search results. Write the user-facing report only after tool results are in context. If no tools are needed, reply now."
+const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data, review [mcp prefixes] and mcp_enable any off prefix this job needs, then emit independent tool calls now in one response and wait for results. Do not invent metrics, events, or search results. Write the user-facing report only after tool results are in context. If no tools are needed, reply now."
 
 // sparkToolFirstNote sits after the clock on spark-of-life turns. Spark is
 // horizon work (aims / cron / live tools), not a presence joke.
-const sparkToolFirstNote = "[system] Spark-of-life turn: this is horizon work, not a chat ping. Emit independent tool calls now — memory_recall for aim/ (and aim/bootstrap if the board is empty), cron_list, then live tools or cron_schedule. If there is no north-star and no aim/, ask ONE months-scale question — do not invent an aim. mcp_enable a prefix if it is off and needed. Do not invent progress. Do not send a joke. After the work, reply with exactly [silent] unless the human needs a specific hole or next step."
+const sparkToolFirstNote = "[system] Spark-of-life turn: this is horizon work, not a chat ping. Review [mcp prefixes] on vs off. Emit independent tool calls now — memory_recall for aim/ (and aim/bootstrap if the board is empty), cron_list, then live tools or cron_schedule. If there is no north-star and no aim/, ask ONE months-scale question — do not invent an aim. mcp_enable a prefix if it is off and needed. Do not invent progress. Do not send a joke. After the work, reply with exactly [silent] unless the human needs a specific hole or next step."
 
 // theaterCueMaxChars: a stop reply this long is already the answer. Matching
 // "I've added…" or a server__tool name inside a design essay must not start
@@ -416,10 +421,11 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			Content: "[session summary]\n" + s,
 		})
 	}
-	if block := a.enableIndexBlock(turnCtx, msg.SessionID); block != "" {
+	indexBlock := a.enableIndexBlock(turnCtx, msg.SessionID)
+	if indexBlock != "" {
 		messages = append(messages, provider.Message{
 			Role:    provider.RoleSystem,
-			Content: block,
+			Content: indexBlock,
 		})
 	}
 	// Prior scheduled / watch replies are a few-shot template for inventing
@@ -491,6 +497,12 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		Role:    provider.RoleSystem,
 		Content: clock,
 	})
+	if indexBlock != "" {
+		messages = append(messages, provider.Message{
+			Role:    provider.RoleSystem,
+			Content: enableReviewNote,
+		})
+	}
 
 	var toolDefs []provider.ToolDef
 	if a.tools != nil && !channel.NoToolsFrom(ctx) {
@@ -515,7 +527,11 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		"est_tokens", estTokens(messages)+shape.schemas,
 	)
 
-	reply, err := a.runLoop(turnCtx, msg.SessionID, msg.UserID, messages, toolDefs, shape, turnSource(text))
+	userID := strings.TrimSpace(msg.UserID)
+	if userID == "" {
+		userID = strings.TrimSpace(msg.ChatID)
+	}
+	reply, err := a.runLoop(turnCtx, msg.SessionID, userID, messages, toolDefs, shape, turnSource(text))
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return "", nil
@@ -545,6 +561,9 @@ type promptShape struct {
 }
 
 func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages []provider.Message, toolDefs []provider.ToolDef, shape promptShape, source string) (reply string, err error) {
+	if source == "" {
+		source = sourceUser
+	}
 	streamer, canStream := a.completer.(provider.Streamer)
 	writer, hasWriter := channel.ReplyWriterFrom(ctx)
 	progress, hasProgress := channel.ProgressWriterFrom(ctx)
@@ -571,6 +590,9 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 	var firstTokenMS int64
 	var volatileEst int
 	var recoveries, toolCalls, maxBatch, promptEstSum, genEstSum int
+	var native provider.Usage
+	var usageRounds int
+	var lastModel, lastFinish, lastTier string
 	var usedLanding bool
 	outcomeHint := ""
 	cold := !a.warmed.Load()
@@ -591,9 +613,12 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 		if iters > 0 {
 			toolsPerInv = float64(toolCalls) / float64(iters)
 		}
-		a.log.Info("turn perf",
+		modelName := lastModel
+		if modelName == "" {
+			modelName = a.model
+		}
+		perf := []any{
 			"source", source,
-			"user_id", userID,
 			"session_id", sessionID,
 			"outcome", outcome,
 			"iterations", iters,
@@ -606,8 +631,26 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 			"model_ms", modelTime.Milliseconds(),
 			"tool_ms", toolTime.Milliseconds(),
 			"total_ms", totalMS,
+			"duration_ms", totalMS,
 			"hydration_est_tokens", shape.hydration,
-		)
+		}
+		if source == sourceUser || source == sourceReaction || userID != "" {
+			perf = append(perf, "user_id", userID)
+		}
+		if modelName != "" {
+			perf = append(perf, "model", modelName)
+		}
+		if lastFinish != "" {
+			perf = append(perf, "finish_reason", lastFinish)
+		}
+		if lastTier != "" {
+			perf = append(perf, "service_tier", lastTier)
+		}
+		if native.Present() {
+			perf = append(perf, nativeUsageAttrs(native)...)
+			perf = append(perf, "usage_rounds", usageRounds)
+		}
+		a.log.Info("turn perf", perf...)
 		if a.perf != nil {
 			a.perf.append(perfRecord{
 				when:         turnStart,
@@ -747,6 +790,19 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 		a.warmed.Store(true)
 		promptEstSum += promptTokens
 		genEstSum += resultGenEst(res)
+		if res.Usage.Present() {
+			native = native.Add(res.Usage)
+			usageRounds++
+		}
+		if res.Model != "" {
+			lastModel = res.Model
+		}
+		if res.FinishReason != "" {
+			lastFinish = res.FinishReason
+		}
+		if res.ServiceTier != "" {
+			lastTier = res.ServiceTier
+		}
 		if iter == 0 {
 			volatileEst = volatileTokens
 			if !firstTokenAt.IsZero() {
@@ -772,6 +828,15 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 			// Streaming only: prefill+queue time before the first delta.
 			perf = append(perf, "first_token_ms", firstTokenAt.Sub(callStart).Milliseconds())
 		}
+		if res.Model != "" {
+			perf = append(perf, "model", res.Model)
+		} else if a.model != "" {
+			perf = append(perf, "model", a.model)
+		}
+		if res.ServiceTier != "" {
+			perf = append(perf, "service_tier", res.ServiceTier)
+		}
+		perf = append(perf, nativeUsageAttrs(res.Usage)...)
 		a.log.Info("model call", perf...)
 		if res.FinishReason == "length" {
 			a.log.Warn("model hit max_tokens (reply may be truncated)",

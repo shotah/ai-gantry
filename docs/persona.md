@@ -25,7 +25,8 @@ The harness overwrites the **Self-notes** and **Location pins** sections in
 Loaded MCP servers reach the model from the **live catalog**:
 
 - Tool schemas on the Completer call (`mcp.toml` grant, `mcp_enable` filter)
-- `[mcp prefixes]` in the prompt when dynamic tools are on
+- `[mcp prefixes]` in the prompt when dynamic tools are on — the model is
+  told to review on vs off and `mcp_enable` a needed off prefix this turn
 - `/tools` for you
 
 Do **not** copy `google__…` / `garmin__…` / routing tables into `PERSONA.md`.
@@ -113,9 +114,10 @@ wake), one voice. Don’t add an example that only restates a bullet you already
    Keep that section; do not grow it into a project plan. Kernel stamps
    Self-notes + Location pins.
 5. **About you** (timezone as `- **Timezone:** Area/City`)
-6. One load-bearing closer at the **end** (recency): if a tool is in this
-   turn’s list, call it; independent lookups all in this response; don’t
-   invent live facts
+6. One load-bearing closer at the **end** (recency): review `[mcp prefixes]`
+   on vs off; `mcp_enable` then call if off; if a tool is in this turn’s
+   list, call it; independent lookups all in this response; don’t invent
+   live facts
 
 Put the rule that must never slip on the last line. Models weight the last
 instruction they saw.

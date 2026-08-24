@@ -242,8 +242,10 @@ Prefer MCP-native tiers (`--tool-tier core`) first — see [choices.md](choices.
 
 By default (`dynamic_tools` omitted or `true`) MCP schemas stay **off** until
 the agent calls `mcp_enable` (list of prefixes, next Completer call in the
-same turn). Brief hold idles out at 6h (morning/afternoon); short at 27h.
-Harness builtins stay on. Go-live is from zero — no seed of today's catalog.
+same turn). The prompt lists on vs off under `[mcp prefixes]` and tells the
+model to review that list and enable a needed off prefix this turn. Brief hold
+idles out at 6h (morning/afternoon); short at 27h. Harness builtins stay on.
+Go-live is from zero — no seed of today's catalog.
 
 Small models / rollback — full catalog every turn, no `mcp_enable`:
 

@@ -56,6 +56,9 @@ func TestClient_Complete(t *testing.T) {
 	if got.Content != "hello there" {
 		t.Errorf("Content = %q, want %q", got.Content, "hello there")
 	}
+	if got.Usage.Present() {
+		t.Errorf("Usage present without usage object: %+v", got.Usage)
+	}
 }
 
 func TestClient_Complete_MaxTokens(t *testing.T) {
@@ -348,5 +351,79 @@ func TestClient_Complete_PreservesThoughtSignatureRaw(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestUsage_PresentAndAdd(t *testing.T) {
+	var z provider.Usage
+	if z.Present() {
+		t.Fatal("zero usage must not look present")
+	}
+	a := provider.Usage{PromptTokens: 10, CompletionTokens: 2, TotalTokens: 12, CachedTokens: 4}
+	b := provider.Usage{PromptTokens: 3, CompletionTokens: 1, TotalTokens: 4, ReasoningTokens: 5}
+	sum := a.Add(b)
+	if sum.PromptTokens != 13 || sum.CompletionTokens != 3 || sum.TotalTokens != 16 {
+		t.Fatalf("sum totals %+v", sum)
+	}
+	if sum.CachedTokens != 4 || sum.ReasoningTokens != 5 {
+		t.Fatalf("sum details %+v", sum)
+	}
+	if !sum.Present() {
+		t.Fatal("sum should be present")
+	}
+}
+
+func TestClient_Complete_UsageModelFinishReason(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":           "chatcmpl-u",
+			"model":        "gpt-test",
+			"service_tier": "flex",
+			"choices": []map[string]any{
+				{
+					"index":         0,
+					"finish_reason": "stop",
+					"message":       map[string]any{"role": "assistant", "content": "hello"},
+				},
+			},
+			"usage": map[string]any{
+				"prompt_tokens":     12,
+				"completion_tokens": 4,
+				"total_tokens":      16,
+				"prompt_tokens_details": map[string]any{
+					"cached_tokens": 8,
+					"audio_tokens":  1,
+				},
+				"completion_tokens_details": map[string]any{
+					"reasoning_tokens":           2,
+					"audio_tokens":               1,
+					"accepted_prediction_tokens": 3,
+					"rejected_prediction_tokens": 1,
+				},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m")
+	got, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Model != "gpt-test" || got.FinishReason != "stop" || got.ServiceTier != "flex" {
+		t.Fatalf("meta model=%q finish=%q tier=%q", got.Model, got.FinishReason, got.ServiceTier)
+	}
+	u := got.Usage
+	if !u.Present() || u.PromptTokens != 12 || u.CompletionTokens != 4 || u.TotalTokens != 16 {
+		t.Fatalf("usage %+v", u)
+	}
+	if u.CachedTokens != 8 || u.ReasoningTokens != 2 || u.PromptAudioTokens != 1 || u.CompletionAudioTokens != 1 {
+		t.Fatalf("details %+v", u)
+	}
+	if u.AcceptedPredictionTokens != 3 || u.RejectedPredictionTokens != 1 {
+		t.Fatalf("prediction %+v", u)
 	}
 }

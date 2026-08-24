@@ -175,3 +175,49 @@ func TestClient_CompleteStream_ParallelToolsSameIndex(t *testing.T) {
 		t.Fatalf("names mashed: %+v", got.ToolCalls)
 	}
 }
+
+func TestClient_CompleteStream_UsageAndIncludeUsage(t *testing.T) {
+	var reqBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			t.Errorf("decode: %v", err)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, _ := w.(http.Flusher)
+		chunks := []string{
+			`{"id":"1","object":"chat.completion.chunk","model":"gpt-stream","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"}}]}`,
+			`{"id":"1","object":"chat.completion.chunk","model":"gpt-stream","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+			`{"id":"1","object":"chat.completion.chunk","model":"gpt-stream","choices":[],"usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10,"prompt_tokens_details":{"cached_tokens":4},"completion_tokens_details":{"reasoning_tokens":1}}}`,
+		}
+		for _, c := range chunks {
+			_, _ = w.Write([]byte("data: " + c + "\n\n"))
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m")
+	got, err := c.CompleteStream(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	so, _ := reqBody["stream_options"].(map[string]any)
+	if so == nil || so["include_usage"] != true {
+		t.Fatalf("stream_options.include_usage missing: %v", reqBody["stream_options"])
+	}
+	if got.Content != "Hi" || got.FinishReason != "stop" || got.Model != "gpt-stream" {
+		t.Fatalf("result %+v", got)
+	}
+	u := got.Usage
+	if !u.Present() || u.PromptTokens != 9 || u.CompletionTokens != 1 || u.TotalTokens != 10 {
+		t.Fatalf("usage %+v", u)
+	}
+	if u.CachedTokens != 4 || u.ReasoningTokens != 1 {
+		t.Fatalf("details %+v", u)
+	}
+}

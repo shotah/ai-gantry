@@ -82,6 +82,9 @@ type Result struct {
 	Thinking     string // chain-of-thought when the provider emits it (Ollama reasoning/thinking)
 	ToolCalls    []ToolCall
 	FinishReason string // stop|length|tool_calls|… when the provider reports it
+	Model        string // server-reported id when the provider echoed it
+	ServiceTier  string // auto|default|flex|scale|priority when reported
+	Usage        Usage  // native OpenAI-compat counts; zero means omitted
 }
 
 // Completer generates a chat completion result.
@@ -206,6 +209,9 @@ func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
 		Content:      strings.TrimSpace(msg.Content),
 		Thinking:     strings.TrimSpace(extractThinkingJSON(msg.RawJSON())),
 		FinishReason: choice.FinishReason,
+		Model:        resp.Model,
+		ServiceTier:  string(resp.ServiceTier),
+		Usage:        usageFrom(resp.JSON.Usage.Valid(), resp.Usage),
 	}
 	for _, tc := range msg.ToolCalls {
 		switch v := tc.AsAny().(type) {

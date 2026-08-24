@@ -132,13 +132,23 @@ MCP `isError` results that classify as key/oauth/binary use the same
 
 JSON on stderr. Turns:
 
-`msg=turn perf` → `source`, `user_id`, `session_id`, `outcome`,
-`iterations`, `tool_calls`, `max_batch`, `recoveries`, `tools_per_inv`,
-`prompt_est_tokens`, `gen_est_tokens`, `model_ms`, `tool_ms`, `total_ms`,
-`hydration_est_tokens`.
+`msg=turn perf` → `source` (`user` · `cron` · `watch` · `reaction`; **always
+set** — other strings chart as spend unknown; spark / examples are `cron`),
+`user_id` (required on `user` / `reaction`; cron/watch omit when empty),
+`session_id`, `outcome`, `iterations`, `tool_calls`, `max_batch`, `recoveries`,
+`tools_per_inv`, `prompt_est_tokens`, `gen_est_tokens` (chars/4 fallback),
+`model_ms`, `tool_ms`, `total_ms`, `duration_ms` (same wall ms as `total_ms`),
+`hydration_est_tokens`, `model`, `finish_reason`.
+
+When the Completer response had OpenAI-compat `usage` (summed across rounds):
+`prompt_tokens`, `completion_tokens`, `total_tokens`, `usage_rounds`, and when
+the provider sent them: `cached_tokens`, `cache_write_tokens`,
+`reasoning_tokens`, `prompt_audio_tokens`, `completion_audio_tokens`,
+`accepted_prediction_tokens`, `rejected_prediction_tokens`, `service_tier`.
 
 Do not scrape these with a hook inside the process. `docker logs` is pull.
-Token values are chars/4 estimates.
+Chars/4 estimates stay on `*_est_tokens`. Native `prompt_tokens` /
+`completion_tokens` / `total_tokens` are the provider counts when present.
 
 ---
 

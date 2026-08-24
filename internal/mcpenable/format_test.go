@@ -21,6 +21,9 @@ func TestFormatIndex_SortedStable(t *testing.T) {
 	if strings.Contains(a, "ago") {
 		t.Fatalf("prompt index must not include ages: %q", a)
 	}
+	if !strings.Contains(a, "Review on vs off") || !strings.Contains(a, "listed off") {
+		t.Fatalf("prompt must tell the model to review on/off and enable: %q", a)
+	}
 	on := strings.Index(a, "on:")
 	off := strings.Index(a, "off:")
 	if on < 0 || off < 0 {
