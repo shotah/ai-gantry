@@ -15,17 +15,31 @@ const KindSpark = "spark"
 // KindSparkPing is one horizon-planning wake created by the planner (one-shot).
 const KindSparkPing = "spark_ping"
 
-// DefaultSparkPrompt is used when SPARK_PROMPT is empty but spark is enabled.
-// One variant per line; PickSparkPrompt chooses randomly at fire time.
-// Every line is horizon work (aims / memory / cron / live tools), not a chat ping.
+// DefaultSparkQty is how many looking-after-you wakes to seed per day.
+// Chat /engagement | /spark overrides per session.
+const DefaultSparkQty = "3-5"
+
+// DefaultSparkStartHour is the local seed-window start (inclusive).
+const DefaultSparkStartHour = 6
+
+// DefaultSparkEndHour is the local seed-window end (exclusive).
+// Learned pref/hours sleep still skips fires inside this window. Work is not DND.
+const DefaultSparkEndHour = 21
+
+// DefaultSparkPrompt is the built-in horizon pool (one variant per line).
+// PickSparkPrompt chooses randomly at fire time.
+// Every line is looking-after-the-user work (aims / memory / live tools / user-model), not an empty chat ping.
 const DefaultSparkPrompt = "" +
 	"First: memory_recall aim/. If SELF.md has no north-star and recall is empty, recall subject aim/bootstrap. Already asked and no answer → [silent]. Never asked → ONE months-scale question (what should we be aiming at for the next few months?). Do not invent. memory_store fact subject aim/bootstrap that you asked.\n" +
 	"If aims exist: replan today. In one response: cron_list plus live tools in this turn's list (calendar, mail, fitness — mcp_enable a prefix if it is off and needed). If the day shifted or they are off track, one sentence. If nothing changed, [silent]. Ask-first: no email, spend, or posts.\n" +
 	"Pick one north-star from SELF.md. memory_recall aim/<area> and cron_list in one response. If that aim has no wake, cron_schedule one (live-data jobs must name the tools and say not to invent numbers). If a live tool would update progress, call it. memory_store a short progress fact. Then [silent] unless a hole needs the human.\n" +
 	"Audit cron_list against SELF.md north-stars and memory aim/. Cancel wakes that no longer match. Schedule missing ones. Reply [silent] if the board is already right.\n" +
-	"Look at SELF.md aims plus [current time] and today's live context. If something is due, stalled, or the morning plan broke, do the work with tools (or schedule the next wake). Reply [silent] when the work is only for you."
+	"Look at SELF.md aims plus [current time] and today's live context. If something is due, stalled, or the morning plan broke, do the work with tools (or schedule the next wake). Reply [silent] when the work is only for you.\n" +
+	"Gym / fitness aim: [current time] + memory_recall aim/ + garmin (mcp_enable if off) in ONE response. Morning or midday and no workout yet → short joke or nudge in your voice (quote SELF.md). Evening and still nothing → disappointed-uncle about the miss, one question if useful. Workout logged → [silent] or one nod. Never a joke with zero tools. [silent] if they asked you not to nag gym. cron_list if a gym follow-up is already on the board.\n" +
+	"User-model: memory_recall pref/food pref/activity pref/sports. Empty category → ONE question (favorite food, what they like to do, a team). 3+ foods → what they ate lately OR search a restaurant that fits. Has a team → search a recent game, ask if they watched. Store answers memory_store preference (same subject replaces). Not a questionnaire. [silent] if they were just asked. aim/ and cron still apply if something is due.\n" +
+	"Hours bootstrap: memory_recall pref/hours. Missing → ask sleep window, work window, extra quiet times (work is not DND). Store preference subject pref/hours as sleep: HH:MM-HH:MM / work: HH:MM-HH:MM / quiet: …. Then continue with aims or [silent]. If hours exist, do not ask again. cron_list if needed."
 
-// ParseSparkPrompts splits a prompt pool on newlines (literal \n in env is expanded).
+// ParseSparkPrompts splits a prompt pool on newlines (literal \n is expanded).
 // Empty input → default pool. One line → single prompt (commas/colons fine).
 func ParseSparkPrompts(s string) []string {
 	s = strings.TrimSpace(s)

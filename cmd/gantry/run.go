@@ -61,7 +61,6 @@ func run() int {
 		"cron_enabled", cfg.CronEnabled,
 		"watch_enabled", cfg.WatchEnabled,
 		"cron_tz", cfg.CronTZ,
-		"spark_qty", cfg.SparkQty,
 		"examples_qty", cfg.ExamplesQty,
 		"stream_replies", cfg.StreamReplies,
 		"show_thinking", cfg.ShowThinking,
@@ -202,7 +201,7 @@ func run() int {
 			return 1
 		}
 		tools = cron.Composite{
-			Cron:  cron.Tools{Store: cronStore, TZ: tzName},
+			Cron:  cron.Tools{Store: cronStore, TZ: tzName, Memory: memBackend},
 			Other: tools,
 		}
 		logger.Info("cron ready", "tz", tzName, "max_jobs", cfg.CronMaxJobs)
@@ -308,6 +307,7 @@ func run() int {
 		consol.Location = tzLoc
 	}
 	var examplesSvc *examples.Service
+	var sparkSvc *cron.SparkService
 	if cronStore != nil {
 		catalog := tools
 		examplesSvc = &examples.Service{
@@ -317,6 +317,10 @@ func run() int {
 			EndHour:   cfg.ExamplesEndHour,
 			TZ:        tzName,
 			Tools:     catalog.Tools,
+		}
+		sparkSvc = &cron.SparkService{
+			Store: cronStore,
+			TZ:    tzName,
 		}
 	}
 
@@ -338,6 +342,7 @@ func run() int {
 		Consolidator:        consol,
 		MCPManifest:         cfg.MCPManifest,
 		Examples:            examplesSvc,
+		Spark:               sparkSvc,
 		HistoryStripFillers: cfg.HistoryStripFillers,
 		Enable:              enableStore,
 		EnableForce:         enableForce,
@@ -393,11 +398,11 @@ func run() int {
 			Interval:           time.Duration(cfg.CronTickSeconds) * time.Second,
 			Logger:             logger,
 			Recent:             sessions,
-			SparkSkipRecent:    time.Duration(cfg.SparkSkipRecentMinutes) * time.Minute,
 			ExamplesSkipRecent: time.Duration(cfg.ExamplesSkipRecentMinutes) * time.Minute,
 			Examples:           examplesSvc,
+			Memory:             memBackend,
 		}
-		if err := ensureSparkJobs(ctx, cfg, cronStore, logger, tzName); err != nil {
+		if err := ensureSparkJobs(ctx, cfg, sparkSvc, logger); err != nil {
 			logger.Error("spark ensure failed", "err", err)
 			return 1
 		}
@@ -472,27 +477,11 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 	}
 }
 
-// ensureSparkJobs installs spark-of-life horizon wakes when SPARK_QTY is on
-// (default 2-3; empty or "0" = off). Telegram DMs use chat_id == user_id from the allowlist.
-func ensureSparkJobs(ctx context.Context, cfg *config.Config, store *cron.Store, log *slog.Logger, tzName string) error {
-	if cfg == nil || !cfg.SparkEnabled() || store == nil {
+// ensureSparkJobs installs looking-after-you wakes (default 3-5/day). Telegram DMs
+// use chat_id == user_id from the allowlist. Qty is /engagement, not env.
+func ensureSparkJobs(ctx context.Context, cfg *config.Config, svc *cron.SparkService, log *slog.Logger) error {
+	if svc == nil || !svc.ProactiveEnabled() {
 		return nil
-	}
-	if strings.TrimSpace(tzName) == "" {
-		tzName = cfg.CronTZ
-	}
-	loc, err := time.LoadLocation(tzName)
-	if err != nil {
-		return err
-	}
-	when := fmt.Sprintf("%s@%02d-%02d", cfg.SparkQty, cfg.SparkStartHour, cfg.SparkEndHour)
-	parsed, err := cron.ParseSparkSchedule(when, cfg.SparkStartHour, cfg.SparkEndHour, loc, time.Now())
-	if err != nil {
-		return fmt.Errorf("SPARK_QTY: %w", err)
-	}
-	prompt := strings.TrimSpace(cfg.SparkPrompt)
-	if prompt == "" {
-		prompt = cron.DefaultSparkPrompt
 	}
 
 	switch cfg.Channel {
@@ -507,9 +496,14 @@ func ensureSparkJobs(ctx context.Context, cfg *config.Config, store *cron.Store,
 				UserID:    id,
 				ChatID:    id,
 			}
-			job, created, err := store.EnsureSpark(ctx, prompt, parsed, delivery)
+			job, created, err := svc.EnsureFor(ctx, delivery)
 			if err != nil {
 				return err
+			}
+			if job.ID == 0 {
+				log.Info("spark skipped (session opted out)",
+					"session_id", delivery.SessionID)
+				continue
 			}
 			log.Info("spark job ready",
 				"created", created,
@@ -520,8 +514,8 @@ func ensureSparkJobs(ctx context.Context, cfg *config.Config, store *cron.Store,
 			)
 		}
 	default:
-		log.Info("spark configured but auto-bind is telegram-only; schedule via cron_schedule repeat=spark",
-			"channel", cfg.Channel, "qty", cfg.SparkQty)
+		log.Info("spark auto-bind is telegram-only; /engagement on or cron_schedule repeat=spark",
+			"channel", cfg.Channel)
 	}
 	return nil
 }

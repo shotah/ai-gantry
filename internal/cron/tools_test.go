@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/shotah/ai-gantry/internal/cron"
+	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/provider"
 	"github.com/shotah/ai-gantry/internal/session"
 )
@@ -69,6 +71,47 @@ func TestTools_CancelAndList(t *testing.T) {
 	}
 	if err := store.Cancel(ctx, 99999); err == nil {
 		t.Fatal("expected missing cancel error")
+	}
+}
+
+func TestTools_ScheduleWithMemoryPin(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 10, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := cron.OpenDB(sess.DB(), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mem, err := memory.OpenDB(sess.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := mem.Store(ctx, memory.KindFact, "follow/passport", "renew next month")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools := cron.Tools{Store: store, TZ: "UTC", Memory: mem}
+	ctx = cron.WithDelivery(ctx, cron.Delivery{SessionID: "stdio", UserID: "local", ChatID: "1"})
+	args := []byte(`{"prompt":"check passport","when":"in 1h","memory_id":` + strconv.FormatInt(row.ID, 10) + `}`)
+	out, err := tools.Call(ctx, cron.ToolSchedule, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "memory_id="+strconv.FormatInt(row.ID, 10)) || !strings.Contains(out, "follow/passport") {
+		t.Fatalf("schedule pin: %q", out)
+	}
+	list, err := tools.Call(ctx, cron.ToolList, json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(list, "follow/passport") {
+		t.Fatalf("list pin: %q", list)
+	}
+	if _, err := tools.Call(ctx, cron.ToolSchedule, json.RawMessage(`{"prompt":"x","when":"in 1h","memory_id":99999}`)); err == nil {
+		t.Fatal("expected missing memory_id error")
 	}
 }
 

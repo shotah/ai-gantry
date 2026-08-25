@@ -12,22 +12,24 @@ import (
 
 // Job is one scheduled turn.
 type Job struct {
-	ID        int64
-	Prompt    string
-	Kind      string
-	Expr      string
-	Timezone  string
-	NextRunAt time.Time
-	SessionID string
-	UserID    string
-	ChatID    string
-	ThreadID  int
-	Enabled   bool
-	Running   bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	LastRunAt *time.Time
-	LastError string
+	ID            int64
+	Prompt        string
+	Kind          string
+	Expr          string
+	Timezone      string
+	NextRunAt     time.Time
+	SessionID     string
+	UserID        string
+	ChatID        string
+	ThreadID      int
+	Enabled       bool
+	Running       bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	LastRunAt     *time.Time
+	LastError     string
+	MemoryID      int64
+	MemorySubject string
 }
 
 // Store persists cron jobs in gantry.db.
@@ -76,6 +78,7 @@ func (s *Store) migrate() error {
 		`CREATE TABLE IF NOT EXISTS session_pref (
 			session_id       TEXT PRIMARY KEY,
 			examples_enabled INTEGER NOT NULL DEFAULT 1,
+			spark_qty        TEXT NOT NULL DEFAULT '',
 			updated_at       TEXT NOT NULL
 		)`,
 	}
@@ -84,6 +87,9 @@ func (s *Store) migrate() error {
 			return fmt.Errorf("cron: migrate: %w", err)
 		}
 	}
+	_, _ = s.db.Exec(`ALTER TABLE cron_job ADD COLUMN memory_id INTEGER`)
+	_, _ = s.db.Exec(`ALTER TABLE cron_job ADD COLUMN memory_subject TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`ALTER TABLE session_pref ADD COLUMN spark_qty TEXT NOT NULL DEFAULT ''`)
 	return nil
 }
 
@@ -97,8 +103,22 @@ func (s *Store) ActiveCount(ctx context.Context) (int, error) {
 	return n, err
 }
 
+const jobColumns = `id, prompt, kind, expr, timezone, next_run_at,
+		       session_id, user_id, chat_id, thread_id,
+		       enabled, running, created_at, updated_at, last_run_at, last_error,
+		       memory_id, memory_subject`
+
 // Schedule inserts a job from a parsed schedule + delivery binding.
 func (s *Store) Schedule(ctx context.Context, prompt string, p Parsed, delivery Delivery) (Job, error) {
+	return s.schedule(ctx, prompt, p, delivery, 0, "")
+}
+
+// ScheduleWithPin inserts a job pinned to a memory row (follow-through).
+func (s *Store) ScheduleWithPin(ctx context.Context, prompt string, p Parsed, delivery Delivery, memoryID int64, memorySubject string) (Job, error) {
+	return s.schedule(ctx, prompt, p, delivery, memoryID, strings.TrimSpace(memorySubject))
+}
+
+func (s *Store) schedule(ctx context.Context, prompt string, p Parsed, delivery Delivery, memoryID int64, memorySubject string) (Job, error) {
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
 		return Job{}, fmt.Errorf("cron: prompt is required")
@@ -114,15 +134,21 @@ func (s *Store) Schedule(ctx context.Context, prompt string, p Parsed, delivery 
 		return Job{}, fmt.Errorf("cron: max active jobs (%d) reached", s.maxJobs)
 	}
 	now := time.Now().UTC()
+	var memID any
+	if memoryID > 0 {
+		memID = memoryID
+	}
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO cron_job (
 			prompt, kind, expr, timezone, next_run_at,
 			session_id, user_id, chat_id, thread_id,
-			enabled, running, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)`,
+			enabled, running, created_at, updated_at,
+			memory_id, memory_subject
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?)`,
 		prompt, p.Kind, p.Expr, p.Timezone, formatCronTime(p.NextRun.UTC()),
 		delivery.SessionID, delivery.UserID, delivery.ChatID, delivery.ThreadID,
 		formatCronTime(now), formatCronTime(now),
+		memID, memorySubject,
 	)
 	if err != nil {
 		return Job{}, fmt.Errorf("cron: insert: %w", err)
@@ -139,9 +165,7 @@ func (s *Store) List(ctx context.Context, includeDisabled bool) ([]Job, error) {
 // ListSession returns jobs for sessionID (empty sessionID = all sessions).
 func (s *Store) ListSession(ctx context.Context, sessionID string, includeDisabled bool) ([]Job, error) {
 	q := `
-		SELECT id, prompt, kind, expr, timezone, next_run_at,
-		       session_id, user_id, chat_id, thread_id,
-		       enabled, running, created_at, updated_at, last_run_at, last_error
+		SELECT ` + jobColumns + `
 		FROM cron_job WHERE 1=1`
 	args := []any{}
 	if !includeDisabled {
@@ -209,9 +233,7 @@ func (s *Store) Due(ctx context.Context, now time.Time, limit int) ([]Job, error
 	}
 	// Daily planners first so they cancel pending pings before overdue leftovers Claim.
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, prompt, kind, expr, timezone, next_run_at,
-		       session_id, user_id, chat_id, thread_id,
-		       enabled, running, created_at, updated_at, last_run_at, last_error
+		SELECT `+jobColumns+`
 		FROM cron_job
 		WHERE enabled = 1 AND running = 0 AND next_run_at <= ?
 		ORDER BY CASE WHEN kind IN (?, ?) THEN 0 ELSE 1 END, next_run_at ASC
@@ -298,9 +320,7 @@ func (s *Store) Defer(ctx context.Context, id int64, until time.Time, reason str
 // FindSpark returns the enabled spark *planner* job for a session, if any.
 func (s *Store) FindSpark(ctx context.Context, sessionID string) (Job, bool, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, prompt, kind, expr, timezone, next_run_at,
-		       session_id, user_id, chat_id, thread_id,
-		       enabled, running, created_at, updated_at, last_run_at, last_error
+		SELECT `+jobColumns+`
 		FROM cron_job
 		WHERE enabled = 1 AND kind = ? AND session_id = ?
 		ORDER BY id DESC LIMIT 1`, KindSpark, sessionID)
@@ -312,6 +332,20 @@ func (s *Store) FindSpark(ctx context.Context, sessionID string) (Job, bool, err
 		return Job{}, false, err
 	}
 	return j, true, nil
+}
+
+// CancelSparkPlannerAndPings disables the spark planner and pending pings.
+func (s *Store) CancelSparkPlannerAndPings(ctx context.Context, sessionID string) (int64, error) {
+	now := formatCronTime(time.Now().UTC())
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ?
+		WHERE enabled = 1 AND kind IN (?, ?) AND session_id = ?`,
+		now, KindSpark, KindSparkPing, sessionID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 // CancelSparkPings disables pending spark_ping jobs for a session.
@@ -478,9 +512,7 @@ func addOneCalendarDay(t time.Time) time.Time {
 // Get loads one job.
 func (s *Store) Get(ctx context.Context, id int64) (Job, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, prompt, kind, expr, timezone, next_run_at,
-		       session_id, user_id, chat_id, thread_id,
-		       enabled, running, created_at, updated_at, last_run_at, last_error
+		SELECT `+jobColumns+`
 		FROM cron_job WHERE id = ?`, id)
 	return scanJob(row)
 }
@@ -494,10 +526,13 @@ func scanJob(row scannable) (Job, error) {
 	var next, created, updated string
 	var last sql.NullString
 	var enabled, running int
+	var memID sql.NullInt64
+	var memSub sql.NullString
 	if err := row.Scan(
 		&j.ID, &j.Prompt, &j.Kind, &j.Expr, &j.Timezone, &next,
 		&j.SessionID, &j.UserID, &j.ChatID, &j.ThreadID,
 		&enabled, &running, &created, &updated, &last, &j.LastError,
+		&memID, &memSub,
 	); err != nil {
 		return Job{}, err
 	}
@@ -512,6 +547,10 @@ func scanJob(row scannable) (Job, error) {
 			j.LastRunAt = &t
 		}
 	}
+	if memID.Valid {
+		j.MemoryID = memID.Int64
+	}
+	j.MemorySubject = memSub.String
 	return j, nil
 }
 

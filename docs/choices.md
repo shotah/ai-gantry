@@ -149,7 +149,7 @@ valid interim escape hatch but is not the product surface.
 **Pick:** spark wakes run the full tool loop (memory, cron, MCP). `[silent]`
 is the default push skip when the human does not need a ping. A zero-tool
 joke is nudged once; a second skip stays silent so it is not shipped.
-Default qty is `2-3` (`SPARK_QTY=0` off). An empty board asks **once** for a
+Default qty is `3-5` (`/engagement off` to stop). An empty board asks **once** for a
 north-star; we do not seed a fake aim.
 
 **Rejected:** no-tools joke/check-in pings. Presence without progress is a

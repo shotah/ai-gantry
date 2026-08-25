@@ -495,6 +495,9 @@ func TestAgent_Handle_MemoryHydration(t *testing.T) {
 	if !strings.Contains(last.Messages[n-1].Content, "[current time]") {
 		t.Fatalf("missing temporal footer: %q", last.Messages[n-1].Content)
 	}
+	if !strings.Contains(last.Messages[n-1].Content, "[hours]") {
+		t.Fatalf("missing hours footer: %q", last.Messages[n-1].Content)
+	}
 }
 
 // Kernel narration note (end of cached prefix) must ask for a parallel batch.
@@ -1067,7 +1070,7 @@ func TestAgent_Handle_SparkHorizonWithoutToolsGetsNudged(t *testing.T) {
 			return &provider.Result{Content: "Here's a dry observation about modern work."}, nil
 		case 2:
 			last := req.Messages[len(req.Messages)-1]
-			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "spark-of-life turn is for making progress") {
+			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "spark-of-life turn is for looking after the user") {
 				t.Fatalf("missing spark horizon nudge: %+v", last)
 			}
 			return &provider.Result{ToolCalls: []provider.ToolCall{
@@ -1107,7 +1110,7 @@ func TestAgent_Handle_SparkHorizonWithoutToolsGetsNudged(t *testing.T) {
 	}
 	foundNote := false
 	for _, m := range firstReq.Messages {
-		if strings.Contains(m.Content, "Spark-of-life turn: this is horizon work") {
+		if strings.Contains(m.Content, "Spark-of-life turn: the user is the aim") {
 			foundNote = true
 			break
 		}

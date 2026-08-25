@@ -189,7 +189,9 @@ func (b *Builtin) Stats(ctx context.Context) (StatsSnapshot, error) {
 	return snap, nil
 }
 
-// Store inserts one atomic memory row.
+// Store inserts one atomic memory row. Durable kinds (not episode) with the
+// same kind+subject supersede the previous live row so corrections replace
+// without a duplicate (sushi dislike → like). History stays in sqlite.
 func (b *Builtin) Store(ctx context.Context, kind, subject, content string) (Entry, error) {
 	kind = strings.ToLower(strings.TrimSpace(kind))
 	if err := ValidateKind(kind); err != nil {
@@ -199,6 +201,16 @@ func (b *Builtin) Store(ctx context.Context, kind, subject, content string) (Ent
 	content = strings.TrimSpace(content)
 	if subject == "" || content == "" {
 		return Entry{}, fmt.Errorf("memory: subject and content are required")
+	}
+
+	var old Entry
+	var hadOld bool
+	if kind != KindEpisode {
+		prev, ok, err := b.ActiveByKindSubject(ctx, kind, subject)
+		if err != nil {
+			return Entry{}, err
+		}
+		old, hadOld = prev, ok
 	}
 
 	now := time.Now().UTC()
@@ -218,7 +230,53 @@ func (b *Builtin) Store(ctx context.Context, kind, subject, content string) (Ent
 		return Entry{}, fmt.Errorf("memory: store: %w", err)
 	}
 	id, _ := res.LastInsertId()
-	return b.get(ctx, id)
+	e, err := b.get(ctx, id)
+	if err != nil {
+		return Entry{}, err
+	}
+	if hadOld && old.ID != e.ID {
+		if err := b.Supersede(ctx, old.ID, e.ID); err != nil {
+			return Entry{}, fmt.Errorf("memory: supersede: %w", err)
+		}
+	}
+	return e, nil
+}
+
+// Get loads a row by id (including superseded / expired).
+func (b *Builtin) Get(ctx context.Context, id int64) (Entry, error) {
+	e, err := b.get(ctx, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Entry{}, fmt.Errorf("memory: id %d not found", id)
+		}
+		return Entry{}, err
+	}
+	return e, nil
+}
+
+// ActiveByKindSubject returns the live row for kind+subject, if any.
+func (b *Builtin) ActiveByKindSubject(ctx context.Context, kind, subject string) (Entry, bool, error) {
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	subject = strings.TrimSpace(subject)
+	if kind == "" || subject == "" {
+		return Entry{}, false, nil
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	row := b.db.QueryRowContext(ctx, `
+		SELECT id, kind, subject, content, source, confidence, created_at, updated_at, expires_at, superseded_by
+		FROM memory
+		WHERE kind = ? AND subject = ? AND superseded_by IS NULL
+		  AND (expires_at IS NULL OR expires_at > ?)
+		ORDER BY updated_at DESC
+		LIMIT 1`, kind, subject, now)
+	e, err := scanEntry(row)
+	if err == sql.ErrNoRows {
+		return Entry{}, false, nil
+	}
+	if err != nil {
+		return Entry{}, false, err
+	}
+	return e, true, nil
 }
 
 // Recall runs FTS5 + recency ranking.

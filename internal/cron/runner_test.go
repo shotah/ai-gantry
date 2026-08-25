@@ -9,6 +9,7 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/cron"
+	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/session"
 )
 
@@ -246,5 +247,162 @@ func TestRunner_StartAndNil(t *testing.T) {
 	pusher.mu.Unlock()
 	if n < 1 {
 		t.Fatal("expected push from Start poll")
+	}
+}
+
+func TestRunner_JobMemoryInjectAndSleepSkip(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := cron.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mem, err := memory.OpenDB(sess.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	row, err := mem.Store(ctx, memory.KindFact, "follow/passport", "Renew next month; offer to book.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().UTC().Add(-time.Minute)
+	_, err = store.ScheduleWithPin(ctx, "check the passport loop", cron.Parsed{
+		Kind: cron.KindOnce, Expr: past.Format(time.RFC3339Nano), NextRun: past, Timezone: "UTC",
+	}, cron.Delivery{SessionID: "telegram:1:2", UserID: "2", ChatID: "1"}, row.ID, row.Subject)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var handled string
+	runner := &cron.Runner{
+		Store:  store,
+		Memory: mem,
+		Handle: func(_ context.Context, msg channel.Message) (string, error) {
+			handled = msg.Text
+			return "ok", nil
+		},
+		Pusher: &memPusher{},
+	}
+	runner.FireDueForTest(ctx)
+	if !strings.Contains(handled, "[job memory]") || !strings.Contains(handled, "follow/passport") {
+		t.Fatalf("missing pinned memory: %q", handled)
+	}
+	if !strings.Contains(handled, "check the passport loop") {
+		t.Fatalf("missing job body: %q", handled)
+	}
+
+	if _, err := mem.Store(ctx, memory.KindPreference, memory.SubjectHours, "sleep: 00:00-23:59\nwork: 09:00-17:00\n"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.Schedule(ctx, cron.DefaultSparkPrompt, cron.SparkPingParsed(time.Now().UTC().Add(-time.Minute), "UTC"), cron.Delivery{
+		SessionID: "telegram:1:9", UserID: "9", ChatID: "1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sparkHandled bool
+	sleepRunner := &cron.Runner{
+		Store:  store,
+		Memory: mem,
+		Handle: func(context.Context, channel.Message) (string, error) {
+			sparkHandled = true
+			return cron.SilentToken, nil
+		},
+		Pusher: &memPusher{},
+	}
+	sleepRunner.FireDueForTest(ctx)
+	if sparkHandled {
+		t.Fatal("spark ping should defer during sleep hours")
+	}
+}
+
+func TestRunner_JobMemorySupersedeWalkAndMissingStillRuns(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := cron.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mem, err := memory.OpenDB(sess.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	old, err := mem.Store(ctx, memory.KindFact, "follow/passport", "needs renewal — old note")
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().UTC().Add(-time.Minute)
+	_, err = store.ScheduleWithPin(ctx, "check the passport loop", cron.Parsed{
+		Kind: cron.KindOnce, Expr: past.Format(time.RFC3339Nano), NextRun: past, Timezone: "UTC",
+	}, cron.Delivery{SessionID: "telegram:1:3", UserID: "3", ChatID: "1"}, old.ID, old.Subject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mem.Store(ctx, memory.KindFact, "follow/passport", "booked the appointment"); err != nil {
+		t.Fatal(err)
+	}
+
+	var handled string
+	runner := &cron.Runner{
+		Store:  store,
+		Memory: mem,
+		Handle: func(_ context.Context, msg channel.Message) (string, error) {
+			handled = msg.Text
+			return "ok", nil
+		},
+		Pusher: &memPusher{},
+	}
+	runner.FireDueForTest(ctx)
+	if !strings.Contains(handled, "booked the appointment") {
+		t.Fatalf("wake should walk supersede to live row: %q", handled)
+	}
+	if strings.Contains(handled, "old note") {
+		t.Fatalf("wake still has superseded content: %q", handled)
+	}
+
+	gone, err := mem.Store(ctx, memory.KindFact, "follow/dentist", "call the office")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.ScheduleWithPin(ctx, "dentist follow-up", cron.Parsed{
+		Kind: cron.KindOnce, Expr: past.Format(time.RFC3339Nano), NextRun: past, Timezone: "UTC",
+	}, cron.Delivery{SessionID: "telegram:1:4", UserID: "4", ChatID: "1"}, gone.ID, gone.Subject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mem.Forget(ctx, gone.ID); err != nil {
+		t.Fatal(err)
+	}
+	handled = ""
+	var ran bool
+	missing := &cron.Runner{
+		Store:  store,
+		Memory: mem,
+		Handle: func(_ context.Context, msg channel.Message) (string, error) {
+			ran = true
+			handled = msg.Text
+			return "ok", nil
+		},
+		Pusher: &memPusher{},
+	}
+	missing.FireDueForTest(ctx)
+	if !ran {
+		t.Fatal("deleted pin must still run the job")
+	}
+	if strings.Contains(handled, "[job memory]\n") || strings.Contains(handled, "call the office") {
+		t.Fatalf("missing row should omit pinned content: %q", handled)
+	}
+	if !strings.Contains(handled, "dentist follow-up") {
+		t.Fatalf("missing job body: %q", handled)
 	}
 }

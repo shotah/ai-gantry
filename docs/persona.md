@@ -51,8 +51,8 @@ is the same overspill as putting MCP recipes in `PERSONA.md`.
 | Layer | Always in the prompt? | Holds |
 | --- | --- | --- |
 | `SELF.md` | Yes (cap ~4KB) | Who you became: voice, jokes, rituals, **3–5 north-star sentences** that change how you show up for months. Not mileage, due dates, or this week’s open loops. |
-| SQLite memory | Hydrate ≤ ~30 rows (FTS + recency; `insight` sorts last) | The tracker. Months-scale plan: `insight` / subject `aim/<area>`. Progress: `fact`. Recipes: `skill/<area>`. Forget when the aim moves. |
-| cron / watch / spark | No — wakes a later turn | The loop. Spark replans the day against aims; empty board asks once. A goal with no wake is a dusty row. |
+| SQLite memory | Hydrate ≤ ~30 rows (FTS + recency; `insight` sorts last) | The tracker. `aim/<area>` insight; `pref/food` `pref/hours` preference (same subject replaces the live row); `event/` `waiting/` `follow/` fact. `[hours]` is stamped on every turn from `pref/hours`. |
+| cron / watch / spark | No — wakes a later turn | The loop. Spark looks after the user (aims, live tools, one question, grounded joke). Pin a wake with `cron_schedule` `memory_id`. User crons still fire at the time they picked; spark skips learned sleep. |
 | Calendar / Tasks (MCP) | No | Dated to-dos with a real due date. |
 
 **Not all SQL.** Hydration is lossy. A six-month aim that was not mentioned
@@ -96,9 +96,10 @@ forty rules:
 Never serial calendar-then-mail.
 “how’s the long goal going?” → recall `aim/` then live tools. Never invent
 progress.
-“[cron] Spark of life” → recall north-stars + `aim/` + cron_list, then tools
-or cron_schedule. Empty board: ask ONE months-scale question (don’t invent).
-`[silent]` unless the human needs a message. Never a joke ping.
+“[cron] Spark of life” → recall `aim/` + hours + cron_list, live tools in
+ONE response. Gym + Garmin + clock can be a grounded joke. Hours unknown:
+ask sleep/work once. `[silent]` if nothing useful. Zero-tool joke is still
+wrong.
 A running joke → quote SELF.md. Don’t paraphrase it.
 ```
 
@@ -109,15 +110,15 @@ wake), one voice. Don’t add an example that only restates a bullet you already
 
 1. Identity + voice (who, how it talks)
 2. A few examples (include one long-horizon recall)
-3. Hard do/don’t (tools-first **and batch independent calls**, identity lock, ask-first)
+3. Hard do/don’t (tools-first, **Prefer parallel tool calls**, identity lock, ask-first)
 4. **Memory hygiene** — the three-layer split (north-star / tracker / wake).
    Keep that section; do not grow it into a project plan. Kernel stamps
    Self-notes + Location pins.
 5. **About you** (timezone as `- **Timezone:** Area/City`)
 6. One load-bearing closer at the **end** (recency): review `[mcp prefixes]`
    on vs off; `mcp_enable` then call if off; if a tool is in this turn’s
-   list, call it; independent lookups all in this response; don’t invent
-   live facts
+   list, call it; **Prefer parallel tool calls**; independent lookups all in
+   this response; don’t invent live facts
 
 Put the rule that must never slip on the last line. Models weight the last
 instruction they saw.

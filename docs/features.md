@@ -163,10 +163,11 @@ miss them.
 - Live-data cron: tool-first wrapper; zero-tool draft gets one nudge, then
   refuse invented metrics; prior `[cron]` turns omitted so yesterday’s
   digest cannot few-shot the next one
-- **Spark of life** (`SPARK_QTY`, default `2-3`): random horizon wakes in a local
+- **Spark of life** (default `3-5`/day): random horizon wakes in a local
   hour window — replan against `SELF.md` / `aim/`, tool-call, `cron_schedule`;
   empty board asks once for a north-star; `[silent]` unless the human needs a
-  message; skip if they messaged recently. `SPARK_QTY=0` turns it off.
+  message; skip if they messaged recently or are in learned sleep hours.
+  `/engagement off` (same as `/spark off`) turns it off.
 - **Examples** (`EXAMPLES_QTY`, default `1-2`): capability pings from the
   live catalog (plus harness recipes: first aim, cron, memory) so you learn
   what the agent can do; `/examples on|off`; `/examples` on-demand still
@@ -220,7 +221,7 @@ Works. Has seams. Don’t be surprised.
 | --- | --- |
 | **Token counts** | Chars/4 **estimates**, labeled as such. `/tokens` is a standing-prompt breakdown, not a tokenizer. Good enough to catch a fat schema; not a billing meter. |
 | **Discord / Slack** | Shipped, outbound-only, allowlist. Telegram is the path that got the menu, photos, reactions, pin, error-tee, and production scars. |
-| **Spark auto-bind** | Telegram DMs only. Other channels: schedule `repeat=spark` yourself. Default `2-3`/day; `SPARK_QTY=0` to disable. Work-only `[silent]` means most wakes never show up in chat — look at logs / `cron_list`. Empty board asks once. |
+| **Spark auto-bind** | Telegram DMs only at boot. Other channels: `/engagement on` or `repeat=spark`. Default `3-5`/day; `/engagement 2` or `/engagement off`. Work-only `[silent]` means most wakes never show up in chat — look at logs / `cron_list`. Empty board asks once. |
 | **Examples pings** | On by default (`1-2`/day). Useful as training wheels; can feel like a nag. `/examples off` or `EXAMPLES_QTY=0`. |
 | **`mcp_enable` holds** | Magic durations (27h / 6h). Wrong prefix → still a fat schema until idle expiry. |
 | **Location pin** | In-memory. Restart = amnesia. Not a Completer wake. |

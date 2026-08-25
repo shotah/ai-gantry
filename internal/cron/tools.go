@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
@@ -20,8 +21,9 @@ const (
 
 // Tools adapts Store into agent tool defs / calls.
 type Tools struct {
-	Store *Store
-	TZ    string // IANA name from CRON_TZ
+	Store  *Store
+	TZ     string // IANA name from CRON_TZ
+	Memory memory.Memory
 }
 
 // ToolDefs returns the three builtin cron tool schemas.
@@ -33,7 +35,8 @@ func ToolDefs() []provider.ToolDef {
 				"Fires later, runs tools, and pushes the reply to this chat. " +
 				"Work-only jobs can reply [silent] to skip the push (all-clear / no need to ping). " +
 				`when: RFC3339, "15:04", "in 30m", or for spark "4-6@06-21". ` +
-				`repeat: once|daily|every:1h|spark.`,
+				`repeat: once|daily|every:1h|spark. ` +
+				"Pin follow-through with memory_id from memory_store (and/or memory_subject) so the wake loads that row.",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -50,6 +53,14 @@ func ToolDefs() []provider.ToolDef {
 					"repeat": map[string]any{
 						"type":        "string",
 						"description": "once (default), daily, every:30m, or spark",
+					},
+					"memory_id": map[string]any{
+						"type":        "integer",
+						"description": "id returned by memory_store — the wake loads this row as [job memory]",
+					},
+					"memory_subject": map[string]any{
+						"type":        "string",
+						"description": "fallback subject if the id is gone, e.g. follow/passport",
 					},
 				},
 				"required": []string{"prompt", "when"},
@@ -107,6 +118,15 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 		prompt, _ := args["prompt"].(string)
 		when, _ := args["when"].(string)
 		repeat, _ := args["repeat"].(string)
+		memorySubject, _ := args["memory_subject"].(string)
+		var memoryID int64
+		if v, ok := args["memory_id"]; ok && v != nil {
+			id, err := asInt64(v)
+			if err != nil {
+				return "", fmt.Errorf("cron: memory_id: %w", err)
+			}
+			memoryID = id
+		}
 		delivery, ok := DeliveryFrom(ctx)
 		if !ok || delivery.SessionID == "" {
 			return "", fmt.Errorf("cron: missing delivery context (schedule from an interactive turn)")
@@ -119,19 +139,31 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 		if err != nil {
 			return "", err
 		}
+		if memoryID > 0 && t.Memory != nil {
+			if e, ok := memory.ResolvePin(ctx, t.Memory, memoryID, memorySubject); ok {
+				memoryID = e.ID
+				if memorySubject == "" {
+					memorySubject = e.Subject
+				}
+			} else if strings.TrimSpace(memorySubject) == "" {
+				return "", fmt.Errorf("cron: memory_id %d not found", memoryID)
+			}
+		}
 		// Spark planners must go through EnsureSpark so reboots / re-schedules
 		// cannot stack a second daily planner or compound ping jobs.
 		var job Job
 		if parsed.Kind == KindSpark {
 			job, _, err = t.Store.EnsureSpark(ctx, prompt, parsed, delivery)
+		} else if memoryID > 0 || memorySubject != "" {
+			job, err = t.Store.ScheduleWithPin(ctx, prompt, parsed, delivery, memoryID, memorySubject)
 		} else {
 			job, err = t.Store.Schedule(ctx, prompt, parsed, delivery)
 		}
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("scheduled id=%d kind=%s next_run=%s tz=%s",
-			job.ID, job.Kind, job.NextRunAt.UTC().Format(time.RFC3339), job.Timezone), nil
+		return fmt.Sprintf("scheduled id=%d kind=%s next_run=%s tz=%s memory_id=%d subject=%q",
+			job.ID, job.Kind, job.NextRunAt.UTC().Format(time.RFC3339), job.Timezone, job.MemoryID, job.MemorySubject), nil
 
 	case ToolList:
 		delivery, ok := DeliveryFrom(ctx)
@@ -148,8 +180,8 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 		}
 		var b strings.Builder
 		for _, j := range jobs {
-			_, _ = fmt.Fprintf(&b, "id=%d kind=%s next=%s prompt=%q\n",
-				j.ID, j.Kind, j.NextRunAt.UTC().Format(time.RFC3339), truncate(j.Prompt, 80))
+			_, _ = fmt.Fprintf(&b, "id=%d kind=%s next=%s memory_id=%d subject=%q prompt=%q\n",
+				j.ID, j.Kind, j.NextRunAt.UTC().Format(time.RFC3339), j.MemoryID, j.MemorySubject, truncate(j.Prompt, 80))
 		}
 		return strings.TrimRight(b.String(), "\n"), nil
 

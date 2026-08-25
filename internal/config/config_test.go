@@ -80,15 +80,6 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if cfg.CronMaxJobs != 50 {
 		t.Errorf("CronMaxJobs = %d, want 50", cfg.CronMaxJobs)
 	}
-	if cfg.SparkSkipRecentMinutes != 30 {
-		t.Errorf("SparkSkipRecentMinutes = %d, want 30", cfg.SparkSkipRecentMinutes)
-	}
-	if cfg.SparkQty != "2-3" {
-		t.Errorf("SparkQty = %q, want 2-3", cfg.SparkQty)
-	}
-	if !cfg.SparkEnabled() {
-		t.Error("SparkEnabled = false, want true")
-	}
 	if cfg.LogLevel != "info" {
 		t.Errorf("LogLevel = %q, want info", cfg.LogLevel)
 	}
@@ -319,7 +310,6 @@ func TestLoad_MoreValidation(t *testing.T) {
 		{"TOOL_TRACE", "verbose", "TOOL_TRACE"},
 		{"MEMORY_CONSOLIDATE_MINUTES", "-1", "MEMORY_CONSOLIDATE_MINUTES"},
 		{"WATCH_MAX", "0", "WATCH_MAX"},
-		{"SPARK_QTY", "four", "SPARK_QTY"},
 		{"MEMORY_BACKEND", "mcp:", "MEMORY_BACKEND"},
 		{"PERSONA_DIR", "   ", "PERSONA_DIR"},
 		{"DATA_DIR", "   ", "DATA_DIR"},
@@ -345,18 +335,5 @@ func TestLoad_MoreValidation(t *testing.T) {
 				t.Fatalf("err = %v, want %q", err, tc.want)
 			}
 		})
-	}
-}
-
-func TestLoad_SparkQtyOff(t *testing.T) {
-	setRequiredLLM(t)
-	t.Setenv("CHANNEL", "stdio")
-	t.Setenv("SPARK_QTY", "0")
-	cfg, err := config.Load()
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if cfg.SparkEnabled() {
-		t.Fatal("SPARK_QTY=0 should disable spark")
 	}
 }

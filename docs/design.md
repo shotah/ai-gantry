@@ -192,10 +192,6 @@ Boot is fail-fast: missing required env = clear error + exit 1.
 | `CRON_TICK_SECONDS` | no | `15` |
 | `WATCH_ENABLED` | no | `true` — [watch.md](watch.md) |
 | `WATCH_MAX` | no | `50` |
-| `SPARK_QTY` | no | `2-3` (empty/`0` = off) |
-| `SPARK_START_HOUR` / `SPARK_END_HOUR` | no | `6` / `21` |
-| `SPARK_PROMPT` | no | empty |
-| `SPARK_SKIP_RECENT_MINUTES` | no | `30` |
 | `EXAMPLES_QTY` | no | `1-2` (empty/`0` = no proactive pings) |
 | `EXAMPLES_START_HOUR` / `EXAMPLES_END_HOUR` | no | `6` / `21` |
 | `EXAMPLES_SKIP_RECENT_MINUTES` | no | `60` |
@@ -402,7 +398,7 @@ residency) stay one `ssh` away ([observability.md](observability.md)).
 | `gantry version` | Build ldflags |
 | SIGTERM / Interrupt | Stop channel → drain in-flight turn → close MCP → close DB |
 | Logs | JSON `slog` on stderr (`journalctl` / `docker logs`) |
-| Chat cmds | `/new` `/cancel` `/status` `/tools` `/examples` `/perf` `/memstats` `/toolstats` `/tokens` `/auth` `/help` |
+| Chat cmds | `/new` `/cancel` `/status` `/tools` `/examples` `/engagement` `/spark` `/perf` `/memstats` `/toolstats` `/tokens` `/auth` `/help` |
 | SIGHUP | Reloads persona (unix) |
 | Multi-bubble | Steer + settle (`COALESCE_SETTLE_MS`, default 2s): Completer cancelled, MCP kept |
 | Spin-up notice | `SPINUP_NOTICE_MS` (default 4s) posts a working line before the first token |

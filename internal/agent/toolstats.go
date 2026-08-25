@@ -16,6 +16,7 @@ const helpText = `/new — reset this session's history
 /tools — prefixed tool catalog (published vs available)
 /brief /short /off — prefix hold (6h / 27h / drop now)
 /examples — one capability idea (on|off for proactive pings)
+/engagement /spark — looking-after-you wakes (on|off|3-5)
 /perf — last turns: invocations, tools, batch, recoveries
 /memstats — memory row counts and consolidation
 /toolstats — per-tool call ledger since boot

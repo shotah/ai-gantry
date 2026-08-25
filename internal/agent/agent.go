@@ -72,9 +72,10 @@ const enableReviewNote = "[system] Review [mcp prefixes] on vs off this turn. If
 // finished-report spec and small models draft numbers instead of calling.
 const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data, review [mcp prefixes] and mcp_enable any off prefix this job needs, then emit independent tool calls now in one response and wait for results. Do not invent metrics, events, or search results. Write the user-facing report only after tool results are in context. If no tools are needed, reply now."
 
-// sparkToolFirstNote sits after the clock on spark-of-life turns. Spark is
-// horizon work (aims / cron / live tools), not a presence joke.
-const sparkToolFirstNote = "[system] Spark-of-life turn: this is horizon work, not a chat ping. Review [mcp prefixes] on vs off. Emit independent tool calls now — memory_recall for aim/ (and aim/bootstrap if the board is empty), cron_list, then live tools or cron_schedule. If there is no north-star and no aim/, ask ONE months-scale question — do not invent an aim. mcp_enable a prefix if it is off and needed. Do not invent progress. Do not send a joke. After the work, reply with exactly [silent] unless the human needs a specific hole or next step."
+// sparkToolFirstNote sits after the clock on spark-of-life turns. Spark looks
+// after the user (aims, live tools, useful knowledge). Empty zero-tool jokes
+// are still nudged off; grounded jokes after tools are allowed.
+const sparkToolFirstNote = "[system] Spark-of-life turn: the user is the aim. Review [mcp prefixes] on vs off. Emit independent tool calls now — memory_recall for aim/ and pref/hours, cron_list, then live tools (Garmin, calendar, search) or cron_schedule. mcp_enable a prefix if it is off and needed. Shape the message by [current time]. A joke is allowed when it is grounded in this turn's tool results and an aim — never a joke with zero tools. Hours unknown → ask sleep/work once. Else at most one user-model question. Empty board: ask ONE months-scale question — do not invent an aim. After the work, [silent] unless the human needs a specific hole, nudge, or next step."
 
 // theaterCueMaxChars: a stop reply this long is already the answer. Matching
 // "I've added…" or a server__tool name inside a design essay must not start
@@ -115,6 +116,8 @@ type Options struct {
 	MCPManifest string
 	// Examples is optional; enables /examples (instant + on/off for proactive pings).
 	Examples ExamplesControl
+	// Spark is optional; enables /spark (on|off|qty for looking-after-you wakes).
+	Spark SparkControl
 	// HistoryStripFillers applies session.StripFillerHistory at prompt time.
 	HistoryStripFillers bool
 	// Enable filters MCP schemas per session (nil = publish the full catalog).
@@ -161,6 +164,7 @@ type Agent struct {
 
 	mcpManifest string
 	examples    ExamplesControl
+	spark       SparkControl
 
 	stripFillers bool
 
@@ -221,6 +225,7 @@ func New(opts Options) (*Agent, error) {
 		consolidator:   opts.Consolidator,
 		mcpManifest:    strings.TrimSpace(opts.MCPManifest),
 		examples:       opts.Examples,
+		spark:          opts.Spark,
 		stripFillers:   opts.HistoryStripFillers,
 		enable:         opts.Enable,
 		enableForce:    opts.EnableForce,
@@ -308,6 +313,18 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		unlock := a.lockSession(msg.SessionID)
 		defer unlock()
 		return a.handleExamples(ctx, channelDelivery{
+			SessionID: msg.SessionID,
+			UserID:    msg.UserID,
+			ChatID:    msg.ChatID,
+			ThreadID:  msg.ThreadID,
+		}, arg)
+	}
+
+	// /spark and /engagement accept on|off|true|false|{qty} (same command).
+	if arg, ok := parseSparkCommand(text); ok {
+		unlock := a.lockSession(msg.SessionID)
+		defer unlock()
+		return a.handleSpark(ctx, channelDelivery{
 			SessionID: msg.SessionID,
 			UserID:    msg.UserID,
 			ChatID:    msg.ChatID,
@@ -492,6 +509,15 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		if line := here.Format(p, now, tzName); line != "" {
 			clock += "\n" + line
 		}
+	}
+	if a.memory != nil {
+		raw := ""
+		if e, ok, err := a.memory.ActiveByKindSubject(turnCtx, memory.KindPreference, memory.SubjectHours); err != nil {
+			a.log.Warn("hours lookup failed", "err", err)
+		} else if ok {
+			raw = e.Content
+		}
+		clock += "\n" + memory.ParseHours(raw).Footer()
 	}
 	messages = append(messages, provider.Message{
 		Role:    provider.RoleSystem,
@@ -954,10 +980,11 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 						"OR give a final answer that reports the tool error and stops. Giving up is fine. " +
 						"Do not ask for a moment or promise another attempt without calling a tool."
 				} else if sparkHorizon {
-					nudge = "[system] This spark-of-life turn is for making progress on north-star aims, not a chat ping. " +
-						"Call tools now in one response: memory_recall for aim/ (and aim/bootstrap if empty), cron_list, then any live tools or cron_schedule that would move an aim. " +
+					nudge = "[system] This spark-of-life turn is for looking after the user (aims, live tools, useful knowledge), not an empty check-in. " +
+						"Call tools now in one response: memory_recall for aim/ and pref/hours, cron_list, then any live tools or cron_schedule that would move an aim. " +
 						"If the board is empty, ask ONE months-scale question — do not invent an aim. " +
-						"mcp_enable a prefix if it is off and needed. Do not invent progress. Do not send a joke. " +
+						"mcp_enable a prefix if it is off and needed. Do not invent progress. " +
+						"A joke is fine after tools return, not instead of tools. " +
 						"If the human does not need a message after the work, reply with exactly [silent]."
 				} else if cronSkippedLive {
 					nudge = "[system] This scheduled job needs live data, but you wrote the user-facing result without calling any tools. " +

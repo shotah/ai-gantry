@@ -23,6 +23,38 @@ func (s *Store) ExamplesEnabled(ctx context.Context, sessionID string) (bool, er
 	return v != 0, nil
 }
 
+// SparkQty returns the session override. Empty means inherit DefaultSparkQty.
+func (s *Store) SparkQty(ctx context.Context, sessionID string) (string, error) {
+	var v string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT spark_qty FROM session_pref WHERE session_id = ?`, sessionID).Scan(&v)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(v), nil
+}
+
+// SetSparkQty persists /engagement qty for a session. Empty inherits default; "0" is off.
+func (s *Store) SetSparkQty(ctx context.Context, sessionID, qty string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return fmt.Errorf("cron: empty session_id")
+	}
+	qty = strings.TrimSpace(qty)
+	now := formatCronTime(time.Now().UTC())
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO session_pref (session_id, examples_enabled, spark_qty, updated_at)
+		VALUES (?, 1, ?, ?)
+		ON CONFLICT(session_id) DO UPDATE SET
+			spark_qty = excluded.spark_qty,
+			updated_at = excluded.updated_at`,
+		sessionID, qty, now)
+	return err
+}
+
 // SetExamplesEnabled persists /examples on|off for a session.
 func (s *Store) SetExamplesEnabled(ctx context.Context, sessionID string, on bool) error {
 	sessionID = strings.TrimSpace(sessionID)
@@ -47,9 +79,7 @@ func (s *Store) SetExamplesEnabled(ctx context.Context, sessionID string, on boo
 // FindExamples returns the enabled examples *planner* job for a session, if any.
 func (s *Store) FindExamples(ctx context.Context, sessionID string) (Job, bool, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, prompt, kind, expr, timezone, next_run_at,
-		       session_id, user_id, chat_id, thread_id,
-		       enabled, running, created_at, updated_at, last_run_at, last_error
+		SELECT `+jobColumns+`
 		FROM cron_job
 		WHERE enabled = 1 AND kind = ? AND session_id = ?
 		ORDER BY id DESC LIMIT 1`, KindExamples, sessionID)

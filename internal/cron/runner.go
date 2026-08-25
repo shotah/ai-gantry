@@ -8,19 +8,20 @@ import (
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/memory"
 )
 
 // JobUserPrefix wraps user-scheduled job prompts (not spark/examples pings).
 // It must stay a single paragraph plus a trailing blank line so the agent can
 // split wrapper from job body when deciding whether live tools were skipped.
-const JobUserPrefix = "[cron] Scheduled job — execute now. If this job needs live data, call those tools first — do not write the report, tables, or numbers until tool results are in context. Never guess metrics; if a tool fails, say so. If the human does not need a message (all-clear or work-only), reply with exactly [silent] and nothing else.\n\n"
+const JobUserPrefix = "[cron] Scheduled job — you scheduled this continuation. If [job memory] is present, that is why. Recall/tools as needed. Decide what is useful now: message, act, postpone, cancel, or [silent]. Do not nag. The original chat may be gone. If this job needs live data, call those tools first — do not write the report, tables, or numbers until tool results are in context. Never guess metrics; if a tool fails, say so. If the human does not need a message (all-clear or work-only), reply with exactly [silent] and nothing else.\n\n"
 
 // SparkTurnMarker is the start of SparkPingPrefix. Agent and tests use it to
 // recognize a spark horizon turn (tools required, not a chat ping).
 const SparkTurnMarker = "[cron] Spark of life"
 
 // SparkPingPrefix wraps spark-of-life horizon wakes.
-const SparkPingPrefix = SparkTurnMarker + " — replan today against north-star aims (SELF.md) and memory aim/. Call tools: recall aims, cron_list, then live tools or cron_schedule. If SELF.md has no north-star and aim/ is empty: recall subject aim/bootstrap; if you already asked, reply [silent]; if not, ask ONE months-scale question (do not invent an aim) and memory_store fact subject aim/bootstrap that you asked. Work-only is the default — if the human does not need a message, reply with exactly [silent] and nothing else. Do not send a joke, check-in, or pep talk:\n\n"
+const SparkPingPrefix = SparkTurnMarker + " — the user is the aim. In one response: recall aim/ + pref/hours + cron_list, mcp_enable then call live tools that match (Garmin, calendar, search). Shape the human-facing move by [current time]: a gym aim with no workout yet in the morning is a short grounded joke or nudge; evening with still nothing can be disappointed-uncle about the miss. A joke or ritual is allowed when it is about this turn's tool results — never a joke with zero tools. Hours unknown → ask sleep/work/quiet once (work is not DND) and memory_store preference subject pref/hours. Else at most one user-model question (food, activity, team). [silent] if nothing useful. Empty aim board: ask ONE months-scale question (do not invent). Ask-first: no email, spend, or posts:\n\n"
 
 // IsSparkTurn reports whether this user text is a spark-of-life horizon wake.
 func IsSparkTurn(userText string) bool {
@@ -61,6 +62,8 @@ type Runner struct {
 	ExamplesSkipRecent time.Duration
 	// Examples is optional; when set, examples_ping prompts are built at fire time.
 	Examples ExamplePromptBuilder
+	// Memory is optional; used to inject [job memory] and skip spark during sleep.
+	Memory memory.Memory
 }
 
 // Start polls until ctx is cancelled. Jobs run serially (overlap skipped via Claim).
@@ -121,7 +124,13 @@ func (r *Runner) poll(ctx context.Context, log *slog.Logger) {
 }
 
 func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
-	log.Info("cron job firing", "id", job.ID, "kind", job.Kind)
+	log.Info("cron job firing",
+		"id", job.ID,
+		"kind", job.Kind,
+		"session_id", job.SessionID,
+		"memory_id", job.MemoryID,
+		"prompt", truncate(job.Prompt, 80),
+	)
 
 	if job.Kind == KindSpark {
 		r.runSparkPlanner(ctx, log, job)
@@ -129,6 +138,14 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 	}
 	if job.Kind == KindExamples {
 		r.runExamplesPlanner(ctx, log, job)
+		return
+	}
+
+	if (job.Kind == KindSparkPing || job.Kind == KindExamplesPing) && r.asleep(ctx, job) {
+		until := time.Now().UTC().Add(time.Hour)
+		log.Info("cron ping deferred (sleep hours)",
+			"id", job.ID, "kind", job.Kind, "session_id", job.SessionID, "until", until.Format(time.RFC3339))
+		_ = r.Store.Defer(ctx, job.ID, until, "skipped: sleep hours")
 		return
 	}
 
@@ -168,7 +185,7 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 		}
 		handleCtx = channel.WithNoTools(ctx)
 	}
-	text := prefix + prompt
+	text := prefix + r.jobMemoryBlock(ctx, log, job) + prompt
 	msg := channel.Message{
 		SessionID: job.SessionID,
 		UserID:    job.UserID,
@@ -178,12 +195,14 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 	}
 	reply, err := r.Handle(handleCtx, msg)
 	if err != nil {
-		log.Warn("cron job handle failed", "id", job.ID, "err", err)
+		log.Warn("cron job handle failed", "id", job.ID, "err", err, "outcome", "error")
 		_ = r.Store.Finish(ctx, job, err)
 		return
 	}
+	outcome := "push"
 	if IsSilentReply(reply) {
-		log.Info("cron silent skip", "id", job.ID, "kind", job.Kind, "session_id", job.SessionID)
+		outcome = "silent"
+		log.Info("cron silent skip", "id", job.ID, "kind", job.Kind, "session_id", job.SessionID, "outcome", outcome)
 	} else if reply != "" {
 		if err := r.Pusher.Push(ctx, channel.Outbound{
 			SessionID: job.SessionID,
@@ -192,14 +211,62 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 			ThreadID:  job.ThreadID,
 			Text:      reply,
 		}); err != nil {
-			log.Warn("cron push failed", "id", job.ID, "err", err)
+			log.Warn("cron push failed", "id", job.ID, "err", err, "outcome", "error")
 			_ = r.Store.Finish(ctx, job, fmt.Errorf("push: %w", err))
 			return
 		}
+		log.Info("cron job pushed", "id", job.ID, "kind", job.Kind, "session_id", job.SessionID, "outcome", outcome)
+	} else {
+		outcome = "silent"
+		log.Info("cron empty reply", "id", job.ID, "kind", job.Kind, "session_id", job.SessionID, "outcome", outcome)
 	}
 	if err := r.Store.Finish(ctx, job, nil); err != nil {
 		log.Warn("cron finish failed", "id", job.ID, "err", err)
 	}
+}
+
+func (r *Runner) jobMemoryBlock(ctx context.Context, log *slog.Logger, job Job) string {
+	if r == nil || r.Memory == nil {
+		return ""
+	}
+	if job.MemoryID == 0 && strings.TrimSpace(job.MemorySubject) == "" {
+		return ""
+	}
+	e, ok := memory.ResolvePin(ctx, r.Memory, job.MemoryID, job.MemorySubject)
+	if !ok {
+		if log != nil {
+			log.Warn("cron job memory missing; running on prompt",
+				"id", job.ID, "memory_id", job.MemoryID, "subject", job.MemorySubject)
+		}
+		return ""
+	}
+	return FormatJobMemory(e.Kind, e.Subject, e.Content)
+}
+
+// FormatJobMemory renders the pinned row for a scheduled turn.
+func FormatJobMemory(kind, subject, content string) string {
+	kind = strings.TrimSpace(kind)
+	subject = strings.TrimSpace(subject)
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return ""
+	}
+	return fmt.Sprintf("[job memory]\n- (%s) %s: %s\n\n", kind, subject, content)
+}
+
+func (r *Runner) asleep(ctx context.Context, job Job) bool {
+	if r == nil || r.Memory == nil {
+		return false
+	}
+	e, ok, err := r.Memory.ActiveByKindSubject(ctx, memory.KindPreference, memory.SubjectHours)
+	if err != nil || !ok {
+		return false
+	}
+	loc, err := loadTZ(job.Timezone)
+	if err != nil || loc == nil {
+		loc = time.UTC
+	}
+	return memory.ParseHours(e.Content).AsleepAt(time.Now().In(loc))
 }
 
 func (r *Runner) skipRecentFor(kind string) time.Duration {

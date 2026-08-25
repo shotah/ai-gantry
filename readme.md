@@ -124,7 +124,7 @@ chat turn.
 | Command | What it does |
 | --- | --- |
 | `/status` `/perf` `/tokens` | Session bounds, trajectory (invocations / tools / batch), prompt size |
-| `/tools` `/examples` `/new` `/cancel` | Catalog, ideas, reset session, abort a turn |
+| `/tools` `/examples` `/engagement` `/spark` `/new` `/cancel` | Catalog, ideas, looking-after-you wakes, reset, abort |
 | `/auth` | Headless MCP login — paste a code; no laptop callback |
 
 Telegram is the default. Discord and Slack are shipped (one `CHANNEL` per

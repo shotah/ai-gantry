@@ -15,8 +15,12 @@ digest cannot few-shot the next one. Plain reminders ("submit my timecard")
 are unchanged.
 
 A months-scale **aim** is not a cron by itself. North-star sentences live in
-`SELF.md`; progress in memory (`aim/<area>`); cron is the wake. A goal with
-no wake is a dusty row — [persona.md](persona.md#where-the-horizon-lives).
+`SELF.md`; progress in memory (`aim/<area>`); cron is the wake. Spark looks
+after the user — aims, live tools, filling useful personal knowledge, and a
+joke when the data earns it. Empty zero-tool pings still stay `[silent]`.
+Learned `pref/hours` sleep skips spark/examples; explicit "remind me at 9pm"
+still fires. Pin follow-through with `memory_id` so the wake is not a hydrate
+lottery. A goal with no wake is a dusty row — [persona.md](persona.md#where-the-horizon-lives).
 
 Cron has no Telegram streaming / tool-trace bubble — only the final `Push`.
 Live-data replies append `— tools: name, …` or `— tools: (none)` so a skipped
@@ -35,11 +39,6 @@ work does not need a human-facing message.
 | `CRON_TZ` | `America/Los_Angeles` | IANA timezone for clock times (Pacific — SJ / SF / SEA / LA) |
 | `CRON_MAX_JOBS` | `50` | Cap on enabled jobs |
 | `CRON_TICK_SECONDS` | `15` | Due-job poll interval |
-| `SPARK_QTY` | `2-3` | **On by default** spark-of-life. Empty or `0` = off. `2-3` or `5` (random count/day) |
-| `SPARK_START_HOUR` | `6` | Local window start (inclusive), used when spark is on |
-| `SPARK_END_HOUR` | `21` | Local window end (exclusive), e.g. 21 → last ping before 9pm |
-| `SPARK_PROMPT` | _(built-in horizon pool)_ | One prompt, or one per line (`\n`) — random pick per wake |
-| `SPARK_SKIP_RECENT_MINUTES` | `30` | Skip/defer if the human messaged within this many minutes |
 | `EXAMPLES_QTY` | `1-2` | **On by default** capability-example pings. Empty or `0` = no proactive pings. `/examples` on-demand still works |
 | `EXAMPLES_START_HOUR` | `6` | Local window start for examples pings |
 | `EXAMPLES_END_HOUR` | `21` | Local window end (exclusive) |
@@ -49,7 +48,7 @@ work does not need a human-facing message.
 
 | Tool | Purpose |
 | --- | --- |
-| `cron_schedule` | Create a job bound to the current chat/session |
+| `cron_schedule` | Create a job bound to the current chat/session. Optional `memory_id` / `memory_subject` pins a memory row; the wake injects `[job memory]`. |
 | `cron_list` | List active jobs |
 | `cron_cancel` | Disable by id (spark planner also cancels pending `spark_ping` rows) |
 
@@ -78,11 +77,20 @@ At midnight daily: check last 48h of chat + Garmin. If all-clear, reply [silent]
 Random **horizon wakes** — replan today against `SELF.md` north-stars and memory
 `aim/`, call tools, and `cron_schedule` the next wake. Empty board: ask **one**
 months-scale question (do not invent an aim), then `self_note` + `memory_store`
-`aim/<area>` when they answer. Not jokes. **Off when `SPARK_QTY` is empty or `0`.**
+`aim/<area>` when they answer. **Off with `/engagement off`** (same as `/spark off`).
 
 On Telegram, boot auto-binds a spark **planner** per allowlisted DM (`chat_id` =
-user id) and seeds that day's wakes. Other channels: `cron_schedule`
-(`repeat=spark`, `when=2-3@06-21`).
+user id) and seeds that day's wakes. Other channels: `/spark on` or `cron_schedule`
+(`repeat=spark`, `when=3-5@06-21`).
+
+Chat controls (persist per session, like `/examples`):
+
+| Command | Effect |
+| --- | --- |
+| `/engagement` / `/spark` | Same command. Status (default qty, this chat, window) |
+| `/engagement on` | Inherit operator default |
+| `/engagement off` | Opt out (dated user crons still fire) |
+| `/engagement 2` / `/spark 4-6` | Override count/day (1–24) |
 
 How it works:
 
@@ -93,23 +101,15 @@ How it works:
 3. Before each seed (planner wake or boot catch-up), pending `spark_ping` rows for that
    session are cancelled — prior-day leftovers and restarts do **not** compound.
    Once today is planned (planner `next_run` is tomorrow), reboot does not roll a second set.
-4. Each wake picks one line from `SPARK_PROMPT` (if multi-line) and runs the **full
+4. Each wake picks one line from the built-in pool and runs the **full
    agent loop** (memory, cron, MCP tools). A zero-tool joke is nudged once; a second
    skip stays `[silent]` so it is not pushed. If the human messaged within
-   `SPARK_SKIP_RECENT_MINUTES`, that wake is deferred once, then dropped if still chatting.
+   skip-recent (30m), that wake is deferred once, then dropped if still chatting.
+   Learned `pref/hours` sleep also defers spark/examples (work is not DND).
 5. Work-only is the default: reply `[silent]` unless a hole needs the human (or the
    board is empty and it is time to ask once). Ask-first still applies (no email,
    spend, or public posts from a spark).
 6. Cancelling the spark planner (`cron_cancel`) also disables pending pings for that session.
-
-```env
-SPARK_QTY=2-3
-SPARK_START_HOUR=6
-SPARK_END_HOUR=21
-# SPARK_QTY=0   # disable proactive spark; cron_schedule repeat=spark still works
-# Empty SPARK_PROMPT uses the built-in horizon pool (replan / first aim / [silent]).
-# SPARK_SKIP_RECENT_MINUTES=30
-```
 
 ## Capability examples / training wheels (on by default)
 

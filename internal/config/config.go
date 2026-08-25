@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v11"
-
-	"github.com/shotah/ai-gantry/internal/cron"
 )
 
 // Channel names accepted by CHANNEL.
@@ -89,13 +87,6 @@ type Config struct {
 	// Watch polls MCP fetch tools and wakes the agent only on new item ids.
 	WatchEnabled bool `env:"WATCH_ENABLED" envDefault:"true"`
 	WatchMax     int  `env:"WATCH_MAX" envDefault:"50"`
-
-	// Spark of life (on by default). Empty or "0" = off. Qty: "2-3", "5".
-	SparkQty               string `env:"SPARK_QTY" envDefault:"2-3"`
-	SparkStartHour         int    `env:"SPARK_START_HOUR" envDefault:"6"`
-	SparkEndHour           int    `env:"SPARK_END_HOUR" envDefault:"21"`
-	SparkPrompt            string `env:"SPARK_PROMPT" envDefault:""`
-	SparkSkipRecentMinutes int    `env:"SPARK_SKIP_RECENT_MINUTES" envDefault:"30"`
 
 	// Capability examples / training wheels (on by default). Empty or "0" = no proactive pings;
 	// /examples on-demand still works. Qty: "1", "1-2".
@@ -283,22 +274,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("CRON_TZ: %w", err)
 	}
 
-	c.SparkQty = strings.TrimSpace(c.SparkQty)
-	if qtyEnabled(c.SparkQty) {
-		if _, _, err := cron.ParseSparkQty(c.SparkQty); err != nil {
-			return fmt.Errorf("SPARK_QTY: %w", err)
-		}
-		if c.SparkStartHour < 0 || c.SparkStartHour > 23 {
-			return fmt.Errorf("SPARK_START_HOUR: must be 0–23, got %d", c.SparkStartHour)
-		}
-		if c.SparkEndHour < 1 || c.SparkEndHour > 24 || c.SparkEndHour <= c.SparkStartHour {
-			return fmt.Errorf("SPARK_END_HOUR: must be 1–24 and > SPARK_START_HOUR, got %d", c.SparkEndHour)
-		}
-		if c.SparkSkipRecentMinutes < 0 {
-			return fmt.Errorf("SPARK_SKIP_RECENT_MINUTES: must be >= 0, got %d", c.SparkSkipRecentMinutes)
-		}
-	}
-
 	c.ExamplesQty = strings.TrimSpace(c.ExamplesQty)
 	if qtyEnabled(c.ExamplesQty) {
 		if c.ExamplesStartHour < 0 || c.ExamplesStartHour > 23 {
@@ -359,16 +334,8 @@ func validateMemoryBackend(backend string) error {
 	return fmt.Errorf("MEMORY_BACKEND: must be %q or %q, got %q", "builtin", "mcp:<server-name>", backend)
 }
 
-// qtyEnabled is the on-switch for SPARK_QTY / EXAMPLES_QTY. Empty or "0" = off.
+// qtyEnabled is the on-switch for EXAMPLES_QTY. Empty or "0" = off.
 func qtyEnabled(s string) bool {
 	s = strings.TrimSpace(s)
 	return s != "" && s != "0"
-}
-
-// SparkEnabled reports whether proactive spark-of-life wakes are on.
-func (c *Config) SparkEnabled() bool {
-	if c == nil {
-		return false
-	}
-	return qtyEnabled(c.SparkQty)
 }

@@ -114,6 +114,16 @@ func (a *MCPAdapter) Hydrate(ctx context.Context, query string, limit int) ([]En
 	return a.Recall(ctx, q, limit)
 }
 
+// Get is not supported on the MCP memory backend (no row fetch).
+func (a *MCPAdapter) Get(context.Context, int64) (Entry, error) {
+	return Entry{}, fmt.Errorf("memory: mcp backend has no get by id")
+}
+
+// ActiveByKindSubject is not supported on the MCP memory backend.
+func (a *MCPAdapter) ActiveByKindSubject(context.Context, string, string) (Entry, bool, error) {
+	return Entry{}, false, nil
+}
+
 // Close is a no-op (MCP host owns the connection).
 func (a *MCPAdapter) Close() error { return nil }
 

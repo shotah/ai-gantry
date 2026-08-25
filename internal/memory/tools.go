@@ -26,8 +26,14 @@ type Tools struct {
 func ToolDefs() []provider.ToolDef {
 	return []provider.ToolDef{
 		{
-			Name:        ToolStore,
-			Description: "Store one atomic memory (fact|preference|person|episode|insight). Months-scale plans: kind=insight, subject=aim/<area>. Progress updates: kind=fact. Never auto-save guesses. Jokes go in self_note, not here.",
+			Name: ToolStore,
+			Description: "Store one atomic memory (fact|preference|person|episode|insight). " +
+				"Same kind+subject replaces the live row (old row kept, superseded). " +
+				"Facts about the human (food, hours, people, events) go here — not self_note. " +
+				"Months-scale plans: kind=insight, subject=aim/<area>. Events: fact subject=event/<slug>. " +
+				"Waiting: fact subject=waiting/<slug>. Follow-up note: fact subject=follow/<slug>. " +
+				"Hours: preference subject=pref/hours as sleep:/work:/quiet: HH:MM-HH:MM lines. " +
+				"Never auto-save guesses. Jokes go in self_note.",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -98,7 +104,7 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("stored id=%d kind=%s subject=%q", e.ID, e.Kind, e.Subject), nil
+		return fmt.Sprintf("stored id=%d kind=%s subject=%q (same subject replaces the live row)", e.ID, e.Kind, e.Subject), nil
 
 	case ToolRecall:
 		query, _ := args["query"].(string)

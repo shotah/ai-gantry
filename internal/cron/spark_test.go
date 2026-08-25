@@ -28,6 +28,30 @@ func TestParseSparkPrompts(t *testing.T) {
 	if len(fromConst) != len(defaults) {
 		t.Fatalf("DefaultSparkPrompt parse len=%d, empty parse len=%d", len(fromConst), len(defaults))
 	}
+	if !strings.Contains(cron.SparkPingPrefix, "aim/") {
+		t.Fatal("spark prefix must mention aim/")
+	}
+	if strings.Contains(cron.SparkPingPrefix, "Do not send a joke") {
+		t.Fatal("spark prefix must not blanket-ban jokes")
+	}
+	if !strings.Contains(strings.ToLower(cron.SparkPingPrefix), "joke") {
+		t.Fatal("spark prefix should allow a grounded joke")
+	}
+	var sawFood, sawGarmin, sawHours bool
+	for _, p := range defaults {
+		if strings.Contains(p, "pref/food") {
+			sawFood = true
+		}
+		if strings.Contains(strings.ToLower(p), "garmin") {
+			sawGarmin = true
+		}
+		if strings.Contains(p, "pref/hours") {
+			sawHours = true
+		}
+	}
+	if !sawFood || !sawGarmin || !sawHours {
+		t.Fatalf("pool missing user-model/gym/hours lines food=%v garmin=%v hours=%v", sawFood, sawGarmin, sawHours)
+	}
 	// commas/colons stay inside a single prompt
 	single := cron.ParseSparkPrompts("Tell a joke, then smile: briefly.")
 	if len(single) != 1 || single[0] != "Tell a joke, then smile: briefly." {
