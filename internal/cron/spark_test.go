@@ -46,7 +46,10 @@ func TestParseSparkPrompts(t *testing.T) {
 	if !strings.Contains(cron.SparkPingPrefix, "agree-and-stop") {
 		t.Fatal("spark prefix must forbid agree-and-stop")
 	}
-	var sawFood, sawGarmin, sawHours, sawEmptyCal bool
+	if !strings.Contains(cron.SparkPingPrefix, "calendar event is not") {
+		t.Fatal("spark prefix must treat calendar as event not reminder")
+	}
+	var sawFood, sawGarmin, sawHours, sawEmptyCal, sawPrepCue bool
 	for _, p := range defaults {
 		if strings.Contains(p, "pref/food") {
 			sawFood = true
@@ -60,9 +63,12 @@ func TestParseSparkPrompts(t *testing.T) {
 		if strings.Contains(p, "lunch/dinner") {
 			sawEmptyCal = true
 		}
+		if strings.Contains(p, "calendar event is not") {
+			sawPrepCue = true
+		}
 	}
-	if !sawFood || !sawGarmin || !sawHours || !sawEmptyCal {
-		t.Fatalf("pool missing user-model/gym/hours/empty-cal lines food=%v garmin=%v hours=%v emptyCal=%v", sawFood, sawGarmin, sawHours, sawEmptyCal)
+	if !sawFood || !sawGarmin || !sawHours || !sawEmptyCal || !sawPrepCue {
+		t.Fatalf("pool missing user-model/gym/hours/empty-cal/prep lines food=%v garmin=%v hours=%v emptyCal=%v prep=%v", sawFood, sawGarmin, sawHours, sawEmptyCal, sawPrepCue)
 	}
 	// commas/colons stay inside a single prompt
 	single := cron.ParseSparkPrompts("Tell a joke, then smile: briefly.")

@@ -101,9 +101,10 @@ never “yes boss.”
 progress.
 “[cron] Spark of life” → recall `aim/` + hours + cron_list, live tools in
 ONE response. Gym + Garmin + clock can be a grounded joke. Real empty
-calendar → one question: what do they want on it, not `[silent]`. Hours
-unknown: ask sleep/work once. `[silent]` if nothing useful. Zero-tool joke
-is still wrong.
+calendar → one question: what do they want on it, not `[silent]`. A clock
+time she commits (scoop at 2) → `cron_schedule` or one offer to ping.
+Hours unknown: ask sleep/work once. `[silent]` if nothing useful.
+Zero-tool joke is still wrong.
 A running joke → quote SELF.md. Don’t paraphrase it.
 ```
 
@@ -123,7 +124,8 @@ wake), one voice. Don’t add an example that only restates a bullet you already
    on vs off; `mcp_enable` then call if off; if a tool is in this turn’s
    list, call it; **Prefer parallel tool calls**; independent lookups all in
    this response; don’t invent live facts; never a bare “got it” — the next
-   question is the turn
+   question is the turn; a clock time in the reply is a wake or one offer
+   to remind
 
 Put the rule that must never slip on the last line. Models weight the last
 instruction they saw.
