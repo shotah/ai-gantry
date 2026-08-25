@@ -304,6 +304,10 @@ Stable file/env/`gantry status` JSON: [gantree-contract.md](gantree-contract.md)
 - Fleet UI, plant wizard, MCP catalog UX, OAuth hop UX
 - Docker lifecycle, image pins, SSH-or-local host
 - Isolation rules, backup, operator auth to the console itself
+- Persona template copy: `lib/yard/crane/templates/PERSONA.example.md` must
+  stay lockstep with [persona.md](persona.md#gantree-dashboard-copy). Inject
+  user fills **About you** from the operator profile; Identity stays the
+  agent.
 
 The harness never learns instance names. Gantree never sits in the token path
 of a chat turn. Status is pull (`docker exec`); the snapshot is boot-only.

@@ -136,6 +136,21 @@ delete it.
 Canonical seed: [`examples/persona/PERSONA.example.md`](../examples/persona/PERSONA.example.md)
 (`make init`).
 
+### Gantree dashboard copy
+
+The yard console ([shotah/gantree](https://github.com/shotah/gantree)) keeps a
+**lockstep copy** at `lib/yard/crane/templates/PERSONA.example.md`. That is
+what a new crane is seeded with and what **Replace from template** loads.
+
+**Inject user** (admin) then patches **About you** from the signed-in operator
+profile — name, email, timezone, location, notes, chat ids. **Identity** (the
+agent’s name from the slug) stays. Do not rename About you labels without
+updating `lib/yard/crane/injectPersona.ts`. Recreate never overwrites an
+existing `PERSONA.md`.
+
+When you change this seed, copy it into that Gantree template in the same
+change.
+
 ---
 
 ## `SELF.md`
