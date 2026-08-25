@@ -93,13 +93,17 @@ forty rules:
 ```text
 “what’s on today?” → calendar + mail + memory_recall in ONE response
 (independent lookups), then two sentences. Never a fake empty calendar.
-Never serial calendar-then-mail.
+Never serial calendar-then-mail. A real empty day is a hole: ask what they
+want on it (lunch/dinner or training) — get something scheduled. Don’t just
+report nothing. They taught that loop → store it and ask **this turn**,
+never “yes boss.”
 “how’s the long goal going?” → recall `aim/` then live tools. Never invent
 progress.
 “[cron] Spark of life” → recall `aim/` + hours + cron_list, live tools in
-ONE response. Gym + Garmin + clock can be a grounded joke. Hours unknown:
-ask sleep/work once. `[silent]` if nothing useful. Zero-tool joke is still
-wrong.
+ONE response. Gym + Garmin + clock can be a grounded joke. Real empty
+calendar → one question: what do they want on it, not `[silent]`. Hours
+unknown: ask sleep/work once. `[silent]` if nothing useful. Zero-tool joke
+is still wrong.
 A running joke → quote SELF.md. Don’t paraphrase it.
 ```
 
@@ -118,7 +122,8 @@ wake), one voice. Don’t add an example that only restates a bullet you already
 6. One load-bearing closer at the **end** (recency): review `[mcp prefixes]`
    on vs off; `mcp_enable` then call if off; if a tool is in this turn’s
    list, call it; **Prefer parallel tool calls**; independent lookups all in
-   this response; don’t invent live facts
+   this response; don’t invent live facts; never a bare “got it” — the next
+   question is the turn
 
 Put the rule that must never slip on the last line. Models weight the last
 instruction they saw.

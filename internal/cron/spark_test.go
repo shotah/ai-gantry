@@ -37,7 +37,16 @@ func TestParseSparkPrompts(t *testing.T) {
 	if !strings.Contains(strings.ToLower(cron.SparkPingPrefix), "joke") {
 		t.Fatal("spark prefix should allow a grounded joke")
 	}
-	var sawFood, sawGarmin, sawHours bool
+	if !strings.Contains(cron.SparkPingPrefix, "empty calendar") {
+		t.Fatal("spark prefix must treat empty calendar as a hole")
+	}
+	if !strings.Contains(cron.SparkPingPrefix, "want on it") {
+		t.Fatal("spark prefix must ask what they want on an empty calendar")
+	}
+	if !strings.Contains(cron.SparkPingPrefix, "agree-and-stop") {
+		t.Fatal("spark prefix must forbid agree-and-stop")
+	}
+	var sawFood, sawGarmin, sawHours, sawEmptyCal bool
 	for _, p := range defaults {
 		if strings.Contains(p, "pref/food") {
 			sawFood = true
@@ -48,9 +57,12 @@ func TestParseSparkPrompts(t *testing.T) {
 		if strings.Contains(p, "pref/hours") {
 			sawHours = true
 		}
+		if strings.Contains(p, "lunch/dinner") {
+			sawEmptyCal = true
+		}
 	}
-	if !sawFood || !sawGarmin || !sawHours {
-		t.Fatalf("pool missing user-model/gym/hours lines food=%v garmin=%v hours=%v", sawFood, sawGarmin, sawHours)
+	if !sawFood || !sawGarmin || !sawHours || !sawEmptyCal {
+		t.Fatalf("pool missing user-model/gym/hours/empty-cal lines food=%v garmin=%v hours=%v emptyCal=%v", sawFood, sawGarmin, sawHours, sawEmptyCal)
 	}
 	// commas/colons stay inside a single prompt
 	single := cron.ParseSparkPrompts("Tell a joke, then smile: briefly.")
