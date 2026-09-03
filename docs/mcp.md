@@ -52,6 +52,7 @@ Examples:
 | `feeds` | `items_list` | `feeds__items_list` |
 | `twitter` | `posts_list` | `twitter__posts_list` |
 | `maps` | `place_search`, `route_eta` | `maps__place_search` |
+| `boards` | `challenges_list` | `boards__challenges_list` |
 
 **Why the prefix?** OpenAI-safe characters, no collisions across servers, and
 obvious provenance in logs / collapsed history markers.
@@ -343,4 +344,4 @@ hints without spawning real MCP binaries.
 - [persona.md](persona.md) — `PERSONA.md` is not the tool catalog
 - [choices.md](choices.md) — why `{server}__{tool}` and tool-surface budget
 - [security.md](security.md) — MCP child = trusted code
-- [watch.md](watch.md) — poller + `feeds-mcp` / `twitter-mcp`
+- [watch.md](watch.md) — poller + `feeds-mcp` / `twitter-mcp` / `boards-mcp`

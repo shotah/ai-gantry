@@ -40,6 +40,8 @@ services:
       - ./persona:/persona
       - ./mcp.toml:/etc/gantry/mcp.toml:ro
       - ./data:/data
+      # Yard-wide corkboard (boards-mcp). Same host dir on every crane.
+      # - ./boards:/boards
       # Optional tool secrets:
       # - ./secrets/google-mcp:/data/.config/google-mcp
       # - ./secrets/strava:/data/.config/strava

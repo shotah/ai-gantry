@@ -81,3 +81,12 @@
 # download_url = "https://github.com/shotah/google-maps-mcp/releases/download/{tag}/google-maps-mcp_{version}_{os}_{arch}.tar.gz"
 # # tools = ["link_resolve", "place_resolve", "place_search", "route_eta"]
 # # GOOGLE_MAPS_API_KEY must be in the gantry process env (child inherits it)
+#
+# --- Yard corkboard (shotah/boards-mcp) — watch: boards__challenges_list -----
+# [[server]]
+# name = "boards"
+# command = "boards-mcp"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/boards-mcp/releases/download/{tag}/boards-mcp_{version}_{os}_{arch}.tar.gz"
+# # BOARDS_AUTHOR (crane slug) required in process env. Optional: BOARDS_PATH=/boards,
+# # BOARDS_ROLE, BOARDS_WRITES_PER_DAY. Bind the same host dir on every crane: ./boards:/boards.

@@ -37,6 +37,8 @@ services:
       - ./persona:/persona
       - ./mcp.toml:/etc/gantry/mcp.toml:ro
       - ./data:/data
+      # Yard-wide corkboard (boards-mcp). Same host dir on every crane.
+      # - ./boards:/boards
     healthcheck:
       test: ["CMD", "/usr/local/bin/gantry", "status"]
       interval: 60s

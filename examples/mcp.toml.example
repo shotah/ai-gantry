@@ -100,3 +100,11 @@
 # download_url = "https://github.com/shotah/google-maps-mcp/releases/download/{tag}/google-maps-mcp_{version}_{os}_{arch}.tar.gz"
 # # tools = ["link_resolve", "place_resolve", "place_search", "route_eta"]
 # # GOOGLE_MAPS_API_KEY in process env (child inherits). link_resolve works without it.
+#
+# [[server]]
+# name    = "boards"
+# command = "boards-mcp"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/boards-mcp/releases/download/{tag}/boards-mcp_{version}_{os}_{arch}.tar.gz"
+# # BOARDS_AUTHOR required in process env. Optional BOARDS_PATH=/boards.
+# # Bind the same host dir on every crane: ./boards:/boards.

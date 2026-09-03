@@ -31,7 +31,7 @@ long-horizon planning) lives in [design.md](design.md); diagrams in
 | [memory.md](memory.md) | Hand-inspect / fix builtin SQLite memory with `sqlite3` |
 | [troubleshooting.md](troubleshooting.md) | **`SELF.md` audit/prune**, self-notes `:ro` disable, `/new` personality, tool budget |
 | [cron.md](cron.md) | Schedule tools, timezone, inspect jobs, overlap policy |
-| [watch.md](watch.md) | Poll MCP fetch tools; `feeds-mcp` / `twitter-mcp` adapters |
+| [watch.md](watch.md) | Poll MCP fetch tools; `feeds-mcp` / `twitter-mcp` / `boards-mcp` adapters |
 
 Start with **deploy-docker** (Hub pull) or **deploy-native** for a running bot;
 **features** for the honest inventory;

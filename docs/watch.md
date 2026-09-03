@@ -57,6 +57,7 @@ Siblings return the same `{items:[{id,…}]}` JSON.
 | --- | --- | --- | --- | --- |
 | `feeds` | [feeds-mcp](https://github.com/shotah/feeds-mcp) | `items_list`, `source_resolve` | none (`FEEDS_USER_AGENT` optional for NWS) | `{ url }` |
 | `twitter` | [twitter-mcp](https://github.com/shotah/twitter-mcp) | `posts_list` | `X_BEARER_TOKEN` on the gantry process (child inherits) | `{ handle }` |
+| `boards` | [boards-mcp](https://github.com/shotah/boards-mcp) | `notices_list`, `challenges_list` | `BOARDS_AUTHOR` (crane slug); `BOARDS_PATH` default `/boards` | `{}` or `{ "all": true }` |
 
 ```toml
 [[server]]
@@ -72,12 +73,20 @@ command = "twitter-mcp"
 download_tag = "latest"
 download_url = "https://github.com/shotah/twitter-mcp/releases/download/{tag}/twitter-mcp_{version}_{os}_{arch}.tar.gz"
 # tools = ["posts_list"]
+
+[[server]]
+name = "boards"
+command = "boards-mcp"
+download_tag = "latest"
+download_url = "https://github.com/shotah/boards-mcp/releases/download/{tag}/boards-mcp_{version}_{os}_{arch}.tar.gz"
+# BOARDS_AUTHOR required. Optional BOARDS_PATH=/boards. Bind ./boards:/boards (yard-wide).
 ```
 
 Uncomment in [examples/mcp.toml.example](../examples/mcp.toml.example) (and the
 docker / native / hosting copies). Put `X_BEARER_TOKEN` in `.env`, not in the
-manifest. Prefer a **30–60m** interval for X (pay-per-use). Live-agent enablement
-is a downstream consumer — not documented here.
+manifest. Prefer a **30–60m** interval for X (pay-per-use). Boards watches
+prefer **hours**, not minutes. Live-agent enablement is a downstream
+consumer — not documented here.
 
 ## `[silent]`
 
