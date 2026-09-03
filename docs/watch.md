@@ -57,7 +57,7 @@ Siblings return the same `{items:[{id,…}]}` JSON.
 | --- | --- | --- | --- | --- |
 | `feeds` | [feeds-mcp](https://github.com/shotah/feeds-mcp) | `items_list`, `source_resolve` | none (`FEEDS_USER_AGENT` optional for NWS) | `{ url }` |
 | `twitter` | [twitter-mcp](https://github.com/shotah/twitter-mcp) | `posts_list` | `X_BEARER_TOKEN` on the gantry process (child inherits) | `{ handle }` |
-| `boards` | [boards-mcp](https://github.com/shotah/boards-mcp) | `notices_list`, `challenges_list` | `BOARDS_AUTHOR` (crane slug); `BOARDS_PATH` default `/boards` | `{}` or `{ "all": true }` |
+| `boards` | [boards-mcp](https://github.com/shotah/boards-mcp) | `challenges_list` | `BOARDS_AUTHOR` (crane slug); `BOARDS_PATH` default `/boards` | `{}` (yours) or `{ "all": true }` |
 
 ```toml
 [[server]]
@@ -84,8 +84,11 @@ download_url = "https://github.com/shotah/boards-mcp/releases/download/{tag}/boa
 
 Uncomment in [examples/mcp.toml.example](../examples/mcp.toml.example) (and the
 docker / native / hosting copies). Put `X_BEARER_TOKEN` in `.env`, not in the
-manifest. Prefer a **30–60m** interval for X (pay-per-use). Boards watches
-prefer **hours**, not minutes. Live-agent enablement is a downstream
+manifest. Prefer a **30–60m** interval for X (pay-per-use). Boards: watch
+`boards__challenges_list` on an **hour** interval — a new contest id wakes
+once; accept / check-in / settle keep the same id, so they stay quiet.
+Do not watch `notices_list` (every pin is a new id; two agents pinning
+on wake would ping-pong). Live-agent enablement is a downstream
 consumer — not documented here.
 
 ## `[silent]`
