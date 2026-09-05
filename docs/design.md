@@ -170,7 +170,10 @@ Boot is fail-fast: missing required env = clear error + exit 1.
 | `SLACK_BOT_TOKEN` | yes (slack) | `xoxb-…` bot token |
 | `SLACK_APP_TOKEN` | yes (slack) | `xapp-…` app-level token — [slack.md](slack.md) |
 | `SLACK_ALLOWED_USERS` | yes (slack) | Slack member IDs |
-| `CHANNEL` | no | `telegram` (default), `discord`, `slack`, or `stdio` |
+| `PENDANT_MAILBOX_URL` | yes (pendant) | `wss://…/ws/<slug>` — outbound to the gantry-pendant Worker |
+| `PENDANT_BEARER` | yes (pendant) | mailbox bearer bound to that slug |
+| `PENDANT_ALLOWED_USERS` | yes (pendant) | Google `sub` ids (`sub:email` labels are stripped) |
+| `CHANNEL` | no | `telegram` (default), `discord`, `slack`, `pendant`, or `stdio` |
 | `PERSONA_DIR` | no | `/persona` |
 | `DATA_DIR` | no | `/data` |
 | `MCP_MANIFEST` | no | `/etc/gantry/mcp.toml` |

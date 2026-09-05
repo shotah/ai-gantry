@@ -15,6 +15,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/channel/discord"
+	"github.com/shotah/ai-gantry/internal/channel/pendant"
 	"github.com/shotah/ai-gantry/internal/channel/slack"
 	"github.com/shotah/ai-gantry/internal/channel/stdio"
 	"github.com/shotah/ai-gantry/internal/channel/telegram"
@@ -472,6 +473,13 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 			Logger:        logger,
 			StreamReplies: cfg.StreamReplies,
 		})
+	case config.ChannelPendant:
+		return pendant.New(pendant.Config{
+			MailboxURL:   cfg.PendantMailboxURL,
+			Bearer:       cfg.PendantBearer,
+			AllowedUsers: cfg.PendantAllowedUsers,
+			Logger:       logger,
+		})
 	default:
 		return nil, fmt.Errorf("unknown channel %q", cfg.Channel)
 	}
@@ -491,32 +499,52 @@ func ensureSparkJobs(ctx context.Context, cfg *config.Config, svc *cron.SparkSer
 				continue
 			}
 			id := strconv.FormatInt(uid, 10)
-			delivery := cron.Delivery{
+			if err := bindSpark(ctx, svc, log, cron.Delivery{
 				SessionID: fmt.Sprintf("telegram:%s:%s", id, id),
 				UserID:    id,
 				ChatID:    id,
-			}
-			job, created, err := svc.EnsureFor(ctx, delivery)
-			if err != nil {
+			}); err != nil {
 				return err
 			}
-			if job.ID == 0 {
-				log.Info("spark skipped (session opted out)",
-					"session_id", delivery.SessionID)
+		}
+	case config.ChannelPendant:
+		slug := pendant.MailboxSlug(cfg.PendantMailboxURL)
+		for _, sub := range cfg.PendantAllowedUsers {
+			sub = strings.TrimSpace(sub)
+			if sub == "" {
 				continue
 			}
-			log.Info("spark job ready",
-				"created", created,
-				"id", job.ID,
-				"session_id", delivery.SessionID,
-				"next_run", job.NextRunAt.UTC().Format(time.RFC3339),
-				"expr", job.Expr,
-			)
+			if err := bindSpark(ctx, svc, log, cron.Delivery{
+				SessionID: fmt.Sprintf("pendant:%s:%s", slug, sub),
+				UserID:    sub,
+				ChatID:    sub,
+			}); err != nil {
+				return err
+			}
 		}
 	default:
-		log.Info("spark auto-bind is telegram-only; /engagement on or cron_schedule repeat=spark",
+		log.Info("spark auto-bind is telegram/pendant; /engagement on or cron_schedule repeat=spark",
 			"channel", cfg.Channel)
 	}
+	return nil
+}
+
+func bindSpark(ctx context.Context, svc *cron.SparkService, log *slog.Logger, delivery cron.Delivery) error {
+	job, created, err := svc.EnsureFor(ctx, delivery)
+	if err != nil {
+		return err
+	}
+	if job.ID == 0 {
+		log.Info("spark skipped (session opted out)", "session_id", delivery.SessionID)
+		return nil
+	}
+	log.Info("spark job ready",
+		"created", created,
+		"id", job.ID,
+		"session_id", delivery.SessionID,
+		"next_run", job.NextRunAt.UTC().Format(time.RFC3339),
+		"expr", job.Expr,
+	)
 	return nil
 }
 

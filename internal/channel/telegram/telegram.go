@@ -20,6 +20,7 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/slash"
 )
 
 const (
@@ -114,21 +115,11 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 		return fmt.Errorf("telegram: create bot: %w", err)
 	}
 
-	if _, err := b.SetMyCommands(ctx, &bot.SetMyCommandsParams{
-		Commands: []models.BotCommand{
-			{Command: "new", Description: "Reset conversation session"},
-			{Command: "cancel", Description: "Cancel the in-flight reply / tool loop"},
-			{Command: "status", Description: "Uptime, model, history, tools, turns"},
-			{Command: "tools", Description: "Prefixed tool catalog"},
-			{Command: "examples", Description: "Capability idea (/examples on|off)"},
-			{Command: "perf", Description: "Last turns: invocations, tools, batch"},
-			{Command: "memstats", Description: "Memory row counts and consolidation"},
-			{Command: "toolstats", Description: "Per-tool call ledger since boot"},
-			{Command: "tokens", Description: "Prompt token breakdown (estimates)"},
-			{Command: "auth", Description: "Remote OAuth (URL / paste code)"},
-			{Command: "help", Description: "List commands"},
-		},
-	}); err != nil {
+	tgCmds := make([]models.BotCommand, 0, len(slash.Catalog()))
+	for _, c := range slash.Catalog() {
+		tgCmds = append(tgCmds, models.BotCommand{Command: c.Name, Description: c.Hint})
+	}
+	if _, err := b.SetMyCommands(ctx, &bot.SetMyCommandsParams{Commands: tgCmds}); err != nil {
 		c.log.Warn("telegram: setMyCommands failed", "err", err)
 	}
 

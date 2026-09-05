@@ -23,6 +23,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/persona"
 	"github.com/shotah/ai-gantry/internal/provider"
 	"github.com/shotah/ai-gantry/internal/session"
+	"github.com/shotah/ai-gantry/internal/slash"
 )
 
 // History is the session-backed conversation store used by the agent.
@@ -383,7 +384,7 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		case "/help":
 			unlock := a.lockSession(msg.SessionID)
 			defer unlock()
-			return helpText, nil
+			return slash.HelpText(), nil
 		}
 	}
 

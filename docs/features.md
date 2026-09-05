@@ -194,7 +194,7 @@ miss them.
 
 ### Channels, packaging, deploy
 
-- Telegram (default, production), Discord Gateway, Slack Socket Mode, stdio REPL
+- Telegram (default, production), Discord Gateway, Slack Socket Mode, pendant (gantry-pendant Worker), stdio REPL
 - One `CHANNEL` per process; allowlist only; empty allowlist fails boot
 - Distroless `static-debian12:nonroot`, `CGO_ENABLED=0`, linux/amd64+arm64
 - Hub + GHCR (`:latest` / `:edge` / semver)

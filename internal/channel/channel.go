@@ -18,7 +18,7 @@ type Message struct {
 
 // Image is one picture attached to an inbound message.
 type Image struct {
-	URL string // https://… or data:image/…;base64,…
+	URL string `json:"url"` // https://… or data:image/…;base64,…
 }
 
 // Outbound is a proactive push (cron) not tied to an inbound update.

@@ -16,6 +16,7 @@ const (
 	ChannelDiscord  = "discord"
 	ChannelSlack    = "slack"
 	ChannelStdio    = "stdio"
+	ChannelPendant  = "pendant"
 )
 
 // Config is the complete env-driven configuration surface.
@@ -42,6 +43,10 @@ type Config struct {
 	SlackBotToken     string   `env:"SLACK_BOT_TOKEN"` // xoxb-
 	SlackAppToken     string   `env:"SLACK_APP_TOKEN"` // xapp- (Socket Mode)
 	SlackAllowedUsers []string `env:"SLACK_ALLOWED_USERS" envSeparator:","`
+
+	PendantMailboxURL   string   `env:"PENDANT_MAILBOX_URL"`
+	PendantBearer       string   `env:"PENDANT_BEARER"`
+	PendantAllowedUsers []string `env:"PENDANT_ALLOWED_USERS" envSeparator:","`
 
 	Channel     string `env:"CHANNEL" envDefault:"telegram"`
 	PersonaDir  string `env:"PERSONA_DIR" envDefault:"/persona"`
@@ -142,9 +147,9 @@ func (c *Config) Validate() error {
 	c.MemoryBackend = strings.TrimSpace(c.MemoryBackend)
 
 	switch c.Channel {
-	case ChannelTelegram, ChannelDiscord, ChannelSlack, ChannelStdio:
+	case ChannelTelegram, ChannelDiscord, ChannelSlack, ChannelStdio, ChannelPendant:
 	default:
-		return fmt.Errorf("CHANNEL: must be telegram|discord|slack|stdio, got %q", c.Channel)
+		return fmt.Errorf("CHANNEL: must be telegram|discord|slack|stdio|pendant, got %q", c.Channel)
 	}
 
 	if c.Channel == ChannelTelegram {
@@ -190,6 +195,26 @@ func (c *Config) Validate() error {
 		}
 		if n == 0 {
 			return fmt.Errorf("SLACK_ALLOWED_USERS: required when CHANNEL=slack (comma-separated user ids)")
+		}
+	}
+
+	if c.Channel == ChannelPendant {
+		if strings.TrimSpace(c.PendantMailboxURL) == "" {
+			return fmt.Errorf("PENDANT_MAILBOX_URL: required when CHANNEL=pendant (wss://…/ws/<slug>)")
+		}
+		if strings.TrimSpace(c.PendantBearer) == "" {
+			return fmt.Errorf("PENDANT_BEARER: required when CHANNEL=pendant")
+		}
+		n := 0
+		for i, id := range c.PendantAllowedUsers {
+			id = pendantUserID(id)
+			c.PendantAllowedUsers[i] = id
+			if id != "" {
+				n++
+			}
+		}
+		if n == 0 {
+			return fmt.Errorf("PENDANT_ALLOWED_USERS: required when CHANNEL=pendant (comma-separated Google sub ids)")
 		}
 	}
 
@@ -338,4 +363,14 @@ func validateMemoryBackend(backend string) error {
 func qtyEnabled(s string) bool {
 	s = strings.TrimSpace(s)
 	return s != "" && s != "0"
+}
+
+// pendantUserID keeps the Google sub. Gantree's wizard example is
+// sub:email — the email is a Worker ALLOWED_SUBS label, not part of the id.
+func pendantUserID(id string) string {
+	id = strings.TrimSpace(id)
+	if i := strings.IndexByte(id, ':'); i >= 0 {
+		id = strings.TrimSpace(id[:i])
+	}
+	return id
 }

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/slash"
 )
 
 const (
@@ -59,7 +60,7 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 		errOut = os.Stderr
 	}
 
-	_, _ = fmt.Fprintln(errOut, "gantry stdio ready — /new /cancel /status /tools /examples /perf /memstats /toolstats /tokens /auth /help /quit")
+	_, _ = fmt.Fprintln(errOut, slash.ReadyLine())
 
 	scanner := bufio.NewScanner(in)
 	// Allow long paste dumps in the REPL.

@@ -59,6 +59,8 @@ You need Docker, a chat bot, and a model.
 2. A Telegram bot token from [@BotFather](https://t.me/BotFather) and your
    numeric user id (e.g. [@userinfobot](https://t.me/userinfobot)).
    Discord and Slack work too — same compose file, different env.
+   The mouth we own is **[gantry-pendant](https://github.com/shotah/gantry-pendant)**
+   (`CHANNEL=pendant`). Telegram stays the default.
 
 ```bash
 docker pull shotah/ai-gantry:latest
@@ -106,6 +108,7 @@ LLM_MODEL=gemini-3.5-flash
 | **[examples/native/](examples/native/)** | Linux + systemd + a local model |
 | **[examples/hosting/gcp/](examples/hosting/gcp/)** · **[aws](examples/hosting/aws/)** | Small always-on VM |
 | **[gantree](https://github.com/shotah/gantree)** | Console, metrics, grant tools, several agents |
+| **[gantry-pendant](https://github.com/shotah/gantry-pendant)** | Phone chat we own (`CHANNEL=pendant`) |
 | `make init && make run` | Hack on the binary (`CHANNEL=stdio`) |
 
 Cookbook: **[examples/README.md](examples/README.md)**.
@@ -127,8 +130,9 @@ chat turn.
 | `/tools` `/examples` `/engagement` `/spark` `/new` `/cancel` | Catalog, ideas, looking-after-you wakes, reset, abort |
 | `/auth` | Headless MCP login — paste a code; no laptop callback |
 
-Telegram is the default. Discord and Slack are shipped (one `CHANNEL` per
-process). Headless OAuth: **[docs/auth.md](docs/auth.md)**.
+Telegram is the default. Discord, Slack, and
+**[pendant](https://github.com/shotah/gantry-pendant)** (our chat client) are
+shipped (one `CHANNEL` per process). Headless OAuth: **[docs/auth.md](docs/auth.md)**.
 
 ### Two files, not a catalog
 
@@ -162,6 +166,7 @@ Horizon split: **[docs/persona.md](docs/persona.md#where-the-horizon-lives)**.
 | Wiring MCP tools | **[docs/mcp.md](docs/mcp.md)** |
 | Why outbound-only / who it’s for | **[docs/positioning.md](docs/positioning.md)** |
 | Console, metrics, or several agents | **[gantree](https://github.com/shotah/gantree)** |
+| Chat from a phone we own | **[gantry-pendant](https://github.com/shotah/gantry-pendant)** |
 | Security notes | **[docs/security.md](docs/security.md)** |
 
 The harness is a small static Go binary. Tools are optional MCP processes.

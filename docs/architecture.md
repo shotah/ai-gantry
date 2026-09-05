@@ -10,7 +10,7 @@ unit) per brain. Harness contract (env, loop, memory):
 
 ```mermaid
 flowchart LR
-  CH[Telegram / Discord / Slack] <-->|outbound only| K
+  CH[Telegram / Discord / Slack / pendant] <-->|outbound only| K
 
   subgraph Host["host or Distroless container"]
     K[gantry]
@@ -40,7 +40,7 @@ Deploy shapes: [deploy-native.md](deploy-native.md) ·
 cmd/gantry/          run | init | auth | status | version
 cmd/release/         semver bump → tag → push (dev tooling)
 internal/config/     env parse + fail-fast validation
-internal/channel/    Channel interface; telegram/, discord/, slack/, stdio/
+internal/channel/    Channel interface; telegram/, discord/, slack/, pendant/, stdio/
 internal/provider/   OpenAI-compatible Completer (one implementation)
 internal/mcp/        manifest, spawn, list/call tools, truncate, restart
 internal/mcpenable/  dynamic tool prefix grants
@@ -67,7 +67,7 @@ One OS process. Concurrent work:
 
 | Goroutine | Job |
 | --- | --- |
-| channel poller | Telegram `getUpdates` / Discord Gateway / Slack Socket Mode / stdio; allowlist filter |
+| channel poller | Telegram `getUpdates` / Discord Gateway / Slack Socket Mode / pendant mailbox WSS / stdio; allowlist filter |
 | agent handler | per message: assemble → model → tools → reply; follow-ups settle then steer the live turn (Telegram: workers=2 so `/cancel` + barge-in can run) |
 | MCP children | one OS process per manifest server (stdio), supervised by host |
 | heartbeat ticker | upsert `heartbeat` every ~15s |

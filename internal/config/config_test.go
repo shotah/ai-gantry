@@ -117,6 +117,17 @@ func TestLoad_TelegramRequiresTokenAndAllowlist(t *testing.T) {
 	if cfg.TelegramAllowedUsers[0] != 123 || cfg.TelegramAllowedUsers[1] != 456 {
 		t.Errorf("TelegramAllowedUsers = %v, want [123 456]", cfg.TelegramAllowedUsers)
 	}
+
+	t.Setenv("PENDANT_MAILBOX_URL", "wss://x.workers.dev/ws/kit")
+	t.Setenv("PENDANT_BEARER", "tok")
+	t.Setenv("PENDANT_ALLOWED_USERS", "1182")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatalf("telegram crane must ignore unused PENDANT_*: %v", err)
+	}
+	if cfg.Channel != config.ChannelTelegram {
+		t.Fatalf("Channel = %q", cfg.Channel)
+	}
 }
 
 func TestLoad_MissingRequiredLLM(t *testing.T) {
@@ -172,6 +183,34 @@ func TestLoad_SlackRequiresTokensAndAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cfg.Channel != config.ChannelSlack || cfg.SlackAllowedUsers[1] != "U2" {
+		t.Fatalf("%+v", cfg)
+	}
+}
+
+func TestLoad_PendantRequiresURLBearerAllowlist(t *testing.T) {
+	setRequiredLLM(t)
+	t.Setenv("CHANNEL", "pendant")
+
+	_, err := config.Load()
+	if err == nil || !strings.Contains(err.Error(), "PENDANT_MAILBOX_URL") {
+		t.Fatalf("%v", err)
+	}
+	t.Setenv("PENDANT_MAILBOX_URL", "wss://x.workers.dev/ws/kit")
+	_, err = config.Load()
+	if err == nil || !strings.Contains(err.Error(), "PENDANT_BEARER") {
+		t.Fatalf("%v", err)
+	}
+	t.Setenv("PENDANT_BEARER", "tok")
+	_, err = config.Load()
+	if err == nil || !strings.Contains(err.Error(), "PENDANT_ALLOWED_USERS") {
+		t.Fatalf("%v", err)
+	}
+	t.Setenv("PENDANT_ALLOWED_USERS", "1182:ada@example.com, 1183")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Channel != config.ChannelPendant || cfg.PendantAllowedUsers[0] != "1182" || cfg.PendantAllowedUsers[1] != "1183" {
 		t.Fatalf("%+v", cfg)
 	}
 }

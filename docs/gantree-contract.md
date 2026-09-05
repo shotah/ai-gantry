@@ -58,7 +58,7 @@ Required for a talking crane (fail-fast at `gantry run`):
 | `LLM_BASE_URL` | OpenAI-compat endpoint |
 | `LLM_API_KEY` | Provider key |
 | `LLM_MODEL` | Model id |
-| `CHANNEL` | `telegram` (default) · `discord` · `slack` · `stdio` |
+| `CHANNEL` | `telegram` (default) · `discord` · `slack` · `pendant` · `stdio` |
 | Channel token + allowlist | See `.env.example` — empty allowlist fails boot |
 
 Optional knobs (history, tools, memory, cron, watch, spark, stream) live

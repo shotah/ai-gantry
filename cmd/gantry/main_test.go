@@ -174,6 +174,19 @@ func TestNewChannel(t *testing.T) {
 		t.Fatal("nil telegram channel")
 	}
 
+	ch, err = newChannel(&config.Config{
+		Channel:             config.ChannelPendant,
+		PendantMailboxURL:   "wss://x.workers.dev/ws/kit",
+		PendantBearer:       "tok",
+		PendantAllowedUsers: []string{"1182"},
+	}, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ch == nil {
+		t.Fatal("nil pendant channel")
+	}
+
 	_, err = newChannel(&config.Config{Channel: "nope"}, logger)
 	if err == nil {
 		t.Fatal("expected error")
