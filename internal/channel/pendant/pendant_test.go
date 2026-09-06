@@ -1,9 +1,11 @@
 package pendant
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -35,8 +37,17 @@ func TestNew_RequiresURLBearerAllowlist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ch.isAllowed("1182") || ch.isAllowed("1182:ada@example.com") || ch.slug != "kit" {
+	if !ch.isAllowed("1182", "") || ch.isAllowed("1182:ada@example.com", "") || ch.slug != "kit" {
 		t.Fatalf("slug=%q allowed=%v", ch.slug, ch.allowed)
+	}
+	if !ch.isAllowed("", "ada@example.com") {
+		t.Fatal("email alias")
+	}
+	if _, err := New(Config{MailboxURL: "wss://x.workers.dev/ws/kit", Bearer: "tok", AllowedUsers: []string{"ada@example.com"}}); err != nil {
+		t.Fatalf("email-only boot: %v", err)
+	}
+	if _, err := New(Config{MailboxURL: "wss://x.workers.dev/ws/kit", Bearer: "tok", AllowedUsers: []string{"nope"}}); err == nil || !strings.Contains(err.Error(), "nope") {
+		t.Fatalf("junk: %v", err)
 	}
 	if !strings.HasPrefix(ch.mailbox, "wss://") {
 		t.Fatalf("mailbox = %q", ch.mailbox)
@@ -253,16 +264,88 @@ func TestPush_DialsWhenIdle(t *testing.T) {
 	}
 }
 
-func TestServe_PublishesCatalog(t *testing.T) {
+func TestIsAllowed_SubOrEmailOrNeither(t *testing.T) {
 	ch, err := New(Config{
 		MailboxURL:   "wss://x.workers.dev/ws/kit",
 		Bearer:       "tok",
-		AllowedUsers: []string{"1182"},
+		AllowedUsers: []string{"1182:ada@example.com", "bob@example.com"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	fc := &fakeConn{reads: make(chan []byte), writes: make(chan []byte, 1)}
+	if !ch.isAllowed("1182", "") {
+		t.Fatal("sub")
+	}
+	if !ch.isAllowed("", "  ADA@example.com ") {
+		t.Fatal("email")
+	}
+	if !ch.isAllowed("999", "bob@example.com") {
+		t.Fatal("email-only row")
+	}
+	if ch.isAllowed("999", "eve@example.com") {
+		t.Fatal("neither")
+	}
+}
+
+func TestDispatch_EmailOnlyMatchKeepsSub(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"ada@example.com"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 1)}
+	raw, _ := json.Marshal(inboundFrame{Text: "hi", UserID: "1182999", Email: "Ada@Example.com"})
+	if err := ch.dispatch(context.Background(), fc, raw, func(_ context.Context, msg channel.Message) (string, error) {
+		if msg.UserID != "1182999" {
+			t.Fatalf("userid %q", msg.UserID)
+		}
+		if msg.SessionID != "pendant:kit:1182999" {
+			t.Fatalf("sid %q", msg.SessionID)
+		}
+		if msg.ChatID != "1182999" {
+			t.Fatalf("chatid %q", msg.ChatID)
+		}
+		return "ok", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rawOut := <-fc.writes
+	var out outboundFrame
+	if err := json.Unmarshal(rawOut, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Kind != "reply" || out.UserID != "1182999" {
+		t.Fatalf("%+v", out)
+	}
+
+	called := false
+	raw, _ = json.Marshal(inboundFrame{Text: "hi", UserID: "1", Email: "eve@example.com"})
+	if err := ch.dispatch(context.Background(), fc, raw, func(context.Context, channel.Message) (string, error) {
+		called = true
+		return "nope", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if called {
+		t.Fatal("neither must drop")
+	}
+}
+
+func TestServe_PublishesCatalog(t *testing.T) {
+	var logs bytes.Buffer
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182:ada@example.com", "bob@example.com"},
+		Logger:       slog.New(slog.NewTextHandler(&logs, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte), writes: make(chan []byte, 2)}
 	ch.dial = func(context.Context, string, http.Header) (conn, error) {
 		return fc, nil
 	}
@@ -275,30 +358,46 @@ func TestServe_PublishesCatalog(t *testing.T) {
 			return "", nil
 		})
 	}()
-	var out outboundFrame
-	select {
-	case raw := <-fc.writes:
-		if err := json.Unmarshal(raw, &out); err != nil {
-			t.Fatal(err)
+	var frames []outboundFrame
+	for i := 0; i < 2; i++ {
+		select {
+		case raw := <-fc.writes:
+			var out outboundFrame
+			if err := json.Unmarshal(raw, &out); err != nil {
+				t.Fatal(err)
+			}
+			frames = append(frames, out)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("missing frame %d", i)
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("no cmds frame")
 	}
 	cancel()
 	_ = fc.Close()
 	<-done
-	if out.Kind != "cmds" {
-		t.Fatalf("%+v", out)
+	if frames[0].Kind != "cmds" {
+		t.Fatalf("first %+v", frames[0])
 	}
 	names := map[string]struct{}{}
-	for _, c := range out.Commands {
+	for _, c := range frames[0].Commands {
 		names[c.Name] = struct{}{}
 	}
 	if _, ok := names["new"]; !ok {
-		t.Fatalf("missing new: %+v", out.Commands)
+		t.Fatalf("missing new: %+v", frames[0].Commands)
 	}
 	if _, ok := names["brief"]; !ok {
-		t.Fatalf("missing brief: %+v", out.Commands)
+		t.Fatalf("missing brief: %+v", frames[0].Commands)
+	}
+	if frames[1].Kind != "allow" || len(frames[1].Users) != 2 {
+		t.Fatalf("allow %+v", frames[1])
+	}
+	if frames[1].Users[0].Sub != "1182" || frames[1].Users[0].Email != "ada@example.com" {
+		t.Fatalf("users[0] %+v", frames[1].Users[0])
+	}
+	if frames[1].Users[1].Sub != "" || frames[1].Users[1].Email != "bob@example.com" {
+		t.Fatalf("users[1] %+v", frames[1].Users[1])
+	}
+	if !strings.Contains(logs.String(), "pendant allow sent") {
+		t.Fatalf("log = %s", logs.String())
 	}
 }
 

@@ -1,7 +1,8 @@
 // Package pendant is an outbound WebSocket mouth to the gantry-pendant Worker.
 //
 // The crane dials the Durable Object mailbox. No inbound port. Allowlist is
-// Google sub. GPS on the frame updates here.Set — it is never stuffed into Text.
+// Google sub and/or verified email. GPS on the frame updates here.Set — it is
+// never stuffed into Text.
 package pendant
 
 import (
@@ -42,6 +43,7 @@ type Channel struct {
 	mailbox string
 	bearer  string
 	slug    string
+	entries []Entry
 	allowed map[string]struct{}
 	log     *slog.Logger
 	dial    dialFunc
@@ -51,7 +53,7 @@ type Channel struct {
 	live    conn
 }
 
-// New requires mailbox URL, bearer, and a non-empty Google-sub allowlist.
+// New requires mailbox URL, bearer, and a non-empty allowlist.
 func New(cfg Config) (*Channel, error) {
 	mailbox := strings.TrimSpace(cfg.MailboxURL)
 	bearer := strings.TrimSpace(cfg.Bearer)
@@ -65,16 +67,9 @@ func New(cfg Config) (*Channel, error) {
 	if err != nil {
 		return nil, err
 	}
-	allowed := make(map[string]struct{})
-	for _, id := range cfg.AllowedUsers {
-		id = normalizeSub(id)
-		if id == "" {
-			continue
-		}
-		allowed[id] = struct{}{}
-	}
-	if len(allowed) == 0 {
-		return nil, fmt.Errorf("pendant: allowlist is empty (set PENDANT_ALLOWED_USERS)")
+	entries, err := ParseAllowlist(cfg.AllowedUsers)
+	if err != nil {
+		return nil, err
 	}
 	log := cfg.Logger
 	if log == nil {
@@ -84,7 +79,8 @@ func New(cfg Config) (*Channel, error) {
 		mailbox: ws,
 		bearer:  bearer,
 		slug:    slug,
-		allowed: allowed,
+		entries: entries,
+		allowed: allowLookup(entries),
 		log:     log,
 		dial:    defaultDial,
 	}
@@ -142,9 +138,20 @@ func defaultDial(ctx context.Context, mailbox string, header http.Header) (conn,
 	return c, nil
 }
 
-func (c *Channel) isAllowed(sub string) bool {
-	_, ok := c.allowed[strings.TrimSpace(sub)]
-	return ok
+func (c *Channel) isAllowed(sub, email string) bool {
+	sub = strings.TrimSpace(sub)
+	email = strings.ToLower(strings.TrimSpace(email))
+	if sub != "" {
+		if _, ok := c.allowed[sub]; ok {
+			return true
+		}
+	}
+	if email != "" {
+		if _, ok := c.allowed[email]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // Run dials the mailbox until ctx is cancelled.
@@ -187,6 +194,10 @@ func (c *Channel) serve(ctx context.Context, handle channel.Handler) error {
 	if err := c.writeOn(cn, cmdsFrame()); err != nil {
 		return err
 	}
+	if err := c.writeOn(cn, allowFrame(c.entries)); err != nil {
+		return err
+	}
+	c.log.Info("pendant allow sent", "n", len(c.entries))
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil
@@ -207,12 +218,17 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		c.log.Warn("pendant bad frame")
 		return nil
 	}
-	if frame.Kind == "ack" || frame.Kind == "error" || frame.Kind == "reply" || frame.Kind == "push" || frame.Kind == "cmds" {
+	if frame.Kind == "ack" || frame.Kind == "error" || frame.Kind == "reply" || frame.Kind == "push" || frame.Kind == "cmds" || frame.Kind == "allow" {
 		return nil
 	}
 	sub := strings.TrimSpace(frame.UserID)
-	if !c.isAllowed(sub) {
+	email := strings.ToLower(strings.TrimSpace(frame.Email))
+	if !c.isAllowed(sub, email) {
 		c.log.Info("pendant ignore (not allowlisted)")
+		return nil
+	}
+	if sub == "" {
+		c.log.Info("pendant ignore (missing user_id)")
 		return nil
 	}
 	sid := sessionID(c.slug, sub)
@@ -252,7 +268,7 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 	if sub == "" {
 		sub = strings.TrimSpace(msg.ChatID)
 	}
-	if sub != "" && !c.isAllowed(sub) {
+	if sub != "" && !c.isAllowed(sub, "") {
 		return fmt.Errorf("pendant: push user is not allowlisted")
 	}
 	body := outboundFrame{Text: msg.Text, Kind: "push", UserID: sub}

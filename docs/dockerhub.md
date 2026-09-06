@@ -14,7 +14,7 @@ container + persona + any OpenAI-compat LLM  →  outbound chat
 Chat, memory, and cron work with **zero MCP servers**. Tools are optional
 binaries on `PATH` (or baked into a richer image).
 
-Source, full contract, security notes:
+Source, full contract:
 [github.com/shotah/ai-gantry](https://github.com/shotah/ai-gantry)
 
 ---
@@ -132,8 +132,6 @@ The image is the harness; you bring the model and the chat token.
 | Allowlist + no inbound ports | You need WhatsApp / Teams webhooks |
 | Env + mounts is enough config | You want a dashboard or no-code canvas |
 
-Positioning: [docs/positioning.md](https://github.com/shotah/ai-gantry/blob/main/docs/positioning.md)
-
 ---
 
 ## Docs
@@ -144,8 +142,7 @@ Positioning: [docs/positioning.md](https://github.com/shotah/ai-gantry/blob/main
 | Chat `/auth` (headless OAuth) | [auth.md](https://github.com/shotah/ai-gantry/blob/main/docs/auth.md) |
 | Native + Ollama | [deploy-native.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-native.md) |
 | MCP host | [mcp.md](https://github.com/shotah/ai-gantry/blob/main/docs/mcp.md) |
-| Observability | [observability.md](https://github.com/shotah/ai-gantry/blob/main/docs/observability.md) |
-| Security | [security.md](https://github.com/shotah/ai-gantry/blob/main/docs/security.md) |
+| Channels | [channels.md](https://github.com/shotah/ai-gantry/blob/main/docs/channels.md) |
 | Hello path | [readme.md](https://github.com/shotah/ai-gantry/blob/main/readme.md) |
 | Harness contract | [design.md](https://github.com/shotah/ai-gantry/blob/main/docs/design.md) |
 

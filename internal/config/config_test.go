@@ -210,8 +210,16 @@ func TestLoad_PendantRequiresURLBearerAllowlist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Channel != config.ChannelPendant || cfg.PendantAllowedUsers[0] != "1182" || cfg.PendantAllowedUsers[1] != "1183" {
+	if cfg.Channel != config.ChannelPendant || cfg.PendantAllowedUsers[0] != "1182:ada@example.com" || cfg.PendantAllowedUsers[1] != "1183" {
 		t.Fatalf("%+v", cfg)
+	}
+	t.Setenv("PENDANT_ALLOWED_USERS", "ada@example.com")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PendantAllowedUsers[0] != "ada@example.com" {
+		t.Fatalf("email entry stripped: %+v", cfg.PendantAllowedUsers)
 	}
 }
 

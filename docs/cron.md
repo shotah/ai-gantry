@@ -1,4 +1,4 @@
-# Cron / scheduled turns
+# Cron, spark, and watches
 
 Proactive jobs are **long-horizon harness work**: they live in SQLite and
 fire inside gantry — run the normal agent loop (MCP tools allowed), then
@@ -80,7 +80,9 @@ months-scale question (do not invent an aim), then `self_note` + `memory_store`
 `aim/<area>` when they answer. **Off with `/engagement off`** (same as `/spark off`).
 
 On Telegram, boot auto-binds a spark **planner** per allowlisted DM (`chat_id` =
-user id) and seeds that day's wakes. Other channels: `/spark on` or `cron_schedule`
+user id) and seeds that day's wakes. On pendant, the same bind runs for each
+allowlist row that has a Google `sub` (`ChatID` stays the `sub`, never the
+email). Other channels: `/spark on` or `cron_schedule`
 (`repeat=spark`, `when=3-5@06-21`).
 
 Chat controls (persist per session, like `/examples`):
@@ -168,3 +170,48 @@ re-enable a job that was cancelled mid-flight.
 
 One-shot jobs disable after a successful (or failed) fire. Daily/every advance
 `next_run_at`. Push failures are recorded in `last_error`.
+
+---
+
+## Event watches
+
+A watch is a **cursor + poll**, not a chat loop. Quiet ticks call an MCP fetch
+tool and **never** touch the Completer. New item ids wake the same agent loop
+as cron, then **push** — or skip if the reply is `[silent]`. First poll seeds
+the cursor (no backlog dump). Do not fake this with `cron_schedule` + “fetch
+the feed.”
+
+```text
+ticker → Host.CallRaw(tool, args) → compare ids → empty? stop
+                                 → new? agent.Handle → Push (or [silent])
+```
+
+The poller uses `CallRaw`, not `Call`. `TOOL_RESULT_MAX_CHARS` is for the model;
+cutting a feed JSON mid-string makes `ParseItems` fail and the watch never seeds.
+
+Shares the cron ticker. Boot fails if watch is on and the channel cannot `Push`.
+
+| Env | Default | Meaning |
+| --- | --- | --- |
+| `WATCH_ENABLED` | `true` | Master switch |
+| `WATCH_MAX` | `50` | Cap on enabled watches |
+
+| Tool | Purpose |
+| --- | --- |
+| `watch_add` | Subscribe: prefixed MCP `tool` + `args` + `interval` (default `15m`, min `1m`) + optional `label` |
+| `watch_list` | List active watches for this chat |
+| `watch_cancel` | Disable by id |
+
+The poller does not know RSS vs Twitter. A watch row is `tool` + `args`.
+Siblings return `{items:[{id,…}]}` JSON.
+
+| Server | Binary | Tools | Watch args |
+| --- | --- | --- | --- |
+| `feeds` | [feeds-mcp](https://github.com/shotah/feeds-mcp) | `items_list`, `source_resolve` | `{ url }` |
+| `twitter` | [twitter-mcp](https://github.com/shotah/twitter-mcp) | `posts_list` | `{ handle }` — prefer 30–60m (pay-per-use) |
+| `boards` | [boards-mcp](https://github.com/shotah/boards-mcp) | `challenges_list` | `{}` or `{ "all": true }` — hour interval; do not watch `notices_list` |
+
+Uncomment in [examples/mcp.toml.example](../examples/mcp.toml.example). Put
+`X_BEARER_TOKEN` in `.env`, not in the manifest. Prior `[watch]` / `[cron]`
+turns are omitted from the next scheduled prompt so they cannot few-shot the
+next summary.

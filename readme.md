@@ -162,12 +162,11 @@ Horizon split: **[docs/persona.md](docs/persona.md#where-the-horizon-lives)**.
 | What we actually built (honest inventory) | **[docs/features.md](docs/features.md)** |
 | How to write `PERSONA.md` (tight, no MCP catalog, where the horizon lives) | **[docs/persona.md](docs/persona.md)** |
 | How the harness is put together | **[docs/architecture.md](docs/architecture.md)** |
-| Env, loop, memory, long-horizon contract | **[docs/design.md](docs/design.md)** |
+| Env, loop, memory, security | **[docs/design.md](docs/design.md)** |
 | Wiring MCP tools | **[docs/mcp.md](docs/mcp.md)** |
-| Why outbound-only / who it’s for | **[docs/positioning.md](docs/positioning.md)** |
+| Discord / Slack / pendant | **[docs/channels.md](docs/channels.md)** |
 | Console, metrics, or several agents | **[gantree](https://github.com/shotah/gantree)** |
 | Chat from a phone we own | **[gantry-pendant](https://github.com/shotah/gantry-pendant)** |
-| Security notes | **[docs/security.md](docs/security.md)** |
 
 The harness is a small static Go binary. Tools are optional MCP processes.
 We spent the budget on the loop so a **small local model** can finish a

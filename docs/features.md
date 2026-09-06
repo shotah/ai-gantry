@@ -99,7 +99,7 @@ fetch tool and **never** touch the Completer. New item ids wake the agent;
 `[silent]` skips the push. First poll seeds the cursor (no backlog dump).
 
 Do not fake this with cron + “fetch the feed.” That would bill a model call
-every tick. [watch.md](watch.md).
+every tick. [cron.md](cron.md#event-watches).
 
 ### Chat is the console (including login)
 
@@ -118,7 +118,7 @@ chat.
 Nothing listens. Health is `gantry status` (exit code) reading a SQLite
 heartbeat. Memory is typed SQLite + FTS5 you can `sqlite3` — no embedding
 API, no vector SaaS. Auto-save is **off** (hallucinated emails are worse than
-forgetting). Persona files outrank recall. [memory.md](memory.md).
+forgetting). Persona files outrank recall. [troubleshooting.md](troubleshooting.md#inspect-memory-sqlite3).
 
 ---
 
@@ -221,7 +221,7 @@ Works. Has seams. Don’t be surprised.
 | --- | --- |
 | **Token counts** | Chars/4 **estimates**, labeled as such. `/tokens` is a standing-prompt breakdown, not a tokenizer. Good enough to catch a fat schema; not a billing meter. |
 | **Discord / Slack** | Shipped, outbound-only, allowlist. Telegram is the path that got the menu, photos, reactions, pin, error-tee, and production scars. |
-| **Spark auto-bind** | Telegram DMs only at boot. Other channels: `/engagement on` or `repeat=spark`. Default `3-5`/day; `/engagement 2` or `/engagement off`. Work-only `[silent]` means most wakes never show up in chat — look at logs / `cron_list`. Empty board asks once. |
+| **Spark auto-bind** | Telegram DMs, and pendant rows that already have a Google `sub`, at boot. Email-only pendant entries are inbound-only until the list has a `sub`. Other channels: `/engagement on` or `repeat=spark`. Default `3-5`/day; `/engagement 2` or `/engagement off`. Work-only `[silent]` means most wakes never show up in chat — look at logs / `cron_list`. Empty board asks once. |
 | **Examples pings** | On by default (`1-2`/day). Useful as training wheels; can feel like a nag. `/examples off` or `EXAMPLES_QTY=0`. |
 | **`mcp_enable` holds** | Magic durations (27h / 6h). Wrong prefix → still a fat schema until idle expiry. |
 | **Location pin** | In-memory. Restart = amnesia. Not a Completer wake. |
@@ -252,7 +252,7 @@ taste. **You must prune.** `:ro` persona silently disables the whole feature
 Manifest membership **is** the grant. An allowlisted phone with tools mounted
 **is** the operator. Prompt injection + calendar send is in-scope. We truncate
 results and cap iterations; that is cost control, not authorization.
-[security.md](security.md).
+[design.md](design.md#security).
 
 ### Outbound-only is a product wall
 
@@ -306,22 +306,21 @@ house keys out of *this* git.
 
 | Area | Pieces | Where |
 | --- | --- | --- |
-| Category | AI harness; goal is long-horizon planning | [positioning](positioning.md) · [design](design.md#harness-and-long-horizon-planning) |
+| Category | AI harness; goal is long-horizon planning | [design](design.md#harness-and-long-horizon-planning) |
 | Personality | `SELF.md`, `self_note`, Voice graduate, distill on `/new`, operator prune | [troubleshooting](troubleshooting.md#selfmd--personality-drift) |
 | History / tokens | Caps, filler strip, `Facts:`/`Voice:` fold, tool collapse, `/tokens` | [design](design.md) |
 | Tool loop | Parallel batch, alias, closest-name, grammar retry, salvage, CoT promote, landing call, signatures; `/perf` trajectory | [mcp](mcp.md) · [design](design.md#progress-per-invocation) |
-| Memory | store / recall / forget, FTS5, consolidator, persona precedence, no auto-save | [memory](memory.md) |
+| Memory | store / recall / forget, FTS5, consolidator, persona precedence, no auto-save | [troubleshooting](troubleshooting.md#inspect-memory-sqlite3) |
 | Time | Temporal footer, cron, spark, examples, `[silent]`, live-data nudge | [cron](cron.md) |
-| Events | Watch cursor + poll, Completer only on new ids | [watch](watch.md) |
+| Events | Watch cursor + poll, Completer only on new ids | [cron](cron.md#event-watches) |
 | MCP | Manifest grant, fetch/plan, filters, `mcp_enable`, fail-soft, Distroless children | [mcp](mcp.md) |
-| Chat ops | Slash cmds, `/auth`, stream, thinking, tool trace, steer, spin-up, photos, reactions, pin | [auth](auth.md) · [observability](observability.md) |
-| Channels | Telegram / Discord / Slack / stdio, allowlist, no ports | [discord](discord.md) · [slack](slack.md) |
-| Persona files | `PERSONA.md` → `SELF.md`, harness stamps | [design](design.md) |
+| Chat ops | Slash cmds, `/auth`, stream, thinking, tool trace, steer, spin-up, photos, reactions, pin | [auth](auth.md) · [deploy-native](deploy-native.md#host-signals) |
+| Channels | Telegram / Discord / Slack / pendant / stdio, allowlist, no ports | [channels](channels.md) |
+| Persona files | `PERSONA.md` → `SELF.md`, harness stamps | [persona](persona.md) |
 | Runtime | Static Go, Distroless, heartbeat, drain, SIGHUP, logfwd | [architecture](architecture.md) |
 | Deploy | Hub compose, native systemd+Ollama, GCP/AWS templates | [deploy-docker](deploy-docker.md) · [deploy-native](deploy-native.md) |
-| Yard | Console, metrics, grant tools, several agents | [gantree](https://github.com/shotah/gantree) |
-| Won’t | Dashboard, pairing, inbound webhooks, WhatsApp/Teams, multi-agent router | [positioning](positioning.md) |
+| Yard | Console, metrics, grant tools, several agents | [gantree](https://github.com/shotah/gantree) · [gantree-contract](gantree-contract.md) |
+| Won’t | Dashboard, pairing, inbound webhooks, WhatsApp/Teams, multi-agent router | [design](design.md#who-its-for) |
 
-Contract (env table, loop bounds): [design.md](design.md).
+Contract (env table, loop bounds, security): [design.md](design.md).
 Diagrams: [architecture.md](architecture.md).
-Why we picked X: [choices.md](choices.md).

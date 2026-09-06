@@ -16,8 +16,7 @@ image; MCP tools are optional extras you grant.
 `:latest` / `:edge` = `main` · pin `:0.x.y` for production.
 
 Harness contract (env, mounts, MCP): [design.md](design.md). Hello path:
-[root readme](../readme.md). Why Hub is the stranger path:
-[positioning.md](positioning.md). Tool naming: [mcp.md](mcp.md).
+[root readme](../readme.md). Tool naming: [mcp.md](mcp.md).
 A full life-stack (persona + MCP + compose) lives in a consumer repo, not this harness.
 
 ```mermaid
@@ -61,7 +60,7 @@ Always-on VM templates: **[examples/hosting/](../examples/hosting/)**
 
 ### Discord / Slack (same compose)
 
-Swap the channel in `.env` after [discord.md](discord.md) or [slack.md](slack.md):
+Swap the channel in `.env` after [channels.md](channels.md):
 
 ```bash
 CHANNEL=discord

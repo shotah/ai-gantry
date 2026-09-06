@@ -67,7 +67,7 @@ One OS process. Concurrent work:
 
 | Goroutine | Job |
 | --- | --- |
-| channel poller | Telegram `getUpdates` / Discord Gateway / Slack Socket Mode / pendant mailbox WSS / stdio; allowlist filter |
+| channel poller | Telegram `getUpdates` / Discord Gateway / Slack Socket Mode / pendant mailbox WSS (`cmds` then `allow` on dial) / stdio; allowlist filter |
 | agent handler | per message: assemble → model → tools → reply; follow-ups settle then steer the live turn (Telegram: workers=2 so `/cancel` + barge-in can run) |
 | MCP children | one OS process per manifest server (stdio), supervised by host |
 | heartbeat ticker | upsert `heartbeat` every ~15s |
@@ -207,7 +207,7 @@ One WAL SQLite file: `$DATA_DIR/gantry.db`.
 | `session` / `session_message` | `session` | history + rolling `summary` |
 | `memory` / `memory_fts` | `memory` | structured long-term memory |
 | `heartbeat` | `heartbeat` | singleton row for `gantry status` |
-| cron / watch job rows | `cron` / `watch` | scheduled turns and fetch-tool cursors — [cron.md](cron.md) · [watch.md](watch.md) |
+| cron / watch job rows | `cron` / `watch` | scheduled turns and fetch-tool cursors — [cron.md](cron.md) |
 
 `SELF.md` lives in `PERSONA_DIR`, not SQLite. `/new` deletes the session row
 (cascade messages + summary) after `Voice:` merges into `SELF.md` and
@@ -235,9 +235,9 @@ Tool schemas are attached on the completion request, not as chat messages.
 | MCP manifest | `github.com/pelletier/go-toml/v2` | Minimal TOML for `mcp.toml` |
 | Logging | stdlib `log/slog` | JSON to **stderr** (stdio REPL stays clean) |
 
-See [choices.md](choices.md) for why each pick stuck.
+Why each pick stuck: [design.md](design.md#decisions).
 
-## Cron push (Milestone 6)
+## Cron push
 
 ```mermaid
 sequenceDiagram
@@ -285,9 +285,9 @@ sequenceDiagram
   end
 ```
 
-Details: [watch.md](watch.md).
+Details: [cron.md](cron.md#event-watches).
 
-## Streaming replies (Milestone 7)
+## Streaming replies
 
 Default on: `STREAM_REPLIES=true`. Channel attaches a `ReplyWriter`; agent uses
 `provider.CompleteStream` when available.

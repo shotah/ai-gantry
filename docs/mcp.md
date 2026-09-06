@@ -237,7 +237,7 @@ tools = ["get_sleep", "get_weight", "get_hrv"]  # allowlist
 
 Boot logs `tools_listed` vs `tools_published`. Schema cost is estimated as
 `est_tokens` (chars/4); `TOOL_SCHEMA_MAX_TOKENS` can hard-fail an oversized set.
-Prefer MCP-native tiers (`--tool-tier core`) first — see [choices.md](choices.md).
+Prefer MCP-native tiers (`--tool-tier core`) first — [design.md](design.md#decisions).
 
 ### Prefix enable (`dynamic_tools`)
 
@@ -342,6 +342,5 @@ hints without spawning real MCP binaries.
 - [architecture.md](architecture.md) — host restart sequence
 - [design.md](design.md) — env contract + MCP manifest sketch
 - [persona.md](persona.md) — `PERSONA.md` is not the tool catalog
-- [choices.md](choices.md) — why `{server}__{tool}` and tool-surface budget
-- [security.md](security.md) — MCP child = trusted code
-- [watch.md](watch.md) — poller + `feeds-mcp` / `twitter-mcp` / `boards-mcp`
+- [cron.md](cron.md#event-watches) — poller + `feeds-mcp` / `twitter-mcp` / `boards-mcp`
+- [mcp-naming.md](mcp-naming.md) — package-author naming contract

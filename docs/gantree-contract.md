@@ -2,7 +2,6 @@
 
 What a yard console may **write** and **read** against this harness.
 Gantree is the consumer: [shotah/gantree](https://github.com/shotah/gantree).
-Harness-side design: [gantree.md](gantree.md). Work list: [../gantree_todo.md](../gantree_todo.md).
 
 The harness never learns instance names. The console never sits in a chat
 turn. If a field is not on this page, do not invent a hook for it.
@@ -59,7 +58,7 @@ Required for a talking crane (fail-fast at `gantry run`):
 | `LLM_API_KEY` | Provider key |
 | `LLM_MODEL` | Model id |
 | `CHANNEL` | `telegram` (default) · `discord` · `slack` · `pendant` · `stdio` |
-| Channel token + allowlist | See `.env.example` — empty allowlist fails boot |
+| Channel token + allowlist | See `.env.example` — empty allowlist fails boot. Console may write emails into `PENDANT_ALLOWED_USERS`. |
 
 Optional knobs (history, tools, memory, cron, watch, spark, stream) live
 in `.env.example`. Do not add a settings API. MCP API keys (`GOOGLE_*`,

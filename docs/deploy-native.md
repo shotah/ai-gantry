@@ -93,8 +93,7 @@ The live catalog spells exact names (`/tools` + schemas). Runtime fixes catch th
 On a local model, "slow" is almost never decode speed. Decode is steady; the
 wait is **prefill** (persona + tool schemas + history re-evaluated) and
 **thinking tokens spent before the first tool call**. Both are visible in the
-journal — `gantry` logs every turn (full command reference for memory / GPU /
-timing: [observability.md](observability.md)):
+journal — `gantry` logs every turn:
 
 ```bash
 journalctl -u gantry -f | grep -E 'model call|tool done|turn perf'
@@ -186,3 +185,45 @@ make run    # CHANNEL=stdio
 | You already live in systemd + journalctl | Workstation has Docker; server gets `remote-deploy` |
 
 Same binary, same mounts-or-paths contract — only the supervisor changes.
+
+---
+
+## Host signals
+
+No metrics port. RAM, GPU, and timing are already visible from the host.
+
+**The memory trap:** Ollama loads weights into GPU VRAM. `top` shows a small
+RSS for `ollama`. Ask Ollama and the GPU:
+
+```bash
+ollama ps
+# SIZE = weights + KV cache. PROCESSOR should be 100% GPU.
+# UNTIL = keep-alive; forever under OLLAMA_KEEP_ALIVE=-1.
+watch -n2 nvidia-smi          # NVIDIA
+amdgpu_top                    # AMD APU (GTT = model in shared RAM)
+```
+
+On unified-memory mini-PCs, `free -h` drops when a model loads even though no
+process shows it — `amdgpu_top`'s GTT line is the honest number.
+
+**Harness + MCP children** share one cgroup:
+
+```bash
+systemctl status gantry       # Memory: line includes MCP children
+gantry status; echo $?        # 0 = heartbeat fresh; JSON doctor on stdout
+docker stats gantry           # same, container-shaped (Distroless: no shell inside)
+```
+
+Because logs are JSON, `jq` is ad-hoc metrics (`-o cat` strips journald prefix):
+
+```bash
+journalctl -u gantry --since -1d -o cat \
+  | jq -r 'select(.msg=="turn perf")
+           | [.total_ms,.model_ms,.tool_ms,.iterations,.tool_calls,.max_batch,.recoveries,.outcome] | @tsv' \
+  | sort -rn | head
+```
+
+Docker: `docker compose logs --no-log-prefix --since 1h gantry` then the same
+`jq`. In chat: `/perf` `/tokens` `/memstats` `/toolstats`. Disk:
+`ls -lh data/gantry.db*` and [troubleshooting.md](troubleshooting.md#inspect-memory-sqlite3).
+If you want dashboards, ship the journal to Loki — do not add a port to gantry.

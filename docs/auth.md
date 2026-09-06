@@ -5,7 +5,7 @@ Headless boxes cannot complete the usual laptop OAuth dance
 that with **zero inbound ports** so a long-horizon harness on a VM can still
 grant tools.
 
-Full design notes: [slash_commands_todo.md](../slash_commands_todo.md) § `/auth`.
+Full design notes: [design.md](design.md#ops-surface).
 
 ---
 

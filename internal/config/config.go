@@ -207,14 +207,14 @@ func (c *Config) Validate() error {
 		}
 		n := 0
 		for i, id := range c.PendantAllowedUsers {
-			id = pendantUserID(id)
+			id = strings.TrimSpace(id)
 			c.PendantAllowedUsers[i] = id
 			if id != "" {
 				n++
 			}
 		}
 		if n == 0 {
-			return fmt.Errorf("PENDANT_ALLOWED_USERS: required when CHANNEL=pendant (comma-separated Google sub ids)")
+			return fmt.Errorf("PENDANT_ALLOWED_USERS: required when CHANNEL=pendant (Google sub, sub:email, or email)")
 		}
 	}
 
@@ -363,14 +363,4 @@ func validateMemoryBackend(backend string) error {
 func qtyEnabled(s string) bool {
 	s = strings.TrimSpace(s)
 	return s != "" && s != "0"
-}
-
-// pendantUserID keeps the Google sub. Gantree's wizard example is
-// sub:email — the email is a Worker ALLOWED_SUBS label, not part of the id.
-func pendantUserID(id string) string {
-	id = strings.TrimSpace(id)
-	if i := strings.IndexByte(id, ':'); i >= 0 {
-		id = strings.TrimSpace(id[:i])
-	}
-	return id
 }

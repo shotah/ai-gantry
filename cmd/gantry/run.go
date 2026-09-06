@@ -509,15 +509,18 @@ func ensureSparkJobs(ctx context.Context, cfg *config.Config, svc *cron.SparkSer
 		}
 	case config.ChannelPendant:
 		slug := pendant.MailboxSlug(cfg.PendantMailboxURL)
-		for _, sub := range cfg.PendantAllowedUsers {
-			sub = strings.TrimSpace(sub)
-			if sub == "" {
+		entries, err := pendant.ParseAllowlist(cfg.PendantAllowedUsers)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if e.Sub == "" {
 				continue
 			}
 			if err := bindSpark(ctx, svc, log, cron.Delivery{
-				SessionID: fmt.Sprintf("pendant:%s:%s", slug, sub),
-				UserID:    sub,
-				ChatID:    sub,
+				SessionID: fmt.Sprintf("pendant:%s:%s", slug, e.Sub),
+				UserID:    e.Sub,
+				ChatID:    e.Sub,
 			}); err != nil {
 				return err
 			}

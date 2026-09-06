@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> Pitch: [../readme.md](../readme.md) · Contract: [design.md](design.md) · Index: [README.md](README.md)
+> Pitch: [../readme.md](../readme.md) · Contract: [design.md](design.md)
 
 Operator fixes for common “why is it doing that?” moments. Prefer grepping
 logs (`self-notes disabled`, `self distill`, `TOOL_MAX_ITERATIONS`) before
@@ -78,7 +78,7 @@ are how ownership means *continuity*, not just *control*.
 but tone and rituals are soft. Undesirable personality is an ops problem —
 treat `SELF.md` like a log you review, not a sacred file you never open.
 
-Related: [security.md](security.md).
+Related: [design.md](design.md#security).
 
 ## Self-notes silently off
 
@@ -133,11 +133,51 @@ and whether the model is emitting a one-line reason before the **batch**
 each time — `/perf` `iters` / `tools` / `batch` / `rec` is the tell. Raise
 or lower the round budget via env; see [design.md](design.md).
 
+## Inspect memory (`sqlite3`)
+
+Builtin memory is `$DATA_DIR/gantry.db` (Docker: `/data/gantry.db`). Same file
+as sessions, cron, heartbeat.
+
+```bash
+sqlite3 /data/gantry.db
+PRAGMA journal_mode;   -- expect wal
+```
+
+```sql
+SELECT id, kind, subject, content, source, created_at, expires_at, superseded_by, consolidated
+FROM memory
+WHERE superseded_by IS NULL
+  AND NOT (kind = 'episode' AND consolidated != 0)
+  AND (expires_at IS NULL OR expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+ORDER BY updated_at DESC
+LIMIT 50;
+
+SELECT m.id, m.kind, m.subject, m.content
+FROM memory_fts
+JOIN memory m ON m.id = memory_fts.rowid
+WHERE memory_fts MATCH '"chris" OR "climbing"'
+  AND m.superseded_by IS NULL;
+
+DELETE FROM memory WHERE id = 42;
+```
+
+FTS triggers keep `memory_fts` in sync. `/new` clears `session_message` for
+that chat; it does **not** touch `memory`.
+
+| kind | typical TTL | notes |
+|------|-------------|--------|
+| `episode` | 30 days | consolidator reads these |
+| `fact` / `preference` / `person` / `insight` | none | hydrated. Months-scale plans: `insight` / `aim/<area>` |
+
+`consolidated = 1` means processed (hidden from hydrate). `= 2` is quarantined
+after parse failures. Same `kind+subject` on a durable store supersedes the
+old live row. `pref/hours` is the sleep/work/quiet stamp (`[hours]` on every
+turn). Design: [design.md](design.md#memory-design).
+
 ## More
 
 | Topic | Doc |
 | --- | --- |
-| Memory rows wrong | [memory.md](memory.md) |
 | MCP name / auth failures | [mcp.md](mcp.md) · [auth.md](auth.md) |
-| Slow local turns | [deploy-native.md](deploy-native.md) · [observability.md](observability.md) |
-| Threat model | [security.md](security.md) |
+| Slow local turns / GPU / logs | [deploy-native.md](deploy-native.md) |
+| Threat model | [design.md](design.md#security) |

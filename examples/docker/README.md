@@ -10,8 +10,7 @@ planning (memory, cron, `SELF.md`) is in the image; MCP tools are optional.
 | LLM | Gemini (or any OpenAI-compat endpoint) |
 
 Upstream docs: [deploy-docker](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-docker.md) ·
-[discord](https://github.com/shotah/ai-gantry/blob/main/docs/discord.md) ·
-[slack](https://github.com/shotah/ai-gantry/blob/main/docs/slack.md).
+[channels](https://github.com/shotah/ai-gantry/blob/main/docs/channels.md).
 
 Sibling templates: [native (systemd)](../native/) · [hosting (GCP · AWS)](../hosting/).
 

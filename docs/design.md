@@ -1,8 +1,8 @@
 # Design
 
-Harness contract: principles, env, agent loop, memory, ops, packaging.
-Pitch and hello path: [root readme](../readme.md). Diagrams:
-[architecture.md](architecture.md). ICP: [positioning.md](positioning.md).
+Harness contract: principles, env, agent loop, memory, ops, packaging,
+security. Pitch and hello path: [root readme](../readme.md). Diagrams:
+[architecture.md](architecture.md).
 
 Gantry is an **AI harness** — the runtime around one model so an agent can
 **plan on a long horizon**. The model predicts tokens. The harness makes a
@@ -109,6 +109,13 @@ recoveries, prompt/gen estimates, wall time, outcome.
 A single chat turn is still how one user message *executes*. The horizon is
 still why the loop exists. We named it; we did not invent a second architecture.
 
+## Who it’s for
+
+Anyone who wants `docker compose up` (or systemd + Ollama) and a long-horizon
+agent on their phone. Anti-fit: web UI, team workspace, inbound webhooks,
+no-code canvases, “Cursor for the company.” Those are other products. A yard
+console for several agents is [gantree](https://github.com/shotah/gantree).
+
 ## Non-goals
 
 - Web dashboard, gateway, REST/WS API, pairing flows
@@ -118,12 +125,7 @@ still why the loop exists. We named it; we did not invent a second architecture.
 - In-process sandboxing / risk profiles (the container is the sandbox;
   channel allowlist is the gate)
 
-## Shipped milestones
-
-M0–M7 are done (scaffold → talk → Telegram → MCP → memory → hardening → cron →
-stream). Full checklist: [milestones.md](milestones.md). Cron:
-[cron.md](cron.md). Watches: [watch.md](watch.md). Streaming:
-`STREAM_REPLIES=true`.
+Cron, watches, spark: [cron.md](cron.md). Streaming: `STREAM_REPLIES=true`.
 
 ## Local-model hardening
 
@@ -166,13 +168,13 @@ Boot is fail-fast: missing required env = clear error + exit 1.
 | `TELEGRAM_ALLOWED_USERS` | yes (telegram) | `123456789,987654321` (numeric IDs; **allowlist only — no pairing**) |
 | `TELEGRAM_ERROR_REPORTING` | no | `off` (`off`\|`error`\|`warn` — tee slog into the Telegram chat) |
 | `DISCORD_BOT_TOKEN` | yes (discord) | — |
-| `DISCORD_ALLOWED_USERS` | yes (discord) | snowflake user IDs — [discord.md](discord.md) |
+| `DISCORD_ALLOWED_USERS` | yes (discord) | snowflake user IDs — [channels.md](channels.md) |
 | `SLACK_BOT_TOKEN` | yes (slack) | `xoxb-…` bot token |
-| `SLACK_APP_TOKEN` | yes (slack) | `xapp-…` app-level token — [slack.md](slack.md) |
+| `SLACK_APP_TOKEN` | yes (slack) | `xapp-…` app-level token — [channels.md](channels.md) |
 | `SLACK_ALLOWED_USERS` | yes (slack) | Slack member IDs |
 | `PENDANT_MAILBOX_URL` | yes (pendant) | `wss://…/ws/<slug>` — outbound to the gantry-pendant Worker |
 | `PENDANT_BEARER` | yes (pendant) | mailbox bearer bound to that slug |
-| `PENDANT_ALLOWED_USERS` | yes (pendant) | Google `sub` ids (`sub:email` labels are stripped) |
+| `PENDANT_ALLOWED_USERS` | yes (pendant) | Google `sub`, `sub:email`, or email — [channels.md](channels.md#pendant-gantry-pendant-worker) |
 | `CHANNEL` | no | `telegram` (default), `discord`, `slack`, `pendant`, or `stdio` |
 | `PERSONA_DIR` | no | `/persona` |
 | `DATA_DIR` | no | `/data` |
@@ -193,7 +195,7 @@ Boot is fail-fast: missing required env = clear error + exit 1.
 | `CRON_TZ` | no | `America/Los_Angeles` |
 | `CRON_MAX_JOBS` | no | `50` |
 | `CRON_TICK_SECONDS` | no | `15` |
-| `WATCH_ENABLED` | no | `true` — [watch.md](watch.md) |
+| `WATCH_ENABLED` | no | `true` — [cron.md](cron.md#event-watches) |
 | `WATCH_MAX` | no | `50` |
 | `EXAMPLES_QTY` | no | `1-2` (empty/`0` = no proactive pings) |
 | `EXAMPLES_START_HOUR` / `EXAMPLES_END_HOUR` | no | `6` / `21` |
@@ -323,7 +325,7 @@ Long-horizon planning needs facts that outlive a session. Direction taken
 from Google's Always-On Memory Agent (2026): **no embeddings, no vector DB —
 an LLM writes structured rows into SQLite and a background job consolidates
 them.** At personal-agent scale, structured + FTS5 beats ANN search and stays
-greppable/deletable. Hand inspection: [memory.md](memory.md).
+greppable/deletable. Hand inspection: [troubleshooting.md](troubleshooting.md#inspect-memory-sqlite3).
 
 ### Store
 
@@ -392,7 +394,7 @@ contradictions get surfaced, not obeyed.
 **The chat is the console.** A dashboard is a second interface — its own auth,
 its own port (banned here), its own deploy story. Ops live in slash commands
 and the tool trace in the reply bubble. Host-level questions (RAM/VRAM, GPU
-residency) stay one `ssh` away ([observability.md](observability.md)).
+residency) stay one `ssh` away ([deploy-native.md](deploy-native.md#host-signals)).
 
 | Command / signal | Behavior |
 | --- | --- |
@@ -434,22 +436,68 @@ No port is opened by the harness, ever.
 
 ## Decisions
 
-Locked choices are summarized here; full rationale lives in
-**[choices.md](choices.md)**.
+Why these stuck (the alternatives are in the same rows):
 
-1. **Name: ai-gantry 🏗️** — frame that holds tools; binary `gantry`. The
-   industry name for that frame is **AI harness**; the product goal is
-   **long-horizon planning**.
-2. **Token counting: estimates** (chars/4), labeled as estimates.
-3. **Memory: builtin SQLite, replaceable** via `MEMORY_BACKEND=mcp:<name>`.
-4. **Streaming replies: on by default** (`STREAM_REPLIES=true`).
-5. **Channel auth: allowlist only** — empty allowlist fails boot.
-6. **Runtime image: distroless/static-debian12:nonroot** — MCP children static too.
-7. **Logs on stderr** — stdout stays clean for the stdio REPL.
+1. **Name: ai-gantry** — frame that holds tools; binary `gantry`. Category is
+   **AI harness**; goal is **long-horizon planning**.
+2. **One OpenAI-compat client** — Gemini, ChatGPT, Ollama already speak that
+   shape. A provider registry is multi-agent platform gravity.
+3. **Token counting: chars/4 estimates**, labeled as estimates. No tokenizer dep.
+4. **Memory: builtin SQLite**, `MEMORY_BACKEND=mcp:<name>` escape hatch. No
+   vector DB. Auto-save **off**.
+5. **Horizon state: three layers** — north-stars in `SELF.md`, progress in
+   SQLite, wakes in cron/watch. No `goal` memory kind.
+6. **Streaming replies: on by default** (`STREAM_REPLIES=true`). Cron push stays
+   buffered.
+7. **Channel auth: allowlist only** — empty allowlist fails boot. No pairing.
+8. **Runtime image: distroless/static-debian12:nonroot** — MCP children static too.
+9. **Logs on stderr** — stdout stays clean for the stdio REPL.
+10. **Health is `gantry status`** (SQLite heartbeat, exit code). No listen port.
+11. **Spark is horizon work** — full tool loop; `[silent]` unless the human
+    needs a ping. Do not invent a first aim.
+12. **Watches are a cursor + poll** — quiet ticks never call the Completer.
+
+**Rejected:** pairing codes; `parallel_tool_calls` on every Completer request
+(Gemini 400s); embeddings in the hot path; stuffing MCP catalogs or project
+plans into `PERSONA.md` / `SELF.md`.
+
+## Security
+
+Personal harness, full tool autonomy inside a container. `$DATA_DIR` and
+`PERSONA_DIR` are the crown jewels. No in-process permission framework — the
+container is the sandbox; the allowlist is the gate.
+
+| Actor | What we care about |
+| --- | --- |
+| Random chat user | Talk to the bot / burn quota |
+| Compromised allowlisted account | Abuse mounted tools as the operator |
+| Malicious or buggy MCP binary | Exfil secrets, escape container |
+| Prompt injection via a tool result | Coerce calls or memory writes |
+| Host / volume attacker | Read `gantry.db`, `.env`, `/secrets` |
+
+**Controls that ship:** outbound-only (no listen port); allowlist on every
+channel (empty fails boot); secrets in env / read-only mounts; manifest
+membership **is** the grant; Distroless nonroot, no shell; `SELF.md` capped
+~4KB (persona `:ro` disables it); memory inspectable and forgettable; drain
+in-flight turn on SIGTERM.
+
+**Residual (accepted):** prompt injection can still drive any mounted tool;
+MCP children inherit process env unless the manifest overrides it; heartbeat
+is liveness not Telegram/LLM health; caps bound context size, not spend.
+Treat `mcp.toml` like a rootkit allowlist. Split containers for separate
+trust domains.
+
+Operator checklist: minimal numeric (or verified) allowlist; `.env` and
+`/data` not world-readable; only the MCP servers this persona needs; persona
+says “confirm before irreversible sends” if you care; rebuild image + MCP
+binaries from known sources.
+
+Channels: [channels.md](channels.md). MCP grant: [mcp.md](mcp.md).
 
 ## Related
 
 - [architecture.md](architecture.md) — diagrams and sequences
-- [security.md](security.md) — threats and tradeoffs
-- [choices.md](choices.md) — decision log
 - [mcp.md](mcp.md) — tool naming and local REPL
+- [channels.md](channels.md) — Telegram / Discord / Slack / pendant
+- [cron.md](cron.md) — scheduled turns, spark, watches
+- [gantree-contract.md](gantree-contract.md) — what a yard console may read/write
