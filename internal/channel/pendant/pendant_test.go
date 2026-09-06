@@ -112,11 +112,15 @@ func TestDispatch_GeoHereAndReply(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	rawOut := <-fc.writes
+	if !strings.Contains(string(rawOut), `"user_id":"1182"`) {
+		t.Fatalf("reply json %s", rawOut)
+	}
 	var out outboundFrame
-	if err := json.Unmarshal(<-fc.writes, &out); err != nil {
+	if err := json.Unmarshal(rawOut, &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.Kind != "reply" || out.Text != "ok" {
+	if out.Kind != "reply" || out.Text != "ok" || out.UserID != "1182" {
 		t.Fatalf("%+v", out)
 	}
 }
@@ -177,9 +181,42 @@ func TestPush_AllowlistAndLive(t *testing.T) {
 	if err := ch.Push(context.Background(), channel.Outbound{UserID: "1182", Text: "ping"}); err != nil {
 		t.Fatal(err)
 	}
+	raw := <-fc.writes
+	if !strings.Contains(string(raw), `"user_id":"1182"`) {
+		t.Fatalf("push json %s", raw)
+	}
 	var out outboundFrame
-	_ = json.Unmarshal(<-fc.writes, &out)
-	if out.Kind != "push" || out.Text != "ping" {
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Kind != "push" || out.Text != "ping" || out.UserID != "1182" {
+		t.Fatalf("%+v", out)
+	}
+}
+
+func TestPush_BroadcastOmitsUserID(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte), writes: make(chan []byte, 1)}
+	ch.setLive(fc)
+	if err := ch.Push(context.Background(), channel.Outbound{Text: "all"}); err != nil {
+		t.Fatal(err)
+	}
+	raw := <-fc.writes
+	if strings.Contains(string(raw), "user_id") {
+		t.Fatalf("broadcast must omit user_id: %s", raw)
+	}
+	var out outboundFrame
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Kind != "push" || out.Text != "all" || out.UserID != "" {
 		t.Fatalf("%+v", out)
 	}
 }
@@ -203,9 +240,15 @@ func TestPush_DialsWhenIdle(t *testing.T) {
 	if err := ch.Push(context.Background(), channel.Outbound{ChatID: "1182", Text: "cron"}); err != nil {
 		t.Fatal(err)
 	}
+	raw := <-fc.writes
+	if !strings.Contains(string(raw), `"user_id":"1182"`) {
+		t.Fatalf("chatid push json %s", raw)
+	}
 	var out outboundFrame
-	_ = json.Unmarshal(<-fc.writes, &out)
-	if out.Kind != "push" {
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Kind != "push" || out.UserID != "1182" {
 		t.Fatalf("%+v", out)
 	}
 }
@@ -281,11 +324,15 @@ func TestDispatch_WorkerPhotoJSONAndEmpty(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	rawOut := <-fc.writes
+	if !strings.Contains(string(rawOut), `"user_id":"1182"`) {
+		t.Fatalf("photo reply json %s", rawOut)
+	}
 	var out outboundFrame
-	if err := json.Unmarshal(<-fc.writes, &out); err != nil {
+	if err := json.Unmarshal(rawOut, &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.Kind != "reply" || out.Text != "saw photo" {
+	if out.Kind != "reply" || out.Text != "saw photo" || out.UserID != "1182" {
 		t.Fatalf("%+v", out)
 	}
 

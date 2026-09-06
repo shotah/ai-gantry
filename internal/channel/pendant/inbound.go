@@ -35,6 +35,7 @@ type inboundFrame struct {
 type outboundFrame struct {
 	Text     string          `json:"text,omitempty"`
 	Kind     string          `json:"kind,omitempty"`
+	UserID   string          `json:"user_id,omitempty"`
 	Commands []slash.Command `json:"commands,omitempty"`
 }
 

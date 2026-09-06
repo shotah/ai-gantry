@@ -243,7 +243,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	if strings.TrimSpace(reply) == "" {
 		return nil
 	}
-	return c.writeOn(cn, outboundFrame{Text: reply, Kind: "reply"})
+	return c.writeOn(cn, outboundFrame{Text: reply, Kind: "reply", UserID: sub})
 }
 
 // Push sends a cron/spark outbound on the live socket, or opens a short dial.
@@ -252,10 +252,10 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 	if sub == "" {
 		sub = strings.TrimSpace(msg.ChatID)
 	}
-	if !c.isAllowed(sub) {
+	if sub != "" && !c.isAllowed(sub) {
 		return fmt.Errorf("pendant: push user is not allowlisted")
 	}
-	body := outboundFrame{Text: msg.Text, Kind: "push"}
+	body := outboundFrame{Text: msg.Text, Kind: "push", UserID: sub}
 	if live := c.getLive(); live != nil {
 		return c.writeOn(live, body)
 	}
