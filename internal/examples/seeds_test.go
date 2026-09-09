@@ -98,7 +98,7 @@ func TestPolishAndFallback(t *testing.T) {
 		t.Fatal("polish should mention watch subscription guidance")
 	}
 	if !strings.Contains(p, "last pin") {
-		t.Fatal("polish should mention Telegram last-pin guidance")
+		t.Fatal("polish should mention last-pin guidance")
 	}
 	if !strings.Contains(p, "self_note") || !strings.Contains(p, "mcp_enable") {
 		t.Fatal("polish should mention first-aim / mcp_enable guidance")

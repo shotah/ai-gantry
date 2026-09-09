@@ -94,6 +94,9 @@ func TestLoad_StampsSelfAndPersona(t *testing.T) {
 	if !strings.Contains(got, "## Location pins") || !strings.Contains(got, "[last pin]") {
 		t.Fatalf("location stamp missing: %q", got)
 	}
+	if !strings.Contains(got, "Pendant GPS") || strings.Contains(got, "A Telegram location or venue updates") {
+		t.Fatalf("location stamp still Telegram-only: %q", got)
+	}
 }
 
 func TestSyncKernel_RewritesPersonaSection(t *testing.T) {

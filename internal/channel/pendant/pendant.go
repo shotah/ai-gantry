@@ -29,10 +29,11 @@ var typingEvery = typingInterval
 
 // Config configures the pendant channel.
 type Config struct {
-	MailboxURL   string
-	Bearer       string
-	AllowedUsers []string
-	Logger       *slog.Logger
+	MailboxURL    string
+	Bearer        string
+	AllowedUsers  []string
+	Logger        *slog.Logger
+	StreamReplies bool // draft bubble: spinup, tool trace, then reply
 }
 
 type conn interface {
@@ -45,13 +46,14 @@ type dialFunc func(ctx context.Context, mailbox string, header http.Header) (con
 
 // Channel dials the Worker mailbox and fans inbound frames into a Handler.
 type Channel struct {
-	mailbox string
-	bearer  string
-	slug    string
-	entries []Entry
-	allowed map[string]struct{}
-	log     *slog.Logger
-	dial    dialFunc
+	mailbox       string
+	bearer        string
+	slug          string
+	entries       []Entry
+	allowed       map[string]struct{}
+	log           *slog.Logger
+	dial          dialFunc
+	streamReplies bool
 
 	mu      sync.Mutex
 	writeMu sync.Mutex
@@ -81,16 +83,25 @@ func New(cfg Config) (*Channel, error) {
 		log = slog.Default()
 	}
 	ch := &Channel{
-		mailbox: ws,
-		bearer:  bearer,
-		slug:    slug,
-		entries: entries,
-		allowed: allowLookup(entries),
-		log:     log,
-		dial:    defaultDial,
+		mailbox:       ws,
+		bearer:        bearer,
+		slug:          slug,
+		entries:       entries,
+		allowed:       allowLookup(entries),
+		log:           log,
+		dial:          defaultDial,
+		streamReplies: cfg.StreamReplies,
 	}
 	return ch, nil
 }
+
+// editStream carries spinup + tool-trace lines — the agent only emits those
+// when the writer advertises the optional interfaces.
+var (
+	_ channel.ProgressWriter = (*editStream)(nil)
+	_ channel.StatusWriter   = (*editStream)(nil)
+	_ channel.Discarder      = (*editStream)(nil)
+)
 
 // MailboxSlug is the crane id in PENDANT_MAILBOX_URL (/ws/<slug>).
 func MailboxSlug(raw string) string {
@@ -223,7 +234,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		c.log.Warn("pendant bad frame")
 		return nil
 	}
-	if frame.Kind == "ack" || frame.Kind == "error" || frame.Kind == "reply" || frame.Kind == "push" || frame.Kind == "cmds" || frame.Kind == "allow" || frame.Kind == "typing" {
+	if frame.Kind == "ack" || frame.Kind == "error" || frame.Kind == "reply" || frame.Kind == "push" || frame.Kind == "cmds" || frame.Kind == "allow" || frame.Kind == "typing" || frame.Kind == "draft" {
 		return nil
 	}
 	sub := strings.TrimSpace(frame.UserID)
@@ -251,7 +262,17 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		return nil
 	}
 	stopTyping := c.startTyping(ctx, cn, sub)
-	reply, err := handle(ctx, channel.Message{
+
+	var stream *editStream
+	handleCtx := ctx
+	if c.streamReplies {
+		stream = newEditStream(func(frame outboundFrame) error {
+			return c.writeOn(cn, frame)
+		}, sub)
+		handleCtx = channel.WithReplyWriter(ctx, stream)
+	}
+
+	reply, err := handle(handleCtx, channel.Message{
 		SessionID: sid,
 		UserID:    sub,
 		Text:      text,
@@ -260,8 +281,18 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	})
 	stopTyping()
 	if err != nil {
+		if stream != nil && stream.Started() {
+			_ = stream.Discard(ctx)
+		}
 		c.log.Error("pendant handle", "err", err)
 		return nil
+	}
+	if strings.TrimSpace(reply) == "" && stream != nil && stream.Started() {
+		_ = stream.Discard(ctx)
+		return nil
+	}
+	if stream != nil && stream.Started() {
+		return stream.Finish(ctx, reply)
 	}
 	if strings.TrimSpace(reply) == "" {
 		return nil

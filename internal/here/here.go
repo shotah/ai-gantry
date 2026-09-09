@@ -1,4 +1,4 @@
-// Package here holds the last Telegram location pin per session.
+// Package here holds the last shared location pin per session.
 // In-memory: process restart clears it. Not a Completer wake.
 package here
 

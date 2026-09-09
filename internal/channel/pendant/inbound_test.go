@@ -12,14 +12,35 @@ import (
 
 func TestApplyGeo_DoesNotStuffLocationIntoText(t *testing.T) {
 	sid := "pendant:kit:geo-test"
-	at := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 9, 9, 21, 20, 0, 0, time.UTC)
 	applyGeo(sid, &frameContext{
-		At:  at.Format(time.RFC3339),
+		At:  "2020-01-01T00:00:00Z",
 		Geo: &geo{Lat: 47.6, Lon: -122.3},
-	}, time.Now())
+	}, now)
 	p, ok := here.Get(sid)
 	if !ok || p.Lat != 47.6 || p.Lon != -122.3 {
 		t.Fatalf("pin = %+v ok=%v", p, ok)
+	}
+	if !p.At.Equal(now) {
+		t.Fatalf("At = %v, want crane now (not phone at)", p.At)
+	}
+}
+
+func TestInboundFrame_PendantGPSJSON(t *testing.T) {
+	raw := []byte(`{"text":"near me","kind":"inbound","user_id":"1182","context":{"at":"2026-09-09T21:19:32.456Z","tz":"America/Los_Angeles","geo":{"lat":47.6,"lon":-122.3,"accuracy_m":8}}}`)
+	var frame inboundFrame
+	if err := json.Unmarshal(raw, &frame); err != nil {
+		t.Fatal(err)
+	}
+	if frame.Context == nil || frame.Context.Geo == nil || frame.Context.Geo.Lat != 47.6 || frame.Context.Geo.Lon != -122.3 {
+		t.Fatalf("geo not unmarshaled: %+v", frame.Context)
+	}
+	sid := "pendant:kit:json-geo"
+	now := time.Date(2026, 9, 9, 21, 20, 0, 0, time.UTC)
+	applyGeo(sid, frame.Context, now)
+	p, ok := here.Get(sid)
+	if !ok || p.Lat != 47.6 || !p.At.Equal(now) {
+		t.Fatalf("pin %+v ok=%v", p, ok)
 	}
 }
 

@@ -37,3 +37,36 @@ func TestHandle_LastPinInClockFooter(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestHandle_PendantGPSIsLastPinNotUserText(t *testing.T) {
+	sid := "pendant:kit:1182"
+	here.Set(sid, here.Pin{
+		Lat: 47.6, Lon: -122.3,
+		At: time.Now(),
+	})
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		var user, clock string
+		for _, m := range req.Messages {
+			if m.Role == provider.RoleUser {
+				user = m.Content
+			}
+			if strings.Contains(m.Content, "[current time]") {
+				clock = m.Content
+			}
+		}
+		if strings.Contains(user, "[location]") || strings.Contains(user, "47.6") {
+			t.Errorf("pendant GPS must not land in user text: %q", user)
+		}
+		if !strings.Contains(clock, "[last pin]") || !strings.Contains(clock, "47.600000") || !strings.Contains(clock, "just now") {
+			t.Errorf("clock missing this-send pin: %q", clock)
+		}
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{Completer: fc, Sessions: newMemHistory(), Model: "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: sid, Text: "what's near me"}); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -179,11 +179,9 @@ func applyGeo(sid string, ctx *frameContext, now time.Time) {
 	if ctx == nil || ctx.Geo == nil {
 		return
 	}
-	at := now
-	if t, err := time.Parse(time.RFC3339, strings.TrimSpace(ctx.At)); err == nil {
-		at = t
-	}
-	here.Set(sid, here.Pin{Lat: ctx.Geo.Lat, Lon: ctx.Geo.Lon, At: at})
+	// Crane clock, not phone `at`. Phone time can lie and make a this-send
+	// pin look hours old, which the persona treats as "ask for a pin."
+	here.Set(sid, here.Pin{Lat: ctx.Geo.Lat, Lon: ctx.Geo.Lon, At: now})
 }
 
 func silentPin(text string, images []channel.Image, ctx *frameContext) bool {

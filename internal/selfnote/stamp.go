@@ -15,10 +15,11 @@ const RulesSection = "## Self-notes (`self_note` → SELF.md)\n\n" +
 
 // LocationSection is the kernel-owned last-pin block injected into PERSONA.md.
 const LocationSection = "## Location pins\n\n" +
-	"- A Telegram location or venue updates this chat's **last pin** (coords + time).\n" +
-	"- Use `[last pin]` in the time footer for maps, places, directions, \"near me.\" Do not invent a city.\n" +
-	"- If there is no last pin, or it is hours old, ask them to send a pin. Do not guess.\n" +
-	"- A bare pin (no caption) only updates the pin — wait for their ask."
+	"- Pendant GPS (every send, or a silent drop-pin) and Telegram location/venue update this chat's **last pin**.\n" +
+	"- Coords are in the time footer as `[last pin]`, not in the user text. Use that for maps, places, directions, \"near me.\" Do not invent a city.\n" +
+	"- If `[last pin]` is present and recent, you have their location. Do not ask for a Telegram pin.\n" +
+	"- If it is missing or hours old, ask them to drop a pin (pendant: GPS on; or a Telegram location). Do not guess.\n" +
+	"- A bare pin (no chat text) only updates the cursor — wait for their ask."
 
 // Body returns SELF.md without the kernel header (title + leading blockquotes).
 // Operator/agent bullets are kept. An old header is dropped so Stamp can

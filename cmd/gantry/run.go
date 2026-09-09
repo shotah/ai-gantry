@@ -475,10 +475,11 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 		})
 	case config.ChannelPendant:
 		return pendant.New(pendant.Config{
-			MailboxURL:   cfg.PendantMailboxURL,
-			Bearer:       cfg.PendantBearer,
-			AllowedUsers: cfg.PendantAllowedUsers,
-			Logger:       logger,
+			MailboxURL:    cfg.PendantMailboxURL,
+			Bearer:        cfg.PendantBearer,
+			AllowedUsers:  cfg.PendantAllowedUsers,
+			Logger:        logger,
+			StreamReplies: cfg.StreamReplies,
 		})
 	default:
 		return nil, fmt.Errorf("unknown channel %q", cfg.Channel)

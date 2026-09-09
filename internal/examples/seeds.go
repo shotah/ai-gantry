@@ -308,10 +308,10 @@ var DefaultSeeds = []Seed{
 	},
 	{
 		ID:      "maps-near-me",
-		Title:   "Near me: Telegram pin + place search",
+		Title:   "Near me: last pin + place search",
 		Servers: []string{"maps"},
 		Steps: []string{
-			"If [last pin] is missing or hours old, ask them to send a Telegram location pin (a bare pin is silent — it only updates the cursor)",
+			"If [last pin] is missing or hours old, ask them to drop a pin (pendant GPS on, or a Telegram location — a bare pin is silent)",
 			"Call maps__place_search from that pin — do not invent a city",
 			"Share the Maps URL and a short pick; don't invent hours or ratings",
 		},
@@ -321,7 +321,7 @@ var DefaultSeeds = []Seed{
 		Title:   "Directions: last pin to a place, with a leave-by time",
 		Servers: []string{"maps"},
 		Steps: []string{
-			"Use [last pin] as origin, or ask for a Telegram pin if it's stale",
+			"Use [last pin] as origin, or ask for a pin if it's stale",
 			"Resolve the destination (maps__place_resolve or maps__link_resolve for a share link)",
 			"Call maps__route_eta (bike → mode=bicycling) and include the Maps URL",
 		},
@@ -362,7 +362,7 @@ var DefaultSeeds = []Seed{
 		Servers: []string{"google", "maps"},
 		Steps: []string{
 			"List today's Google Calendar and pick the next place they have to be",
-			"Use [last pin] as origin (ask for a Telegram pin if it's stale)",
+			"Use [last pin] as origin (ask for a pin if it's stale)",
 			"maps__route_eta to that place and tell them when to leave",
 		},
 	},
@@ -411,7 +411,7 @@ var DefaultSeeds = []Seed{
 		Servers: []string{"google-search", "maps"},
 		Steps: []string{
 			"Search for the place or venue they named",
-			"If [last pin] is stale, ask for a Telegram location pin",
+			"If [last pin] is stale, ask them to drop a pin",
 			"maps__route_eta and share the Maps URL",
 		},
 	},
@@ -496,7 +496,7 @@ func PolishPrompt(s Seed) string {
 	b.WriteString("Invite them to try it (e.g. want me to do that?). ")
 	b.WriteString("If the recipe mentions cron_schedule / a recurring reminder, pitch scheduling it (daily or weekly) — still propose only. ")
 	b.WriteString("If the recipe mentions watch_add / a feed or X subscription, pitch setting up the watch — still propose only. ")
-	b.WriteString("If the recipe mentions a Telegram pin or [last pin], mention sending a location pin from the phone. ")
+	b.WriteString("If the recipe mentions a location pin or [last pin], mention dropping a pin from the phone. ")
 	b.WriteString("If the recipe mentions self_note / a north-star / aim/, pitch setting a first months-scale aim — still propose only. ")
 	b.WriteString("If the recipe mentions mcp_enable, mention turning a prefix on for this chat. ")
 	b.WriteString("Do not call tools. Do not invent tools outside this recipe. ")
