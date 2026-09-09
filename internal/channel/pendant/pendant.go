@@ -54,6 +54,7 @@ type Channel struct {
 	log           *slog.Logger
 	dial          dialFunc
 	streamReplies bool
+	onAdmit       func(ctx context.Context, sessionID, userID string)
 
 	mu      sync.Mutex
 	writeMu sync.Mutex
@@ -93,6 +94,14 @@ func New(cfg Config) (*Channel, error) {
 		streamReplies: cfg.StreamReplies,
 	}
 	return ch, nil
+}
+
+// SetOnAdmit runs once per newly seen Google sub (email-only allowlist
+// learns the push target so spark/cron can wake that phone).
+func (c *Channel) SetOnAdmit(fn func(ctx context.Context, sessionID, userID string)) {
+	c.mu.Lock()
+	c.onAdmit = fn
+	c.mu.Unlock()
 }
 
 // editStream carries spinup + tool-trace lines — the agent only emits those
@@ -157,6 +166,8 @@ func defaultDial(ctx context.Context, mailbox string, header http.Header) (conn,
 func (c *Channel) isAllowed(sub, email string) bool {
 	sub = strings.TrimSpace(sub)
 	email = strings.ToLower(strings.TrimSpace(email))
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if sub != "" {
 		if _, ok := c.allowed[sub]; ok {
 			return true
@@ -168,6 +179,41 @@ func (c *Channel) isAllowed(sub, email string) bool {
 		}
 	}
 	return false
+}
+
+// rememberSub records a Google sub as a push target. True when it was new.
+func (c *Channel) rememberSub(sub string) bool {
+	sub = strings.TrimSpace(sub)
+	if sub == "" {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.allowed[sub]; ok {
+		return false
+	}
+	c.allowed[sub] = struct{}{}
+	return true
+}
+
+// TrustSub records a Google sub as a push target without OnAdmit.
+// Boot uses this for user_ids already on enabled cron jobs (email-only
+// allowlist would otherwise deny Push after restart).
+func (c *Channel) TrustSub(sub string) {
+	_ = c.rememberSub(sub)
+}
+
+func (c *Channel) noteUser(ctx context.Context, sessionID, sub string) {
+	if !c.rememberSub(sub) {
+		return
+	}
+	c.log.Info("pendant learned sub", "session_id", sessionID)
+	c.mu.Lock()
+	fn := c.onAdmit
+	c.mu.Unlock()
+	if fn != nil {
+		fn(ctx, sessionID, sub)
+	}
 }
 
 // Run dials the mailbox until ctx is cancelled.
@@ -248,6 +294,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		return nil
 	}
 	sid := sessionID(c.slug, sub)
+	c.noteUser(ctx, sid, sub)
 	now := time.Now()
 	applyGeo(sid, frame.Context, now)
 	if silentPin(frame.Text, frame.Images, frame.Context) {

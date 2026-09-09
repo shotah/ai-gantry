@@ -349,6 +349,114 @@ func TestDispatch_EmailOnlyMatchKeepsSub(t *testing.T) {
 	}
 }
 
+func TestDispatch_EmailOnlyLearnsSubForPushAndAdmit(t *testing.T) {
+	var admits []string
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"ada@example.com"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch.SetOnAdmit(func(_ context.Context, sid, uid string) {
+		admits = append(admits, sid+"|"+uid)
+	})
+	if err := ch.Push(context.Background(), channel.Outbound{UserID: "1182999", Text: "early"}); err == nil {
+		t.Fatal("push must wait until the sub is learned")
+	}
+
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 16)}
+	ch.setLive(fc)
+	raw, _ := json.Marshal(inboundFrame{Text: "hi", UserID: "1182999", Email: "ada@example.com"})
+	if err := ch.dispatch(context.Background(), fc, raw, func(context.Context, channel.Message) (string, error) {
+		return "ok", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_ = recvReply(t, fc.writes)
+	if len(admits) != 1 || admits[0] != "pendant:kit:1182999|1182999" {
+		t.Fatalf("admits=%v", admits)
+	}
+
+	if err := ch.Push(context.Background(), channel.Outbound{UserID: "1182999", Text: "wake"}); err != nil {
+		t.Fatal(err)
+	}
+	out := recvOutbound(t, fc.writes)
+	for out.Kind == "typing" {
+		out = recvOutbound(t, fc.writes)
+	}
+	if out.Kind != "push" || out.UserID != "1182999" || out.Text != "wake" {
+		t.Fatalf("push %+v", out)
+	}
+
+	raw, _ = json.Marshal(inboundFrame{Text: "again", UserID: "1182999", Email: "ada@example.com"})
+	if err := ch.dispatch(context.Background(), fc, raw, func(context.Context, channel.Message) (string, error) {
+		return "ok2", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(admits) != 1 {
+		t.Fatalf("admit should be once: %v", admits)
+	}
+}
+
+func TestDispatch_SilentPinLearnsSub(t *testing.T) {
+	var admits int
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"ada@example.com"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch.SetOnAdmit(func(context.Context, string, string) { admits++ })
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 1)}
+	ch.setLive(fc)
+	raw, _ := json.Marshal(inboundFrame{
+		UserID:  "1182999",
+		Email:   "ada@example.com",
+		Context: &frameContext{Geo: &geo{Lat: 1, Lon: 2}},
+	})
+	if err := ch.dispatch(context.Background(), fc, raw, func(context.Context, channel.Message) (string, error) {
+		t.Fatal("silent pin")
+		return "", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if admits != 1 {
+		t.Fatalf("admits=%d", admits)
+	}
+	if err := ch.Push(context.Background(), channel.Outbound{UserID: "1182999", Text: "wake"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTrustSub_AllowsPushWithoutInbound(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"ada@example.com"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ch.Push(context.Background(), channel.Outbound{UserID: "1182999", Text: "early"}); err == nil {
+		t.Fatal("push must wait until TrustSub")
+	}
+	ch.TrustSub("1182999")
+	fc := &fakeConn{writes: make(chan []byte, 1)}
+	ch.setLive(fc)
+	if err := ch.Push(context.Background(), channel.Outbound{UserID: "1182999", Text: "wake"}); err != nil {
+		t.Fatal(err)
+	}
+	out := recvOutbound(t, fc.writes)
+	if out.Kind != "push" || out.UserID != "1182999" || out.Text != "wake" {
+		t.Fatalf("push %+v", out)
+	}
+}
+
 func TestServe_PublishesCatalog(t *testing.T) {
 	var logs bytes.Buffer
 	ch, err := New(Config{

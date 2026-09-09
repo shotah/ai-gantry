@@ -103,6 +103,39 @@ func (s *Store) ActiveCount(ctx context.Context) (int, error) {
 	return n, err
 }
 
+// EnabledUserIDsPrefix lists distinct user_ids on enabled jobs whose
+// session_id starts with prefix (e.g. "pendant:" after a crane restart).
+func (s *Store) EnabledUserIDsPrefix(ctx context.Context, prefix string) ([]string, error) {
+	if s == nil {
+		return nil, nil
+	}
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return nil, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DISTINCT user_id FROM cron_job
+		WHERE enabled = 1 AND user_id != '' AND session_id LIKE ?
+		ORDER BY user_id`, prefix+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 const jobColumns = `id, prompt, kind, expr, timezone, next_run_at,
 		       session_id, user_id, chat_id, thread_id,
 		       enabled, running, created_at, updated_at, last_run_at, last_error,

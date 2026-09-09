@@ -81,7 +81,8 @@ Recreate the container after env changes (restart keeps a ghost allowlist).
 
 The crane admits a frame when `user_id` **or** `email` is on the list. Session
 id is always `pendant:<slug>:<sub>` — email matches, it never keys memory.
-On dial the crane writes `cmds` then `allow`. Spark auto-bind needs a `sub`;
-email-only entries can talk inbound but have no push target until the list
-includes their `sub`. Console may write emails into `PENDANT_ALLOWED_USERS`
-([gantree-contract.md](gantree-contract.md)).
+On dial the crane writes `cmds` then `allow`. Boot spark-bind still needs a
+`sub` in the env list; an email-only row learns the Google `sub` on first
+inbound (or silent pin) so cron/spark `push` can target that phone. Restart
+re-trusts `sub`s already on enabled `pendant:` cron jobs. Console may write
+emails into `PENDANT_ALLOWED_USERS` ([gantree-contract.md](gantree-contract.md)).

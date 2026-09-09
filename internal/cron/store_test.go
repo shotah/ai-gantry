@@ -182,3 +182,32 @@ func TestDue_FixedWidthNanosOrdering(t *testing.T) {
 		t.Fatalf("fixed-width compare should see job due, got %#v", due)
 	}
 }
+
+func TestEnabledUserIDsPrefix_PendantOnly(t *testing.T) {
+	ctx := context.Background()
+	f := openCronFixture(t)
+	once := cron.Parsed{Kind: cron.KindOnce, Expr: "x", Timezone: "UTC", NextRun: time.Now().UTC().Add(time.Hour)}
+	if _, err := f.store.Schedule(ctx, "a", once, cron.Delivery{SessionID: "pendant:kit:1182999", UserID: "1182999"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.Schedule(ctx, "b", once, cron.Delivery{SessionID: "pendant:kit:1182999", UserID: "1182999"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.Schedule(ctx, "c", once, cron.Delivery{SessionID: "telegram:1:1", UserID: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	other, err := f.store.Schedule(ctx, "d", once, cron.Delivery{SessionID: "pendant:kit:99", UserID: "99"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.store.Cancel(ctx, other.ID); err != nil {
+		t.Fatal(err)
+	}
+	ids, err := f.store.EnabledUserIDsPrefix(ctx, "pendant:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || ids[0] != "1182999" {
+		t.Fatalf("ids=%v", ids)
+	}
+}

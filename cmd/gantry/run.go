@@ -382,6 +382,32 @@ func run() int {
 			logger.Info("telegram error reporting enabled", "level", cfg.TelegramErrorReporting)
 		}
 	}
+	if pc, ok := ch.(*pendant.Channel); ok {
+		if sparkSvc != nil && sparkSvc.ProactiveEnabled() {
+			pc.SetOnAdmit(func(ctx context.Context, sid, uid string) {
+				if err := bindSpark(ctx, sparkSvc, logger, cron.Delivery{
+					SessionID: sid,
+					UserID:    uid,
+					ChatID:    uid,
+				}); err != nil {
+					logger.Warn("pendant spark admit failed", "err", err, "session_id", sid)
+				}
+			})
+		}
+		if cronStore != nil {
+			ids, err := cronStore.EnabledUserIDsPrefix(ctx, "pendant:")
+			if err != nil {
+				logger.Warn("pendant trust cron subs failed", "err", err)
+			} else {
+				for _, id := range ids {
+					pc.TrustSub(id)
+				}
+				if len(ids) > 0 {
+					logger.Info("pendant trusted cron subs", "n", len(ids))
+				}
+			}
+		}
+	}
 
 	gate := &drain.Gate{}
 	handle := gate.Handler(ag.Handle)
