@@ -22,6 +22,11 @@ import (
 	"github.com/shotah/ai-gantry/internal/channel"
 )
 
+const typingInterval = 4 * time.Second
+
+// typingEvery is the chat-action refresh. Tests may shorten it.
+var typingEvery = typingInterval
+
 // Config configures the pendant channel.
 type Config struct {
 	MailboxURL   string
@@ -218,7 +223,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		c.log.Warn("pendant bad frame")
 		return nil
 	}
-	if frame.Kind == "ack" || frame.Kind == "error" || frame.Kind == "reply" || frame.Kind == "push" || frame.Kind == "cmds" || frame.Kind == "allow" {
+	if frame.Kind == "ack" || frame.Kind == "error" || frame.Kind == "reply" || frame.Kind == "push" || frame.Kind == "cmds" || frame.Kind == "allow" || frame.Kind == "typing" {
 		return nil
 	}
 	sub := strings.TrimSpace(frame.UserID)
@@ -245,6 +250,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	if text == "" && len(frame.Images) == 0 {
 		return nil
 	}
+	stopTyping := c.startTyping(ctx, cn, sub)
 	reply, err := handle(ctx, channel.Message{
 		SessionID: sid,
 		UserID:    sub,
@@ -252,6 +258,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		Images:    frame.Images,
 		ChatID:    sub,
 	})
+	stopTyping()
 	if err != nil {
 		c.log.Error("pendant handle", "err", err)
 		return nil
@@ -289,6 +296,37 @@ func (c *Channel) writeOn(cn conn, frame outboundFrame) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	return writeFrame(cn, frame)
+}
+
+func (c *Channel) startTyping(ctx context.Context, cn conn, userID string) func() {
+	frame := outboundFrame{Kind: "typing", UserID: userID}
+	_ = c.writeOn(cn, frame)
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		t := time.NewTicker(typingEvery)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				select {
+				case <-done:
+					return
+				default:
+				}
+				_ = c.writeOn(cn, frame)
+			}
+		}
+	}()
+	return func() {
+		close(done)
+		<-finished
+	}
 }
 
 func writeFrame(cn conn, frame outboundFrame) error {

@@ -84,6 +84,32 @@ func (f *fakeConn) Close() error {
 	return nil
 }
 
+func recvOutbound(t *testing.T, writes <-chan []byte) outboundFrame {
+	t.Helper()
+	select {
+	case raw := <-writes:
+		var out outboundFrame
+		if err := json.Unmarshal(raw, &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for frame")
+	}
+	return outboundFrame{}
+}
+
+func recvReply(t *testing.T, writes <-chan []byte) outboundFrame {
+	t.Helper()
+	for {
+		out := recvOutbound(t, writes)
+		if out.Kind == "typing" {
+			continue
+		}
+		return out
+	}
+}
+
 func TestDispatch_GeoHereAndReply(t *testing.T) {
 	ch, err := New(Config{
 		MailboxURL:   "wss://x.workers.dev/ws/kit",
@@ -93,7 +119,7 @@ func TestDispatch_GeoHereAndReply(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 1)}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 8)}
 	raw, _ := json.Marshal(inboundFrame{
 		Text:   "near me",
 		UserID: "1182",
@@ -123,14 +149,7 @@ func TestDispatch_GeoHereAndReply(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	rawOut := <-fc.writes
-	if !strings.Contains(string(rawOut), `"user_id":"1182"`) {
-		t.Fatalf("reply json %s", rawOut)
-	}
-	var out outboundFrame
-	if err := json.Unmarshal(rawOut, &out); err != nil {
-		t.Fatal(err)
-	}
+	out := recvReply(t, fc.writes)
 	if out.Kind != "reply" || out.Text != "ok" || out.UserID != "1182" {
 		t.Fatalf("%+v", out)
 	}
@@ -296,7 +315,7 @@ func TestDispatch_EmailOnlyMatchKeepsSub(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 1)}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 8)}
 	raw, _ := json.Marshal(inboundFrame{Text: "hi", UserID: "1182999", Email: "Ada@Example.com"})
 	if err := ch.dispatch(context.Background(), fc, raw, func(_ context.Context, msg channel.Message) (string, error) {
 		if msg.UserID != "1182999" {
@@ -312,11 +331,7 @@ func TestDispatch_EmailOnlyMatchKeepsSub(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	rawOut := <-fc.writes
-	var out outboundFrame
-	if err := json.Unmarshal(rawOut, &out); err != nil {
-		t.Fatal(err)
-	}
+	out := recvReply(t, fc.writes)
 	if out.Kind != "reply" || out.UserID != "1182999" {
 		t.Fatalf("%+v", out)
 	}
@@ -410,7 +425,7 @@ func TestDispatch_WorkerPhotoJSONAndEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 1)}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 8)}
 	raw := []byte(`{"kind":"inbound","user_id":"1182","images":[{"url":"data:image/jpeg;base64,aa"}]}`)
 	if err := ch.dispatch(context.Background(), fc, raw, func(_ context.Context, msg channel.Message) (string, error) {
 		if msg.Text != "[photo]" {
@@ -423,14 +438,7 @@ func TestDispatch_WorkerPhotoJSONAndEmpty(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	rawOut := <-fc.writes
-	if !strings.Contains(string(rawOut), `"user_id":"1182"`) {
-		t.Fatalf("photo reply json %s", rawOut)
-	}
-	var out outboundFrame
-	if err := json.Unmarshal(rawOut, &out); err != nil {
-		t.Fatal(err)
-	}
+	out := recvReply(t, fc.writes)
 	if out.Kind != "reply" || out.Text != "saw photo" || out.UserID != "1182" {
 		t.Fatalf("%+v", out)
 	}
@@ -449,6 +457,110 @@ func TestDispatch_WorkerPhotoJSONAndEmpty(t *testing.T) {
 	select {
 	case <-fc.writes:
 		t.Fatal("no reply on empty inbound")
+	default:
+	}
+}
+
+func TestDispatch_TypesThenReply(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 8)}
+	raw, _ := json.Marshal(inboundFrame{Text: "hi", UserID: "1182"})
+	if err := ch.dispatch(context.Background(), fc, raw, func(context.Context, channel.Message) (string, error) {
+		return "ok", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	first := recvOutbound(t, fc.writes)
+	if first.Kind != "typing" || first.UserID != "1182" || first.Text != "" {
+		t.Fatalf("first %+v", first)
+	}
+	out := recvReply(t, fc.writes)
+	if out.Kind != "reply" || out.Text != "ok" || out.UserID != "1182" {
+		t.Fatalf("%+v", out)
+	}
+}
+
+func TestDispatch_TypingRefresh(t *testing.T) {
+	prev := typingEvery
+	typingEvery = 20 * time.Millisecond
+	t.Cleanup(func() { typingEvery = prev })
+
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 8)}
+	gate := make(chan struct{})
+	done := make(chan error, 1)
+	raw, _ := json.Marshal(inboundFrame{Text: "hi", UserID: "1182"})
+	go func() {
+		done <- ch.dispatch(context.Background(), fc, raw, func(context.Context, channel.Message) (string, error) {
+			<-gate
+			return "ok", nil
+		})
+	}()
+	n := 0
+	deadline := time.After(500 * time.Millisecond)
+	for n < 2 {
+		select {
+		case rawOut := <-fc.writes:
+			var out outboundFrame
+			if err := json.Unmarshal(rawOut, &out); err != nil {
+				t.Fatal(err)
+			}
+			if out.Kind != "typing" || out.UserID != "1182" {
+				t.Fatalf("refresh %+v", out)
+			}
+			n++
+		case <-deadline:
+			t.Fatalf("typing count %d", n)
+		}
+	}
+	close(gate)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	out := recvReply(t, fc.writes)
+	if out.Kind != "reply" || out.Text != "ok" {
+		t.Fatalf("%+v", out)
+	}
+}
+
+func TestDispatch_IgnoresTypingFrame(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 8)}
+	called := false
+	raw, _ := json.Marshal(inboundFrame{Kind: "typing", UserID: "1182"})
+	if err := ch.dispatch(context.Background(), fc, raw, func(context.Context, channel.Message) (string, error) {
+		called = true
+		return "nope", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if called {
+		t.Fatal("inbound typing must not start a turn")
+	}
+	select {
+	case <-fc.writes:
+		t.Fatal("no write on inbound typing")
 	default:
 	}
 }
