@@ -11,10 +11,11 @@ import (
 
 // Pin is the last shared location for a chat session.
 type Pin struct {
-	Lat   float64
-	Lon   float64
-	Label string // venue title, if any
-	At    time.Time
+	Lat       float64
+	Lon       float64
+	Label     string  // venue title, if any
+	AccuracyM float64 // meters; 0 means unknown
+	At        time.Time
 }
 
 var (
@@ -47,8 +48,12 @@ func Format(p Pin, now time.Time, tzName string) string {
 		return ""
 	}
 	at := p.At.In(now.Location())
-	line := fmt.Sprintf("[last pin] %.6f, %.6f at %s %s (%s ago)",
-		p.Lat, p.Lon,
+	tag := "[last pin]"
+	if p.AccuracyM > 0 {
+		tag = fmt.Sprintf("[last pin ±%.0fm]", p.AccuracyM)
+	}
+	line := fmt.Sprintf("%s %.6f, %.6f at %s %s (%s ago)",
+		tag, p.Lat, p.Lon,
 		at.Format("Mon Jan 2, 2006 3:04 PM"),
 		formatZone(at, tzName),
 		age(now.Sub(p.At)),

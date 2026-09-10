@@ -296,10 +296,15 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	sid := sessionID(c.slug, sub)
 	c.noteUser(ctx, sid, sub)
 	now := time.Now()
-	applyGeo(sid, frame.Context, now)
+	gotPin := applyGeo(sid, frame.Context, now)
 	if silentPin(frame.Text, frame.Images, frame.Context) {
-		c.log.Info("pendant last pin updated", "session_id", sid)
+		c.log.Info("pendant last pin updated", "session_id", sid, "silent", true)
 		return nil
+	}
+	if gotPin {
+		c.log.Info("pendant last pin updated", "session_id", sid)
+	} else {
+		c.log.Info("pendant inbound without geo", "session_id", sid)
 	}
 	text := strings.TrimSpace(frame.Text)
 	if text == "" && len(frame.Images) > 0 {

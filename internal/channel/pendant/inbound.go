@@ -175,13 +175,18 @@ func isEmail(s string) bool {
 	return at > 0 && at < len(s)-1
 }
 
-func applyGeo(sid string, ctx *frameContext, now time.Time) {
+func applyGeo(sid string, ctx *frameContext, now time.Time) bool {
 	if ctx == nil || ctx.Geo == nil {
-		return
+		return false
 	}
 	// Crane clock, not phone `at`. Phone time can lie and make a this-send
 	// pin look hours old, which the persona treats as "ask for a pin."
-	here.Set(sid, here.Pin{Lat: ctx.Geo.Lat, Lon: ctx.Geo.Lon, At: now})
+	p := here.Pin{Lat: ctx.Geo.Lat, Lon: ctx.Geo.Lon, At: now}
+	if ctx.Geo.AccuracyM != nil && *ctx.Geo.AccuracyM > 0 {
+		p.AccuracyM = *ctx.Geo.AccuracyM
+	}
+	here.Set(sid, p)
+	return true
 }
 
 func silentPin(text string, images []channel.Image, ctx *frameContext) bool {

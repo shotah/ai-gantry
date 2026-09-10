@@ -527,7 +527,9 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	clock := temporalAnchor(now, tzName)
 	if p, ok := here.Get(msg.SessionID); ok {
 		if line := here.Format(p, now, tzName); line != "" {
-			clock += "\n" + line
+			// Pin first: a 10-line week grid after the user turn is where
+			// small models stop reading, then they ask for a Telegram pin.
+			clock = line + "\n" + clock
 		}
 	}
 	if a.memory != nil {

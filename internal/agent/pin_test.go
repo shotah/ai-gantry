@@ -60,6 +60,11 @@ func TestHandle_PendantGPSIsLastPinNotUserText(t *testing.T) {
 		if !strings.Contains(clock, "[last pin]") || !strings.Contains(clock, "47.600000") || !strings.Contains(clock, "just now") {
 			t.Errorf("clock missing this-send pin: %q", clock)
 		}
+		pinAt := strings.Index(clock, "[last pin]")
+		timeAt := strings.Index(clock, "[current time]")
+		if pinAt < 0 || timeAt < 0 || pinAt > timeAt {
+			t.Errorf("last pin must lead the clock footer: %q", clock)
+		}
 		return &provider.Result{Content: "ok"}, nil
 	}}
 	a, err := agent.New(agent.Options{Completer: fc, Sessions: newMemHistory(), Model: "m"})

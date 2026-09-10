@@ -105,7 +105,7 @@ Identity stays in **About you**. No guesses, live metrics, or dumps.
 - **Timezone:** America/Los_Angeles
 - **Languages:** English
 - **Sport / gym / travel mode:** (optional)
-- **Telegram pin:** location = “near me”; a bare pin only updates the cursor
+- **Last pin:** “near me” is `[last pin]` in the time footer (pendant GPS on send, or a Telegram location). A bare pin is silent.
 
 ## Directives
 
