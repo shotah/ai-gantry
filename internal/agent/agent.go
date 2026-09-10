@@ -76,7 +76,7 @@ const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data,
 // sparkToolFirstNote sits after the clock on spark-of-life turns. Spark looks
 // after the user (aims, live tools, useful knowledge). Empty zero-tool jokes
 // are still nudged off; grounded jokes after tools are allowed.
-const sparkToolFirstNote = "[system] Spark-of-life turn: the user is the aim. Review [mcp prefixes] on vs off. Emit independent tool calls now — memory_recall for aim/, pref/hours, pref/calendar, cron_list, then live tools (Garmin, calendar, search) or cron_schedule. mcp_enable a prefix if it is off and needed. Shape the message by [current time]. A joke is allowed when it is grounded in this turn's tool results and an aim — never a joke with zero tools. Hours unknown → ask sleep/work once. Else at most one user-model question. A real empty calendar is a hole: ask ONE what they want on it today (lunch/dinner or training) — not [silent], never agree-and-stop; try to get something scheduled (ask first before writing events). A clock time you commit is cron_schedule with memory_id or one offer to ping — a calendar event is not the reminder. Empty aim board: ask ONE months-scale question — do not invent an aim. After the work, [silent] unless the human needs a specific hole, nudge, or next step."
+const sparkToolFirstNote = "[system] Spark-of-life turn: the user is the aim. Review [mcp prefixes] on vs off. Emit independent tool calls now — memory_recall for aim/, pref/hours, pref/calendar, cron_list, then live tools (Garmin, calendar, search) or cron_schedule. mcp_enable a prefix if it is off and needed. Shape the message by [current time]. A joke is allowed when it is grounded in this turn's tool results and an aim — never a joke with zero tools. Hours unknown → ask sleep/work once. Else at most one user-model question. A real empty calendar is a hole: ask ONE what they want on it today (lunch/dinner or training) — not [silent], never agree-and-stop; try to get something scheduled (ask first before writing events). A clock time you commit is cron_schedule with memory_id or one offer to ping — a calendar event is not the reminder. Empty aim board: ask ONE months-scale question — do not invent an aim. If you asked a question they should answer, put [wait] on its own line. After the work, [silent] unless the human needs a specific hole, nudge, or next step."
 
 // theaterCueMaxChars: a stop reply this long is already the answer. Matching
 // "I've added…" or a server__tool name inside a design essay must not start
@@ -119,6 +119,8 @@ type Options struct {
 	Examples ExamplesControl
 	// Spark is optional; enables /spark (on|off|qty for looking-after-you wakes).
 	Spark SparkControl
+	// Wait is optional; arms follow-up pokes when the model replies with [wait].
+	Wait WaitControl
 	// HistoryStripFillers applies session.StripFillerHistory at prompt time.
 	HistoryStripFillers bool
 	// Enable filters MCP schemas per session (nil = publish the full catalog).
@@ -166,6 +168,7 @@ type Agent struct {
 	mcpManifest string
 	examples    ExamplesControl
 	spark       SparkControl
+	wait        WaitControl
 
 	stripFillers bool
 
@@ -227,6 +230,7 @@ func New(opts Options) (*Agent, error) {
 		mcpManifest:    strings.TrimSpace(opts.MCPManifest),
 		examples:       opts.Examples,
 		spark:          opts.Spark,
+		wait:           opts.Wait,
 		stripFillers:   opts.HistoryStripFillers,
 		enable:         opts.Enable,
 		enableForce:    opts.EnableForce,
@@ -339,6 +343,11 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			unlock := a.lockSession(msg.SessionID)
 			defer unlock()
 			a.coalesceClear(msg.SessionID)
+			if a.wait != nil {
+				if err := a.wait.OnUserTurn(ctx, msg.SessionID); err != nil {
+					a.log.Warn("wait clear on reset failed", "err", err)
+				}
+			}
 			parked := a.parkSessionFacts(ctx, msg.SessionID)
 			distilled := false
 			if a.selfNotes != nil {
@@ -418,6 +427,12 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			a.log.Info("agent turn cancelled", "session_id", msg.SessionID)
 		}
 	}()
+
+	if a.wait != nil && turnSource(text) == sourceUser {
+		if err := a.wait.OnUserTurn(turnCtx, msg.SessionID); err != nil {
+			a.log.Warn("wait clear on user turn failed", "err", err)
+		}
+	}
 
 	history, err := a.sessions.Messages(turnCtx, msg.SessionID)
 	if err != nil {
@@ -524,6 +539,12 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		Role:    provider.RoleSystem,
 		Content: clock,
 	})
+	if block := a.talkFooter(turnCtx, msg.SessionID); block != "" {
+		messages = append(messages, provider.Message{
+			Role:    provider.RoleSystem,
+			Content: block,
+		})
+	}
 	if indexBlock != "" {
 		messages = append(messages, provider.Message{
 			Role:    provider.RoleSystem,
@@ -535,7 +556,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	if a.tools != nil && !channel.NoToolsFrom(ctx) {
 		toolDefs = a.publishedTools(turnCtx, msg.SessionID)
 	}
-	if turnSource(text) == "cron" && len(toolDefs) > 0 {
+	if turnSource(text) == "cron" && len(toolDefs) > 0 && !cron.IsFollowUpTurn(text) {
 		note := cronToolFirstNote
 		if cron.IsSparkTurn(text) {
 			note = sparkToolFirstNote
@@ -575,7 +596,17 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		}
 		return "", err
 	}
-	return reply, nil
+	if a.wait != nil {
+		if err := a.wait.AfterReply(turnCtx, cron.Delivery{
+			SessionID: msg.SessionID,
+			UserID:    msg.UserID,
+			ChatID:    msg.ChatID,
+			ThreadID:  msg.ThreadID,
+		}, text, reply); err != nil {
+			a.log.Warn("wait after reply failed", "err", err)
+		}
+	}
+	return cron.StripWaitTokens(reply), nil
 }
 
 // promptShape describes how much of the assembled prompt is cacheable. The

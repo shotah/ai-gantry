@@ -49,6 +49,9 @@ func TestParseSparkPrompts(t *testing.T) {
 	if !strings.Contains(cron.SparkPingPrefix, "calendar event is not") {
 		t.Fatal("spark prefix must treat calendar as event not reminder")
 	}
+	if !strings.Contains(cron.SparkPingPrefix, "[wait]") {
+		t.Fatal("spark prefix must mention [wait] for unanswered questions")
+	}
 	var sawFood, sawGarmin, sawHours, sawEmptyCal, sawPrepCue bool
 	for _, p := range defaults {
 		if strings.Contains(p, "pref/food") {

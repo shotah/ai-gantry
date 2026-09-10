@@ -89,9 +89,13 @@ func (s *Store) migrate() error {
 		`PRAGMA journal_mode=WAL;`,
 		`PRAGMA foreign_keys=ON;`,
 		`CREATE TABLE IF NOT EXISTS session (
-			id         TEXT PRIMARY KEY,
-			summary    TEXT NOT NULL DEFAULT '',
-			updated_at TEXT NOT NULL
+			id                 TEXT PRIMARY KEY,
+			summary            TEXT NOT NULL DEFAULT '',
+			updated_at         TEXT NOT NULL,
+			last_speaker       TEXT NOT NULL DEFAULT '',
+			waiting_for_reply  INTEGER NOT NULL DEFAULT 0,
+			wait_nudges        INTEGER NOT NULL DEFAULT 0,
+			wait_set_at        TEXT NOT NULL DEFAULT ''
 		);`,
 		`CREATE TABLE IF NOT EXISTS session_message (
 			id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,6 +112,11 @@ func (s *Store) migrate() error {
 			return fmt.Errorf("session: migrate: %w", err)
 		}
 	}
+	// Existing DBs: CREATE IF NOT EXISTS will not add columns.
+	_, _ = s.db.Exec(`ALTER TABLE session ADD COLUMN last_speaker TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`ALTER TABLE session ADD COLUMN waiting_for_reply INTEGER NOT NULL DEFAULT 0`)
+	_, _ = s.db.Exec(`ALTER TABLE session ADD COLUMN wait_nudges INTEGER NOT NULL DEFAULT 0`)
+	_, _ = s.db.Exec(`ALTER TABLE session ADD COLUMN wait_set_at TEXT NOT NULL DEFAULT ''`)
 	return nil
 }
 
@@ -177,6 +186,7 @@ func (s *Store) Append(ctx context.Context, sessionID string, msgs ...Message) e
 	}
 	defer func() { _ = stmt.Close() }()
 
+	lastRole := ""
 	for _, m := range msgs {
 		role := strings.TrimSpace(m.Role)
 		if role != RoleUser && role != RoleAssistant {
@@ -184,6 +194,17 @@ func (s *Store) Append(ctx context.Context, sessionID string, msgs ...Message) e
 		}
 		if _, err := stmt.ExecContext(ctx, sessionID, role, m.Content, now); err != nil {
 			return fmt.Errorf("session: insert message: %w", err)
+		}
+		lastRole = role
+	}
+	if lastRole != "" {
+		speaker := SpeakerAgent
+		if lastRole == RoleUser {
+			speaker = SpeakerUser
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE session SET last_speaker = ? WHERE id = ?`, speaker, sessionID); err != nil {
+			return fmt.Errorf("session: last speaker: %w", err)
 		}
 	}
 

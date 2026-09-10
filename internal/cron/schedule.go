@@ -167,7 +167,7 @@ func AdvanceNext(kind, expr, tz string, from time.Time) (next time.Time, newExpr
 			return time.Time{}, "", false, err
 		}
 		return PlanSparkPlannerNext(spec, loc, from), "", true, nil
-	case KindSparkPing, KindExamplesPing:
+	case KindSparkPing, KindExamplesPing, KindFollowUp:
 		return time.Time{}, "", false, nil
 	default:
 		return time.Time{}, "", false, fmt.Errorf("cron: unknown kind %q", kind)

@@ -325,6 +325,11 @@ func run() int {
 		}
 	}
 
+	var waitSvc *cron.WaitService
+	if cronStore != nil {
+		waitSvc = &cron.WaitService{State: sessions, Jobs: cronStore, TZ: tzName}
+	}
+
 	agentOpts := agent.Options{
 		Persona:             personaText,
 		Completer:           completer,
@@ -344,6 +349,7 @@ func run() int {
 		MCPManifest:         cfg.MCPManifest,
 		Examples:            examplesSvc,
 		Spark:               sparkSvc,
+		Wait:                waitSvc,
 		HistoryStripFillers: cfg.HistoryStripFillers,
 		Enable:              enableStore,
 		EnableForce:         enableForce,
@@ -428,6 +434,7 @@ func run() int {
 			ExamplesSkipRecent: time.Duration(cfg.ExamplesSkipRecentMinutes) * time.Minute,
 			Examples:           examplesSvc,
 			Memory:             memBackend,
+			Talk:               sessions,
 		}
 		if err := ensureSparkJobs(ctx, cfg, sparkSvc, logger); err != nil {
 			logger.Error("spark ensure failed", "err", err)

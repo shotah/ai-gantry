@@ -9,6 +9,7 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/memory"
+	"github.com/shotah/ai-gantry/internal/session"
 )
 
 // JobUserPrefix wraps user-scheduled job prompts (not spark/examples pings).
@@ -21,7 +22,7 @@ const JobUserPrefix = "[cron] Scheduled job — you scheduled this continuation.
 const SparkTurnMarker = "[cron] Spark of life"
 
 // SparkPingPrefix wraps spark-of-life horizon wakes.
-const SparkPingPrefix = SparkTurnMarker + " — the user is the aim. In one response: recall aim/ + pref/hours + pref/calendar + cron_list, mcp_enable then call live tools that match (Garmin, calendar, search). Shape the human-facing move by [current time]: a gym aim with no workout yet in the morning is a short grounded joke or nudge; evening with still nothing can be disappointed-uncle about the miss. A joke or ritual is allowed when it is about this turn's tool results — never a joke with zero tools. Hours unknown → ask sleep/work/quiet once (work is not DND) and memory_store preference subject pref/hours. Else at most one user-model question (food, activity, team). A real empty calendar (tools returned none) is a hole, not an all-clear: ask ONE what they want on it today (lunch/dinner or a training plan); try to get something scheduled (ask first before writing events). Never agree-and-stop. A clock time you commit (scoop, leave, refuel) is cron_schedule with memory_id or one offer to ping — a calendar event is not the Telegram reminder. [silent] if nothing useful. Empty aim board: ask ONE months-scale question (do not invent). Ask-first: no email, spend, or posts:\n\n"
+const SparkPingPrefix = SparkTurnMarker + " — the user is the aim. In one response: recall aim/ + pref/hours + pref/calendar + cron_list, mcp_enable then call live tools that match (Garmin, calendar, search). Shape the human-facing move by [current time]: a gym aim with no workout yet in the morning is a short grounded joke or nudge; evening with still nothing can be disappointed-uncle about the miss. A joke or ritual is allowed when it is about this turn's tool results — never a joke with zero tools. Hours unknown → ask sleep/work/quiet once (work is not DND) and memory_store preference subject pref/hours. Else at most one user-model question (food, activity, team). A real empty calendar (tools returned none) is a hole, not an all-clear: ask ONE what they want on it today (lunch/dinner or a training plan); try to get something scheduled (ask first before writing events). Never agree-and-stop. A clock time you commit (scoop, leave, refuel) is cron_schedule with memory_id or one offer to ping — a calendar event is not the Telegram reminder. [silent] if nothing useful. Empty aim board: ask ONE months-scale question (do not invent). Question they should answer → [wait] on its own line. Ask-first: no email, spend, or posts:\n\n"
 
 // IsSparkTurn reports whether this user text is a spark-of-life horizon wake.
 func IsSparkTurn(userText string) bool {
@@ -64,6 +65,8 @@ type Runner struct {
 	Examples ExamplePromptBuilder
 	// Memory is optional; used to inject [job memory] and skip spark during sleep.
 	Memory memory.Memory
+	// Talk is optional; follow-up jobs and spark-vs-wait use conversation state.
+	Talk *session.Store
 }
 
 // Start polls until ctx is cancelled. Jobs run serially (overlap skipped via Claim).
@@ -141,7 +144,7 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 		return
 	}
 
-	if (job.Kind == KindSparkPing || job.Kind == KindExamplesPing) && r.asleep(ctx, job) {
+	if (job.Kind == KindSparkPing || job.Kind == KindExamplesPing || job.Kind == KindFollowUp) && r.asleep(ctx, job) {
 		until := time.Now().UTC().Add(time.Hour)
 		log.Info("cron ping deferred (sleep hours)",
 			"id", job.ID, "kind", job.Kind, "session_id", job.SessionID, "until", until.Format(time.RFC3339))
@@ -171,6 +174,20 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 		}
 	}
 
+	if (job.Kind == KindSparkPing || job.Kind == KindExamplesPing) && r.waitingActive(ctx, job.SessionID) {
+		log.Info("cron ping skipped (waiting for reply)",
+			"id", job.ID, "kind", job.Kind, "session_id", job.SessionID)
+		_ = r.Store.Finish(ctx, job, nil)
+		return
+	}
+
+	if job.Kind == KindFollowUp && r.skipFollowUp(ctx, job.SessionID) {
+		log.Info("cron follow-up skipped (wait cleared or exhausted)",
+			"id", job.ID, "session_id", job.SessionID)
+		_ = r.Store.Finish(ctx, job, nil)
+		return
+	}
+
 	prefix := JobUserPrefix
 	prompt := job.Prompt
 	handleCtx := ctx
@@ -184,6 +201,14 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 			prompt = r.Examples.BuildPingPrompt(ctx)
 		}
 		handleCtx = channel.WithNoTools(ctx)
+	case KindFollowUp:
+		nudge := 0
+		if r.Talk != nil {
+			if st, err := r.Talk.TalkState(ctx, job.SessionID); err == nil {
+				nudge = st.WaitNudges
+			}
+		}
+		prefix = FollowUpPrefix(nudge, MaxWaitNudges)
 	}
 	text := prefix + r.jobMemoryBlock(ctx, log, job) + prompt
 	msg := channel.Message{
@@ -197,6 +222,15 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 	if err != nil {
 		log.Warn("cron job handle failed", "id", job.ID, "err", err, "outcome", "error")
 		_ = r.Store.Finish(ctx, job, err)
+		return
+	}
+	reply = StripWaitTokens(reply)
+	if job.Kind == KindFollowUp && r.humanRepliedDuring(ctx, job.SessionID) {
+		log.Info("cron follow-up dropped (user replied during turn)",
+			"id", job.ID, "session_id", job.SessionID)
+		if err := r.Store.Finish(ctx, job, nil); err != nil {
+			log.Warn("cron finish failed", "id", job.ID, "err", err)
+		}
 		return
 	}
 	outcome := "push"
@@ -220,8 +254,79 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 		outcome = "silent"
 		log.Info("cron empty reply", "id", job.ID, "kind", job.Kind, "session_id", job.SessionID, "outcome", outcome)
 	}
+	if job.Kind == KindFollowUp {
+		r.afterFollowUp(ctx, log, job)
+	}
 	if err := r.Store.Finish(ctx, job, nil); err != nil {
 		log.Warn("cron finish failed", "id", job.ID, "err", err)
+	}
+}
+
+// waitingActive is an in-flight follow-up campaign (not yet exhausted).
+func (r *Runner) waitingActive(ctx context.Context, sessionID string) bool {
+	if r == nil || r.Talk == nil {
+		return false
+	}
+	st, err := r.Talk.TalkState(ctx, sessionID)
+	if err != nil || !st.WaitingForReply {
+		return false
+	}
+	return st.WaitNudges < MaxWaitNudges
+}
+
+// skipFollowUp is true when the leftover job should not poke.
+func (r *Runner) skipFollowUp(ctx context.Context, sessionID string) bool {
+	if r == nil || r.Talk == nil {
+		return false
+	}
+	st, err := r.Talk.TalkState(ctx, sessionID)
+	if err != nil {
+		return false
+	}
+	return !st.WaitingForReply || st.WaitNudges >= MaxWaitNudges
+}
+
+func (r *Runner) humanRepliedDuring(ctx context.Context, sessionID string) bool {
+	if r == nil || r.Recent == nil {
+		return false
+	}
+	ok, err := r.Recent.UserActiveSince(ctx, sessionID, time.Now().UTC().Add(-time.Minute))
+	return err == nil && ok
+}
+
+func (r *Runner) afterFollowUp(ctx context.Context, log *slog.Logger, job Job) {
+	if r == nil || r.Talk == nil {
+		return
+	}
+	st, err := r.Talk.TalkState(ctx, job.SessionID)
+	if err != nil {
+		log.Warn("cron follow-up talk state", "id", job.ID, "err", err)
+		return
+	}
+	if !st.WaitingForReply {
+		return
+	}
+	st, err = r.Talk.BumpWaitNudge(ctx, job.SessionID)
+	if err != nil {
+		log.Warn("cron follow-up bump failed", "id", job.ID, "err", err)
+		return
+	}
+	delay, ok := NextFollowUpDelay(st.WaitNudges)
+	if !ok || !st.WaitingForReply {
+		return
+	}
+	delivery := Delivery{
+		SessionID: job.SessionID,
+		UserID:    job.UserID,
+		ChatID:    job.ChatID,
+		ThreadID:  job.ThreadID,
+	}
+	tz := job.Timezone
+	if tz == "" {
+		tz = "UTC"
+	}
+	if _, err := r.Store.ScheduleFollowUp(ctx, delivery, tz, time.Now().UTC().Add(delay)); err != nil {
+		log.Warn("cron follow-up reschedule failed", "id", job.ID, "err", err)
 	}
 }
 
