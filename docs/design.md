@@ -187,8 +187,7 @@ Boot is fail-fast: missing required env = clear error + exit 1.
 | `TOOL_SCHEMA_MAX_TOKENS` | no | `0` (log estimate only; `>0` = hard fail if over) |
 | `TOOLS_ENABLED` | no | `true` (`false` omits all tool schemas — models that reject tools, e.g. Ollama gemma3) |
 | `WEB_SEARCH_ENABLED` | no | `true` (builtin `web_search`; leftover `google-search` MCP grants are omitted) |
-| `GOOGLE_PSE_API_KEY` | no | Custom Search JSON API key — plain Google results, not a second model |
-| `GOOGLE_PSE_ENGINE_ID` | no | Programmable Search Engine `cx` id (pairs with the API key) |
+| `BRAVE_SEARCH_API_KEY` | no | Brave Search subscription token — titles, URLs, snippets; not a second model |
 | `MCP_ENABLE_FORCE` | no | comma-separated prefixes always published when `dynamic_tools` is on |
 | `SELF_NOTES_ENABLED` | no | `true` (auto-off when `PERSONA_DIR` is read-only) |
 | `MEMORY_ENABLED` | no | `true` |

@@ -9,12 +9,9 @@ import (
 	"testing"
 )
 
-func TestOpen_RequiresKeys(t *testing.T) {
-	if _, err := Open(Options{EngineID: "cx"}); err == nil || !strings.Contains(err.Error(), "GOOGLE_PSE_API_KEY") {
+func TestOpen_RequiresKey(t *testing.T) {
+	if _, err := Open(Options{}); err == nil || !strings.Contains(err.Error(), "BRAVE_SEARCH_API_KEY") {
 		t.Fatalf("missing key: %v", err)
-	}
-	if _, err := Open(Options{APIKey: "k"}); err == nil || !strings.Contains(err.Error(), "GOOGLE_PSE_ENGINE_ID") {
-		t.Fatalf("missing engine: %v", err)
 	}
 }
 
@@ -39,23 +36,25 @@ func TestIsSearchTool(t *testing.T) {
 }
 
 func TestSearch_FormatsHits(t *testing.T) {
-	var gotQ, gotKey, gotCx, gotNum string
+	var gotQ, gotCount, gotToken, gotQueryKey string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotQ = r.URL.Query().Get("q")
-		gotKey = r.URL.Query().Get("key")
-		gotCx = r.URL.Query().Get("cx")
-		gotNum = r.URL.Query().Get("num")
+		gotCount = r.URL.Query().Get("count")
+		gotToken = r.Header.Get(tokenHeader)
+		gotQueryKey = r.URL.Query().Get("key")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{
-			"items": [
-				{"title": "Go", "link": "https://go.dev", "snippet": "The Go programming language"},
-				{"title": "Tour", "link": "https://go.dev/tour", "snippet": "A tour of Go"}
-			]
+			"web": {
+				"results": [
+					{"title": "Go", "url": "https://go.dev", "description": "The Go programming language"},
+					{"title": "Tour", "url": "https://go.dev/tour", "description": "A tour of Go"}
+				]
+			}
 		}`)
 	}))
 	t.Cleanup(srv.Close)
 
-	tools, err := Open(Options{APIKey: "k", EngineID: "cx", Endpoint: srv.URL, HTTPClient: srv.Client()})
+	tools, err := Open(Options{APIKey: "k", Endpoint: srv.URL, HTTPClient: srv.Client()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,11 +62,11 @@ func TestSearch_FormatsHits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotQ != "golang" || gotKey != "k" || gotCx != "cx" || gotNum != "8" {
-		t.Fatalf("query = q=%q key=%q cx=%q num=%q", gotQ, gotKey, gotCx, gotNum)
+	if gotQ != "golang" || gotCount != "8" || gotToken != "k" || gotQueryKey != "" {
+		t.Fatalf("query = q=%q count=%q token=%q key=%q", gotQ, gotCount, gotToken, gotQueryKey)
 	}
 	for _, want := range []string{
-		`Google results for "golang"`,
+		`Search results for "golang"`,
 		"1. Go",
 		"https://go.dev",
 		"The Go programming language",
@@ -83,10 +82,10 @@ func TestSearch_FormatsHits(t *testing.T) {
 func TestSearch_AliasAndEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"items":[]}`)
+		_, _ = io.WriteString(w, `{"web":{"results":[]}}`)
 	}))
 	t.Cleanup(srv.Close)
-	tools, err := Open(Options{APIKey: "k", EngineID: "cx", Endpoint: srv.URL, HTTPClient: srv.Client()})
+	tools, err := Open(Options{APIKey: "k", Endpoint: srv.URL, HTTPClient: srv.Client()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,16 +103,16 @@ func TestSearch_AliasAndEmpty(t *testing.T) {
 
 func TestSearch_APIError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = io.WriteString(w, `{"error":{"code":403,"message":"Daily Limit Exceeded"}}`)
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = io.WriteString(w, `{"error":{"status":401,"detail":"Invalid subscription token"}}`)
 	}))
 	t.Cleanup(srv.Close)
-	tools, err := Open(Options{APIKey: "k", EngineID: "cx", Endpoint: srv.URL, HTTPClient: srv.Client()})
+	tools, err := Open(Options{APIKey: "k", Endpoint: srv.URL, HTTPClient: srv.Client()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = tools.Call(context.Background(), ToolName, []byte(`{"query":"x"}`))
-	if err == nil || !strings.Contains(err.Error(), "Daily Limit Exceeded") {
+	if err == nil || !strings.Contains(err.Error(), "Invalid subscription token") {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -126,7 +125,7 @@ func TestSearch_Unconfigured(t *testing.T) {
 }
 
 func TestFormatResults(t *testing.T) {
-	got := formatResults("q", []customSearchItem{{Title: "", Link: "", Snippet: "only snippet"}})
+	got := formatResults("q", []braveWebResult{{Title: "", URL: "", Description: "only snippet"}})
 	if !strings.Contains(got, "(no title)") || !strings.Contains(got, "only snippet") {
 		t.Fatalf("got %q", got)
 	}

@@ -74,13 +74,11 @@ type Config struct {
 	// still start; only the agent tool surface is cleared.
 	ToolsEnabled bool `env:"TOOLS_ENABLED" envDefault:"true"`
 
-	// WebSearchEnabled publishes builtin web_search (Google Custom Search HTTP).
+	// WebSearchEnabled publishes builtin web_search (Brave Search HTTP).
 	// Leftover google-search MCP grants are omitted while this is on.
 	WebSearchEnabled bool `env:"WEB_SEARCH_ENABLED" envDefault:"true"`
-	// GooglePSEAPIKey is the Custom Search JSON API key (plain Google results).
-	GooglePSEAPIKey string `env:"GOOGLE_PSE_API_KEY"`
-	// GooglePSEEngineID is the Programmable Search Engine cx id.
-	GooglePSEEngineID string `env:"GOOGLE_PSE_ENGINE_ID"`
+	// BraveSearchAPIKey is the Brave Search subscription token.
+	BraveSearchAPIKey string `env:"BRAVE_SEARCH_API_KEY"`
 
 	// SelfNotesEnabled lets the agent keep SELF.md in PERSONA_DIR: a self_note
 	// tool for jotting personality lines, plus a distill pass on /new that

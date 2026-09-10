@@ -129,10 +129,9 @@ miss them.
 
 ### Builtin web search
 
-`web_search` is always on (no `mcp_enable`, no grant). It GETs Google Custom
-Search and returns titles, URLs, and snippets — **not** a second Gemini
-generate. Needs `GOOGLE_PSE_API_KEY` + `GOOGLE_PSE_ENGINE_ID`. Leftover
-`google-search` MCP children are omitted.
+`web_search` is always on (no `mcp_enable`, no grant). It GETs Brave Search
+and returns titles, URLs, and snippets — **not** a second model generate.
+Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
 
 ### Agent loop hygiene
 
@@ -320,7 +319,7 @@ house keys out of *this* git.
 | History / tokens | Caps, filler strip, `Facts:`/`Voice:` fold, tool collapse, `/tokens` | [design](design.md) |
 | Tool loop | Parallel batch, alias, closest-name, grammar retry, salvage, CoT promote, landing call, signatures; `/perf` trajectory | [mcp](mcp.md) · [design](design.md#progress-per-invocation) |
 | Memory | store / recall / forget, FTS5, consolidator, persona precedence, no auto-save | [troubleshooting](troubleshooting.md#inspect-memory-sqlite3) |
-| Web search | builtin `web_search` (Google Custom Search HTTP) | [design](design.md#environment-variables) |
+| Web search | builtin `web_search` (Brave Search HTTP) | [design](design.md#environment-variables) |
 | Time | Temporal footer, cron, spark, examples, `[silent]`, live-data nudge | [cron](cron.md) |
 | Events | Watch cursor + poll, Completer only on new ids | [cron](cron.md#event-watches) |
 | MCP | Manifest grant, fetch/plan, filters, `mcp_enable`, fail-soft, Distroless children | [mcp](mcp.md) |

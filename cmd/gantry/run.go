@@ -260,8 +260,7 @@ func run() int {
 
 	if cfg.WebSearchEnabled {
 		searchTools, err := websearch.Open(websearch.Options{
-			APIKey:   cfg.GooglePSEAPIKey,
-			EngineID: cfg.GooglePSEEngineID,
+			APIKey: cfg.BraveSearchAPIKey,
 		})
 		if err != nil {
 			logger.Warn("web search disabled", "err", err)

@@ -90,7 +90,7 @@ Server names can use hyphens. Tool *suffixes* use underscores. Small local
 models (e.g. Qwen via Ollama) frequently **normalize the whole name to
 underscores** and invent nearby names.
 
-Web search is the unprefixed builtin `web_search` (Google Custom Search HTTP —
+Web search is the unprefixed builtin `web_search` (Brave Search HTTP —
 titles, URLs, snippets). Leftover MCP names (`google-search__web_search`,
 `google_search__web_search`) still call that builtin; they are not a second
 model.

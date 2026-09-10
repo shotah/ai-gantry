@@ -1,9 +1,8 @@
-// Package websearch is the harness builtin for Google web search.
+// Package websearch is the harness builtin for web search.
 //
 // Search is a first-class agent capability (like memory and cron), not an MCP
-// grant. The model calls unprefixed web_search; gantry GETs Google Custom
-// Search and returns titles, URLs, and snippets. No second model, no Gemini
-// grounding.
+// grant. The model calls unprefixed web_search; gantry GETs Brave Search and
+// returns titles, URLs, and snippets. No second model, no Gemini grounding.
 package websearch
 
 import (
@@ -17,43 +16,34 @@ import (
 const ToolName = "web_search"
 
 const (
-	defaultEndpoint = "https://www.googleapis.com/customsearch/v1"
+	defaultEndpoint = "https://api.search.brave.com/res/v1/web/search"
 	defaultNum      = 8
 	httpTimeout     = 15 * time.Second
+	tokenHeader     = "X-Subscription-Token"
 )
 
-// Options is the Custom Search client (GOOGLE_PSE_API_KEY + GOOGLE_PSE_ENGINE_ID).
+// Options is the Brave Search client (BRAVE_SEARCH_API_KEY).
 type Options struct {
 	APIKey     string
-	EngineID   string
-	Endpoint   string       // tests; default Google Custom Search JSON API
+	Endpoint   string       // tests; default Brave web search
 	HTTPClient *http.Client // tests
 }
 
-type googleSearchService struct {
+type searchService struct {
 	apiKey     string
-	engineID   string
 	endpoint   string
 	httpClient *http.Client
 }
 
 func errNeedAPIKey() error {
-	return errors.New("GOOGLE_PSE_API_KEY is required for web_search")
+	return errors.New("BRAVE_SEARCH_API_KEY is required for web_search")
 }
 
-func errNeedEngineID() error {
-	return errors.New("GOOGLE_PSE_ENGINE_ID is required for web_search")
-}
-
-// Open builds an in-process Custom Search client. The HTTP call happens on Search.
+// Open builds an in-process Brave Search client. The HTTP call happens on Search.
 func Open(opts Options) (Tools, error) {
 	apiKey := strings.TrimSpace(opts.APIKey)
-	engineID := strings.TrimSpace(opts.EngineID)
 	if apiKey == "" {
 		return Tools{}, errNeedAPIKey()
-	}
-	if engineID == "" {
-		return Tools{}, errNeedEngineID()
 	}
 	client := opts.HTTPClient
 	if client == nil {
@@ -64,9 +54,8 @@ func Open(opts Options) (Tools, error) {
 		endpoint = defaultEndpoint
 	}
 	return Tools{
-		svc: &googleSearchService{
+		svc: &searchService{
 			apiKey:     apiKey,
-			engineID:   engineID,
 			endpoint:   endpoint,
 			httpClient: client,
 		},

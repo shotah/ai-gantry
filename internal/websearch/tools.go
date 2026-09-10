@@ -9,9 +9,9 @@ import (
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
-const toolDescription = "Google web search. Exact name: web_search. " +
+const toolDescription = "Web search. Exact name: web_search. " +
 	"Do not invent google_search, duckduckgo, or MCP-prefixed names — leftover google-search__web_search still works. " +
-	"Returns titles, URLs, and snippets from Google. It does not update calendars. " +
+	"Returns titles, URLs, and snippets. It does not update calendars. " +
 	"If they asked to put a found address on a calendar event, call the calendar tool next."
 
 // ToolDefs returns the builtin web_search schema.
@@ -34,7 +34,7 @@ func ToolDefs() []provider.ToolDef {
 
 // Tools adapts the in-process search client into agent tool calls.
 type Tools struct {
-	svc *googleSearchService
+	svc *searchService
 }
 
 // Call executes web_search (and leftover MCP / invented aliases).
