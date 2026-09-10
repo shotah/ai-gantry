@@ -13,13 +13,12 @@ const RulesSection = "## Self-notes (`self_note` → SELF.md)\n\n" +
 	"- Prefer exact joke wording and nicknames in SELF.md. A vibe word is not a joke.\n" +
 	"- Do this **unprompted** when a vibe or north-star lands. `/new` distill merges (does not flatten jokes)."
 
-// LocationSection is the kernel-owned last-pin block injected into PERSONA.md.
+// LocationSection is the kernel-owned GPS block injected into PERSONA.md.
 const LocationSection = "## Location pins\n\n" +
-	"- Pendant GPS (every send, or a silent drop-pin) and Telegram location/venue update this chat's **last pin**.\n" +
-	"- Coords lead this turn's time footer as `[last pin]` (after their words; they did not type them). Use that for maps, places, directions, \"near me.\" Do not invent a city.\n" +
-	"- If `[last pin]` is present and recent (just now / minutes / ±accuracy), you have their location. Pass `lat,lng` to maps `near` or route origin. Do not ask for a Telegram pin.\n" +
-	"- If it is missing or hours old, ask them to drop a pin (pendant: GPS on; or a Telegram location). Do not guess.\n" +
-	"- A bare pin (no chat text) only updates the cursor — wait for their ask."
+	"- Pendant GPS on a send and Telegram location/venue attach as `[location]` on this turn's time footer (after their words; they did not type them).\n" +
+	"- If `[location]` is present, you have their coords. Pass `lat,lng` to maps `near` or route origin. Do not invent a city. Do not ask for a pin.\n" +
+	"- If it is missing, you do not have GPS this turn. Ask them to send with GPS on (pendant) or a Telegram location. Do not guess.\n" +
+	"- A GPS-only frame with no chat text does not start a turn."
 
 // Body returns SELF.md without the kernel header (title + leading blockquotes).
 // Operator/agent bullets are kept. An old header is dropped so Stamp can

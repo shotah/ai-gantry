@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/channel"
-	"github.com/shotah/ai-gantry/internal/here"
 )
 
 func TestNew_RequiresURLBearerAllowlist(t *testing.T) {
@@ -110,7 +109,7 @@ func recvReply(t *testing.T, writes <-chan []byte) outboundFrame {
 	}
 }
 
-func TestDispatch_GeoHereAndReply(t *testing.T) {
+func TestDispatch_GeoOnMessageAndReply(t *testing.T) {
 	ch, err := New(Config{
 		MailboxURL:   "wss://x.workers.dev/ws/kit",
 		Bearer:       "tok",
@@ -141,9 +140,8 @@ func TestDispatch_GeoHereAndReply(t *testing.T) {
 		if strings.Contains(msg.Text, "[location]") {
 			t.Fatal("must not stuff [location] into Text")
 		}
-		p, ok := here.Get(msg.SessionID)
-		if !ok || p.Lat != 47.6 {
-			t.Fatalf("here %+v ok=%v", p, ok)
+		if msg.Geo == nil || msg.Geo.Lat != 47.6 || msg.Geo.Lon != -122.3 {
+			t.Fatalf("geo %+v", msg.Geo)
 		}
 		return "ok", nil
 	}); err != nil {

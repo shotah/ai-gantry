@@ -1,8 +1,8 @@
 // Package pendant is an outbound WebSocket mouth to the gantry-pendant Worker.
 //
 // The crane dials the Durable Object mailbox. No inbound port. Allowlist is
-// Google sub and/or verified email. GPS on the frame updates here.Set — it is
-// never stuffed into Text.
+// Google sub and/or verified email. GPS on the frame is attached to this
+// turn's message (never stuffed into Text).
 package pendant
 
 import (
@@ -295,14 +295,13 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	}
 	sid := sessionID(c.slug, sub)
 	c.noteUser(ctx, sid, sub)
-	now := time.Now()
-	gotPin := applyGeo(sid, frame.Context, now)
+	geo := frameGeo(frame.Context)
 	if silentPin(frame.Text, frame.Images, frame.Context) {
-		c.log.Info("pendant last pin updated", "session_id", sid, "silent", true)
+		c.log.Info("pendant gps ignored (no text)", "session_id", sid)
 		return nil
 	}
-	if gotPin {
-		c.log.Info("pendant last pin updated", "session_id", sid)
+	if geo != nil {
+		c.log.Info("pendant gps", "session_id", sid)
 	} else {
 		c.log.Info("pendant inbound without geo", "session_id", sid)
 	}
@@ -330,6 +329,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		Text:      text,
 		Images:    frame.Images,
 		ChatID:    sub,
+		Geo:       geo,
 	})
 	stopTyping()
 	if err != nil {

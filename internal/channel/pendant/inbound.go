@@ -3,10 +3,8 @@ package pendant
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/shotah/ai-gantry/internal/channel"
-	"github.com/shotah/ai-gantry/internal/here"
 	"github.com/shotah/ai-gantry/internal/slash"
 )
 
@@ -175,18 +173,15 @@ func isEmail(s string) bool {
 	return at > 0 && at < len(s)-1
 }
 
-func applyGeo(sid string, ctx *frameContext, now time.Time) bool {
+func frameGeo(ctx *frameContext) *channel.Geo {
 	if ctx == nil || ctx.Geo == nil {
-		return false
+		return nil
 	}
-	// Crane clock, not phone `at`. Phone time can lie and make a this-send
-	// pin look hours old, which the persona treats as "ask for a pin."
-	p := here.Pin{Lat: ctx.Geo.Lat, Lon: ctx.Geo.Lon, At: now}
+	g := &channel.Geo{Lat: ctx.Geo.Lat, Lon: ctx.Geo.Lon}
 	if ctx.Geo.AccuracyM != nil && *ctx.Geo.AccuracyM > 0 {
-		p.AccuracyM = *ctx.Geo.AccuracyM
+		g.AccuracyM = *ctx.Geo.AccuracyM
 	}
-	here.Set(sid, p)
-	return true
+	return g
 }
 
 func silentPin(text string, images []channel.Image, ctx *frameContext) bool {

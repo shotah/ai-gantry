@@ -3,11 +3,8 @@ package telegram
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-telegram/bot/models"
-
-	"github.com/shotah/ai-gantry/internal/here"
 )
 
 func TestBareLocation(t *testing.T) {
@@ -31,18 +28,22 @@ func TestBareLocation(t *testing.T) {
 	}
 }
 
-func TestRememberPin(t *testing.T) {
-	const sid = "telegram:test-pin"
-	at := time.Date(2026, 8, 17, 9, 22, 0, 0, time.UTC)
-	rememberPin(sid, &models.Message{
+func TestInboundGeo(t *testing.T) {
+	g := inboundGeo(&models.Message{
 		Venue: &models.Venue{
 			Title:    "Cafe",
 			Location: models.Location{Latitude: 37.5, Longitude: -122.2},
 		},
-	}, at)
-	p, ok := here.Get(sid)
-	if !ok || p.Label != "Cafe" || p.Lat != 37.5 {
-		t.Fatalf("pin = %+v ok=%v", p, ok)
+	})
+	if g == nil || g.Label != "Cafe" || g.Lat != 37.5 || g.Lon != -122.2 {
+		t.Fatalf("venue geo = %+v", g)
+	}
+	g = inboundGeo(&models.Message{Location: &models.Location{Latitude: 10.5, Longitude: 106.7}})
+	if g == nil || g.Lat != 10.5 || g.Label != "" {
+		t.Fatalf("pin geo = %+v", g)
+	}
+	if inboundGeo(&models.Message{Text: "hi"}) != nil {
+		t.Fatal("text has no geo")
 	}
 }
 
@@ -51,11 +52,11 @@ func TestComposeInboundText_LocationAndCaption(t *testing.T) {
 		Caption:  "meet here",
 		Location: &models.Location{Latitude: 10.5, Longitude: 106.7},
 	})
-	if !strings.Contains(got, "[location] lat=10.500000 lon=106.700000") {
+	if got != "meet here" {
 		t.Fatalf("got %q", got)
 	}
-	if !strings.HasSuffix(got, "meet here") {
-		t.Fatalf("got %q", got)
+	if strings.Contains(got, "10.5") || strings.Contains(got, "[location]") {
+		t.Fatalf("coords must not be stuffed into text: %q", got)
 	}
 }
 
@@ -85,6 +86,9 @@ func TestComposeInboundText_VenueContactDocument(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("got %q, want %q", got, want)
 		}
+	}
+	if strings.Contains(got, "lat=") || strings.Contains(got, "1.000000") {
+		t.Fatalf("venue coords must not be in text: %q", got)
 	}
 }
 

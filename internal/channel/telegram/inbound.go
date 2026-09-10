@@ -3,11 +3,10 @@ package telegram
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/go-telegram/bot/models"
 
-	"github.com/shotah/ai-gantry/internal/here"
+	"github.com/shotah/ai-gantry/internal/channel"
 )
 
 const inboundClipMax = 200
@@ -26,9 +25,9 @@ func composeInboundText(msg *models.Message) string {
 		parts = append(parts, tag)
 	}
 	if msg.Venue != nil {
-		parts = append(parts, formatVenue(msg.Venue))
-	} else if msg.Location != nil {
-		parts = append(parts, formatLocation(msg.Location))
+		if tag := formatVenue(msg.Venue); tag != "" {
+			parts = append(parts, tag)
+		}
 	}
 	if msg.Contact != nil {
 		parts = append(parts, formatContact(msg.Contact))
@@ -51,26 +50,26 @@ func composeInboundText(msg *models.Message) string {
 	return strings.Join(parts, "\n")
 }
 
-func rememberPin(sessionID string, msg *models.Message, at time.Time) {
+func inboundGeo(msg *models.Message) *channel.Geo {
 	if msg == nil {
-		return
+		return nil
 	}
-	var lat, lon float64
-	label := ""
 	switch {
 	case msg.Venue != nil:
-		lat, lon = msg.Venue.Location.Latitude, msg.Venue.Location.Longitude
-		label = strings.TrimSpace(msg.Venue.Title)
+		return &channel.Geo{
+			Lat:   msg.Venue.Location.Latitude,
+			Lon:   msg.Venue.Location.Longitude,
+			Label: strings.TrimSpace(msg.Venue.Title),
+		}
 	case msg.Location != nil:
-		lat, lon = msg.Location.Latitude, msg.Location.Longitude
+		return &channel.Geo{Lat: msg.Location.Latitude, Lon: msg.Location.Longitude}
 	default:
-		return
+		return nil
 	}
-	here.Set(sessionID, here.Pin{Lat: lat, Lon: lon, Label: label, At: at})
 }
 
-// bareLocation is a pin/venue with no caption, text, or reply — update the
-// last-pin cursor only; do not start a model turn.
+// bareLocation is a pin/venue with no caption, text, or reply — do not start
+// a model turn. GPS-only frames are not a question.
 func bareLocation(msg *models.Message) bool {
 	if msg == nil || (msg.Location == nil && msg.Venue == nil) {
 		return false
@@ -82,20 +81,6 @@ func bareLocation(msg *models.Message) bool {
 		return false
 	}
 	return true
-}
-
-func formatLocation(loc *models.Location) string {
-	if loc == nil {
-		return ""
-	}
-	s := fmt.Sprintf("[location] lat=%.6f lon=%.6f", loc.Latitude, loc.Longitude)
-	if loc.LivePeriod > 0 {
-		s += fmt.Sprintf(" live_period=%ds", loc.LivePeriod)
-	}
-	if loc.Heading > 0 {
-		s += fmt.Sprintf(" heading=%d", loc.Heading)
-	}
-	return s
 }
 
 func formatVenue(v *models.Venue) string {
@@ -111,7 +96,6 @@ func formatVenue(v *models.Venue) string {
 	if addr != "" {
 		s += " — " + addr
 	}
-	s += fmt.Sprintf(" (lat=%.6f lon=%.6f)", v.Location.Latitude, v.Location.Longitude)
 	return s
 }
 

@@ -91,7 +91,7 @@ func TestLoad_StampsSelfAndPersona(t *testing.T) {
 		!strings.Contains(got, "A vibe word is not a joke") {
 		t.Fatalf("PERSONA stamp missing: %q", got)
 	}
-	if !strings.Contains(got, "## Location pins") || !strings.Contains(got, "[last pin]") {
+	if !strings.Contains(got, "## Location pins") || !strings.Contains(got, "[location]") {
 		t.Fatalf("location stamp missing: %q", got)
 	}
 	if !strings.Contains(got, "## Follow-up") || !strings.Contains(got, "[wait]") {

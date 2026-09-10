@@ -4,28 +4,21 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/shotah/ai-gantry/internal/channel"
-	"github.com/shotah/ai-gantry/internal/here"
 )
 
-func TestApplyGeo_DoesNotStuffLocationIntoText(t *testing.T) {
-	sid := "pendant:kit:geo-test"
-	now := time.Date(2026, 9, 9, 21, 20, 0, 0, time.UTC)
+func TestFrameGeo(t *testing.T) {
 	acc := 8.0
-	if !applyGeo(sid, &frameContext{
+	g := frameGeo(&frameContext{
 		At:  "2020-01-01T00:00:00Z",
 		Geo: &geo{Lat: 47.6, Lon: -122.3, AccuracyM: &acc},
-	}, now) {
-		t.Fatal("applyGeo")
+	})
+	if g == nil || g.Lat != 47.6 || g.Lon != -122.3 || g.AccuracyM != 8 {
+		t.Fatalf("geo = %+v", g)
 	}
-	p, ok := here.Get(sid)
-	if !ok || p.Lat != 47.6 || p.Lon != -122.3 || p.AccuracyM != 8 {
-		t.Fatalf("pin = %+v ok=%v", p, ok)
-	}
-	if !p.At.Equal(now) {
-		t.Fatalf("At = %v, want crane now (not phone at)", p.At)
+	if frameGeo(nil) != nil || frameGeo(&frameContext{}) != nil {
+		t.Fatal("empty")
 	}
 }
 
@@ -38,14 +31,9 @@ func TestInboundFrame_PendantGPSJSON(t *testing.T) {
 	if frame.Context == nil || frame.Context.Geo == nil || frame.Context.Geo.Lat != 47.6 || frame.Context.Geo.Lon != -122.3 {
 		t.Fatalf("geo not unmarshaled: %+v", frame.Context)
 	}
-	sid := "pendant:kit:json-geo"
-	now := time.Date(2026, 9, 9, 21, 20, 0, 0, time.UTC)
-	if !applyGeo(sid, frame.Context, now) {
-		t.Fatal("applyGeo")
-	}
-	p, ok := here.Get(sid)
-	if !ok || p.Lat != 47.6 || p.AccuracyM != 8 || !p.At.Equal(now) {
-		t.Fatalf("pin %+v ok=%v", p, ok)
+	g := frameGeo(frame.Context)
+	if g == nil || g.Lat != 47.6 || g.AccuracyM != 8 {
+		t.Fatalf("geo %+v", g)
 	}
 }
 

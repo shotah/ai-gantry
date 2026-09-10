@@ -158,9 +158,9 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 		}
 
 		sessionID := sessionKey(msg.Chat.ID, userID, msg.MessageThreadID)
-		rememberPin(sessionID, msg, time.Now())
+		geo := inboundGeo(msg)
 		if bareLocation(msg) {
-			c.log.Info("telegram last pin updated", "session_id", sessionID)
+			c.log.Info("telegram location ignored (no text)", "session_id", sessionID)
 			return
 		}
 		text := composeInboundText(msg)
@@ -185,6 +185,7 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 			ThreadID:  msg.MessageThreadID,
 			Text:      text,
 			Images:    images,
+			Geo:       geo,
 		}, msg.Chat.ID, msg.MessageThreadID)
 	}
 }

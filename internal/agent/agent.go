@@ -16,7 +16,6 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/cron"
-	"github.com/shotah/ai-gantry/internal/here"
 	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/mcpenable"
 	"github.com/shotah/ai-gantry/internal/memory"
@@ -525,12 +524,9 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	// calendar/tool fixation on small local models. Fresh each Handle.
 	now := time.Now().In(loc)
 	clock := temporalAnchor(now, tzName)
-	if p, ok := here.Get(msg.SessionID); ok {
-		if line := here.Format(p, now, tzName); line != "" {
-			// Pin first: a 10-line week grid is where small models stop
-			// reading, then they ask for a Telegram pin.
-			clock = line + "\n" + clock
-		}
+	if line := msg.Geo.Footer(); line != "" {
+		// Coords first: a 10-line week grid is where small models stop reading.
+		clock = line + "\n" + clock
 	}
 	if a.memory != nil {
 		raw := ""
