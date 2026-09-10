@@ -2,7 +2,7 @@
 //
 // The crane dials the Durable Object mailbox. No inbound port. Allowlist is
 // Google sub and/or verified email. GPS on the frame is attached to this
-// turn's message (never stuffed into Text).
+// turn (never stuffed into Text) and cached as last known for later turns.
 package pendant
 
 import (
@@ -20,6 +20,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/here"
 )
 
 const typingInterval = 4 * time.Second
@@ -296,8 +297,9 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	sid := sessionID(c.slug, sub)
 	c.noteUser(ctx, sid, sub)
 	geo := frameGeo(frame.Context)
+	here.Remember(sid, geo, time.Now())
 	if silentPin(frame.Text, frame.Images, frame.Context) {
-		c.log.Info("pendant gps ignored (no text)", "session_id", sid)
+		c.log.Info("pendant gps cached (no text)", "session_id", sid)
 		return nil
 	}
 	if geo != nil {

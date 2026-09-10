@@ -15,10 +15,9 @@ const RulesSection = "## Self-notes (`self_note` → SELF.md)\n\n" +
 
 // LocationSection is the kernel-owned GPS block injected into PERSONA.md.
 const LocationSection = "## Location pins\n\n" +
-	"- Pendant GPS on a send and Telegram location/venue attach as `[location]` on this turn's time footer (after their words; they did not type them).\n" +
-	"- If `[location]` is present, you have their coords. Pass `lat,lng` to maps `near` or route origin. Do not invent a city. Do not ask for a pin.\n" +
-	"- If it is missing, you do not have GPS this turn. Ask them to send with GPS on (pendant) or a Telegram location. Do not guess.\n" +
-	"- A GPS-only frame with no chat text does not start a turn."
+	"- Pendant GPS and Telegram location/venue update this chat's last known `[location]` (in-memory). A GPS-only frame with no chat text updates that cache and does not start a turn.\n" +
+	"- `[location]` is on this turn's user-line time footer (after their words; they did not type it), with when it was from. Use those `lat,lng` for maps `near` or route origin. Do not invent a city.\n" +
+	"- just now / minutes: you have a current fix. Hours old: still their last known place — say so if a live pin matters, otherwise use it. Missing: no GPS this process; ask them to send with GPS on (pendant) or a Telegram location. Do not guess."
 
 // Body returns SELF.md without the kernel header (title + leading blockquotes).
 // Operator/agent bullets are kept. An old header is dropped so Stamp can

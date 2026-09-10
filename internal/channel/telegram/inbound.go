@@ -68,8 +68,8 @@ func inboundGeo(msg *models.Message) *channel.Geo {
 	}
 }
 
-// bareLocation is a pin/venue with no caption, text, or reply — do not start
-// a model turn. GPS-only frames are not a question.
+// bareLocation is a pin/venue with no caption, text, or reply — cache GPS
+// and do not start a model turn.
 func bareLocation(msg *models.Message) bool {
 	if msg == nil || (msg.Location == nil && msg.Venue == nil) {
 		return false

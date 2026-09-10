@@ -4,9 +4,11 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/here"
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
@@ -21,8 +23,11 @@ func TestHandle_LocationOnThisSend(t *testing.T) {
 		if !strings.Contains(clock, "[location]") || !strings.Contains(clock, "37.386051") || !strings.Contains(clock, "Cafe") {
 			t.Errorf("user turn missing location: %q", clock)
 		}
-		if strings.Contains(clock, "[last pin]") || strings.Contains(clock, "ago") {
-			t.Errorf("must not use last-pin: %q", clock)
+		if !strings.Contains(clock, "just now") {
+			t.Errorf("this-send GPS should be just now: %q", clock)
+		}
+		if strings.Contains(clock, "[last pin]") {
+			t.Errorf("must not say last pin: %q", clock)
 		}
 		return &provider.Result{Content: "ok"}, nil
 	}}
@@ -31,7 +36,7 @@ func TestHandle_LocationOnThisSend(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := a.Handle(context.Background(), channel.Message{
-		SessionID: "pin-s",
+		SessionID: "loc-this-send",
 		Text:      "restaurants",
 		Geo:       &channel.Geo{Lat: 37.386051, Lon: -122.083855, Label: "Cafe"},
 	}); err != nil {
@@ -52,13 +57,43 @@ func TestHandle_NoLocationWithoutGeo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "hi"}); err != nil {
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "loc-empty", Text: "hi"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestHandle_CachedLocationOnLaterTurn(t *testing.T) {
+	sid := "loc-cached"
+	here.Set(sid, here.Pin{
+		Lat: 47.6, Lon: -122.3,
+		At: time.Now().Add(-3 * time.Minute),
+	})
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		var user string
+		for _, m := range req.Messages {
+			if m.Role == provider.RoleUser {
+				user = m.Content
+			}
+		}
+		if !strings.Contains(user, "hi") || !strings.Contains(user, "[location]") || !strings.Contains(user, "47.600000") {
+			t.Errorf("cached GPS missing from user lines: %q", user)
+		}
+		if !strings.Contains(user, "3m ago") {
+			t.Errorf("cached GPS should show age: %q", user)
+		}
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{Completer: fc, Sessions: newMemHistory(), Model: "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: sid, Text: "hi"}); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestHandle_PendantGPSLeadsClockFooterOnUserTurn(t *testing.T) {
-	sid := "pendant:kit:1182"
+	sid := "pendant:kit:loc-footer"
 	hist := newMemHistory()
 	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
 		var user string

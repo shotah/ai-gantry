@@ -151,13 +151,14 @@ miss them.
 - Telegram **reactions** settle into a `[reaction]` line (not a fake user
   message that steers the live turn)
 - Photos: inbound → vision; outbound `SendPhoto` for image URLs in the reply
-- Pendant GPS / Telegram location on a send → `[location]` on this turn’s
-  time footer (not stored in history)
+- Last known GPS is cached in memory (pendant send or Telegram pin; silent
+  GPS-only frames update the cache and do not start a turn). `[location]` with
+  when it was from goes on this turn’s **user** footer (not stored in history)
 
 ### Time, cron, spark, examples
 
 - Per-turn **temporal footer** on this turn’s user message (not stored in
-  history): NOW, day-part, `[location]` when this send has GPS, yesterday/today/tomorrow, week grid
+  history): NOW, day-part, last known `[location]` when we have one, yesterday/today/tomorrow, week grid
   with ISO dates so “Monday” cannot reuse after the week rolls
 - **Cron**: SQLite jobs, `cron_schedule` / `cron_list` / `cron_cancel`,
   timezone, overlap policy, `[silent]` skip-push

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/here"
 )
 
 func TestNew_RequiresURLBearerAllowlist(t *testing.T) {
@@ -143,6 +144,10 @@ func TestDispatch_GeoOnMessageAndReply(t *testing.T) {
 		if msg.Geo == nil || msg.Geo.Lat != 47.6 || msg.Geo.Lon != -122.3 {
 			t.Fatalf("geo %+v", msg.Geo)
 		}
+		p, ok := here.Get(msg.SessionID)
+		if !ok || p.Lat != 47.6 {
+			t.Fatalf("cache %+v ok=%v", p, ok)
+		}
 		return "ok", nil
 	}); err != nil {
 		t.Fatal(err)
@@ -176,6 +181,10 @@ func TestDispatch_BareGeoSilentAndDeny(t *testing.T) {
 	}
 	if called {
 		t.Fatal("bare geo must not start a turn")
+	}
+	p, ok := here.Get("pendant:kit:1182")
+	if !ok || p.Lat != 1 || p.Lon != 2 {
+		t.Fatalf("silent geo should cache last known: %+v ok=%v", p, ok)
 	}
 	select {
 	case <-fc.writes:

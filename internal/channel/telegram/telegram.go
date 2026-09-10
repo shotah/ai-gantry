@@ -20,6 +20,7 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/here"
 	"github.com/shotah/ai-gantry/internal/slash"
 )
 
@@ -159,8 +160,9 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 
 		sessionID := sessionKey(msg.Chat.ID, userID, msg.MessageThreadID)
 		geo := inboundGeo(msg)
+		here.Remember(sessionID, geo, time.Now())
 		if bareLocation(msg) {
-			c.log.Info("telegram location ignored (no text)", "session_id", sessionID)
+			c.log.Info("telegram location cached (no text)", "session_id", sessionID)
 			return
 		}
 		text := composeInboundText(msg)
