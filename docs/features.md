@@ -156,8 +156,9 @@ miss them.
 
 ### Time, cron, spark, examples
 
-- Per-turn **temporal footer**: NOW, day-part, yesterday/today/tomorrow,
-  week grid with ISO dates so “Monday” cannot reuse after the week rolls
+- Per-turn **temporal footer** on this turn’s user message (not stored in
+  history): NOW, day-part, `[last pin]`, yesterday/today/tomorrow, week grid
+  with ISO dates so “Monday” cannot reuse after the week rolls
 - **Cron**: SQLite jobs, `cron_schedule` / `cron_list` / `cron_cancel`,
   timezone, overlap policy, `[silent]` skip-push
 - Live-data cron: tool-first wrapper; zero-tool draft gets one nudge, then

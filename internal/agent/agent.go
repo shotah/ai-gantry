@@ -519,16 +519,16 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			userMsg.ImageURLs = append(userMsg.ImageURLs, u)
 		}
 	}
-	messages = append(messages, userMsg)
-	// Clock footer (not stored in history): after the user turn so the model
-	// reads intent first. Leading with [current time] primed calendar/tool
-	// fixation on small local models. Fresh each turn for "what time is it?".
+	// Clock footer (not stored in history): same user message, after their
+	// words. A trailing RoleSystem note is easy to skip when the model
+	// inspects "the message"; leading with [current time] primed
+	// calendar/tool fixation on small local models. Fresh each Handle.
 	now := time.Now().In(loc)
 	clock := temporalAnchor(now, tzName)
 	if p, ok := here.Get(msg.SessionID); ok {
 		if line := here.Format(p, now, tzName); line != "" {
-			// Pin first: a 10-line week grid after the user turn is where
-			// small models stop reading, then they ask for a Telegram pin.
+			// Pin first: a 10-line week grid is where small models stop
+			// reading, then they ask for a Telegram pin.
 			clock = line + "\n" + clock
 		}
 	}
@@ -541,10 +541,8 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		}
 		clock += "\n" + memory.ParseHours(raw).Footer()
 	}
-	messages = append(messages, provider.Message{
-		Role:    provider.RoleSystem,
-		Content: clock,
-	})
+	userMsg.Content = storeText + "\n\n" + clock
+	messages = append(messages, userMsg)
 	if a.wait != nil {
 		messages = append(messages, provider.Message{
 			Role:    provider.RoleSystem,

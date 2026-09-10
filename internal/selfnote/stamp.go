@@ -16,7 +16,7 @@ const RulesSection = "## Self-notes (`self_note` → SELF.md)\n\n" +
 // LocationSection is the kernel-owned last-pin block injected into PERSONA.md.
 const LocationSection = "## Location pins\n\n" +
 	"- Pendant GPS (every send, or a silent drop-pin) and Telegram location/venue update this chat's **last pin**.\n" +
-	"- Coords lead the time footer as `[last pin]`, not the user text. Use that for maps, places, directions, \"near me.\" Do not invent a city.\n" +
+	"- Coords lead this turn's time footer as `[last pin]` (after their words; they did not type them). Use that for maps, places, directions, \"near me.\" Do not invent a city.\n" +
 	"- If `[last pin]` is present and recent (just now / minutes / ±accuracy), you have their location. Pass `lat,lng` to maps `near` or route origin. Do not ask for a Telegram pin.\n" +
 	"- If it is missing or hours old, ask them to drop a pin (pendant: GPS on; or a Telegram location). Do not guess.\n" +
 	"- A bare pin (no chat text) only updates the cursor — wait for their ask."

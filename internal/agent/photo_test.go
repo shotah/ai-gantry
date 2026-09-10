@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/shotah/ai-gantry/internal/agent"
@@ -31,7 +32,7 @@ func TestAgent_Handle_PhotoVision(t *testing.T) {
 	var photo *provider.Message
 	for i := range fc.last.Messages {
 		m := &fc.last.Messages[i]
-		if m.Role == provider.RoleUser && m.Content == "[photo]" {
+		if m.Role == provider.RoleUser && strings.HasPrefix(m.Content, "[photo]") {
 			photo = m
 			break
 		}

@@ -476,21 +476,24 @@ func TestAgent_Handle_MemoryHydration(t *testing.T) {
 	if _, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "hello chris"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(last.Messages) < 4 {
-		t.Fatalf("want persona + memory + user + anchor, got %d", len(last.Messages))
+	if len(last.Messages) < 3 {
+		t.Fatalf("want persona + memory + user, got %d", len(last.Messages))
 	}
 	if !strings.Contains(last.Messages[0].Content, "Persona files") {
 		t.Fatalf("persona missing precedence note: %q", last.Messages[0].Content)
 	}
 	// Hydration is volatile per-turn content: it must sit AFTER history so the
 	// stable prompt prefix is cacheable across turns. Temporal clock is a
-	// footer after the user message (intent first, clock as reference).
+	// footer on the user message (intent first, clock as reference).
 	n := len(last.Messages)
-	if !strings.Contains(last.Messages[n-3].Content, "[memory]") {
-		t.Fatalf("missing hydration before user: %q", last.Messages[n-3].Content)
+	if last.Messages[n-1].Role != provider.RoleUser {
+		t.Fatalf("want user last (with clock), got %q", last.Messages[n-1].Role)
 	}
-	if last.Messages[n-2].Role != provider.RoleUser {
-		t.Fatalf("want user before temporal footer, got %q", last.Messages[n-2].Role)
+	if !strings.Contains(last.Messages[n-2].Content, "[memory]") {
+		t.Fatalf("missing hydration before user: %q", last.Messages[n-2].Content)
+	}
+	if !strings.Contains(last.Messages[n-1].Content, "hello chris") {
+		t.Fatalf("missing user text: %q", last.Messages[n-1].Content)
 	}
 	if !strings.Contains(last.Messages[n-1].Content, "[current time]") {
 		t.Fatalf("missing temporal footer: %q", last.Messages[n-1].Content)
@@ -1411,18 +1414,21 @@ func TestAgent_Handle_PersonaAndHistory(t *testing.T) {
 	if reply != "hi back" {
 		t.Fatalf("reply = %q", reply)
 	}
-	// persona + user + temporal footer
-	if len(last.Messages) != 3 {
-		t.Fatalf("messages = %d, want 3", len(last.Messages))
+	// persona + user (words + temporal footer on the same turn)
+	if len(last.Messages) != 2 {
+		t.Fatalf("messages = %d, want 2", len(last.Messages))
 	}
 	if last.Messages[1].Role != provider.RoleUser {
-		t.Fatalf("want user before temporal footer, got %q", last.Messages[1].Role)
+		t.Fatalf("want user with temporal footer, got %q", last.Messages[1].Role)
 	}
-	if !strings.Contains(last.Messages[2].Content, "[current time]") {
-		t.Fatalf("missing temporal footer: %q", last.Messages[2].Content)
+	if !strings.HasPrefix(last.Messages[1].Content, "hello\n\n") {
+		t.Fatalf("want user words before clock: %q", last.Messages[1].Content)
 	}
-	if !strings.Contains(last.Messages[2].Content, "America/Los_Angeles") {
-		t.Fatalf("temporal missing tz: %q", last.Messages[2].Content)
+	if !strings.Contains(last.Messages[1].Content, "[current time]") {
+		t.Fatalf("missing temporal footer: %q", last.Messages[1].Content)
+	}
+	if !strings.Contains(last.Messages[1].Content, "America/Los_Angeles") {
+		t.Fatalf("temporal missing tz: %q", last.Messages[1].Content)
 	}
 	// Anchor must not be persisted into session history.
 	stored, err := hist.Messages(context.Background(), "s1")
@@ -2053,7 +2059,7 @@ func TestAgent_StripFillersOnOldHistory(t *testing.T) {
 	if users[0] == "the calendar on Tuesday" || strings.Contains(users[0], " the ") {
 		t.Fatalf("oldest history not stripped: %q", users[0])
 	}
-	if users[len(users)-1] != "hi" {
+	if !strings.HasPrefix(users[len(users)-1], "hi\n\n") || !strings.Contains(users[len(users)-1], "[current time]") {
 		t.Fatalf("current user = %q", users[len(users)-1])
 	}
 	if len(assistants) == 0 || assistants[0] != "the day is clear" {

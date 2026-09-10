@@ -7,11 +7,12 @@ import (
 )
 
 // temporalAnchor returns a fresh per-turn clock note for the model.
-// Appended as a footer after the user message (not a header before it) so the
-// model reads intent first; not persisted in session history — regenerated on
-// every Handle. NOW and the day-part are first so meal/calendar planning does
-// not slide to lunch or a future event. The week grid uses ISO dates so
-// weekday-only memory ("Monday") cannot be reused after the week rolls.
+// Appended to this turn's user message (not a header before it, not a trailing
+// system note) so the model reads intent first and still sees NOW as part of
+// the turn; not persisted in session history — regenerated on every Handle.
+// NOW and the day-part are first so meal/calendar planning does not slide to
+// lunch or a future event. The week grid uses ISO dates so weekday-only
+// memory ("Monday") cannot be reused after the week rolls.
 func temporalAnchor(now time.Time, tzName string) string {
 	if tzName == "" {
 		tzName = now.Location().String()
