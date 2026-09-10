@@ -88,7 +88,7 @@ func TestTools_RequiresDeliveryAndPrefixedTool(t *testing.T) {
 	}
 }
 
-func TestTools_NilStoreAndSessionGuard(t *testing.T) {
+func TestTools_NilStoreAndCancelAny(t *testing.T) {
 	ctx := cron.WithDelivery(context.Background(), cron.Delivery{SessionID: "s"})
 	if _, err := (watch.Tools{}).Call(ctx, watch.ToolList, nil); err == nil {
 		t.Fatal("expected nil store")
@@ -103,10 +103,7 @@ func TestTools_NilStoreAndSessionGuard(t *testing.T) {
 		t.Fatal("empty add")
 	}
 	other := cron.WithDelivery(context.Background(), cron.Delivery{SessionID: "other"})
-	if _, err := tools.Call(other, watch.ToolCancel, json.RawMessage(`{"id":1}`)); err == nil {
-		t.Fatal("expected other-session cancel reject")
-	}
-	if _, err := tools.Call(ctx, watch.ToolCancel, json.RawMessage(`{"id":1}`)); err != nil {
+	if _, err := tools.Call(other, watch.ToolCancel, json.RawMessage(`{"id":1}`)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := tools.Call(ctx, watch.ToolCancel, json.RawMessage(`{"id":true}`)); err == nil {

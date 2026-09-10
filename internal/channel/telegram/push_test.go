@@ -10,20 +10,6 @@ import (
 	"github.com/shotah/ai-gantry/internal/channel"
 )
 
-func TestResolveChatID(t *testing.T) {
-	id, err := resolveChatID(channel.Outbound{ChatID: "99"})
-	if err != nil || id != 99 {
-		t.Fatalf("%d %v", id, err)
-	}
-	id, err = resolveChatID(channel.Outbound{SessionID: "telegram:12:34"})
-	if err != nil || id != 12 {
-		t.Fatalf("%d %v", id, err)
-	}
-	if _, err := resolveChatID(channel.Outbound{SessionID: "stdio"}); err == nil {
-		t.Fatal("expected error")
-	}
-}
-
 func TestChannel_NotifyHTML(t *testing.T) {
 	m := newAPIMock(t)
 	ch, err := New(Config{Token: testBotToken, AllowedUsers: []int64{42}})
@@ -54,7 +40,7 @@ func TestChannel_Push(t *testing.T) {
 		return bot.New(token, opts...)
 	}
 	err = ch.Push(context.Background(), channel.Outbound{
-		UserID: "42",
+		UserID: "999",
 		ChatID: "7",
 		Text:   "hello from cron",
 	})
@@ -63,14 +49,6 @@ func TestChannel_Push(t *testing.T) {
 	}
 	if m.count("sendMessage") < 1 {
 		t.Fatal("expected sendMessage")
-	}
-	err = ch.Push(context.Background(), channel.Outbound{
-		UserID: "999",
-		ChatID: "7",
-		Text:   "nope",
-	})
-	if err == nil {
-		t.Fatal("expected allowlist deny")
 	}
 }
 

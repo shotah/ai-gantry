@@ -36,6 +36,7 @@ type outboundFrame struct {
 	Text     string          `json:"text,omitempty"`
 	Kind     string          `json:"kind,omitempty"`
 	UserID   string          `json:"user_id,omitempty"`
+	ID       string          `json:"id,omitempty"`
 	Commands []slash.Command `json:"commands,omitempty"`
 	Users    []Entry         `json:"users,omitempty"`
 }
@@ -52,15 +53,6 @@ func cmdsFrame() outboundFrame {
 
 func allowFrame(users []Entry) outboundFrame {
 	return outboundFrame{Kind: "allow", Users: users}
-}
-
-func sessionID(slug, sub string) string {
-	slug = strings.TrimSpace(slug)
-	sub = strings.TrimSpace(sub)
-	if slug == "" {
-		slug = "crane"
-	}
-	return "pendant:" + slug + ":" + sub
 }
 
 // ParseEntry reads one allowlist token. Email is lowercased. Neither digits

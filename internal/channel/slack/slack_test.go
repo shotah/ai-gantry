@@ -42,13 +42,7 @@ func TestNew_RequiresTokensAndAllowlist(t *testing.T) {
 	}
 }
 
-func TestSessionKeyStripMention(t *testing.T) {
-	if got := sessionKey("C1", "U1", ""); got != "slack:C1:U1" {
-		t.Fatal(got)
-	}
-	if got := sessionKey("C1", "U1", "123.456"); got != "slack:C1:U1:123.456" {
-		t.Fatal(got)
-	}
+func TestStripMention(t *testing.T) {
 	if got := stripMention("hi <@B99> there", "B99"); got != "hi  there" {
 		t.Fatalf("%q", got)
 	}
@@ -145,7 +139,7 @@ func TestPushAndDispatch(t *testing.T) {
 	ch.botUser = "BOT"
 
 	err = ch.Push(context.Background(), channel.Outbound{
-		UserID: "U42",
+		UserID: "U9",
 		ChatID: "D99",
 		Text:   "cron hi",
 	})
@@ -154,10 +148,6 @@ func TestPushAndDispatch(t *testing.T) {
 	}
 	if len(api.posts) != 1 || api.posts[0].text != "cron hi" {
 		t.Fatalf("%+v", api.posts)
-	}
-
-	if err := ch.Push(context.Background(), channel.Outbound{UserID: "U9", ChatID: "D1", Text: "x"}); err == nil {
-		t.Fatal("allowlist")
 	}
 
 	handled := make(chan channel.Message, 1)
@@ -172,7 +162,7 @@ func TestPushAndDispatch(t *testing.T) {
 		return "ok", nil
 	})
 	msg := <-handled
-	if msg.SessionID != "slack:D99:U42" || msg.Text != "/status" {
+	if msg.SessionID != channel.AgentSession || msg.Text != "/status" {
 		t.Fatalf("%+v", msg)
 	}
 	if len(api.posts) < 2 || api.posts[len(api.posts)-1].text != "ok" {
@@ -202,25 +192,13 @@ func TestPushAndDispatch(t *testing.T) {
 		if msg.Text != "hello" {
 			t.Fatalf("text=%q", msg.Text)
 		}
-		if msg.SessionID != "slack:C1:U42:9.0" {
+		if msg.SessionID != channel.AgentSession {
 			t.Fatalf("session=%q", msg.SessionID)
 		}
 		return "pong", nil
 	})
 	if api.posts[len(api.posts)-1].text != "pong" || api.posts[len(api.posts)-1].thread != "9.0" {
 		t.Fatalf("%+v", api.posts[len(api.posts)-1])
-	}
-}
-
-func TestResolveDest(t *testing.T) {
-	api := &capturingPoster{}
-	ch, thread, err := resolveDest(api, channel.Outbound{SessionID: "slack:C1:U1:1.2"})
-	if err != nil || ch != "C1" || thread != "1.2" {
-		t.Fatalf("%q %q %v", ch, thread, err)
-	}
-	ch, _, err = resolveDest(api, channel.Outbound{UserID: "U9"})
-	if err != nil || ch != "D-U9" {
-		t.Fatalf("%q %v", ch, err)
 	}
 }
 

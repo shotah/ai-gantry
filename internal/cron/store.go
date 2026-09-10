@@ -8,6 +8,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver
+
+	"github.com/shotah/ai-gantry/internal/channel"
 )
 
 // Job is one scheduled turn.
@@ -90,6 +92,54 @@ func (s *Store) migrate() error {
 	_, _ = s.db.Exec(`ALTER TABLE cron_job ADD COLUMN memory_id INTEGER`)
 	_, _ = s.db.Exec(`ALTER TABLE cron_job ADD COLUMN memory_subject TEXT NOT NULL DEFAULT ''`)
 	_, _ = s.db.Exec(`ALTER TABLE session_pref ADD COLUMN spark_qty TEXT NOT NULL DEFAULT ''`)
+	return s.collapseAgentScope()
+}
+
+// collapseAgentScope moves leftover per-mouth session/user/chat columns onto
+// the one agent conversation. CHANNEL is the mouth; jobs do not route.
+func (s *Store) collapseAgentScope() error {
+	sid := channel.AgentSession
+	now := formatCronTime(time.Now().UTC())
+	if _, err := s.db.Exec(`
+		UPDATE cron_job SET session_id = ?, user_id = '', chat_id = '', thread_id = 0, updated_at = ?
+		WHERE session_id != ? OR user_id != '' OR chat_id != '' OR thread_id != 0`,
+		sid, now, sid); err != nil {
+		return fmt.Errorf("cron: collapse jobs: %w", err)
+	}
+	ctx := context.Background()
+	if job, ok, err := s.FindSpark(ctx, sid); err != nil {
+		return err
+	} else if ok {
+		_ = s.disableExtraSparkPlanners(ctx, sid, job.ID)
+	}
+	if job, ok, err := s.FindExamples(ctx, sid); err != nil {
+		return err
+	} else if ok {
+		_ = s.disableExtraExamplesPlanners(ctx, sid, job.ID)
+	}
+	return s.collapsePrefs(sid)
+}
+
+func (s *Store) collapsePrefs(sid string) error {
+	var src string
+	err := s.db.QueryRow(`SELECT session_id FROM session_pref ORDER BY updated_at DESC LIMIT 1`).Scan(&src)
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("cron: collapse prefs: %w", err)
+	}
+	if src != sid {
+		if _, err := s.db.Exec(`DELETE FROM session_pref WHERE session_id = ?`, sid); err != nil {
+			return fmt.Errorf("cron: collapse prefs: %w", err)
+		}
+		if _, err := s.db.Exec(`UPDATE session_pref SET session_id = ? WHERE session_id = ?`, sid, src); err != nil {
+			return fmt.Errorf("cron: collapse prefs: %w", err)
+		}
+	}
+	if _, err := s.db.Exec(`DELETE FROM session_pref WHERE session_id != ?`, sid); err != nil {
+		return fmt.Errorf("cron: collapse prefs: %w", err)
+	}
 	return nil
 }
 
@@ -101,39 +151,6 @@ func (s *Store) ActiveCount(ctx context.Context) (int, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM cron_job WHERE enabled = 1`).Scan(&n)
 	return n, err
-}
-
-// EnabledUserIDsPrefix lists distinct user_ids on enabled jobs whose
-// session_id starts with prefix (e.g. "pendant:" after a crane restart).
-func (s *Store) EnabledUserIDsPrefix(ctx context.Context, prefix string) ([]string, error) {
-	if s == nil {
-		return nil, nil
-	}
-	prefix = strings.TrimSpace(prefix)
-	if prefix == "" {
-		return nil, nil
-	}
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT DISTINCT user_id FROM cron_job
-		WHERE enabled = 1 AND user_id != '' AND session_id LIKE ?
-		ORDER BY user_id`, prefix+"%")
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		id = strings.TrimSpace(id)
-		if id == "" {
-			continue
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
 }
 
 const jobColumns = `id, prompt, kind, expr, timezone, next_run_at,
@@ -159,6 +176,9 @@ func (s *Store) schedule(ctx context.Context, prompt string, p Parsed, delivery 
 	if delivery.SessionID == "" {
 		return Job{}, fmt.Errorf("cron: delivery session_id is required")
 	}
+	delivery.UserID = ""
+	delivery.ChatID = ""
+	delivery.ThreadID = 0
 	n, err := s.ActiveCount(ctx)
 	if err != nil {
 		return Job{}, err

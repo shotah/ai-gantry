@@ -2,9 +2,12 @@
 
 Proactive jobs are **long-horizon harness work**: they live in SQLite and
 fire inside gantry — run the normal agent loop (MCP tools allowed), then
-**push** the reply on Telegram (or print on stdio). Pure-MCP cron cannot
-deliver outbound chat by itself. A reminder next Tuesday is planning;
-a chatbot that only answers now is not.
+**push** on the current CHANNEL (Telegram, pendant, Discord, Slack, or
+stdio). Jobs do not store a destination. Switching `CHANNEL=telegram` to
+`CHANNEL=pendant` keeps the 7am morning summary: same row, same `next_run`,
+Push now uses the pendant allowlist. Pure-MCP cron cannot deliver outbound
+chat by itself. A reminder next Tuesday is planning; a chatbot that only
+answers now is not.
 
 Live-data jobs (calendar, mail, fitness, search, sheets) get a tool-first
 wrapper plus a last-token system note so the model calls tools before drafting
@@ -48,7 +51,7 @@ work does not need a human-facing message.
 
 | Tool | Purpose |
 | --- | --- |
-| `cron_schedule` | Create a job bound to the current chat/session. Optional `memory_id` / `memory_subject` pins a memory row; the wake injects `[job memory]`. |
+| `cron_schedule` | Create a job for this agent. Optional `memory_id` / `memory_subject` pins a memory row; the wake injects `[job memory]`. Push uses the CHANNEL allowlist. |
 | `cron_list` | List active jobs |
 | `cron_cancel` | Disable by id (spark planner also cancels pending `spark_ping` rows) |
 
@@ -79,17 +82,17 @@ Random **horizon wakes** — replan today against `SELF.md` north-stars and memo
 months-scale question (do not invent an aim), then `self_note` + `memory_store`
 `aim/<area>` when they answer. **Off with `/engagement off`** (same as `/spark off`).
 
-On Telegram, boot auto-binds a spark **planner** per allowlisted DM (`chat_id` =
-user id) and seeds that day's wakes. On pendant, the same bind runs for each
-allowlist row that has a Google `sub` (`ChatID` stays the `sub`, never the
-email). Other channels: `/spark on` or `cron_schedule`
-(`repeat=spark`, `when=3-5@06-21`).
+On boot, one spark **planner** is bound to the agent conversation (`gantry`).
+`CHANNEL` is the mouth; jobs do not store a chat or user id. Push delivers to
+every allowlisted destination on that mouth. Switching Telegram → pendant
+keeps the same cron, spark pings, watches, memory, and history. Other
+channels: same auto-bind (`/spark off` still opts out).
 
-Chat controls (persist per session, like `/examples`):
+Chat controls (persist on the agent, like `/examples`):
 
 | Command | Effect |
 | --- | --- |
-| `/engagement` / `/spark` | Same command. Status (default qty, this chat, window) |
+| `/engagement` / `/spark` | Same command. Status (default qty, this agent, window) |
 | `/engagement on` | Inherit operator default |
 | `/engagement off` | Opt out (dated user crons still fire) |
 | `/engagement 2` / `/spark 4-6` | Override count/day (1–24) |
@@ -100,8 +103,8 @@ How it works:
    **tomorrow's** window start (not a second roll for today once `next_run` is tomorrow).
 2. It rolls qty in `[min, max]` and inserts that many one-shot `spark_ping` jobs,
    spaced across the remaining window so the day stays balanced and the minimum is hit.
-3. Before each seed (planner wake or boot catch-up), pending `spark_ping` rows for that
-   session are cancelled — prior-day leftovers and restarts do **not** compound.
+3. Before each seed (planner wake or boot catch-up), pending `spark_ping` rows for the
+   agent are cancelled — prior-day leftovers and restarts do **not** compound.
    Once today is planned (planner `next_run` is tomorrow), reboot does not roll a second set.
 4. Each wake picks one line from the built-in pool and runs the **full
    agent loop** (memory, cron, MCP tools). A zero-tool joke is nudged once; a second
@@ -111,7 +114,7 @@ How it works:
 5. Work-only is the default: reply `[silent]` unless a hole needs the human (or the
    board is empty and it is time to ask once). Ask-first still applies (no email,
    spend, or public posts from a spark).
-6. Cancelling the spark planner (`cron_cancel`) also disables pending pings for that session.
+6. Cancelling the spark planner (`cron_cancel`) also disables pending pings.
 
 ## Capability examples / training wheels (on by default)
 
@@ -123,13 +126,13 @@ Chat controls:
 | Command | Effect |
 | --- | --- |
 | `/examples` | One suggestion now (filtered to connected MCP servers) |
-| `/examples on` / `true` | Re-enable proactive pings for this chat |
+| `/examples on` / `true` | Re-enable proactive pings |
 | `/examples off` / `false` | Opt out (persists across restarts) |
 
-On Telegram, boot auto-binds an examples **planner** per allowlisted DM (same
-session shape as spark), skipping sessions that opted out. Pings pick a curated
-seed whose required server prefixes are all present in the live `/tools` catalog,
-then ask the model to localize it. Turn off anytime with `/examples off`.
+Boot auto-binds one examples **planner** for the agent (same conversation as
+spark), skipping if opted out. Pings pick a curated seed whose required server
+prefixes are all present in the live `/tools` catalog, then ask the model to
+localize it. Turn off anytime with `/examples off`.
 
 ```env
 EXAMPLES_QTY=1-2
@@ -169,7 +172,47 @@ jobs become due again. `Finish` / `Defer` only apply while `running=1` and never
 re-enable a job that was cancelled mid-flight.
 
 One-shot jobs disable after a successful (or failed) fire. Daily/every advance
-`next_run_at`. Push failures are recorded in `last_error`.
+`next_run_at`. Push failures are recorded in `last_error`. `cron_list` still
+shows that row (`enabled=0`) — gone from the *enabled* set is not a delivery.
+
+## Trace a wake (agent → channel → Cloudflare)
+
+A cron fire is four hops. Job 319 disappearing from the enabled queue only
+means `Finish` ran (one-shot disable, silent skip, empty reply, or push
+error). It does not mean the phone got a frame.
+
+```text
+SQLite cron_job  →  runner.Handle (agent loop, session_id=gantry)
+                 →  channel.Push  {kind:push, user_id from CHANNEL allowlist, id:cron-<job>-<ms>}
+                 →  wss …/ws/<slug>?role=crane  (live socket, or a short dial)
+                 →  Durable Object routes to tag sub:<user_id>  (or role:phone if empty)
+                 →  phone WS + optional Web Push if that socket is gone
+```
+
+Grep gantry logs for the same `id` / `frame_id`:
+
+```text
+cron job firing     id=319 session_id=gantry
+cron silent skip    outcome=silent          # Handle ran; nothing written to the mailbox
+cron job pushed     outcome=push frame_id=cron-319-…
+cron push failed    outcome=error           # last_error on the row
+pendant push        slug=… user_id=… via=live|dial frame_id=cron-319-…
+```
+
+`via=dial` means the long-lived crane socket was down (or a live write
+failed) and Push opened a one-shot mailbox connection. Jobs do not store a
+Telegram chat id or Google `sub` — the mouth allowlist is the destination.
+Boot collapse rewrites leftover `telegram:…` / `pendant:…` rows onto `gantry`.
+Those jobs still fire — they are not skipped because they were scheduled on
+another mouth. The Worker does not log frame bodies; `pendant push` is the
+last crane-side hop you can grep. On the phone the bubble `id` is that
+`frame_id`.
+
+Disable by hand:
+
+```sql
+UPDATE cron_job SET enabled = 0, running = 0 WHERE id = 3;
+```
 
 ---
 
@@ -177,9 +220,10 @@ One-shot jobs disable after a successful (or failed) fire. Daily/every advance
 
 A watch is a **cursor + poll**, not a chat loop. Quiet ticks call an MCP fetch
 tool and **never** touch the Completer. New item ids wake the same agent loop
-as cron, then **push** — or skip if the reply is `[silent]`. First poll seeds
-the cursor (no backlog dump). Do not fake this with `cron_schedule` + “fetch
-the feed.”
+as cron, then **push** on the current CHANNEL — or skip if the reply is
+`[silent]`. A `feeds__items_list` subscription added on Telegram still wakes
+after `CHANNEL=pendant`. First poll seeds the cursor (no backlog dump). Do
+not fake this with `cron_schedule` + “fetch the feed.”
 
 ```text
 ticker → Host.CallRaw(tool, args) → compare ids → empty? stop
@@ -199,7 +243,7 @@ Shares the cron ticker. Boot fails if watch is on and the channel cannot `Push`.
 | Tool | Purpose |
 | --- | --- |
 | `watch_add` | Subscribe: prefixed MCP `tool` + `args` + `interval` (default `15m`, min `1m`) + optional `label` |
-| `watch_list` | List active watches for this chat |
+| `watch_list` | List active watches |
 | `watch_cancel` | Disable by id |
 
 The poller does not know RSS vs Twitter. A watch row is `tool` + `args`.

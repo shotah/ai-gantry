@@ -28,24 +28,6 @@ func TestNew_RequiresTokenAndAllowlist(t *testing.T) {
 	}
 }
 
-func TestSessionKeyAndResolve(t *testing.T) {
-	key := sessionKey("ch99", "user7")
-	if key != "discord:ch99:user7" {
-		t.Fatalf("key = %q", key)
-	}
-	id, err := resolveChannelID(nil, channel.Outbound{ChatID: "abc"})
-	if err != nil || id != "abc" {
-		t.Fatalf("%q %v", id, err)
-	}
-	id, err = resolveChannelID(nil, channel.Outbound{SessionID: "discord:ch99:user7"})
-	if err != nil || id != "ch99" {
-		t.Fatalf("%q %v", id, err)
-	}
-	if _, err := resolveChannelID(nil, channel.Outbound{}); err == nil {
-		t.Fatal("expected error")
-	}
-}
-
 func TestSplitMessage(t *testing.T) {
 	parts := splitMessage("hello", 2000)
 	if len(parts) != 1 || parts[0] != "hello" {
@@ -140,8 +122,8 @@ func TestChannel_PushAllowlistAndSend(t *testing.T) {
 	ch.newSession = func(string) (session, error) { return mock, nil }
 
 	err = ch.Push(context.Background(), channel.Outbound{
-		UserID: "42",
-		ChatID: "dm-42",
+		UserID: "999",
+		ChatID: "dm-nope",
 		Text:   "cron hello",
 	})
 	if err != nil {
@@ -149,15 +131,6 @@ func TestChannel_PushAllowlistAndSend(t *testing.T) {
 	}
 	if len(mock.msgs) != 1 || mock.msgs[0] != "cron hello" {
 		t.Fatalf("msgs=%v", mock.msgs)
-	}
-
-	err = ch.Push(context.Background(), channel.Outbound{
-		UserID: "999",
-		ChatID: "dm-42",
-		Text:   "nope",
-	})
-	if err == nil {
-		t.Fatal("expected allowlist deny")
 	}
 }
 
@@ -216,7 +189,7 @@ func TestChannel_RunHandlesDM(t *testing.T) {
 		if got.UserID != "42" || got.ChatID != "dmchan" || got.Text != "/status" {
 			t.Fatalf("%+v", got)
 		}
-		if got.SessionID != "discord:dmchan:42" {
+		if got.SessionID != channel.AgentSession {
 			t.Fatalf("session=%q", got.SessionID)
 		}
 	case <-time.After(2 * time.Second):

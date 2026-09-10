@@ -350,3 +350,81 @@ func TestRunner_PushErrorAndStart(t *testing.T) {
 	r2.Logger = nil
 	r2.Start(done)
 }
+
+func TestRunner_MouthSwitchKeepsFeedWake(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := watch.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := store.Add(ctx, "feeds__items_list", []byte(`{"url":"https://x"}`), "blog", time.Minute, cron.Delivery{
+		SessionID: "telegram:99:42", UserID: "42", ChatID: "99",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok, err := store.Claim(ctx, w.ID, time.Now().UTC())
+	if err != nil || !ok {
+		t.Fatalf("claim ok=%v err=%v", ok, err)
+	}
+	if err := store.Finish(ctx, w, []string{"a"}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err = watch.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.Get(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Enabled || got.Tool != "feeds__items_list" {
+		t.Fatalf("feed watch dropped on mouth switch: %+v", got)
+	}
+	if got.SessionID != channel.AgentSession {
+		t.Fatalf("session=%q", got.SessionID)
+	}
+	if err := store.ForceDueForTest(ctx, w.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	fetch := &scriptFetcher{results: []string{`{"items":[{"id":"a"},{"id":"b","title":"fresh"}]}`}}
+	pusher := &memPusher{}
+	var handled channel.Message
+	runner := &watch.Runner{
+		Store:   store,
+		Fetcher: fetch,
+		Handle: func(_ context.Context, msg channel.Message) (string, error) {
+			handled = msg
+			return "new post", nil
+		},
+		Pusher: pusher,
+		Logger: slog.Default(),
+	}
+	runner.FireDueForTest(ctx)
+	if handled.Text == "" || !strings.Contains(handled.Text, "id=b") {
+		t.Fatalf("handle=%q", handled.Text)
+	}
+	if handled.SessionID != channel.AgentSession || handled.UserID != "" {
+		t.Fatalf("handle dest %+v", handled)
+	}
+	pusher.mu.Lock()
+	n := len(pusher.msgs)
+	out := channel.Outbound{}
+	if n == 1 {
+		out = pusher.msgs[0]
+	}
+	pusher.mu.Unlock()
+	if n != 1 || out.Text != "new post" {
+		t.Fatalf("pushes=%d out=%+v", n, out)
+	}
+	if out.UserID != "" || out.ChatID != "" || out.SessionID != "" {
+		t.Fatalf("push dest %+v", out)
+	}
+}

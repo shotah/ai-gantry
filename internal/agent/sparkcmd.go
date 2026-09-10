@@ -52,9 +52,6 @@ func (a *Agent) handleSpark(ctx context.Context, msg channelDelivery, arg string
 		}
 		if _, _, err := a.spark.EnsureFor(ctx, cron.Delivery{
 			SessionID: msg.SessionID,
-			UserID:    msg.UserID,
-			ChatID:    msg.ChatID,
-			ThreadID:  msg.ThreadID,
 		}); err != nil {
 			return "", err
 		}
@@ -78,9 +75,6 @@ func (a *Agent) handleSpark(ctx context.Context, msg channelDelivery, arg string
 		}
 		if _, _, err := a.spark.EnsureFor(ctx, cron.Delivery{
 			SessionID: msg.SessionID,
-			UserID:    msg.UserID,
-			ChatID:    msg.ChatID,
-			ThreadID:  msg.ThreadID,
 		}); err != nil {
 			return "", err
 		}
@@ -108,7 +102,7 @@ func (a *Agent) sparkStatus(ctx context.Context, sessionID string) (string, erro
 	if resolved == "0" {
 		chat = "off"
 	}
-	return fmt.Sprintf("engagement (/spark) — looking-after-you wakes\ndefault: %s / day · window %02d–%02d\nthis chat: %s\n%s",
+	return fmt.Sprintf("engagement (/spark) — looking-after-you wakes\ndefault: %s / day · window %02d–%02d\nthis agent: %s\n%s",
 		a.spark.DefaultQty(), start, end, chat, sparkUsage), nil
 }
 

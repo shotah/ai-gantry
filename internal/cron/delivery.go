@@ -4,7 +4,8 @@ import "context"
 
 type deliveryKey struct{}
 
-// Delivery binds a scheduled job to a chat/session (from the scheduling turn).
+// Delivery identifies the conversation a job belongs to. Mouths route Push
+// through the CHANNEL allowlist; user/chat/thread are not stored or used.
 type Delivery struct {
 	SessionID string
 	UserID    string
@@ -12,7 +13,7 @@ type Delivery struct {
 	ThreadID  int
 }
 
-// WithDelivery attaches outbound routing to ctx for cron_* tool calls.
+// WithDelivery attaches the conversation id to ctx for cron_* / watch_* calls.
 func WithDelivery(ctx context.Context, d Delivery) context.Context {
 	return context.WithValue(ctx, deliveryKey{}, d)
 }

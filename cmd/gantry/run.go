@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -408,32 +407,6 @@ func run() int {
 			logger.Info("telegram error reporting enabled", "level", cfg.TelegramErrorReporting)
 		}
 	}
-	if pc, ok := ch.(*pendant.Channel); ok {
-		if sparkSvc != nil && sparkSvc.ProactiveEnabled() {
-			pc.SetOnAdmit(func(ctx context.Context, sid, uid string) {
-				if err := bindSpark(ctx, sparkSvc, logger, cron.Delivery{
-					SessionID: sid,
-					UserID:    uid,
-					ChatID:    uid,
-				}); err != nil {
-					logger.Warn("pendant spark admit failed", "err", err, "session_id", sid)
-				}
-			})
-		}
-		if cronStore != nil {
-			ids, err := cronStore.EnabledUserIDsPrefix(ctx, "pendant:")
-			if err != nil {
-				logger.Warn("pendant trust cron subs failed", "err", err)
-			} else {
-				for _, id := range ids {
-					pc.TrustSub(id)
-				}
-				if len(ids) > 0 {
-					logger.Info("pendant trusted cron subs", "n", len(ids))
-				}
-			}
-		}
-	}
 
 	gate := &drain.Gate{}
 	handle := gate.Handler(ag.Handle)
@@ -456,7 +429,7 @@ func run() int {
 			Memory:             memBackend,
 			Talk:               sessions,
 		}
-		if err := ensureSparkJobs(ctx, cfg, sparkSvc, logger); err != nil {
+		if err := ensureSparkJobs(ctx, sparkSvc, logger); err != nil {
 			logger.Error("spark ensure failed", "err", err)
 			return 1
 		}
@@ -539,51 +512,13 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 	}
 }
 
-// ensureSparkJobs installs looking-after-you wakes (default 3-5/day). Telegram DMs
-// use chat_id == user_id from the allowlist. Qty is /engagement, not env.
-func ensureSparkJobs(ctx context.Context, cfg *config.Config, svc *cron.SparkService, log *slog.Logger) error {
+// ensureSparkJobs installs looking-after-you wakes (default 3-5/day).
+// Qty is /engagement, not env. One planner per process; Push uses the mouth allowlist.
+func ensureSparkJobs(ctx context.Context, svc *cron.SparkService, log *slog.Logger) error {
 	if svc == nil || !svc.ProactiveEnabled() {
 		return nil
 	}
-
-	switch cfg.Channel {
-	case config.ChannelTelegram:
-		for _, uid := range cfg.TelegramAllowedUsers {
-			if uid == 0 {
-				continue
-			}
-			id := strconv.FormatInt(uid, 10)
-			if err := bindSpark(ctx, svc, log, cron.Delivery{
-				SessionID: fmt.Sprintf("telegram:%s:%s", id, id),
-				UserID:    id,
-				ChatID:    id,
-			}); err != nil {
-				return err
-			}
-		}
-	case config.ChannelPendant:
-		slug := pendant.MailboxSlug(cfg.PendantMailboxURL)
-		entries, err := pendant.ParseAllowlist(cfg.PendantAllowedUsers)
-		if err != nil {
-			return err
-		}
-		for _, e := range entries {
-			if e.Sub == "" {
-				continue
-			}
-			if err := bindSpark(ctx, svc, log, cron.Delivery{
-				SessionID: fmt.Sprintf("pendant:%s:%s", slug, e.Sub),
-				UserID:    e.Sub,
-				ChatID:    e.Sub,
-			}); err != nil {
-				return err
-			}
-		}
-	default:
-		log.Info("spark auto-bind is telegram/pendant; /engagement on or cron_schedule repeat=spark",
-			"channel", cfg.Channel)
-	}
-	return nil
+	return bindSpark(ctx, svc, log, cron.Delivery{SessionID: channel.AgentSession})
 }
 
 func bindSpark(ctx context.Context, svc *cron.SparkService, log *slog.Logger, delivery cron.Delivery) error {
@@ -606,7 +541,7 @@ func bindSpark(ctx context.Context, svc *cron.SparkService, log *slog.Logger, de
 }
 
 // ensureExamplesJobs installs on-by-default capability-example pings when
-// EXAMPLES_QTY is set (empty/"0" = off). Telegram DMs use chat_id == user_id.
+// EXAMPLES_QTY is set (empty/"0" = off). One planner per process.
 func ensureExamplesJobs(ctx context.Context, cfg *config.Config, svc *examples.Service, log *slog.Logger) error {
 	if svc == nil || !svc.ProactiveEnabled() {
 		return nil
@@ -616,39 +551,23 @@ func ensureExamplesJobs(ctx context.Context, cfg *config.Config, svc *examples.S
 		return fmt.Errorf("EXAMPLES_QTY: %w", err)
 	}
 
-	switch cfg.Channel {
-	case config.ChannelTelegram:
-		for _, uid := range cfg.TelegramAllowedUsers {
-			if uid == 0 {
-				continue
-			}
-			id := strconv.FormatInt(uid, 10)
-			delivery := cron.Delivery{
-				SessionID: fmt.Sprintf("telegram:%s:%s", id, id),
-				UserID:    id,
-				ChatID:    id,
-			}
-			job, created, err := svc.EnsureFor(ctx, delivery)
-			if err != nil {
-				return err
-			}
-			if job.ID == 0 {
-				log.Info("examples skipped (session opted out)",
-					"session_id", delivery.SessionID)
-				continue
-			}
-			log.Info("examples job ready",
-				"created", created,
-				"id", job.ID,
-				"session_id", delivery.SessionID,
-				"next_run", job.NextRunAt.UTC().Format(time.RFC3339),
-				"expr", job.Expr,
-			)
-		}
-	default:
-		log.Info("examples proactive auto-bind is telegram-only; use /examples on-demand",
-			"channel", cfg.Channel, "qty", cfg.ExamplesQty)
+	delivery := cron.Delivery{SessionID: channel.AgentSession}
+	job, created, err := svc.EnsureFor(ctx, delivery)
+	if err != nil {
+		return err
 	}
+	if job.ID == 0 {
+		log.Info("examples skipped (session opted out)",
+			"session_id", delivery.SessionID)
+		return nil
+	}
+	log.Info("examples job ready",
+		"created", created,
+		"id", job.ID,
+		"session_id", delivery.SessionID,
+		"next_run", job.NextRunAt.UTC().Format(time.RFC3339),
+		"expr", job.Expr,
+	)
 	return nil
 }
 

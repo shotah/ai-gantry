@@ -91,7 +91,7 @@ func TestMakeHandler_ReactionSettlesBeforePipe(t *testing.T) {
 		t.Fatal("timed out waiting for settled reaction")
 	}
 	want := "[reaction] 👍 on: prior bot reply"
-	if got.Text != want || got.SessionID != "telegram:99:42" {
+	if got.Text != want || got.SessionID != channel.AgentSession {
 		t.Fatalf("got %+v", got)
 	}
 	waitSendMessage(t, api, 1)

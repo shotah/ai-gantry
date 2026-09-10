@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	sessionID = "stdio"
+	sessionID = channel.AgentSession
 	userID    = "local"
 )
 

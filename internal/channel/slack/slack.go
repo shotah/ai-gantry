@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -262,7 +263,6 @@ func (c *Channel) dispatch(ctx context.Context, userID, channelID, ts, threadTS,
 	}
 
 	parentTS := threadParent(channelID, ts, threadTS)
-	sessionID := sessionKey(channelID, userID, parentTS)
 
 	var stream *editStream
 	handleCtx := ctx
@@ -272,14 +272,14 @@ func (c *Channel) dispatch(ctx context.Context, userID, channelID, ts, threadTS,
 	}
 
 	reply, err := handle(handleCtx, channel.Message{
-		SessionID: sessionID,
+		SessionID: channel.AgentSession,
 		UserID:    userID,
 		ChatID:    channelID,
 		Text:      text,
 		Images:    images,
 	})
 	if err != nil {
-		c.log.Error("slack handler error", "err", err, "session_id", sessionID)
+		c.log.Error("slack handler error", "err", err, "session_id", channel.AgentSession)
 		_ = c.sendReply(ctx, api, channelID, parentTS, "sorry — something went wrong handling that message", "")
 		return
 	}
@@ -289,14 +289,14 @@ func (c *Channel) dispatch(ctx context.Context, userID, channelID, ts, threadTS,
 			c.log.Warn("slack stream finish failed; falling back to send", "err", err)
 			if reply != "" {
 				if err := c.sendReply(ctx, api, channelID, parentTS, reply, ""); err != nil {
-					c.log.Error("slack send failed", "err", err, "session_id", sessionID)
+					c.log.Error("slack send failed", "err", err, "session_id", channel.AgentSession)
 				}
 			}
 			return
 		}
 		for _, u := range urls {
 			if err := sendImage(ctx, api, channelID, parentTS, u); err != nil {
-				c.log.Error("slack send image failed", "err", err, "session_id", sessionID)
+				c.log.Error("slack send image failed", "err", err, "session_id", channel.AgentSession)
 			}
 		}
 		return
@@ -305,7 +305,7 @@ func (c *Channel) dispatch(ctx context.Context, userID, channelID, ts, threadTS,
 		return
 	}
 	if err := c.sendReply(ctx, api, channelID, parentTS, reply, ""); err != nil {
-		c.log.Error("slack send failed", "err", err, "session_id", sessionID)
+		c.log.Error("slack send failed", "err", err, "session_id", channel.AgentSession)
 	}
 }
 
@@ -326,11 +326,13 @@ func (c *Channel) isAllowed(userID string) bool {
 	return ok
 }
 
-func sessionKey(channelID, userID, threadTS string) string {
-	if threadTS != "" {
-		return fmt.Sprintf("slack:%s:%s:%s", channelID, userID, threadTS)
+func (c *Channel) allowlisted() []string {
+	ids := make([]string, 0, len(c.allowed))
+	for id := range c.allowed {
+		ids = append(ids, id)
 	}
-	return fmt.Sprintf("slack:%s:%s", channelID, userID)
+	sort.Strings(ids)
+	return ids
 }
 
 func stripMention(text, botUser string) string {
@@ -340,10 +342,12 @@ func stripMention(text, botUser string) string {
 	return strings.TrimSpace(strings.ReplaceAll(text, "<@"+botUser+">", ""))
 }
 
-// Push sends a proactive message (cron). Allowlist enforced.
+// Push sends a proactive DM (cron) to every allowlisted user. The job does
+// not store a destination — this mouth is the destination.
 func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
-	if msg.UserID != "" && !c.isAllowed(msg.UserID) {
-		return fmt.Errorf("slack: push denied for user %s", msg.UserID)
+	ids := c.allowlisted()
+	if len(ids) == 0 {
+		return fmt.Errorf("slack: allowlist empty")
 	}
 	c.mu.Lock()
 	api := c.api
@@ -351,38 +355,20 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 	if api == nil {
 		api = c.newPoster(c.botToken, c.appToken)
 	}
-	channelID, threadTS, err := resolveDest(api, msg)
-	if err != nil {
-		return err
-	}
-	return c.sendReply(ctx, api, channelID, threadTS, msg.Text, msg.PhotoURL)
-}
-
-func resolveDest(api poster, msg channel.Outbound) (channelID, threadTS string, err error) {
-	if msg.ChatID != "" {
-		channelID = msg.ChatID
-	}
-	// session: slack:<channel>:<user>[:thread_ts]
-	parts := strings.Split(msg.SessionID, ":")
-	if len(parts) >= 3 && parts[0] == "slack" {
-		if channelID == "" {
-			channelID = parts[1]
-		}
-		if len(parts) >= 4 {
-			threadTS = parts[3]
-		}
-	}
-	if channelID == "" && msg.UserID != "" {
-		ch, _, _, openErr := api.OpenConversation(&slackapi.OpenConversationParameters{
-			Users: []string{msg.UserID},
+	var first error
+	for _, uid := range ids {
+		ch, _, _, err := api.OpenConversation(&slackapi.OpenConversationParameters{
+			Users: []string{uid},
 		})
-		if openErr != nil {
-			return "", "", fmt.Errorf("slack: open dm: %w", openErr)
+		if err != nil {
+			if first == nil {
+				first = fmt.Errorf("slack: open dm: %w", err)
+			}
+			continue
 		}
-		channelID = ch.ID
+		if err := c.sendReply(ctx, api, ch.ID, "", msg.Text, msg.PhotoURL); err != nil && first == nil {
+			first = err
+		}
 	}
-	if channelID == "" {
-		return "", "", fmt.Errorf("slack: missing channel/user for push")
-	}
-	return channelID, threadTS, nil
+	return first
 }

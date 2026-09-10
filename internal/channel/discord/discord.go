@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -182,7 +183,6 @@ func (c *Channel) makeMessageHandler(ctx context.Context, handle channel.Handler
 			return // stickers / empty
 		}
 
-		sessionID := sessionKey(m.ChannelID, userID)
 		stopTyping := c.startTyping(ctx, s, m.ChannelID)
 		defer stopTyping()
 
@@ -194,14 +194,14 @@ func (c *Channel) makeMessageHandler(ctx context.Context, handle channel.Handler
 		}
 
 		reply, err := handle(handleCtx, channel.Message{
-			SessionID: sessionID,
+			SessionID: channel.AgentSession,
 			UserID:    userID,
 			ChatID:    m.ChannelID,
 			Text:      text,
 			Images:    images,
 		})
 		if err != nil {
-			c.log.Error("discord handler error", "err", err, "session_id", sessionID)
+			c.log.Error("discord handler error", "err", err, "session_id", channel.AgentSession)
 			_, _ = s.ChannelMessageSend(m.ChannelID, "sorry — something went wrong handling that message")
 			return
 		}
@@ -211,14 +211,14 @@ func (c *Channel) makeMessageHandler(ctx context.Context, handle channel.Handler
 				c.log.Warn("discord stream finish failed; falling back to send", "err", err)
 				if reply != "" {
 					if err := c.sendReply(ctx, s, m.ChannelID, reply, ""); err != nil {
-						c.log.Error("discord send failed", "err", err, "session_id", sessionID)
+						c.log.Error("discord send failed", "err", err, "session_id", channel.AgentSession)
 					}
 				}
 				return
 			}
 			for _, u := range urls {
 				if err := sendImage(s, m.ChannelID, u); err != nil {
-					c.log.Error("discord send image failed", "err", err, "session_id", sessionID)
+					c.log.Error("discord send image failed", "err", err, "session_id", channel.AgentSession)
 				}
 			}
 			return
@@ -227,7 +227,7 @@ func (c *Channel) makeMessageHandler(ctx context.Context, handle channel.Handler
 			return
 		}
 		if err := c.sendReply(ctx, s, m.ChannelID, reply, ""); err != nil {
-			c.log.Error("discord send failed", "err", err, "session_id", sessionID)
+			c.log.Error("discord send failed", "err", err, "session_id", channel.AgentSession)
 		}
 	}
 }
@@ -237,8 +237,13 @@ func (c *Channel) isAllowed(userID string) bool {
 	return ok
 }
 
-func sessionKey(channelID, userID string) string {
-	return fmt.Sprintf("discord:%s:%s", channelID, userID)
+func (c *Channel) allowlisted() []string {
+	ids := make([]string, 0, len(c.allowed))
+	for id := range c.allowed {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 func (c *Channel) startTyping(ctx context.Context, s session, channelID string) func() {
@@ -264,10 +269,12 @@ func (c *Channel) startTyping(ctx context.Context, s session, channelID string) 
 	return func() { close(done) }
 }
 
-// Push sends a proactive DM (cron). Allowlist enforced.
+// Push sends a proactive DM (cron) to every allowlisted user. The job does
+// not store a destination — this mouth is the destination.
 func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
-	if msg.UserID != "" && !c.isAllowed(msg.UserID) {
-		return fmt.Errorf("discord: push denied for user %s", msg.UserID)
+	ids := c.allowlisted()
+	if len(ids) == 0 {
+		return fmt.Errorf("discord: allowlist empty")
 	}
 
 	c.mu.Lock()
@@ -287,28 +294,18 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 		defer func() { _ = s.Close() }()
 	}
 
-	channelID, err := resolveChannelID(s, msg)
-	if err != nil {
-		return err
-	}
-	return c.sendReply(ctx, s, channelID, msg.Text, msg.PhotoURL)
-}
-
-func resolveChannelID(s session, msg channel.Outbound) (string, error) {
-	if msg.ChatID != "" {
-		return msg.ChatID, nil
-	}
-	// session: discord:<dmChannelID>:<userID>
-	parts := strings.Split(msg.SessionID, ":")
-	if len(parts) >= 3 && parts[0] == "discord" {
-		return parts[1], nil
-	}
-	if msg.UserID != "" {
-		ch, err := s.UserChannelCreate(msg.UserID)
+	var first error
+	for _, uid := range ids {
+		ch, err := s.UserChannelCreate(uid)
 		if err != nil {
-			return "", fmt.Errorf("discord: open dm: %w", err)
+			if first == nil {
+				first = fmt.Errorf("discord: open dm: %w", err)
+			}
+			continue
 		}
-		return ch.ID, nil
+		if err := c.sendReply(ctx, s, ch.ID, msg.Text, msg.PhotoURL); err != nil && first == nil {
+			first = err
+		}
 	}
-	return "", fmt.Errorf("discord: missing chat/user id for push")
+	return first
 }

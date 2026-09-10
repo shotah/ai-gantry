@@ -120,7 +120,7 @@ func TestMakeHandler_AllowlistAndReply(t *testing.T) {
 		},
 	})
 
-	if got.Text != "hi" || got.UserID != "42" || got.SessionID != "telegram:99:42" {
+	if got.Text != "hi" || got.UserID != "42" || got.SessionID != channel.AgentSession {
 		t.Fatalf("got %+v", got)
 	}
 	// typing + reply

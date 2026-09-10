@@ -142,9 +142,6 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, w Watch) {
 	text += "tool: " + w.Tool + "\n" + FormatItems(fresh)
 	msg := channel.Message{
 		SessionID: w.SessionID,
-		UserID:    w.UserID,
-		ChatID:    w.ChatID,
-		ThreadID:  w.ThreadID,
 		Text:      text,
 	}
 	reply, err := r.Handle(ctx, msg)
@@ -157,11 +154,7 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, w Watch) {
 		log.Info("watch silent skip", "id", w.ID, "session_id", w.SessionID, "new_items", len(fresh))
 	} else if reply != "" {
 		if err := r.Pusher.Push(ctx, channel.Outbound{
-			SessionID: w.SessionID,
-			UserID:    w.UserID,
-			ChatID:    w.ChatID,
-			ThreadID:  w.ThreadID,
-			Text:      reply,
+			Text: reply,
 		}); err != nil {
 			log.Warn("watch push failed", "id", w.ID, "err", err)
 			_ = r.Store.Finish(ctx, w, merged, fmt.Errorf("push: %w", err))

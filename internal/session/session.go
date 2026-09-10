@@ -12,6 +12,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver (database/sql)
+
+	"github.com/shotah/ai-gantry/internal/channel"
 )
 
 // Role values persisted for conversation turns (system/persona is not stored).
@@ -117,6 +119,49 @@ func (s *Store) migrate() error {
 	_, _ = s.db.Exec(`ALTER TABLE session ADD COLUMN waiting_for_reply INTEGER NOT NULL DEFAULT 0`)
 	_, _ = s.db.Exec(`ALTER TABLE session ADD COLUMN wait_nudges INTEGER NOT NULL DEFAULT 0`)
 	_, _ = s.db.Exec(`ALTER TABLE session ADD COLUMN wait_set_at TEXT NOT NULL DEFAULT ''`)
+	return collapseToAgent(s.db)
+}
+
+func collapseToAgent(db *sql.DB) error {
+	sid := channel.AgentSession
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := db.Exec(`
+		INSERT INTO session (id, summary, updated_at) VALUES (?, '', ?)
+		ON CONFLICT(id) DO NOTHING`, sid, now); err != nil {
+		return fmt.Errorf("session: collapse insert: %w", err)
+	}
+	var summary string
+	_ = db.QueryRow(`SELECT summary FROM session WHERE id = ?`, sid).Scan(&summary)
+	if strings.TrimSpace(summary) == "" {
+		_ = db.QueryRow(`SELECT summary FROM session WHERE summary != '' ORDER BY length(summary) DESC LIMIT 1`).Scan(&summary)
+		if strings.TrimSpace(summary) != "" {
+			if _, err := db.Exec(`UPDATE session SET summary = ? WHERE id = ?`, summary, sid); err != nil {
+				return fmt.Errorf("session: collapse summary: %w", err)
+			}
+		}
+	}
+	var gWaiting int
+	_ = db.QueryRow(`SELECT waiting_for_reply FROM session WHERE id = ?`, sid).Scan(&gWaiting)
+	if gWaiting == 0 {
+		var ls, waitSet string
+		var wr, wn int
+		err := db.QueryRow(`
+			SELECT last_speaker, waiting_for_reply, wait_nudges, wait_set_at
+			FROM session WHERE id != ? ORDER BY updated_at DESC LIMIT 1`, sid).Scan(&ls, &wr, &wn, &waitSet)
+		if err == nil && wr != 0 {
+			if _, err := db.Exec(`
+				UPDATE session SET last_speaker = ?, waiting_for_reply = ?, wait_nudges = ?, wait_set_at = ?
+				WHERE id = ?`, ls, wr, wn, waitSet, sid); err != nil {
+				return fmt.Errorf("session: collapse wait: %w", err)
+			}
+		}
+	}
+	if _, err := db.Exec(`UPDATE session_message SET session_id = ? WHERE session_id != ?`, sid, sid); err != nil {
+		return fmt.Errorf("session: collapse messages: %w", err)
+	}
+	if _, err := db.Exec(`DELETE FROM session WHERE id != ?`, sid); err != nil {
+		return fmt.Errorf("session: collapse sessions: %w", err)
+	}
 	return nil
 }
 

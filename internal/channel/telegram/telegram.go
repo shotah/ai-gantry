@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -158,7 +159,7 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 			return
 		}
 
-		sessionID := sessionKey(msg.Chat.ID, userID, msg.MessageThreadID)
+		sessionID := channel.AgentSession
 		geo := inboundGeo(msg)
 		here.Remember(sessionID, geo, time.Now())
 		if bareLocation(msg) {
@@ -327,13 +328,6 @@ func isTransientPollErr(err error) bool {
 		strings.Contains(msg, "context deadline exceeded")
 }
 
-func sessionKey(chatID, userID int64, threadID int) string {
-	if threadID > 0 {
-		return fmt.Sprintf("telegram:%d:%d:%d", chatID, userID, threadID)
-	}
-	return fmt.Sprintf("telegram:%d:%d", chatID, userID)
-}
-
 func (c *Channel) startTyping(ctx context.Context, b *bot.Bot, chatID int64, threadID int) func() {
 	done := make(chan struct{})
 	go func() {
@@ -361,21 +355,24 @@ func (c *Channel) startTyping(ctx context.Context, b *bot.Bot, chatID int64, thr
 	return func() { close(done) }
 }
 
-// Push sends a proactive message (cron) to the job's chat. Allowlist enforced.
+// Push sends a proactive message (cron) to every allowlisted DM. The job
+// does not store a destination — this mouth is the destination.
 func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
-	chatID, err := resolveChatID(msg)
-	if err != nil {
-		return err
-	}
-	userID, _ := strconv.ParseInt(msg.UserID, 10, 64)
-	if userID != 0 && !c.isAllowed(userID) {
-		return fmt.Errorf("telegram: push denied for user %d", userID)
+	ids := c.allowlistedIDs()
+	if len(ids) == 0 {
+		return fmt.Errorf("telegram: allowlist empty")
 	}
 	b, err := c.newBot(c.token)
 	if err != nil {
 		return fmt.Errorf("telegram: push bot: %w", err)
 	}
-	return c.sendReply(ctx, b, chatID, msg.ThreadID, msg.Text, msg.PhotoURL)
+	var first error
+	for _, chatID := range ids {
+		if err := c.sendReply(ctx, b, chatID, 0, msg.Text, msg.PhotoURL); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
 }
 
 // NotifyHTML drops a pre-formatted HTML alert into the SAM DM (private chat id
@@ -402,23 +399,20 @@ func (c *Channel) NotifyHTML(ctx context.Context, htmlBody string) error {
 	return nil
 }
 
+func (c *Channel) allowlistedIDs() []int64 {
+	ids := make([]int64, 0, len(c.allowed))
+	for id := range c.allowed {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
 func (c *Channel) anyAllowed() (int64, bool) {
 	for id := range c.allowed {
 		return id, true
 	}
 	return 0, false
-}
-
-func resolveChatID(msg channel.Outbound) (int64, error) {
-	if msg.ChatID != "" {
-		return strconv.ParseInt(msg.ChatID, 10, 64)
-	}
-	// session: telegram:<chat>:<user>[:thread]
-	parts := strings.Split(msg.SessionID, ":")
-	if len(parts) >= 3 && parts[0] == "telegram" {
-		return strconv.ParseInt(parts[1], 10, 64)
-	}
-	return 0, fmt.Errorf("telegram: missing chat id for push")
 }
 
 func (c *Channel) sendChunks(ctx context.Context, b *bot.Bot, chatID int64, threadID int, text string) error {

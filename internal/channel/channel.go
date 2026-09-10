@@ -17,8 +17,7 @@ type Message struct {
 	Images []Image
 	// Geo is this-send coordinates (pendant GPS, Telegram location/venue).
 	// Not persisted in session history.
-	Geo *Geo
-	// Optional delivery hints (set by telegram; used when scheduling cron jobs).
+	Geo      *Geo
 	ChatID   string
 	ThreadID int
 }
@@ -52,7 +51,8 @@ type Image struct {
 	URL string `json:"url"` // https://… or data:image/…;base64,…
 }
 
-// Outbound is a proactive push (cron) not tied to an inbound update.
+// Outbound is a proactive push (cron/watch). Mouths deliver to the CHANNEL
+// allowlist; SessionID/UserID/ChatID/ThreadID are unused for routing.
 type Outbound struct {
 	SessionID string
 	UserID    string
@@ -61,7 +61,14 @@ type Outbound struct {
 	Text      string
 	// PhotoURL, when set, is sent via SendPhoto (Telegram) in addition to Text.
 	PhotoURL string
+	// ID is an optional mailbox frame id so crane logs, the Worker queue, and
+	// the phone bubble share one token. Pendant generates one when empty.
+	ID string
 }
+
+// AgentSession is the one conversation for this process. CHANNEL picks the
+// mouth; cron, memory, and history do not store a chat destination.
+const AgentSession = "gantry"
 
 // Handler processes one inbound message and returns reply text.
 type Handler func(ctx context.Context, msg Message) (reply string, err error)

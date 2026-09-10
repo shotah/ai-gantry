@@ -40,7 +40,7 @@ func TestChannel_Run(t *testing.T) {
 		if msg.Text != "hello" {
 			t.Errorf("Text = %q", msg.Text)
 		}
-		if msg.SessionID != "stdio" {
+		if msg.SessionID != channel.AgentSession {
 			t.Errorf("SessionID = %q", msg.SessionID)
 		}
 		return "pong", nil

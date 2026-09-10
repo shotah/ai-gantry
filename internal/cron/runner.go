@@ -128,12 +128,7 @@ func (r *Runner) poll(ctx context.Context, log *slog.Logger) {
 
 func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 	log.Info("cron job firing",
-		"id", job.ID,
-		"kind", job.Kind,
-		"session_id", job.SessionID,
-		"memory_id", job.MemoryID,
-		"prompt", truncate(job.Prompt, 80),
-	)
+		append(jobDest(job), "memory_id", job.MemoryID, "prompt", truncate(job.Prompt, 80))...)
 
 	if job.Kind == KindSpark {
 		r.runSparkPlanner(ctx, log, job)
@@ -213,21 +208,18 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 	text := prefix + r.jobMemoryBlock(ctx, log, job) + prompt
 	msg := channel.Message{
 		SessionID: job.SessionID,
-		UserID:    job.UserID,
-		ChatID:    job.ChatID,
-		ThreadID:  job.ThreadID,
 		Text:      text,
 	}
 	reply, err := r.Handle(handleCtx, msg)
 	if err != nil {
-		log.Warn("cron job handle failed", "id", job.ID, "err", err, "outcome", "error")
+		log.Warn("cron job handle failed", append(jobDest(job), "err", err, "outcome", "error")...)
 		_ = r.Store.Finish(ctx, job, err)
 		return
 	}
 	reply = StripWaitTokens(reply)
 	if job.Kind == KindFollowUp && r.humanRepliedDuring(ctx, job.SessionID) {
 		log.Info("cron follow-up dropped (user replied during turn)",
-			"id", job.ID, "session_id", job.SessionID)
+			append(jobDest(job), "outcome", "drop")...)
 		if err := r.Store.Finish(ctx, job, nil); err != nil {
 			log.Warn("cron finish failed", "id", job.ID, "err", err)
 		}
@@ -236,23 +228,21 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 	outcome := "push"
 	if IsSilentReply(reply) {
 		outcome = "silent"
-		log.Info("cron silent skip", "id", job.ID, "kind", job.Kind, "session_id", job.SessionID, "outcome", outcome)
+		log.Info("cron silent skip", append(jobDest(job), "outcome", outcome, "reply_chars", len(reply))...)
 	} else if reply != "" {
+		frameID := fmt.Sprintf("cron-%d-%d", job.ID, time.Now().UnixMilli())
 		if err := r.Pusher.Push(ctx, channel.Outbound{
-			SessionID: job.SessionID,
-			UserID:    job.UserID,
-			ChatID:    job.ChatID,
-			ThreadID:  job.ThreadID,
-			Text:      reply,
+			Text: reply,
+			ID:   frameID,
 		}); err != nil {
-			log.Warn("cron push failed", "id", job.ID, "err", err, "outcome", "error")
+			log.Warn("cron push failed", append(jobDest(job), "err", err, "outcome", "error", "frame_id", frameID)...)
 			_ = r.Store.Finish(ctx, job, fmt.Errorf("push: %w", err))
 			return
 		}
-		log.Info("cron job pushed", "id", job.ID, "kind", job.Kind, "session_id", job.SessionID, "outcome", outcome)
+		log.Info("cron job pushed", append(jobDest(job), "outcome", outcome, "frame_id", frameID, "reply_chars", len(reply))...)
 	} else {
 		outcome = "silent"
-		log.Info("cron empty reply", "id", job.ID, "kind", job.Kind, "session_id", job.SessionID, "outcome", outcome)
+		log.Info("cron empty reply", append(jobDest(job), "outcome", outcome)...)
 	}
 	if job.Kind == KindFollowUp {
 		r.afterFollowUp(ctx, log, job)
@@ -317,9 +307,6 @@ func (r *Runner) afterFollowUp(ctx context.Context, log *slog.Logger, job Job) {
 	}
 	delivery := Delivery{
 		SessionID: job.SessionID,
-		UserID:    job.UserID,
-		ChatID:    job.ChatID,
-		ThreadID:  job.ThreadID,
 	}
 	tz := job.Timezone
 	if tz == "" {
@@ -403,9 +390,6 @@ func (r *Runner) runSparkPlanner(ctx context.Context, log *slog.Logger, job Job)
 	}
 	delivery := Delivery{
 		SessionID: job.SessionID,
-		UserID:    job.UserID,
-		ChatID:    job.ChatID,
-		ThreadID:  job.ThreadID,
 	}
 	_, _ = r.Store.CancelSparkPings(ctx, job.SessionID)
 	n, times, err := PlanSparkDayTimes(spec, loc, time.Now())
@@ -447,9 +431,6 @@ func (r *Runner) runExamplesPlanner(ctx context.Context, log *slog.Logger, job J
 	}
 	delivery := Delivery{
 		SessionID: job.SessionID,
-		UserID:    job.UserID,
-		ChatID:    job.ChatID,
-		ThreadID:  job.ThreadID,
 	}
 	_, _ = r.Store.CancelExamplesPings(ctx, job.SessionID)
 	n, times, err := PlanSparkDayTimes(spec, loc, time.Now())
@@ -472,6 +453,14 @@ func (r *Runner) runExamplesPlanner(ctx context.Context, log *slog.Logger, job J
 	)
 	if err := r.Store.Finish(ctx, job, nil); err != nil {
 		log.Warn("examples planner finish failed", "id", job.ID, "err", err)
+	}
+}
+
+func jobDest(job Job) []any {
+	return []any{
+		"id", job.ID,
+		"kind", job.Kind,
+		"session_id", job.SessionID,
 	}
 }
 

@@ -285,12 +285,9 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		return "", nil
 	}
 
-	// Bind cron_* tools to this chat/session for scheduling.
+	// Bind cron_* / watch_* tools to this conversation (not a chat destination).
 	ctx = cron.WithDelivery(ctx, cron.Delivery{
 		SessionID: msg.SessionID,
-		UserID:    msg.UserID,
-		ChatID:    msg.ChatID,
-		ThreadID:  msg.ThreadID,
 	})
 	ctx = mcpenable.WithSession(ctx, msg.SessionID)
 
@@ -321,24 +318,14 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 	if arg, ok := parseExamplesCommand(text); ok {
 		unlock := a.lockSession(msg.SessionID)
 		defer unlock()
-		return a.handleExamples(ctx, channelDelivery{
-			SessionID: msg.SessionID,
-			UserID:    msg.UserID,
-			ChatID:    msg.ChatID,
-			ThreadID:  msg.ThreadID,
-		}, arg)
+		return a.handleExamples(ctx, channelDelivery{SessionID: msg.SessionID}, arg)
 	}
 
 	// /spark and /engagement accept on|off|true|false|{qty} (same command).
 	if arg, ok := parseSparkCommand(text); ok {
 		unlock := a.lockSession(msg.SessionID)
 		defer unlock()
-		return a.handleSpark(ctx, channelDelivery{
-			SessionID: msg.SessionID,
-			UserID:    msg.UserID,
-			ChatID:    msg.ChatID,
-			ThreadID:  msg.ThreadID,
-		}, arg)
+		return a.handleSpark(ctx, channelDelivery{SessionID: msg.SessionID}, arg)
 	}
 
 	if cmd, ok := parseCommand(text); ok {
@@ -611,9 +598,6 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	if a.wait != nil {
 		if err := a.wait.AfterReply(turnCtx, cron.Delivery{
 			SessionID: msg.SessionID,
-			UserID:    msg.UserID,
-			ChatID:    msg.ChatID,
-			ThreadID:  msg.ThreadID,
 		}, text, reply); err != nil {
 			a.log.Warn("wait after reply failed", "err", err)
 		}

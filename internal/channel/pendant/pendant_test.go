@@ -61,9 +61,10 @@ func TestNew_RequiresURLBearerAllowlist(t *testing.T) {
 }
 
 type fakeConn struct {
-	reads  chan []byte
-	writes chan []byte
-	once   sync.Once
+	reads    chan []byte
+	writes   chan []byte
+	once     sync.Once
+	writeErr error
 }
 
 func (f *fakeConn) ReadMessage() (int, []byte, error) {
@@ -75,12 +76,19 @@ func (f *fakeConn) ReadMessage() (int, []byte, error) {
 }
 
 func (f *fakeConn) WriteMessage(_ int, data []byte) error {
+	if f.writeErr != nil {
+		return f.writeErr
+	}
 	f.writes <- append([]byte(nil), data...)
 	return nil
 }
 
 func (f *fakeConn) Close() error {
-	f.once.Do(func() { close(f.reads) })
+	f.once.Do(func() {
+		if f.reads != nil {
+			close(f.reads)
+		}
+	})
 	return nil
 }
 
@@ -132,7 +140,7 @@ func TestDispatch_GeoOnMessageAndReply(t *testing.T) {
 		if msg.UserID != "1182" {
 			t.Fatalf("userid %q", msg.UserID)
 		}
-		if msg.SessionID != "pendant:kit:1182" {
+		if msg.SessionID != channel.AgentSession {
 			t.Fatalf("sid %q", msg.SessionID)
 		}
 		if msg.Text != "near me" {
@@ -182,7 +190,7 @@ func TestDispatch_BareGeoSilentAndDeny(t *testing.T) {
 	if called {
 		t.Fatal("bare geo must not start a turn")
 	}
-	p, ok := here.Get("pendant:kit:1182")
+	p, ok := here.Get(channel.AgentSession)
 	if !ok || p.Lat != 1 || p.Lon != 2 {
 		t.Fatalf("silent geo should cache last known: %+v ok=%v", p, ok)
 	}
@@ -210,18 +218,12 @@ func TestPush_AllowlistAndLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ch.Push(context.Background(), channel.Outbound{UserID: "nope", Text: "x"}); err == nil {
-		t.Fatal("deny")
-	}
 	fc := &fakeConn{reads: make(chan []byte), writes: make(chan []byte, 1)}
 	ch.setLive(fc)
-	if err := ch.Push(context.Background(), channel.Outbound{UserID: "1182", Text: "ping"}); err != nil {
+	if err := ch.Push(context.Background(), channel.Outbound{UserID: "nope", ChatID: "1", Text: "ping"}); err != nil {
 		t.Fatal(err)
 	}
 	raw := <-fc.writes
-	if !strings.Contains(string(raw), `"user_id":"1182"`) {
-		t.Fatalf("push json %s", raw)
-	}
 	var out outboundFrame
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatal(err)
@@ -231,11 +233,11 @@ func TestPush_AllowlistAndLive(t *testing.T) {
 	}
 }
 
-func TestPush_BroadcastOmitsUserID(t *testing.T) {
+func TestPush_BroadcastWhenNoSub(t *testing.T) {
 	ch, err := New(Config{
 		MailboxURL:   "wss://x.workers.dev/ws/kit",
 		Bearer:       "tok",
-		AllowedUsers: []string{"1182"},
+		AllowedUsers: []string{"ada@example.com"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -274,18 +276,72 @@ func TestPush_DialsWhenIdle(t *testing.T) {
 		}
 		return fc, nil
 	}
-	if err := ch.Push(context.Background(), channel.Outbound{ChatID: "1182", Text: "cron"}); err != nil {
+	if err := ch.Push(context.Background(), channel.Outbound{Text: "cron"}); err != nil {
 		t.Fatal(err)
 	}
 	raw := <-fc.writes
-	if !strings.Contains(string(raw), `"user_id":"1182"`) {
-		t.Fatalf("chatid push json %s", raw)
-	}
 	var out outboundFrame
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatal(err)
 	}
 	if out.Kind != "push" || out.UserID != "1182" {
+		t.Fatalf("%+v", out)
+	}
+}
+
+func TestPush_IgnoresStoredDest(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{writes: make(chan []byte, 1)}
+	ch.setLive(fc)
+	if err := ch.Push(context.Background(), channel.Outbound{
+		SessionID: "telegram:1:2",
+		UserID:    "999",
+		ChatID:    "1",
+		Text:      "cron",
+		ID:        "cron-319-1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	raw := <-fc.writes
+	var out outboundFrame
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Kind != "push" || out.UserID != "1182" || out.ID != "cron-319-1" {
+		t.Fatalf("%+v", out)
+	}
+}
+
+func TestPush_LiveWriteFallsBackToDial(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch.setLive(&fakeConn{writeErr: io.ErrClosedPipe, writes: make(chan []byte, 1)})
+	good := &fakeConn{writes: make(chan []byte, 1)}
+	ch.dial = func(context.Context, string, http.Header) (conn, error) {
+		return good, nil
+	}
+	if err := ch.Push(context.Background(), channel.Outbound{Text: "cron"}); err != nil {
+		t.Fatal(err)
+	}
+	raw := <-good.writes
+	var out outboundFrame
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Kind != "push" || out.UserID != "1182" || out.ID == "" {
 		t.Fatalf("%+v", out)
 	}
 }
@@ -328,7 +384,7 @@ func TestDispatch_EmailOnlyMatchKeepsSub(t *testing.T) {
 		if msg.UserID != "1182999" {
 			t.Fatalf("userid %q", msg.UserID)
 		}
-		if msg.SessionID != "pendant:kit:1182999" {
+		if msg.SessionID != channel.AgentSession {
 			t.Fatalf("sid %q", msg.SessionID)
 		}
 		if msg.ChatID != "1182999" {
@@ -369,12 +425,15 @@ func TestDispatch_EmailOnlyLearnsSubForPushAndAdmit(t *testing.T) {
 	ch.SetOnAdmit(func(_ context.Context, sid, uid string) {
 		admits = append(admits, sid+"|"+uid)
 	})
-	if err := ch.Push(context.Background(), channel.Outbound{UserID: "1182999", Text: "early"}); err == nil {
-		t.Fatal("push must wait until the sub is learned")
-	}
-
 	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 16)}
 	ch.setLive(fc)
+	if err := ch.Push(context.Background(), channel.Outbound{Text: "early"}); err != nil {
+		t.Fatal(err)
+	}
+	early := recvOutbound(t, fc.writes)
+	if early.Kind != "push" || early.UserID != "" {
+		t.Fatalf("email-only broadcast %+v", early)
+	}
 	raw, _ := json.Marshal(inboundFrame{Text: "hi", UserID: "1182999", Email: "ada@example.com"})
 	if err := ch.dispatch(context.Background(), fc, raw, func(context.Context, channel.Message) (string, error) {
 		return "ok", nil
@@ -382,7 +441,7 @@ func TestDispatch_EmailOnlyLearnsSubForPushAndAdmit(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = recvReply(t, fc.writes)
-	if len(admits) != 1 || admits[0] != "pendant:kit:1182999|1182999" {
+	if len(admits) != 1 || admits[0] != channel.AgentSession+"|1182999" {
 		t.Fatalf("admits=%v", admits)
 	}
 
@@ -449,13 +508,10 @@ func TestTrustSub_AllowsPushWithoutInbound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ch.Push(context.Background(), channel.Outbound{UserID: "1182999", Text: "early"}); err == nil {
-		t.Fatal("push must wait until TrustSub")
-	}
 	ch.TrustSub("1182999")
 	fc := &fakeConn{writes: make(chan []byte, 1)}
 	ch.setLive(fc)
-	if err := ch.Push(context.Background(), channel.Outbound{UserID: "1182999", Text: "wake"}); err != nil {
+	if err := ch.Push(context.Background(), channel.Outbound{Text: "wake"}); err != nil {
 		t.Fatal(err)
 	}
 	out := recvOutbound(t, fc.writes)

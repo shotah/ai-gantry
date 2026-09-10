@@ -121,15 +121,6 @@ func TestParseAllowlist_EmptyJunkDedupe(t *testing.T) {
 	}
 }
 
-func TestSessionID(t *testing.T) {
-	if got := sessionID("kit", "1182"); got != "pendant:kit:1182" {
-		t.Fatal(got)
-	}
-	if !strings.HasPrefix(sessionID(" ", "x"), "pendant:crane:") {
-		t.Fatal(sessionID(" ", "x"))
-	}
-}
-
 func TestAllowFrame_JSON(t *testing.T) {
 	raw, err := json.Marshal(allowFrame([]Entry{
 		{Sub: "1182", Email: "ada@example.com"},

@@ -57,8 +57,11 @@ func TestTools_CancelAndList(t *testing.T) {
 		t.Fatal("empty schedule result")
 	}
 	list, err := tools.Call(ctx, cron.ToolList, json.RawMessage(`{}`))
-	if err != nil || list == "no active cron jobs" {
+	if err != nil || list == "no cron jobs" {
 		t.Fatalf("list=%q err=%v", list, err)
+	}
+	if !strings.Contains(list, "kind=once") || !strings.Contains(list, "prompt=\"ping\"") {
+		t.Fatalf("list dest: %q", list)
 	}
 	jobs, err := store.List(ctx, false)
 	if err != nil || len(jobs) != 1 {
@@ -142,6 +145,45 @@ func TestComposite_Routes(t *testing.T) {
 	}
 	if other.calls != 1 {
 		t.Fatalf("other calls=%d", other.calls)
+	}
+}
+
+func TestTools_ListAndCancelAreAgentWide(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 10, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := cron.OpenDB(sess.DB(), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools := cron.Tools{Store: store, TZ: "UTC"}
+	a := cron.WithDelivery(ctx, cron.Delivery{SessionID: "a"})
+	if _, err := tools.Call(a, cron.ToolSchedule, json.RawMessage(`{"prompt":"from-a","when":"in 1h"}`)); err != nil {
+		t.Fatal(err)
+	}
+	b := cron.WithDelivery(ctx, cron.Delivery{SessionID: "b"})
+	if _, err := tools.Call(b, cron.ToolSchedule, json.RawMessage(`{"prompt":"from-b","when":"in 2h"}`)); err != nil {
+		t.Fatal(err)
+	}
+	list, err := tools.Call(a, cron.ToolList, json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(list, "from-a") || !strings.Contains(list, "from-b") {
+		t.Fatalf("list should be agent-wide: %q", list)
+	}
+	if strings.Contains(list, "session=") {
+		t.Fatalf("list should not store destinations: %q", list)
+	}
+	jobs, err := store.List(ctx, false)
+	if err != nil || len(jobs) != 2 {
+		t.Fatalf("jobs=%v err=%v", jobs, err)
+	}
+	if _, err := tools.Call(a, cron.ToolCancel, json.RawMessage(`{"id":`+strconv.FormatInt(jobs[0].ID, 10)+`}`)); err != nil {
+		t.Fatal(err)
 	}
 }
 

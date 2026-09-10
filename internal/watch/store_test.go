@@ -209,3 +209,31 @@ func TestStore_Edges(t *testing.T) {
 		t.Fatalf("limit<1 should still return due: %v err=%v", due, err)
 	}
 }
+
+func TestCollapse_RewritesMouthSessions(t *testing.T) {
+	ctx := context.Background()
+	f := openWatchFixture(t, 5)
+	w, err := f.store.Add(ctx, "feeds__items_list", nil, "blog", time.Minute, cron.Delivery{
+		SessionID: "telegram:1:1", UserID: "1", ChatID: "1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.SessionID != "telegram:1:1" {
+		t.Fatalf("pre-collapse session=%q", w.SessionID)
+	}
+	if w.UserID != "" || w.ChatID != "" {
+		t.Fatalf("new watches must not store dest user=%q chat=%q", w.UserID, w.ChatID)
+	}
+	store, err := watch.OpenDB(f.db, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.Get(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SessionID != "gantry" {
+		t.Fatalf("collapsed session=%q", got.SessionID)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/session"
 )
@@ -183,31 +184,32 @@ func TestDue_FixedWidthNanosOrdering(t *testing.T) {
 	}
 }
 
-func TestEnabledUserIDsPrefix_PendantOnly(t *testing.T) {
+func TestCollapseAgentScope_RewritesMouthSessions(t *testing.T) {
 	ctx := context.Background()
 	f := openCronFixture(t)
 	once := cron.Parsed{Kind: cron.KindOnce, Expr: "x", Timezone: "UTC", NextRun: time.Now().UTC().Add(time.Hour)}
-	if _, err := f.store.Schedule(ctx, "a", once, cron.Delivery{SessionID: "pendant:kit:1182999", UserID: "1182999"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.store.Schedule(ctx, "b", once, cron.Delivery{SessionID: "pendant:kit:1182999", UserID: "1182999"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.store.Schedule(ctx, "c", once, cron.Delivery{SessionID: "telegram:1:1", UserID: "1"}); err != nil {
-		t.Fatal(err)
-	}
-	other, err := f.store.Schedule(ctx, "d", once, cron.Delivery{SessionID: "pendant:kit:99", UserID: "99"})
+	job, err := f.store.Schedule(ctx, "leftover", once, cron.Delivery{SessionID: "telegram:1:1", UserID: "1", ChatID: "1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.store.Cancel(ctx, other.ID); err != nil {
-		t.Fatal(err)
+	if job.SessionID != "telegram:1:1" {
+		t.Fatalf("pre-collapse session=%q", job.SessionID)
 	}
-	ids, err := f.store.EnabledUserIDsPrefix(ctx, "pendant:")
+	if job.UserID != "" || job.ChatID != "" {
+		t.Fatalf("new jobs must not store dest user=%q chat=%q", job.UserID, job.ChatID)
+	}
+	store, err := cron.OpenDB(f.db, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 1 || ids[0] != "1182999" {
-		t.Fatalf("ids=%v", ids)
+	got, err := store.Get(ctx, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SessionID != channel.AgentSession {
+		t.Fatalf("collapsed session=%q", got.SessionID)
+	}
+	if got.UserID != "" || got.ChatID != "" || got.ThreadID != 0 {
+		t.Fatalf("collapsed dest user=%q chat=%q thread=%d", got.UserID, got.ChatID, got.ThreadID)
 	}
 }

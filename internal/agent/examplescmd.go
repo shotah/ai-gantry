@@ -49,13 +49,10 @@ func (a *Agent) handleExamples(ctx context.Context, msg channelDelivery, arg str
 			return "", err
 		}
 		if !a.examples.ProactiveEnabled() {
-			return "examples on for this chat — proactive pings are disabled by EXAMPLES_QTY; /examples still works anytime", nil
+			return "examples on for this agent — proactive pings are disabled by EXAMPLES_QTY; /examples still works anytime", nil
 		}
 		_, _, err := a.examples.EnsureFor(ctx, cron.Delivery{
 			SessionID: msg.SessionID,
-			UserID:    msg.UserID,
-			ChatID:    msg.ChatID,
-			ThreadID:  msg.ThreadID,
 		})
 		if err != nil {
 			return "", err
@@ -71,12 +68,9 @@ func (a *Agent) handleExamples(ctx context.Context, msg channelDelivery, arg str
 	}
 }
 
-// channelDelivery is the subset of channel.Message needed for examples ensure.
+// channelDelivery is the conversation id needed for examples/spark ensure.
 type channelDelivery struct {
 	SessionID string
-	UserID    string
-	ChatID    string
-	ThreadID  int
 }
 
 func (a *Agent) suggestExample(ctx context.Context) (string, error) {

@@ -27,7 +27,7 @@ DISCORD_ALLOWED_USERS=123456789012345678   # snowflakes
 ```
 
 Streaming default on. Image attachments → vision; reply images as embeds.
-Cron push uses the stored DM channel id.
+Cron push DMs every allowlisted user (CHANNEL is the destination).
 
 ---
 
@@ -79,10 +79,10 @@ Recreate the container after env changes (restart keeps a ghost allowlist).
 | `118212345678901234567:ada@example.com` | `sub` left of the first `:`, email right (lowercased) |
 | `ada@example.com` | email only (lowercased) — alias until the `sub` is known |
 
-The crane admits a frame when `user_id` **or** `email` is on the list. Session
-id is always `pendant:<slug>:<sub>` — email matches, it never keys memory.
-On dial the crane writes `cmds` then `allow`. Boot spark-bind still needs a
-`sub` in the env list; an email-only row learns the Google `sub` on first
-inbound (or silent pin) so cron/spark `push` can target that phone. Restart
-re-trusts `sub`s already on enabled `pendant:` cron jobs. Console may write
-emails into `PENDANT_ALLOWED_USERS` ([gantree-contract.md](gantree-contract.md)).
+The crane admits a frame when `user_id` **or** `email` is on the list. The
+agent conversation is always `gantry` — email matches for admit, it never
+keys memory, cron, or history. On dial the crane writes `cmds` then `allow`.
+Email-only rows learn the Google `sub` on first inbound (or silent pin) so
+Push can target that phone; until then Push broadcasts to `role:phone`.
+Console may write emails into `PENDANT_ALLOWED_USERS`
+([gantree-contract.md](gantree-contract.md)).

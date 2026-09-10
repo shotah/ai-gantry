@@ -74,9 +74,16 @@ func TestRunner_ScheduleFirePushCancel(t *testing.T) {
 	}
 	pusher.mu.Lock()
 	n := len(pusher.msgs)
+	frameID := ""
+	if n == 1 {
+		frameID = pusher.msgs[0].ID
+	}
 	pusher.mu.Unlock()
 	if n != 1 {
 		t.Fatalf("pushes=%d", n)
+	}
+	if !strings.HasPrefix(frameID, "cron-") {
+		t.Fatalf("frame id %q", frameID)
 	}
 
 	got, err := store.Get(ctx, job.ID)
@@ -98,7 +105,7 @@ func TestRunner_ScheduleFirePushCancel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out == "no active cron jobs" {
+	if out == "no cron jobs" {
 		t.Fatal(out)
 	}
 }
@@ -404,5 +411,205 @@ func TestRunner_JobMemorySupersedeWalkAndMissingStillRuns(t *testing.T) {
 	}
 	if !strings.Contains(handled, "dentist follow-up") {
 		t.Fatalf("missing job body: %q", handled)
+	}
+}
+
+func TestRunner_MouthSwitchKeepsDailySummary(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := cron.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().UTC().Add(-time.Minute)
+	job, err := store.Schedule(ctx, "morning summary", cron.Parsed{
+		Kind:     cron.KindDaily,
+		Expr:     "07:00",
+		NextRun:  past,
+		Timezone: "America/Los_Angeles",
+	}, cron.Delivery{SessionID: "telegram:99:42", UserID: "42", ChatID: "99"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// CHANNEL=telegram → pendant: reopen the same DB (boot migrate).
+	store, err = cron.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.Get(ctx, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Enabled || got.Kind != cron.KindDaily {
+		t.Fatalf("job dropped on mouth switch: %+v", got)
+	}
+	if got.SessionID != channel.AgentSession {
+		t.Fatalf("session=%q", got.SessionID)
+	}
+	if got.NextRunAt.After(time.Now().UTC()) {
+		t.Fatalf("next_run should still be due, got %v", got.NextRunAt)
+	}
+
+	pusher := &memPusher{}
+	var handled channel.Message
+	runner := &cron.Runner{
+		Store: store,
+		Handle: func(_ context.Context, msg channel.Message) (string, error) {
+			handled = msg
+			return "here's your morning summary", nil
+		},
+		Pusher: pusher,
+	}
+	runner.FireDueForTest(ctx)
+	if handled.Text == "" || !strings.Contains(handled.Text, "morning summary") {
+		t.Fatalf("handle=%q", handled.Text)
+	}
+	if handled.SessionID != channel.AgentSession || handled.UserID != "" || handled.ChatID != "" {
+		t.Fatalf("handle dest %+v", handled)
+	}
+	pusher.mu.Lock()
+	n := len(pusher.msgs)
+	out := channel.Outbound{}
+	if n == 1 {
+		out = pusher.msgs[0]
+	}
+	pusher.mu.Unlock()
+	if n != 1 || out.Text != "here's your morning summary" {
+		t.Fatalf("pushes=%d out=%+v", n, out)
+	}
+	if out.UserID != "" || out.ChatID != "" || out.SessionID != "" {
+		t.Fatalf("push must not carry telegram dest %+v", out)
+	}
+	got, err = store.Get(ctx, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Enabled {
+		t.Fatal("daily job must stay enabled after fire")
+	}
+}
+
+func TestRunner_MouthSwitchKeepsSparkPing(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := cron.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().UTC().Add(-time.Minute)
+	job, err := store.Schedule(ctx, cron.DefaultSparkPrompt, cron.SparkPingParsed(past, "UTC"), cron.Delivery{
+		SessionID: "telegram:1:2", UserID: "2", ChatID: "1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store, err = cron.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.Get(ctx, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Enabled || got.Kind != cron.KindSparkPing {
+		t.Fatalf("spark ping dropped on mouth switch: %+v", got)
+	}
+	if got.SessionID != channel.AgentSession {
+		t.Fatalf("session=%q", got.SessionID)
+	}
+
+	pusher := &memPusher{}
+	var handled channel.Message
+	runner := &cron.Runner{
+		Store: store,
+		Handle: func(_ context.Context, msg channel.Message) (string, error) {
+			handled = msg
+			return "aim check-in", nil
+		},
+		Pusher: pusher,
+	}
+	runner.FireDueForTest(ctx)
+	if !cron.IsSparkTurn(handled.Text) {
+		t.Fatalf("handle=%q", handled.Text)
+	}
+	if handled.SessionID != channel.AgentSession {
+		t.Fatalf("handle session=%q", handled.SessionID)
+	}
+	pusher.mu.Lock()
+	n := len(pusher.msgs)
+	out := channel.Outbound{}
+	if n == 1 {
+		out = pusher.msgs[0]
+	}
+	pusher.mu.Unlock()
+	if n != 1 || out.Text != "aim check-in" {
+		t.Fatalf("pushes=%d out=%+v", n, out)
+	}
+	if out.UserID != "" || out.ChatID != "" || out.SessionID != "" {
+		t.Fatalf("push dest %+v", out)
+	}
+}
+
+func TestRunner_PushUsesTextOnly(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := cron.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().UTC().Add(-time.Minute)
+	if _, err := store.Schedule(ctx, "telegram leftover", cron.Parsed{
+		Kind:     cron.KindOnce,
+		Expr:     past.Format(time.RFC3339Nano),
+		NextRun:  past,
+		Timezone: "UTC",
+	}, cron.Delivery{SessionID: "telegram:1:2", UserID: "2", ChatID: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	pusher := &memPusher{}
+	handled := false
+	runner := &cron.Runner{
+		Store: store,
+		Handle: func(_ context.Context, msg channel.Message) (string, error) {
+			handled = true
+			if msg.UserID != "" || msg.ChatID != "" {
+				t.Fatalf("handle dest user=%q chat=%q", msg.UserID, msg.ChatID)
+			}
+			if msg.SessionID != "telegram:1:2" {
+				t.Fatalf("session=%q", msg.SessionID)
+			}
+			return "hello", nil
+		},
+		Pusher: pusher,
+	}
+	runner.FireDueForTest(ctx)
+	if !handled {
+		t.Fatal("expected handle")
+	}
+	pusher.mu.Lock()
+	defer pusher.mu.Unlock()
+	if len(pusher.msgs) != 1 {
+		t.Fatalf("pushes=%d", len(pusher.msgs))
+	}
+	out := pusher.msgs[0]
+	if out.UserID != "" || out.ChatID != "" || out.SessionID != "" {
+		t.Fatalf("push dest %+v", out)
+	}
+	if out.Text != "hello" || !strings.HasPrefix(out.ID, "cron-") {
+		t.Fatalf("push %+v", out)
 	}
 }

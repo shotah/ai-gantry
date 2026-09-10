@@ -245,3 +245,41 @@ func countKind(t *testing.T, store *cron.Store, kind string) int {
 	}
 	return n
 }
+
+func TestEnsureSpark_MouthSwitchKeepsPlanner(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := cron.OpenDB(sess.DB(), 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc := time.UTC
+	parsed, err := cron.ParseSparkSchedule("2-2@00-24", 0, 24, loc, time.Now().In(loc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, _, err := store.EnsureSpark(ctx, "spark prompt", parsed, cron.Delivery{
+		SessionID: "telegram:1:1", UserID: "1", ChatID: "1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err = cron.OpenDB(sess.DB(), 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := store.FindSpark(ctx, channel.AgentSession)
+	if err != nil || !ok {
+		t.Fatalf("spark planner missing after mouth switch ok=%v err=%v", ok, err)
+	}
+	if got.ID != job.ID || !got.Enabled {
+		t.Fatalf("planner %+v want id=%d", got, job.ID)
+	}
+	if countKind(t, store, cron.KindSpark) != 1 {
+		t.Fatalf("want 1 planner, got %d", countKind(t, store, cron.KindSpark))
+	}
+}

@@ -139,7 +139,7 @@ func (c *Channel) flushReaction(ctx context.Context, b *bot.Bot, handle channel.
 		return
 	}
 	c.deliver(ctx, b, handle, channel.Message{
-		SessionID: sessionKey(chatID, userID, threadID),
+		SessionID: channel.AgentSession,
 		UserID:    strconv.FormatInt(userID, 10),
 		ChatID:    strconv.FormatInt(chatID, 10),
 		ThreadID:  threadID,

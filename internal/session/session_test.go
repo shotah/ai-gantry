@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/session"
 )
 
@@ -114,5 +115,43 @@ func TestStore_TokenTrim(t *testing.T) {
 	}
 	if session.EstTokens(msgs) > 10 && len(msgs) > 2 {
 		t.Fatalf("est_tokens=%d still over budget with %d msgs", session.EstTokens(msgs), len(msgs))
+	}
+}
+
+func TestCollapse_MergesMouthHistory(t *testing.T) {
+	dir := t.TempDir()
+	store, err := session.Open(dir, 20, 100000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := store.Append(ctx, "telegram:1:2",
+		session.Message{Role: session.RoleUser, Content: "hi"},
+		session.Message{Role: session.RoleAssistant, Content: "hey"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err = session.Open(dir, 20, 100000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	old, err := store.Messages(ctx, "telegram:1:2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(old) != 0 {
+		t.Fatalf("mouth session should be gone, got %d", len(old))
+	}
+	msgs, err := store.Messages(ctx, channel.AgentSession)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 || msgs[0].Content != "hi" || msgs[1].Content != "hey" {
+		t.Fatalf("collapsed msgs=%+v", msgs)
 	}
 }

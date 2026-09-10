@@ -30,7 +30,7 @@ func ToolDefs() []provider.ToolDef {
 		{
 			Name: ToolAdd,
 			Description: "Subscribe to an MCP fetch tool. The harness polls it on an interval " +
-				"and wakes this chat only when new item ids appear. Quiet polls never call the model. " +
+				"and wakes the agent only when new item ids appear. Quiet polls never call the model. " +
 				"The first poll seeds the cursor (no flood of old items). " +
 				"tool must be a prefixed MCP name (e.g. feeds__items_list). " +
 				"args is the JSON object passed to that tool each tick. " +
@@ -60,7 +60,7 @@ func ToolDefs() []provider.ToolDef {
 		},
 		{
 			Name:        ToolList,
-			Description: "List active watches for this chat.",
+			Description: "List active watches.",
 			Parameters: map[string]any{
 				"type":       "object",
 				"properties": map[string]any{},
@@ -135,12 +135,7 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 			w.NextRunAt.UTC().Format(time.RFC3339), w.Label), nil
 
 	case ToolList:
-		delivery, ok := cron.DeliveryFrom(ctx)
-		sessionID := ""
-		if ok {
-			sessionID = delivery.SessionID
-		}
-		list, err := t.Store.ListSession(ctx, sessionID, false)
+		list, err := t.Store.ListSession(ctx, "", false)
 		if err != nil {
 			return "", err
 		}
@@ -159,16 +154,6 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 		id, err := asInt64(args["id"])
 		if err != nil {
 			return "", err
-		}
-		delivery, ok := cron.DeliveryFrom(ctx)
-		if ok && delivery.SessionID != "" {
-			w, err := t.Store.Get(ctx, id)
-			if err != nil {
-				return "", err
-			}
-			if w.SessionID != delivery.SessionID {
-				return "", fmt.Errorf("watch: %d not in this session", id)
-			}
 		}
 		if err := t.Store.Cancel(ctx, id); err != nil {
 			return "", err

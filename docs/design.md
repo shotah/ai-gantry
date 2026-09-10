@@ -41,8 +41,9 @@ Deploy shapes: [deploy-docker.md](deploy-docker.md) (Hub) ·
    stdio. The gantry **is the harness**: it hosts tools; it does not implement
    them (except a few builtins: memory, cron, watch, `self_note`, `web_search`). Import
    libraries over writing our own.
-5. **1:1, always.** No multi-provider config, no multi-agent config, no peer
-   routing. Scaling = more processes.
+5. **1:1, always.** One process, one CHANNEL mouth, one conversation (`gantry`),
+   one memory/cron/watch set. No multi-provider config, no multi-agent config,
+   no peer routing. Scaling = more processes.
 6. **Env + files is the config plane.** Secrets and scalars via env. Structure
    via persona markdown, MCP manifest, and a data directory.
 7. **Memory is structured and inspectable.** SQLite rows you can read and

@@ -10,6 +10,7 @@ import (
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver
 
+	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/cron"
 )
 
@@ -84,6 +85,12 @@ func (s *Store) migrate() error {
 			return fmt.Errorf("watch: migrate: %w", err)
 		}
 	}
+	if _, err := s.db.Exec(`
+		UPDATE watch SET session_id = ?, user_id = '', chat_id = '', thread_id = 0
+		WHERE session_id != ? OR user_id != '' OR chat_id != '' OR thread_id != 0`,
+		channel.AgentSession, channel.AgentSession); err != nil {
+		return fmt.Errorf("watch: collapse: %w", err)
+	}
 	return nil
 }
 
@@ -106,6 +113,9 @@ func (s *Store) Add(ctx context.Context, tool string, args json.RawMessage, labe
 	if delivery.SessionID == "" {
 		return Watch{}, fmt.Errorf("watch: delivery session_id is required")
 	}
+	delivery.UserID = ""
+	delivery.ChatID = ""
+	delivery.ThreadID = 0
 	if interval < MinInterval {
 		return Watch{}, fmt.Errorf("watch: interval must be >= %s", MinInterval)
 	}

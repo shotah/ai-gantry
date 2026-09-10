@@ -98,7 +98,7 @@ func New(cfg Config) (*Channel, error) {
 }
 
 // SetOnAdmit runs once per newly seen Google sub (email-only allowlist
-// learns the push target so spark/cron can wake that phone).
+// learns the push target so Push can address that phone).
 func (c *Channel) SetOnAdmit(fn func(ctx context.Context, sessionID, userID string)) {
 	c.mu.Lock()
 	c.onAdmit = fn
@@ -197,9 +197,8 @@ func (c *Channel) rememberSub(sub string) bool {
 	return true
 }
 
-// TrustSub records a Google sub as a push target without OnAdmit.
-// Boot uses this for user_ids already on enabled cron jobs (email-only
-// allowlist would otherwise deny Push after restart).
+// TrustSub records a Google sub as a push target without OnAdmit
+// (tests; inbound already learns via rememberSub).
 func (c *Channel) TrustSub(sub string) {
 	_ = c.rememberSub(sub)
 }
@@ -294,7 +293,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		c.log.Info("pendant ignore (missing user_id)")
 		return nil
 	}
-	sid := sessionID(c.slug, sub)
+	sid := channel.AgentSession
 	c.noteUser(ctx, sid, sub)
 	geo := frameGeo(frame.Context)
 	here.Remember(sid, geo, time.Now())
@@ -354,19 +353,66 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	return c.writeOn(cn, outboundFrame{Text: reply, Kind: "reply", UserID: sub})
 }
 
-// Push sends a cron/spark outbound on the live socket, or opens a short dial.
+// Push sends a cron/spark outbound to every allowlisted (and learned) Google
+// sub. The job does not store a destination — this mailbox is the destination.
 func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
-	sub := strings.TrimSpace(msg.UserID)
-	if sub == "" {
-		sub = strings.TrimSpace(msg.ChatID)
+	targets := c.pushTargets()
+	if len(targets) == 0 {
+		targets = []string{""}
 	}
-	if sub != "" && !c.isAllowed(sub, "") {
-		return fmt.Errorf("pendant: push user is not allowlisted")
+	idBase := strings.TrimSpace(msg.ID)
+	var first error
+	for i, sub := range targets {
+		id := idBase
+		if id == "" {
+			id = fmt.Sprintf("p%d", time.Now().UnixNano())
+		} else if len(targets) > 1 {
+			id = fmt.Sprintf("%s-%d", idBase, i)
+		}
+		if err := c.writePush(ctx, msg.Text, sub, id); err != nil && first == nil {
+			first = err
+		}
 	}
-	body := outboundFrame{Text: msg.Text, Kind: "push", UserID: sub}
+	return first
+}
+
+func (c *Channel) pushTargets() []string {
+	var out []string
+	seen := map[string]struct{}{}
+	add := func(id string) {
+		id = strings.TrimSpace(id)
+		if id == "" || !isDigits(id) {
+			return
+		}
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, e := range c.entries {
+		add(e.Sub)
+	}
+	for id := range c.allowed {
+		add(id)
+	}
+	return out
+}
+
+func (c *Channel) writePush(ctx context.Context, text, sub, id string) error {
+	body := outboundFrame{Text: text, Kind: "push", UserID: sub, ID: id}
+	via := "live"
 	if live := c.getLive(); live != nil {
-		return c.writeOn(live, body)
+		werr := c.writeOn(live, body)
+		if werr == nil {
+			c.log.Info("pendant push", "slug", c.slug, "user_id", sub, "via", via, "frame_id", id, "chars", len(text))
+			return nil
+		}
+		c.log.Warn("pendant push live write failed; dialing", "err", werr, "user_id", sub, "frame_id", id)
 	}
+	via = "dial"
 	header := http.Header{}
 	header.Set("Authorization", "Bearer "+c.bearer)
 	cn, err := c.dial(ctx, c.mailbox, header)
@@ -374,7 +420,11 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 		return err
 	}
 	defer func() { _ = cn.Close() }()
-	return writeFrame(cn, body)
+	if err := writeFrame(cn, body); err != nil {
+		return err
+	}
+	c.log.Info("pendant push", "slug", c.slug, "user_id", sub, "via", via, "frame_id", id, "chars", len(text))
+	return nil
 }
 
 func (c *Channel) writeOn(cn conn, frame outboundFrame) error {

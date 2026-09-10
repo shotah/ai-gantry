@@ -63,10 +63,4 @@ func TestIsAllowedAndSessionKey(t *testing.T) {
 	if !ch.isAllowed(42) || ch.isAllowed(7) {
 		t.Fatal("allowlist mismatch")
 	}
-	if got := sessionKey(1, 2, 0); got != "telegram:1:2" {
-		t.Fatalf("%q", got)
-	}
-	if got := sessionKey(1, 2, 9); got != "telegram:1:2:9" {
-		t.Fatalf("%q", got)
-	}
 }

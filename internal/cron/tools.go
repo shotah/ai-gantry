@@ -32,7 +32,7 @@ func ToolDefs() []provider.ToolDef {
 		{
 			Name: ToolSchedule,
 			Description: "Schedule a proactive agent turn (reminder, digest, or spark-of-life horizon wake). " +
-				"Fires later, runs tools, and pushes the reply to this chat. " +
+				"Fires later, runs tools, and pushes the reply on this channel. " +
 				"Work-only jobs can reply [silent] to skip the push (all-clear / no need to ping). " +
 				`when: RFC3339, "15:04", "in 30m", or for spark "4-6@06-21". ` +
 				`repeat: once|daily|every:1h|spark. ` +
@@ -67,8 +67,10 @@ func ToolDefs() []provider.ToolDef {
 			},
 		},
 		{
-			Name:        ToolList,
-			Description: "List scheduled cron jobs for this agent.",
+			Name: ToolList,
+			Description: "List cron jobs (enabled and recently finished). " +
+				"Includes last_error after a one-shot fires or a push fails. " +
+				"Gone from the enabled set is not a delivery.",
 			Parameters: map[string]any{
 				"type":       "object",
 				"properties": map[string]any{},
@@ -166,22 +168,16 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 			job.ID, job.Kind, job.NextRunAt.UTC().Format(time.RFC3339), job.Timezone, job.MemoryID, job.MemorySubject), nil
 
 	case ToolList:
-		delivery, ok := DeliveryFrom(ctx)
-		sessionID := ""
-		if ok {
-			sessionID = delivery.SessionID
-		}
-		jobs, err := t.Store.ListSession(ctx, sessionID, false)
+		jobs, err := t.Store.List(ctx, true)
 		if err != nil {
 			return "", err
 		}
 		if len(jobs) == 0 {
-			return "no active cron jobs", nil
+			return "no cron jobs", nil
 		}
 		var b strings.Builder
 		for _, j := range jobs {
-			_, _ = fmt.Fprintf(&b, "id=%d kind=%s next=%s memory_id=%d subject=%q prompt=%q\n",
-				j.ID, j.Kind, j.NextRunAt.UTC().Format(time.RFC3339), j.MemoryID, j.MemorySubject, truncate(j.Prompt, 80))
+			_, _ = fmt.Fprintf(&b, "%s\n", formatJobLine(j))
 		}
 		return strings.TrimRight(b.String(), "\n"), nil
 
@@ -189,16 +185,6 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 		id, err := asInt64(args["id"])
 		if err != nil {
 			return "", err
-		}
-		delivery, ok := DeliveryFrom(ctx)
-		if ok && delivery.SessionID != "" {
-			job, err := t.Store.Get(ctx, id)
-			if err != nil {
-				return "", err
-			}
-			if job.SessionID != delivery.SessionID {
-				return "", fmt.Errorf("cron: job %d not in this session", id)
-			}
 		}
 		if err := t.Store.Cancel(ctx, id); err != nil {
 			return "", err
@@ -225,6 +211,20 @@ func asInt64(v any) (int64, error) {
 	default:
 		return 0, fmt.Errorf("cron: invalid id %v", v)
 	}
+}
+
+func formatJobLine(j Job) string {
+	enabled := 0
+	if j.Enabled {
+		enabled = 1
+	}
+	lastRun := "-"
+	if j.LastRunAt != nil {
+		lastRun = j.LastRunAt.UTC().Format(time.RFC3339)
+	}
+	return fmt.Sprintf("id=%d kind=%s enabled=%d next=%s last_run=%s last_error=%q memory_id=%d subject=%q prompt=%q",
+		j.ID, j.Kind, enabled,
+		j.NextRunAt.UTC().Format(time.RFC3339), lastRun, j.LastError, j.MemoryID, j.MemorySubject, truncate(j.Prompt, 80))
 }
 
 func truncate(s string, n int) string {
