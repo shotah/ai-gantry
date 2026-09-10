@@ -816,6 +816,7 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 					firstTokenAt = time.Now()
 					stopNotice()
 				}
+				content = cron.StripWaitTokensLive(content)
 				if hasThinking {
 					return tw.UpdateThinking(ctx, thinking, content)
 				}

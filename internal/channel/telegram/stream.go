@@ -11,6 +11,8 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+
+	"github.com/shotah/ai-gantry/internal/cron"
 )
 
 const streamPlaceholder = "…"
@@ -223,6 +225,7 @@ func (s *editStream) UpdateStatus(ctx context.Context, note string) error {
 // no-op (keeps prior prose). A non-prefix restart commits the old answer into
 // body first. Callers hold s.mu.
 func (s *editStream) setAnswerLocked(content string) {
+	content = cron.StripWaitTokensLive(content)
 	if content == "" {
 		return
 	}
@@ -449,6 +452,7 @@ func (s *editStream) Finish(ctx context.Context, final string) error {
 			}
 		}
 	}
+	final = cron.StripWaitTokens(final)
 	s.body = final
 	s.answer = ""
 	// Final edit may use expandable — stream flushes are done, so it won't keep collapsing.

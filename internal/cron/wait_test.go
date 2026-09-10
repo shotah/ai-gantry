@@ -36,6 +36,27 @@ func TestWaitTokens(t *testing.T) {
 			t.Fatalf("StripWaitTokens(%q)=%q want %q", tc.in, got, tc.stripped)
 		}
 	}
+}
+
+func TestStripWaitTokensLive(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		in, want string
+	}{
+		{"Thai or pizza?\n[wait]", "Thai or pizza?"},
+		{"Thai or pizza?\n[wai", "Thai or pizza?"},
+		{"Thai or pizza? [wai", "Thai or pizza?"},
+		{"Thai or pizza? [wait]", "Thai or pizza?"},
+		{"dropping it\n[nowait]", "dropping it"},
+		{"dropping it\n[nowai", "dropping it"},
+		{"hello", "hello"},
+		{"[", ""},
+	}
+	for _, tc := range cases {
+		if got := cron.StripWaitTokensLive(tc.in); got != tc.want {
+			t.Fatalf("StripWaitTokensLive(%q)=%q want %q", tc.in, got, tc.want)
+		}
+	}
 	if !cron.IsFollowUpTurn(cron.FollowUpPrefix(0, 2) + "body") {
 		t.Fatal("prefix should be a follow-up turn")
 	}

@@ -566,6 +566,35 @@ func TestEditStream_FinishDropsLingeringStatus(t *testing.T) {
 	}
 }
 
+func TestEditStream_HidesWaitToken(t *testing.T) {
+	prevFlush := streamFlushEvery
+	streamFlushEvery = time.Hour
+	t.Cleanup(func() { streamFlushEvery = prevFlush })
+
+	stream := newStubStream(t)
+	ctx := context.Background()
+	if err := stream.Update(ctx, "Thai or pizza?\n[wait]"); err != nil {
+		t.Fatal(err)
+	}
+	waitMsgID(t, stream)
+	if err := stream.Finish(ctx, "Thai or pizza?"); err != nil {
+		t.Fatal(err)
+	}
+	stream.mu.Lock()
+	flushed := stream.lastFlushed
+	answer := stream.answer
+	stream.mu.Unlock()
+	if strings.Contains(strings.ToLower(flushed), "[wait]") {
+		t.Fatalf("leaked [wait]: %q", flushed)
+	}
+	if flushed != "Thai or pizza?" {
+		t.Fatalf("lastFlushed=%q", flushed)
+	}
+	if answer != "" {
+		t.Fatalf("answer should be cleared, got %q", answer)
+	}
+}
+
 func streamLatest(s *editStream) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()

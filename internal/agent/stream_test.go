@@ -87,3 +87,32 @@ func TestAgent_StreamsFinalText(t *testing.T) {
 		t.Fatalf("last=%q", w.texts[len(w.texts)-1])
 	}
 }
+
+func TestAgent_StreamStripsWaitToken(t *testing.T) {
+	sc := &streamCompleter{parts: []string{"Thai or pizza?\n", "[", "wait]"}}
+	w := &memWriter{}
+	a, err := agent.New(agent.Options{
+		Completer:     sc,
+		Sessions:      newMemHistory(),
+		StreamReplies: true,
+		Model:         "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := channel.WithReplyWriter(context.Background(), w)
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "dinner?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(reply, "[wait]") {
+		t.Fatalf("reply leaked [wait]: %q", reply)
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, txt := range w.texts {
+		if strings.Contains(strings.ToLower(txt), "[wait]") {
+			t.Fatalf("stream leaked [wait]: %q in %v", txt, w.texts)
+		}
+	}
+}

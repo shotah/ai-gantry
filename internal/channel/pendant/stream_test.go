@@ -154,6 +154,31 @@ func TestEditStream_UpdateThrottled(t *testing.T) {
 	}
 }
 
+func TestEditStream_HidesWaitToken(t *testing.T) {
+	prev := streamMinGap
+	streamMinGap = 0
+	t.Cleanup(func() { streamMinGap = prev })
+
+	w := &captureWriter{}
+	s := newEditStream(w.write, "1182")
+	ctx := context.Background()
+	if err := s.Update(ctx, "Thai or pizza?\n[wait]"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Finish(ctx, "Thai or pizza?"); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range w.all() {
+		if strings.Contains(strings.ToLower(f.Text), "[wait]") {
+			t.Fatalf("leaked [wait]: %+v", f)
+		}
+	}
+	last := w.all()[len(w.all())-1]
+	if last.Kind != "reply" || last.Text != "Thai or pizza?" {
+		t.Fatalf("finish %+v", last)
+	}
+}
+
 func TestDispatch_StreamDraftThenReply(t *testing.T) {
 	ch, err := New(Config{
 		MailboxURL:    "wss://x.workers.dev/ws/kit",

@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"github.com/shotah/ai-gantry/internal/cron"
 )
 
 // Pendant TEXT_MAX is 8_000 bytes; stay under that in runes for ASCII-heavy traces.
@@ -124,16 +126,16 @@ func (s *editStream) Finish(_ context.Context, final string) error {
 			}
 		}
 	}
-	s.body = final
+	s.body = cron.StripWaitTokens(final)
 	s.answer = ""
 	s.started = true
-	s.latest = final
+	s.latest = s.body
 	userID := s.userID
 	s.mu.Unlock()
-	if strings.TrimSpace(final) == "" {
+	if strings.TrimSpace(s.body) == "" {
 		return nil
 	}
-	return s.write(outboundFrame{Kind: "reply", UserID: userID, Text: clipRunes(final)})
+	return s.write(outboundFrame{Kind: "reply", UserID: userID, Text: clipRunes(s.body)})
 }
 
 func (s *editStream) pushLocked(force bool) error {
@@ -166,6 +168,7 @@ func (s *editStream) displayLocked() string {
 }
 
 func (s *editStream) setAnswerLocked(content string) {
+	content = cron.StripWaitTokensLive(content)
 	if content == "" {
 		return
 	}

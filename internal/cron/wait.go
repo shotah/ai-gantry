@@ -85,6 +85,12 @@ func StripWaitTokens(s string) string {
 	return s
 }
 
+// StripWaitTokensLive is for streaming drafts: hide complete tokens and a
+// trailing incomplete [wait]/[nowait] so the marker never paints on the phone.
+func StripWaitTokensLive(s string) string {
+	return stripIncompleteWaitLine(StripWaitTokens(s))
+}
+
 func stripBareToken(s, token string) (string, bool) {
 	token = strings.TrimSpace(token)
 	if token == "" || s == "" {
@@ -106,4 +112,46 @@ func stripBareToken(s, token string) (string, bool) {
 		keep = append(keep, line)
 	}
 	return strings.TrimSpace(strings.Join(keep, "\n")), found
+}
+
+func stripIncompleteWaitLine(s string) string {
+	if s == "" {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	i := len(lines) - 1
+	t := strings.TrimSpace(lines[i])
+	if incompleteWaitToken(t) {
+		return strings.TrimSpace(strings.Join(lines[:i], "\n"))
+	}
+	if trimmed, ok := trimIncompleteWaitSuffix(t); ok {
+		lines[i] = trimmed
+		return strings.TrimSpace(strings.Join(lines, "\n"))
+	}
+	return s
+}
+
+func incompleteWaitToken(t string) bool {
+	lower := strings.ToLower(t)
+	if lower == "" || !strings.HasPrefix(lower, "[") {
+		return false
+	}
+	for _, tok := range []string{strings.ToLower(WaitToken), strings.ToLower(NoWaitToken)} {
+		if lower != tok && strings.HasPrefix(tok, lower) {
+			return true
+		}
+	}
+	return false
+}
+
+func trimIncompleteWaitSuffix(t string) (string, bool) {
+	lower := strings.ToLower(t)
+	for _, tok := range []string{strings.ToLower(WaitToken), strings.ToLower(NoWaitToken)} {
+		for n := 1; n < len(tok); n++ {
+			if strings.HasSuffix(lower, " "+tok[:n]) {
+				return strings.TrimSpace(t[:len(t)-n]), true
+			}
+		}
+	}
+	return t, false
 }
