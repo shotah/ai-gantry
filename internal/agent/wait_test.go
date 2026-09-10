@@ -93,6 +93,42 @@ func TestAgent_WaitTokenArmsAndUserClears(t *testing.T) {
 	}
 }
 
+func TestAgent_WaitNoteTaughtEveryTurn(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	jobs, err := cron.OpenDB(sess.DB(), 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawWait bool
+	a, err := agent.New(agent.Options{
+		Completer: &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+			for _, m := range req.Messages {
+				if strings.Contains(m.Content, "Follow-up is not a tool") && strings.Contains(m.Content, "[wait]") {
+					sawWait = true
+				}
+			}
+			return &provider.Result{Content: "ok"}, nil
+		}},
+		Sessions: sess,
+		Wait:     &cron.WaitService{State: sess, Jobs: jobs, TZ: "UTC"},
+		Model:    "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(ctx, channel.Message{SessionID: "s", UserID: "u", Text: "hey"}); err != nil {
+		t.Fatal(err)
+	}
+	if !sawWait {
+		t.Fatal("wait reply note missing from prompt")
+	}
+}
+
 func TestAgent_ConversationFooterOnPrompt(t *testing.T) {
 	ctx := context.Background()
 	sess, err := session.Open(t.TempDir(), 20, 8000)

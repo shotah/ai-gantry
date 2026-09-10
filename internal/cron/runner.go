@@ -15,7 +15,7 @@ import (
 // JobUserPrefix wraps user-scheduled job prompts (not spark/examples pings).
 // It must stay a single paragraph plus a trailing blank line so the agent can
 // split wrapper from job body when deciding whether live tools were skipped.
-const JobUserPrefix = "[cron] Scheduled job — you scheduled this continuation. If [job memory] is present, that is why. Recall/tools as needed. Decide what is useful now: message, act, postpone, cancel, or [silent]. Do not nag. The original chat may be gone. If this job needs live data, call those tools first — do not write the report, tables, or numbers until tool results are in context. Never guess metrics; if a tool fails, say so. If the human does not need a message (all-clear or work-only), reply with exactly [silent] and nothing else.\n\n"
+const JobUserPrefix = "[cron] Scheduled job — you scheduled this continuation. If [job memory] is present, that is why. Recall/tools as needed. Decide what is useful now: message, act, postpone, cancel, or [silent]. Do not nag. The original chat may be gone. If this job needs live data, call those tools first — do not write the report, tables, or numbers until tool results are in context. Never guess metrics; if a tool fails, say so. If the human does not need a message (all-clear or work-only), reply with exactly [silent] and nothing else. If you asked a question they should answer, [wait] on its own line.\n\n"
 
 // SparkTurnMarker is the start of SparkPingPrefix. Agent and tests use it to
 // recognize a spark horizon turn (tools required, not a chat ping).

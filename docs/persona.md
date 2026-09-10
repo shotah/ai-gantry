@@ -15,8 +15,8 @@ Boot concatenates them in that order. Extra `*.md` is ignored. Leftover
 `SOUL.md` / `RULES.md` / `USER.md` / `TOOLS.md` are merged into `PERSONA.md`
 (if it is missing) and then deleted.
 
-The harness overwrites the **Self-notes** and **Location pins** sections in
-`PERSONA.md` and the `SELF.md` header. Your bullets stay.
+The harness overwrites the **Self-notes**, **Location pins**, and **Follow-up**
+sections in `PERSONA.md` and the `SELF.md` header. Your bullets stay.
 
 ---
 

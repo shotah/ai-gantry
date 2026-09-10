@@ -78,6 +78,10 @@ const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data,
 // are still nudged off; grounded jokes after tools are allowed.
 const sparkToolFirstNote = "[system] Spark-of-life turn: the user is the aim. Review [mcp prefixes] on vs off. Emit independent tool calls now — memory_recall for aim/, pref/hours, pref/calendar, cron_list, then live tools (Garmin, calendar, search) or cron_schedule. mcp_enable a prefix if it is off and needed. Shape the message by [current time]. A joke is allowed when it is grounded in this turn's tool results and an aim — never a joke with zero tools. Hours unknown → ask sleep/work once. Else at most one user-model question. A real empty calendar is a hole: ask ONE what they want on it today (lunch/dinner or training) — not [silent], never agree-and-stop; try to get something scheduled (ask first before writing events). A clock time you commit is cron_schedule with memory_id or one offer to ping — a calendar event is not the reminder. Empty aim board: ask ONE months-scale question — do not invent an aim. If you asked a question they should answer, put [wait] on its own line. After the work, [silent] unless the human needs a specific hole, nudge, or next step."
 
+// waitReplyNote sits after the clock when follow-up is wired. [wait] is a
+// reply token like [silent], not a tool — models otherwise invent wait_for_reply.
+const waitReplyNote = `[system] Follow-up is not a tool. A question they should answer: [wait] on its own line (they never see it). [nowait] drops the wait. If [conversation] waiting_for_reply=true, do not ask a new different question.`
+
 // theaterCueMaxChars: a stop reply this long is already the answer. Matching
 // "I've added…" or a server__tool name inside a design essay must not start
 // another Completer round — Gemini often returns empty on that follow-up.
@@ -539,6 +543,12 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		Role:    provider.RoleSystem,
 		Content: clock,
 	})
+	if a.wait != nil {
+		messages = append(messages, provider.Message{
+			Role:    provider.RoleSystem,
+			Content: waitReplyNote,
+		})
+	}
 	if block := a.talkFooter(turnCtx, msg.SessionID); block != "" {
 		messages = append(messages, provider.Message{
 			Role:    provider.RoleSystem,

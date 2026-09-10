@@ -18,6 +18,7 @@ func stampPersona(raw string) string {
 	raw = strings.TrimSpace(raw)
 	raw = upsertSection(raw, "## Self-notes", selfnote.RulesSection)
 	raw = upsertSection(raw, "## Location pins", selfnote.LocationSection)
+	raw = upsertSection(raw, "## Follow-up", WaitSection)
 	return strings.TrimSpace(raw)
 }
 
@@ -68,7 +69,7 @@ func nextHeading(raw string) int {
 
 // SyncKernel migrates leftover SOUL/RULES/USER/TOOLS into PERSONA.md when that
 // file is missing, deletes those legacy files, then writes kernel sections
-// (Self-notes, Location pins) into PERSONA.md. Best-effort: a read-only mount
+// (Self-notes, Location pins, Follow-up) into PERSONA.md. Best-effort: a read-only mount
 // leaves the prompt stamp (Load) in place and returns the write/remove error.
 func SyncKernel(dir string) (removed []string, err error) {
 	removed, err = reconcileLegacy(dir)

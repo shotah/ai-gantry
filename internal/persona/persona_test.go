@@ -94,6 +94,9 @@ func TestLoad_StampsSelfAndPersona(t *testing.T) {
 	if !strings.Contains(got, "## Location pins") || !strings.Contains(got, "[last pin]") {
 		t.Fatalf("location stamp missing: %q", got)
 	}
+	if !strings.Contains(got, "## Follow-up") || !strings.Contains(got, "[wait]") {
+		t.Fatalf("follow-up stamp missing: %q", got)
+	}
 	if !strings.Contains(got, "Pendant GPS") || strings.Contains(got, "A Telegram location or venue updates") {
 		t.Fatalf("location stamp still Telegram-only: %q", got)
 	}
@@ -120,11 +123,15 @@ func TestSyncKernel_RewritesPersonaSection(t *testing.T) {
 	if strings.Contains(got, "- stale") {
 		t.Fatalf("stale section kept: %q", got)
 	}
-	if !strings.Contains(got, "A north-star is one sentence") || !strings.Contains(got, "## Memory hygiene") {
+	if !strings.Contains(got, "A north-star is one sentence") || !strings.Contains(got, "## Memory hygiene") ||
+		!strings.Contains(got, "## Follow-up") {
 		t.Fatalf("sync missing kernel or rest of file: %q", got)
 	}
 	if !strings.Contains(got, "## Location pins") {
 		t.Fatalf("sync missing location section: %q", got)
+	}
+	if !strings.Contains(got, "## Follow-up") || !strings.Contains(got, "[wait]") {
+		t.Fatalf("sync missing follow-up section: %q", got)
 	}
 }
 
