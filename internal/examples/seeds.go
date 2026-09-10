@@ -14,7 +14,7 @@ import (
 type Seed struct {
 	ID      string
 	Title   string
-	Servers []string // required prefixes (e.g. "google"); all must be live
+	Servers []string // required prefixes or builtin names (e.g. "google", "web_search"); all must be live
 	Steps   []string
 }
 
@@ -137,7 +137,7 @@ var DefaultSeeds = []Seed{
 	{
 		ID:      "search-calendar-event",
 		Title:   "Web search → calendar: put a real place/event on the calendar",
-		Servers: []string{"google-search", "google"},
+		Servers: []string{"web_search", "google"},
 		Steps: []string{
 			"Search the web for the place or event details",
 			"Create a Google Calendar event with the useful bits",
@@ -146,7 +146,7 @@ var DefaultSeeds = []Seed{
 	{
 		ID:      "housing-sheets",
 		Title:   "Housing scout: search listings, compile into Sheets, notify when done",
-		Servers: []string{"google-search", "rentals", "google"},
+		Servers: []string{"web_search", "rentals", "google"},
 		Steps: []string{
 			"Clarify neighborhood / budget constraints",
 			"Search rentals for matching listings",
@@ -339,9 +339,9 @@ var DefaultSeeds = []Seed{
 	{
 		ID:      "search-decide",
 		Title:   "Web search: look up a real decision, then cite what came back",
-		Servers: []string{"google-search"},
+		Servers: []string{"web_search"},
 		Steps: []string{
-			"google-search__web_search the thing they need to decide",
+			"web_search the thing they need to decide",
 			"Summarize what the tool returned — don't invent extra sources",
 			"Offer one next step (calendar block, a task, or just the answer)",
 		},
@@ -408,7 +408,7 @@ var DefaultSeeds = []Seed{
 	{
 		ID:      "search-place-maps",
 		Title:   "Find a place on the web, then a route from GPS",
-		Servers: []string{"google-search", "maps"},
+		Servers: []string{"web_search", "maps"},
 		Steps: []string{
 			"Search for the place or venue they named",
 			"If [location] is missing, ask them to send with GPS",
@@ -418,13 +418,20 @@ var DefaultSeeds = []Seed{
 }
 
 // ServerPrefixes returns the set of MCP server prefixes present in defs
-// (same split as mcp.EstimateSchemaBudget: name before "__").
+// (same split as mcp.EstimateSchemaBudget: name before "__") plus unprefixed
+// builtin names (web_search, memory_store, …) so recipes can require a builtin.
 func ServerPrefixes(defs []provider.ToolDef) map[string]bool {
 	out := make(map[string]bool)
 	for _, d := range defs {
-		if i := strings.Index(d.Name, "__"); i > 0 {
-			out[d.Name[:i]] = true
+		name := strings.TrimSpace(d.Name)
+		if name == "" {
+			continue
 		}
+		if i := strings.Index(name, "__"); i > 0 {
+			out[name[:i]] = true
+			continue
+		}
+		out[name] = true
 	}
 	return out
 }

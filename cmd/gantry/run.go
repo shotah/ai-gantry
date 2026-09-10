@@ -34,6 +34,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/selfnote"
 	"github.com/shotah/ai-gantry/internal/session"
 	"github.com/shotah/ai-gantry/internal/watch"
+	"github.com/shotah/ai-gantry/internal/websearch"
 )
 
 // run boots config, persona, sessions, MCP host, memory, cron, watch, provider, agent, and channel.
@@ -59,6 +60,7 @@ func run() int {
 		"memory_enabled", cfg.MemoryEnabled,
 		"memory_backend", cfg.MemoryBackend,
 		"self_notes_enabled", cfg.SelfNotesEnabled,
+		"web_search_enabled", cfg.WebSearchEnabled,
 		"cron_enabled", cfg.CronEnabled,
 		"watch_enabled", cfg.WatchEnabled,
 		"cron_tz", cfg.CronTZ,
@@ -121,6 +123,9 @@ func run() int {
 		ManifestPath:   cfg.MCPManifest,
 		Logger:         logger,
 		ResultMaxChars: cfg.ToolResultMaxChars,
+		SkipServer: func(spec mcp.ServerSpec) bool {
+			return cfg.WebSearchEnabled && websearch.IsReplacedMCP(spec.Name, spec.Command)
+		},
 	})
 	if err != nil {
 		logger.Error("mcp host failed", "err", err)
@@ -250,6 +255,22 @@ func run() int {
 					logger.Info("self-note on trim", "note_graduated", true)
 				}
 			})
+		}
+	}
+
+	if cfg.WebSearchEnabled {
+		searchTools, err := websearch.Open(websearch.Options{
+			APIKey:   cfg.GooglePSEAPIKey,
+			EngineID: cfg.GooglePSEEngineID,
+		})
+		if err != nil {
+			logger.Warn("web search disabled", "err", err)
+		} else {
+			tools = websearch.Composite{
+				Search: searchTools,
+				Other:  tools,
+			}
+			logger.Info("web search ready")
 		}
 	}
 

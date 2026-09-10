@@ -37,6 +37,9 @@ type Options struct {
 	ResultMaxChars    int
 	Dial              DialFunc // optional; defaults to CommandTransport dial
 	RestartMaxBackoff time.Duration
+	// SkipServer omits a manifest entry without counting it as a boot failure
+	// (builtin replacements such as google-search → web_search).
+	SkipServer func(spec ServerSpec) bool
 }
 
 // DialFunc connects to one MCP server. Tests inject in-memory dialers.
@@ -126,6 +129,14 @@ func Start(ctx context.Context, opts Options) (*Host, error) {
 
 	var failed int
 	for _, spec := range manifest.Servers {
+		if opts.SkipServer != nil && opts.SkipServer(spec) {
+			h.log.Info("mcp server omitted",
+				"server", spec.Name,
+				"command", spec.Command,
+				"reason", "replaced_by_builtin",
+			)
+			continue
+		}
 		if err := h.connectServer(ctx, spec); err != nil {
 			failed++
 			h.skipped = append(h.skipped, ServerStatus{

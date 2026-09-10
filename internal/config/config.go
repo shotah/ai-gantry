@@ -69,10 +69,18 @@ type Config struct {
 	MCPEnableForce string `env:"MCP_ENABLE_FORCE"`
 
 	// ToolsEnabled controls whether tool schemas are sent to the model.
-	// false omits MCP, memory_*, cron_*, and watch_* tools from every completion — required
+	// false omits MCP, memory_*, cron_*, watch_*, and web_search from every completion — required
 	// for models that reject tools (e.g. Ollama gemma3). Memory/cron/watch backends may
 	// still start; only the agent tool surface is cleared.
 	ToolsEnabled bool `env:"TOOLS_ENABLED" envDefault:"true"`
+
+	// WebSearchEnabled publishes builtin web_search (Google Custom Search HTTP).
+	// Leftover google-search MCP grants are omitted while this is on.
+	WebSearchEnabled bool `env:"WEB_SEARCH_ENABLED" envDefault:"true"`
+	// GooglePSEAPIKey is the Custom Search JSON API key (plain Google results).
+	GooglePSEAPIKey string `env:"GOOGLE_PSE_API_KEY"`
+	// GooglePSEEngineID is the Programmable Search Engine cx id.
+	GooglePSEEngineID string `env:"GOOGLE_PSE_ENGINE_ID"`
 
 	// SelfNotesEnabled lets the agent keep SELF.md in PERSONA_DIR: a self_note
 	// tool for jotting personality lines, plus a distill pass on /new that

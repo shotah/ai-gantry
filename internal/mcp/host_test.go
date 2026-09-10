@@ -402,6 +402,44 @@ command = "unused"
 	}
 }
 
+func TestHost_SkipServerOmitsWithoutFailure(t *testing.T) {
+	path := writeManifest(t, `
+[[server]]
+name = "google-search"
+command = "mcp-gemini-google-search"
+[[server]]
+name = "math"
+command = "unused"
+`)
+	var dialed []string
+	host, err := mcp.Start(context.Background(), mcp.Options{
+		ManifestPath: path,
+		SkipServer: func(spec mcp.ServerSpec) bool {
+			return spec.Name == "google-search"
+		},
+		Dial: func(_ context.Context, spec mcp.ServerSpec, _ io.Writer) (mcp.Conn, error) {
+			dialed = append(dialed, spec.Name)
+			return &fakeConn{tools: []mcp.Tool{{OriginalName: "expression_evaluate"}}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+	if len(dialed) != 1 || dialed[0] != "math" {
+		t.Fatalf("dialed = %v, want [math]", dialed)
+	}
+	names := toolNames(host.Tools())
+	if len(names) != 1 || names[0] != "math__expression_evaluate" {
+		t.Fatalf("tools = %v", names)
+	}
+	for _, st := range host.ServerHealth() {
+		if st.Name == "google-search" {
+			t.Fatalf("omitted server should not appear in health: %+v", st)
+		}
+	}
+}
+
 func TestHost_UnknownToolSuggestsHyphenPrefix(t *testing.T) {
 	path := writeManifest(t, `
 [[server]]

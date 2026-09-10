@@ -11,16 +11,16 @@ import (
 func TestEligibleAndPick_FiltersByLiveServers(t *testing.T) {
 	seeds := []examples.Seed{
 		{ID: "g", Title: "G", Servers: []string{"google"}, Steps: []string{"a"}},
-		{ID: "gs", Title: "GS", Servers: []string{"google", "google-search"}, Steps: []string{"a"}},
+		{ID: "gs", Title: "GS", Servers: []string{"google", "web_search"}, Steps: []string{"a"}},
 		{ID: "yt", Title: "YT", Servers: []string{"youtube", "cast"}, Steps: []string{"a"}},
 	}
 	defs := []provider.ToolDef{
 		{Name: "google__calendar_list_events"},
-		{Name: "google-search__web_search"},
-		{Name: "memory_recall"}, // builtin — ignored for prefixes
+		{Name: "web_search"},
+		{Name: "memory_recall"}, // builtin — also a live key, not a prefix
 	}
 	live := examples.ServerPrefixes(defs)
-	if !live["google"] || !live["google-search"] {
+	if !live["google"] || !live["web_search"] {
 		t.Fatalf("live=%v", live)
 	}
 	if live["youtube"] {
@@ -223,7 +223,7 @@ func TestDefaultSeeds_MathSearchYoutube(t *testing.T) {
 	}
 
 	searchOnly := examples.ServerPrefixes([]provider.ToolDef{
-		{Name: "google-search__web_search"},
+		{Name: "web_search"},
 	})
 	elig = examples.Eligible(examples.DefaultSeeds, searchOnly)
 	ids = map[string]bool{}

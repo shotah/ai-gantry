@@ -73,7 +73,7 @@ and the live catalog, not in `PERSONA.md` ([persona.md](persona.md)).
    | Videos (YouTube Data API) | `videos_` | youtube (not `tracks_` — that was Music/InnerTube era) |
    | Cast handoff helpers | `cast_` | youtube (`cast_format_target`); beam owns playback tools |
    | Math | `expression_` / `units_` | math |
-   | Web search | `web_` | google-search (`web_search`) |
+   | Web search | `web_` | harness builtin `web_search` (not an MCP) |
    | Flight offers / dates / airports / returns / booking / quota | `offers_` / `dates_` / `airports_` / `returns_` / `booking_` / `link_` / `account_` | flights |
    | Rental listings / rent estimate / markets / areas / quota | `listings_` / `rent_` / `markets_` / `areas_` / `link_` / `account_` | rentals |
    | Car listings / VIN / markets / quota | `listings_` / `vin_` / `markets_` / `link_` / `account_` | cars (host prefix disambiguates from rentals) |
@@ -111,7 +111,6 @@ and the live catalog, not in `PERSONA.md` ([persona.md](persona.md)).
 | Server id (`mcp.toml`) | Example tools | Host calls |
 | --- | --- | --- |
 | `google` | `calendar_list_events` | `google__calendar_list_events` |
-| `google-search` | `web_search` | `google-search__web_search` |
 | `garmin` | `sleep_get`, `activities_list` | `garmin__sleep_get` |
 | `strava` | `activities_list`, `routes_list`, `urls_resolve` | `strava__activities_list` |
 | `youtube` | `videos_search`, `library_list_liked_videos` | `youtube__videos_search` |
@@ -125,9 +124,10 @@ and the live catalog, not in `PERSONA.md` ([persona.md](persona.md)).
 | `maps` | `link_resolve`, `place_resolve`, `place_search`, `route_eta` | `maps__place_search` |
 | `boards` | `roster_list`, `notices_list`, `challenges_create` | `boards__roster_list` |
 
-Hyphenated server ids (`google-search`) are fine; tool suffixes stay underscores.
-The host aliases `google_search__web_search` → `google-search__web_search` on
-call — **suffixes are never rewritten**.
+Hyphenated server ids are fine; tool suffixes stay underscores.
+The host aliases underscored prefixes (`google_health__…` → `google-health__…`)
+on call — **suffixes are never rewritten**. Web search is the unprefixed
+builtin `web_search`; leftover `google_search__web_search` still hits it.
 
 ---
 

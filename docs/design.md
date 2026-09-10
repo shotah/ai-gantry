@@ -39,7 +39,7 @@ Deploy shapes: [deploy-docker.md](deploy-docker.md) (Hub) ·
    (no shell in the image). No glibc dependency in our binary.
 4. **Plugin-centric.** Capabilities come from external binaries over MCP
    stdio. The gantry **is the harness**: it hosts tools; it does not implement
-   them (except a few builtins: memory, cron, watch, `self_note`). Import
+   them (except a few builtins: memory, cron, watch, `self_note`, `web_search`). Import
    libraries over writing our own.
 5. **1:1, always.** No multi-provider config, no multi-agent config, no peer
    routing. Scaling = more processes.
@@ -120,7 +120,7 @@ console for several agents is [gantree](https://github.com/shotah/gantree).
 
 - Web dashboard, gateway, REST/WS API, pairing flows
 - Multi-agent / multi-provider / model fallback chains
-- Built-in search/workspace tools (those are MCP binaries)
+- Built-in workspace tools (those are MCP binaries)
 - Vector DB / embedding service
 - In-process sandboxing / risk profiles (the container is the sandbox;
   channel allowlist is the gate)
@@ -186,6 +186,9 @@ Boot is fail-fast: missing required env = clear error + exit 1.
 | `TOOL_MAX_ITERATIONS` | no | `10` (at the cap a final no-tools call forces a text reply) |
 | `TOOL_SCHEMA_MAX_TOKENS` | no | `0` (log estimate only; `>0` = hard fail if over) |
 | `TOOLS_ENABLED` | no | `true` (`false` omits all tool schemas — models that reject tools, e.g. Ollama gemma3) |
+| `WEB_SEARCH_ENABLED` | no | `true` (builtin `web_search`; leftover `google-search` MCP grants are omitted) |
+| `GOOGLE_PSE_API_KEY` | no | Custom Search JSON API key — plain Google results, not a second model |
+| `GOOGLE_PSE_ENGINE_ID` | no | Programmable Search Engine `cx` id (pairs with the API key) |
 | `MCP_ENABLE_FORCE` | no | comma-separated prefixes always published when `dynamic_tools` is on |
 | `SELF_NOTES_ENABLED` | no | `true` (auto-off when `PERSONA_DIR` is read-only) |
 | `MEMORY_ENABLED` | no | `true` |

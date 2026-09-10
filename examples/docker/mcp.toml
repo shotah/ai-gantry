@@ -34,12 +34,7 @@
 # command = "garmin"
 # args = ["mcp", "--tool-tier", "core"]
 
-# --- Web search via Gemini grounding (shotah/mcp-gemini-search) --------------
-# [[server]]
-# name = "google-search"
-# command = "mcp-gemini-google-search"
-# download_tag = "latest"
-# download_url = "https://github.com/shotah/mcp-gemini-search/releases/download/{tag}/mcp-gemini-google-search_{version}_{os}_{arch}.tar.gz"
+# --- Web search is a gantry builtin (web_search). Do not grant google-search. ---
 
 # --- Chromecast / Nest (shotah/mcp-beam) — often needs network_mode=host -----
 # [[server]]

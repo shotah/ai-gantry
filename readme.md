@@ -33,8 +33,9 @@ Nothing listens on a port.
 container + persona + any OpenAI-compat LLM  →  outbound chat
 ```
 
-Gemini or ChatGPT with a key. Ollama on the same machine. Chat, memory, and
-reminders work with **zero extra tools** — add MCP binaries later if you want.
+Gemini or ChatGPT with a key. Ollama on the same machine. Chat, memory,
+reminders, and web search work with **zero extra tools** — add MCP binaries
+later if you want.
 
 We spent the engineering budget on the **harness** — tool calling, MCP,
 context economics, memory that outlives a session, and finishing turns on

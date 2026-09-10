@@ -8,6 +8,7 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/mcpenable"
 	"github.com/shotah/ai-gantry/internal/provider"
+	"github.com/shotah/ai-gantry/internal/websearch"
 )
 
 func (a *Agent) publishedTools(ctx context.Context, sessionID string) []provider.ToolDef {
@@ -40,7 +41,7 @@ func (a *Agent) enableIndexBlock(ctx context.Context, sessionID string) string {
 }
 
 func (a *Agent) guardEnable(ctx context.Context, name string) error {
-	if a.enable == nil || mcpenable.AlwaysOn(name) || name == mcpenable.ToolName {
+	if a.enable == nil || mcpenable.AlwaysOn(name) || name == mcpenable.ToolName || websearch.IsSearchTool(name) {
 		return nil
 	}
 	sessionID := mcpenable.SessionID(ctx)
@@ -63,7 +64,7 @@ func (a *Agent) guardEnable(ctx context.Context, name string) error {
 }
 
 func (a *Agent) touchEnable(ctx context.Context, name string) {
-	if a.enable == nil || mcpenable.AlwaysOn(name) {
+	if a.enable == nil || mcpenable.AlwaysOn(name) || websearch.IsSearchTool(name) {
 		return
 	}
 	sessionID := mcpenable.SessionID(ctx)

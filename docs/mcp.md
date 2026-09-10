@@ -3,8 +3,9 @@
 How the harness loads tools, names them for the model, recovers from common
 hallucinations, and how to exercise that path locally.
 
-Capabilities live in **external MCP stdio binaries**. The harness only
-supervises them: spawn → list → call → truncate → restart. See
+Capabilities live in **external MCP stdio binaries**, plus a few harness
+builtins (memory, cron, watch, `self_note`, `web_search`). The host
+supervises MCP children: spawn → list → call → truncate → restart. See
 [architecture.md](architecture.md) for the process diagram; this page is the
 operator contract for naming and local use.
 
@@ -17,12 +18,12 @@ repair names and finish turns or the horizon collapses into ERROR.
 
 | Goal | How MCP helps |
 | --- | --- |
-| Keep the harness small | Calendar, search, Cast, etc. stay out of `gantry` |
+| Keep the harness small | Calendar, Cast, etc. stay out of `gantry`. Web search is a builtin. |
 | Clear grant model | A server in `mcp.toml` is granted; omit it and it does not exist |
 | Distroless-friendly | Static Go binaries over stdio — no shell, no npm in the image |
 | Swappable brains | Same tool schemas work for Gemini, ChatGPT, Ollama — OpenAI-compat tool calls |
 
-Chat, memory, and cron work with **zero** MCP servers. Tools are optional.
+Chat, memory, cron, and web search work with **zero** MCP servers. Other tools are optional.
 
 ---
 
@@ -42,7 +43,7 @@ Examples:
 
 | Manifest `name` | MCP tool | Name the model must call |
 | --- | --- | --- |
-| `google-search` | `web_search` | `google-search__web_search` |
+| *(builtin)* | `web_search` | `web_search` (always on; no prefix) |
 | `google` | `calendar_list_events` | `google__calendar_list_events` |
 | `math` | `expression_evaluate` | `math__expression_evaluate` |
 | `youtube` | `videos_search` | `youtube__videos_search` |
@@ -85,17 +86,20 @@ Inspect what the running agent sees:
 
 ## Local models and hyphenated prefixes
 
-Server names often use hyphens (`google-search`). Tool *suffixes* use
-underscores (`web_search`). Small local models (e.g. Qwen via Ollama)
-frequently **normalize the whole name to underscores** and invent nearby
-names (`google_search`, `gmail_search`, …).
+Server names can use hyphens. Tool *suffixes* use underscores. Small local
+models (e.g. Qwen via Ollama) frequently **normalize the whole name to
+underscores** and invent nearby names.
 
-Typical failure spiral:
+Web search is the unprefixed builtin `web_search` (Google Custom Search HTTP —
+titles, URLs, snippets). Leftover MCP names (`google-search__web_search`,
+`google_search__web_search`) still call that builtin; they are not a second
+model.
 
-1. Model calls `google-search__google_search` → unknown tool (old / invented suffix)  
-2. Host suggests exact catalog: `google-search__web_search`  
-3. Model “fixes” the prefix to `google_search__web_search` → unknown prefix  
-4. Hint degrades to a bare prefix list → more guessing → think-stall
+Typical hyphen-prefix failure spiral (why search is a builtin now):
+
+1. Model calls `google-search__google_search` → unknown tool (invented suffix)
+2. Host suggests a catalog name; model rewrites the prefix to underscores
+3. Hint degrades to a bare prefix list → more guessing → think-stall
 
 That is a **runtime** problem, not a persona typo. Exact names come from the
 live catalog (tool schemas + `[mcp prefixes]` + `/tools`); the host also
@@ -107,10 +111,12 @@ On `Call`, if the exact name is missing, gantry rewrites **only the server
 prefix** so underscores become hyphens, then retries lookup:
 
 ```text
-google_search__web_search  →  google-search__web_search   ✅ called
+google_search__web_search  →  builtin web_search   ✅ called
 ```
 
-Tool suffixes are **not** rewritten (`web_search` stays `web_search`).
+Tool suffixes are **not** rewritten (`calendar_list_events` stays
+`calendar_list_events`). Search aliases are handled by the builtin, not by
+prefix rewrite.
 
 A real tool name wearing an invented or missing prefix is repaired the same way,
 because a bounced call costs a full model round-trip — the most expensive thing
@@ -141,10 +147,10 @@ If lookup still fails, the error string is model-facing and catalog-aware:
 
 | Mistake | Hint shape |
 | --- | --- |
-| Wrong tool, real prefix | `valid google-search tools are: google-search__web_search — retry with one of these exact names` |
-| Underscored prefix, wrong tool | `did you mean "google-search"?` + that server’s exact tool list |
+| Wrong tool, real prefix | `valid garmin tools are: garmin__hrv_get — retry with one of these exact names` |
+| Underscored prefix, wrong tool | `did you mean "garmin"?` + that server’s exact tool list |
 | Invented name (fake prefix, merged suffix) | `closest real names are: garmin__wellness_get_body_battery, garmin__hrv_get — retry with one of these exact names` |
-| Unknown prefix, nothing close | `available server prefixes are: cast, garmin, google-search, …` |
+| Unknown prefix, nothing close | `available server prefixes are: cast, garmin, google, …` |
 
 The agent loop feeds that error back as a tool result so the next iteration
 can self-correct (same pattern as argument/schema failures).
@@ -211,7 +217,7 @@ just a different guess.
 
 ### What aliasing does *not* fix
 
-- Invented tool suffixes (`…__web_search`) — no real name to repair to, so these
+- Invented tool suffixes (`…__google_search`) — no real name to repair to, so these
   still need a retry with the suggested name (or a smaller published tool surface)
 - Wrong arguments (e.g. passing a time range as `event_id`) — MCP/API errors
 - Think-only turns with no tool call — agent nudge / stall path in

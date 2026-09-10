@@ -58,7 +58,7 @@ func TestIndex(t *testing.T) {
 }
 
 func TestAlwaysOn(t *testing.T) {
-	if !AlwaysOn("memory_store") || !AlwaysOn("mcp_enable") || !AlwaysOn("self_note") {
+	if !AlwaysOn("memory_store") || !AlwaysOn("mcp_enable") || !AlwaysOn("self_note") || !AlwaysOn("web_search") {
 		t.Fatal("builtins should be always-on")
 	}
 	if AlwaysOn("google__calendar_list_events") {

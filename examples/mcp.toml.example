@@ -56,11 +56,7 @@
 # args    = ["mcp", "--tool-tier", "core"]
 # auth_args = ["login"]
 #
-# [[server]]
-# name    = "google-search"
-# command = "mcp-gemini-google-search"
-# download_tag = "latest"
-# download_url = "https://github.com/shotah/mcp-gemini-search/releases/download/{tag}/mcp-gemini-google-search_{version}_{os}_{arch}.tar.gz"
+# Web search is a gantry builtin (web_search). Do not grant google-search.
 #
 # [[server]]
 # name    = "cast"

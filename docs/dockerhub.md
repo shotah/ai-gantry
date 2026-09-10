@@ -11,7 +11,7 @@ and personality survive `/new`.
 container + persona + any OpenAI-compat LLM  →  outbound chat
 ```
 
-Chat, memory, and cron work with **zero MCP servers**. Tools are optional
+Chat, memory, cron, and web search work with **zero MCP servers**. Tools are optional
 binaries on `PATH` (or baked into a richer image).
 
 Source, full contract:

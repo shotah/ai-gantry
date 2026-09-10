@@ -49,6 +49,7 @@ internal/session/    bounded history + rolling summary
 internal/memory/     Memory interface, builtin SQLite/FTS5, MCP adapter, consolidator
 internal/persona/    load PERSONA.md + SELF.md
 internal/selfnote/   SELF.md tool + distill on /new
+internal/websearch/  builtin web_search (Google Custom Search HTTP)
 internal/heartbeat/  singleton row for Docker healthcheck
 internal/drain/      in-flight turn wait on SIGTERM
 internal/cron/       scheduled turns → agent → channel push

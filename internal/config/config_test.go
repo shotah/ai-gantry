@@ -56,6 +56,9 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if !cfg.ToolsEnabled {
 		t.Error("ToolsEnabled = false, want true")
 	}
+	if !cfg.WebSearchEnabled {
+		t.Error("WebSearchEnabled = false, want true")
+	}
 	if !cfg.MemoryEnabled {
 		t.Error("MemoryEnabled = false, want true")
 	}
