@@ -243,6 +243,64 @@ func TestDispatch_StreamDraftThenReply(t *testing.T) {
 	}
 }
 
+func TestEditStream_FinishCarriesPhoto(t *testing.T) {
+	w := &captureWriter{}
+	s := newEditStream(w.write, "1182")
+	s.setPhotos([]string{"data:image/png;base64,AQID"})
+	if err := s.Finish(context.Background(), "drew a red bike"); err != nil {
+		t.Fatal(err)
+	}
+	frames := w.all()
+	if len(frames) != 1 {
+		t.Fatalf("%+v", frames)
+	}
+	if frames[0].Kind != "reply" || frames[0].Text != "drew a red bike" {
+		t.Fatalf("%+v", frames[0])
+	}
+	if len(frames[0].Images) != 1 || frames[0].Images[0].URL != "data:image/png;base64,AQID" {
+		t.Fatalf("images %+v", frames[0].Images)
+	}
+}
+
+func TestDispatch_StreamReplyCarriesPhoto(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:    "wss://x.workers.dev/ws/kit",
+		Bearer:        "tok",
+		AllowedUsers:  []string{"1182"},
+		StreamReplies: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 16)}
+	raw, _ := json.Marshal(inboundFrame{Text: "draw", UserID: "1182"})
+	if err := ch.dispatch(context.Background(), fc, raw, func(ctx context.Context, _ channel.Message) (string, error) {
+		w, _ := channel.ReplyWriterFrom(ctx)
+		_ = w.(channel.StatusWriter).UpdateStatus(ctx, "⏳ spinning up")
+		channel.PhotoSinkFrom(ctx).Add("data:image/png;base64,AQID")
+		return "drew a red bike", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		out := recvOutbound(t, fc.writes)
+		switch out.Kind {
+		case "typing", "draft":
+			continue
+		case "reply":
+			if out.Text == "" || !strings.Contains(out.Text, "drew a red bike") {
+				t.Fatalf("reply %+v", out)
+			}
+			if len(out.Images) != 1 || out.Images[0].URL != "data:image/png;base64,AQID" {
+				t.Fatalf("images %+v", out.Images)
+			}
+			return
+		default:
+			t.Fatalf("unexpected %+v", out)
+		}
+	}
+}
+
 func TestDispatch_EmptyReplyDiscardsDraft(t *testing.T) {
 	ch, err := New(Config{
 		MailboxURL:    "wss://x.workers.dev/ws/kit",

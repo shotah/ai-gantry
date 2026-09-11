@@ -53,7 +53,13 @@ Examples:
 | `feeds` | `items_list` | `feeds__items_list` |
 | `twitter` | `posts_list` | `twitter__posts_list` |
 | `maps` | `place_search`, `route_eta` | `maps__place_search` |
+| `image` | `photo_generate`, `photo_edit` | `image__photo_generate` |
 | `boards` | `challenges_list` | `boards__challenges_list` |
+
+MCP `ImageContent` (image-generation-mcp) is **not** stuffed into the model
+prompt — hosts truncate tool results. The JSON summary stays; Telegram /
+Discord / Slack `SendPhoto` the PNG; pendant puts `images: [{ url }]` on the
+mailbox reply (same shape as inbound). Grant prefix `image` (not fat `google`).
 
 **Why the prefix?** OpenAI-safe characters, no collisions across servers, and
 obvious provenance in logs / collapsed history markers.

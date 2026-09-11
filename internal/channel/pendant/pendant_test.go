@@ -587,6 +587,89 @@ func TestServe_PublishesCatalog(t *testing.T) {
 	}
 }
 
+func TestDispatch_MCPPhotoSink(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 8)}
+	raw, _ := json.Marshal(inboundFrame{Text: "draw a red bike", UserID: "1182"})
+	if err := ch.dispatch(context.Background(), fc, raw, func(ctx context.Context, _ channel.Message) (string, error) {
+		if s := channel.PhotoSinkFrom(ctx); s != nil {
+			s.Add("data:image/png;base64,AQID")
+		} else {
+			t.Fatal("PhotoSink missing on Handle ctx")
+		}
+		return "drew a red bike", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	out := recvReply(t, fc.writes)
+	if out.Kind != "reply" || out.Text != "drew a red bike" || out.UserID != "1182" {
+		t.Fatalf("%+v", out)
+	}
+	if len(out.Images) != 1 || out.Images[0].URL != "data:image/png;base64,AQID" {
+		t.Fatalf("images %+v", out.Images)
+	}
+}
+
+func TestDispatch_PhotoOnlyEmptyText(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 8)}
+	raw, _ := json.Marshal(inboundFrame{Text: "draw", UserID: "1182"})
+	if err := ch.dispatch(context.Background(), fc, raw, func(ctx context.Context, _ channel.Message) (string, error) {
+		channel.PhotoSinkFrom(ctx).Add("data:image/png;base64,AQID")
+		return "", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	out := recvReply(t, fc.writes)
+	if out.Kind != "reply" || out.Text != "" || len(out.Images) != 1 {
+		t.Fatalf("photo-only %+v", out)
+	}
+}
+
+func TestPush_IncludesPhotos(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte), writes: make(chan []byte, 1)}
+	ch.setLive(fc)
+	if err := ch.Push(context.Background(), channel.Outbound{
+		Text:   "drew it",
+		Photos: []string{"data:image/png;base64,AQID"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	raw := <-fc.writes
+	var out outboundFrame
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Kind != "push" || out.Text != "drew it" || out.UserID != "1182" {
+		t.Fatalf("%+v", out)
+	}
+	if len(out.Images) != 1 || out.Images[0].URL != "data:image/png;base64,AQID" {
+		t.Fatalf("images %+v", out.Images)
+	}
+}
+
 func TestDispatch_WorkerPhotoJSONAndEmpty(t *testing.T) {
 	ch, err := New(Config{
 		MailboxURL:   "wss://x.workers.dev/ws/kit",

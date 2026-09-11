@@ -4,6 +4,7 @@ package mcp
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
@@ -752,6 +754,9 @@ func (c *sdkConn) CallTool(ctx context.Context, name string, arguments map[strin
 	if res.IsError {
 		return "", classifiedToolError(text)
 	}
+	if sink := channel.PhotoSinkFrom(ctx); sink != nil {
+		sink.Add(imagesFromResult(res)...)
+	}
 	return text, nil
 }
 
@@ -782,10 +787,17 @@ func contentToString(res *mcpsdk.CallToolResult) string {
 		return ""
 	}
 	var parts []string
+	var images int
 	for _, c := range res.Content {
 		switch v := c.(type) {
 		case *mcpsdk.TextContent:
-			parts = append(parts, v.Text)
+			if t := strings.TrimSpace(v.Text); t != "" {
+				parts = append(parts, v.Text)
+			}
+		case *mcpsdk.ImageContent, *mcpsdk.AudioContent:
+			// Binary stays off the model prompt (TOOL_RESULT_MAX_CHARS would
+			// truncate it anyway). Mouths SendPhoto via PhotoSink.
+			images++
 		default:
 			b, err := json.Marshal(v)
 			if err != nil {
@@ -798,10 +810,36 @@ func contentToString(res *mcpsdk.CallToolResult) string {
 	if len(parts) == 0 && res.StructuredContent != nil {
 		b, err := json.Marshal(res.StructuredContent)
 		if err == nil {
-			return string(b)
+			parts = append(parts, string(b))
 		}
 	}
+	// Always tell the model the picture already reached the user, even when a
+	// summary is present — otherwise it only sees {"bytes":…} and may claim it
+	// cannot show images or invent a path. Appended last so the summary still
+	// survives TOOL_RESULT_MAX_CHARS.
+	if images > 0 {
+		parts = append(parts, fmt.Sprintf("[image] %d picture(s) delivered to chat", images))
+	}
 	return strings.Join(parts, "\n")
+}
+
+func imagesFromResult(res *mcpsdk.CallToolResult) []string {
+	if res == nil {
+		return nil
+	}
+	var out []string
+	for _, c := range res.Content {
+		img, ok := c.(*mcpsdk.ImageContent)
+		if !ok || len(img.Data) == 0 {
+			continue
+		}
+		mime := strings.TrimSpace(img.MIMEType)
+		if mime == "" {
+			mime = "image/png"
+		}
+		out = append(out, "data:"+mime+";base64,"+base64.StdEncoding.EncodeToString(img.Data))
+	}
+	return out
 }
 
 type lineLogger struct {

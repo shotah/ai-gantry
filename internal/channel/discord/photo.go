@@ -88,22 +88,8 @@ func downloadURLAsDataURL(ctx context.Context, rawURL, contentType string) (stri
 	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data), nil
 }
 
-func (c *Channel) sendReply(ctx context.Context, s session, channelID, text, extraPhoto string) error {
-	urls, rest := channel.ExtractImageURLs(text)
-	if extra := strings.TrimSpace(extraPhoto); extra != "" {
-		urls = append([]string{extra}, urls...)
-	}
-	seen := map[string]struct{}{}
-	deduped := urls[:0]
-	for _, u := range urls {
-		if _, ok := seen[u]; ok {
-			continue
-		}
-		seen[u] = struct{}{}
-		deduped = append(deduped, u)
-	}
-	urls = deduped
-
+func (c *Channel) sendReply(ctx context.Context, s session, channelID, text string, extra ...string) error {
+	urls, rest := channel.MergePhotoURLs(text, extra...)
 	if rest != "" {
 		parts := splitMessage(rest, c.chunkMax)
 		for i, part := range parts {
@@ -143,29 +129,9 @@ func sendImage(s session, channelID, u string) error {
 }
 
 func sendDataImage(s session, channelID, dataURL string) error {
-	comma := strings.IndexByte(dataURL, ',')
-	if comma < 0 {
-		return fmt.Errorf("discord: bad data url")
-	}
-	meta := dataURL[len("data:"):comma]
-	raw, err := base64.StdEncoding.DecodeString(dataURL[comma+1:])
+	raw, _, ext, err := channel.DecodeDataURL(dataURL)
 	if err != nil {
-		return fmt.Errorf("discord: decode data url: %w", err)
-	}
-	mime := meta
-	if i := strings.IndexByte(mime, ';'); i >= 0 {
-		mime = mime[:i]
-	}
-	ext := ".bin"
-	switch mime {
-	case "image/png":
-		ext = ".png"
-	case "image/jpeg", "image/jpg":
-		ext = ".jpg"
-	case "image/gif":
-		ext = ".gif"
-	case "image/webp":
-		ext = ".webp"
+		return fmt.Errorf("discord: %w", err)
 	}
 	_, err = s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
 		Files: []*discordgo.File{{

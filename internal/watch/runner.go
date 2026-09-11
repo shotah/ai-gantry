@@ -144,17 +144,20 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, w Watch) {
 		SessionID: w.SessionID,
 		Text:      text,
 	}
-	reply, err := r.Handle(ctx, msg)
+	handleCtx, sink := channel.AttachPhotoSink(ctx)
+	reply, err := r.Handle(handleCtx, msg)
 	if err != nil {
 		log.Warn("watch handle failed", "id", w.ID, "err", err)
 		_ = r.Store.Finish(ctx, w, merged, err)
 		return
 	}
+	photos := sink.URLs()
 	if cron.IsSilentReply(reply) {
 		log.Info("watch silent skip", "id", w.ID, "session_id", w.SessionID, "new_items", len(fresh))
-	} else if reply != "" {
+	} else if reply != "" || len(photos) > 0 {
 		if err := r.Pusher.Push(ctx, channel.Outbound{
-			Text: reply,
+			Text:   reply,
+			Photos: photos,
 		}); err != nil {
 			log.Warn("watch push failed", "id", w.ID, "err", err)
 			_ = r.Store.Finish(ctx, w, merged, fmt.Errorf("push: %w", err))

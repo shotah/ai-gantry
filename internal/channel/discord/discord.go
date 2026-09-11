@@ -193,6 +193,7 @@ func (c *Channel) makeMessageHandler(ctx context.Context, handle channel.Handler
 			handleCtx = channel.WithReplyWriter(ctx, stream)
 		}
 
+		handleCtx, sink := channel.AttachPhotoSink(handleCtx)
 		reply, err := handle(handleCtx, channel.Message{
 			SessionID: channel.AgentSession,
 			UserID:    userID,
@@ -205,12 +206,13 @@ func (c *Channel) makeMessageHandler(ctx context.Context, handle channel.Handler
 			_, _ = s.ChannelMessageSend(m.ChannelID, "sorry — something went wrong handling that message")
 			return
 		}
+		photos := sink.URLs()
 		if stream != nil && stream.Started() {
-			urls, rest := channel.ExtractImageURLs(reply)
+			urls, rest := channel.MergePhotoURLs(reply, photos...)
 			if err := stream.Finish(ctx, rest); err != nil {
 				c.log.Warn("discord stream finish failed; falling back to send", "err", err)
-				if reply != "" {
-					if err := c.sendReply(ctx, s, m.ChannelID, reply, ""); err != nil {
+				if reply != "" || len(photos) > 0 {
+					if err := c.sendReply(ctx, s, m.ChannelID, reply, photos...); err != nil {
 						c.log.Error("discord send failed", "err", err, "session_id", channel.AgentSession)
 					}
 				}
@@ -223,10 +225,10 @@ func (c *Channel) makeMessageHandler(ctx context.Context, handle channel.Handler
 			}
 			return
 		}
-		if reply == "" {
+		if reply == "" && len(photos) == 0 {
 			return
 		}
-		if err := c.sendReply(ctx, s, m.ChannelID, reply, ""); err != nil {
+		if err := c.sendReply(ctx, s, m.ChannelID, reply, photos...); err != nil {
 			c.log.Error("discord send failed", "err", err, "session_id", channel.AgentSession)
 		}
 	}
@@ -303,7 +305,7 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 			}
 			continue
 		}
-		if err := c.sendReply(ctx, s, ch.ID, msg.Text, msg.PhotoURL); err != nil && first == nil {
+		if err := c.sendReply(ctx, s, ch.ID, msg.Text, channel.PhotoURLs(msg)...); err != nil && first == nil {
 			first = err
 		}
 	}

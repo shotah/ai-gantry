@@ -8,7 +8,7 @@ a local dialect.
 **Audience:** authors of google-mcp, go-garmin, go-strava-mcp, youtube-go-mcp,
 mcp-beam, mcp-go-math, mcp-gemini-search, flights-search-mcp, rentals-search-mcp,
 cars-search-mcp, feeds-mcp, twitter-mcp, google-maps-mcp, boards-mcp, and
-future MCPs.
+future MCPs (including image-generation-mcp).
 **Why it matters:** small models (Qwen) and host closest-match repair pick tools
 by **name tokens + description**. Synonyms and double prefixes break matching.
 
@@ -80,6 +80,7 @@ and the live catalog, not in `PERSONA.md` ([persona.md](persona.md)).
    | Feed items / feed URL discovery | `items_` / `source_` | feeds |
    | X / Twitter public posts | `posts_` | twitter (not `tweets_` / `user_posts_`) |
    | Places / Maps share links / leave-by | `place_` / `link_` / `route_` | maps (`place_search` for restaurants; `link_resolve` not `short_url_*`; `route_eta` is leave-by, not a saved Strava course) |
+   | Generated / edited pictures | `photo_` | image (`photo_generate` / `photo_edit`; not `image_*` — that double-prefixes server `image`) |
    | Yard corkboard | `roster_` / `notices_` / `challenges_` | boards (not `profile_`, Twitter `posts_`, Garmin/Strava `activities_`, Google `calendar_`) |
 
 6. **Descriptions sell the intent**
@@ -122,6 +123,7 @@ and the live catalog, not in `PERSONA.md` ([persona.md](persona.md)).
 | `feeds` | `items_list`, `source_resolve` | `feeds__items_list` |
 | `twitter` | `posts_list` | `twitter__posts_list` |
 | `maps` | `link_resolve`, `place_resolve`, `place_search`, `route_eta` | `maps__place_search` |
+| `image` | `photo_generate`, `photo_edit` | `image__photo_generate` |
 | `boards` | `roster_list`, `notices_list`, `challenges_create` | `boards__roster_list` |
 
 Hyphenated server ids are fine; tool suffixes stay underscores.

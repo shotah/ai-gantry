@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -89,24 +90,23 @@ func htmlCaption(s string) (caption string, asHTML bool) {
 	return clipCaption(s), false
 }
 
-// sendReply sends text and any image URLs found in it (or explicit PhotoURL).
-func (c *Channel) sendReply(ctx context.Context, b *bot.Bot, chatID int64, threadID int, text string, extraPhoto string) error {
-	urls, rest := channel.ExtractImageURLs(text)
-	if extra := strings.TrimSpace(extraPhoto); extra != "" {
-		urls = append([]string{extra}, urls...)
-	}
-	// Dedupe while preserving order.
-	seen := map[string]struct{}{}
-	deduped := urls[:0]
-	for _, u := range urls {
-		if _, ok := seen[u]; ok {
-			continue
+func photoInput(u string) (models.InputFile, error) {
+	if strings.HasPrefix(u, "data:image/") {
+		raw, _, ext, err := channel.DecodeDataURL(u)
+		if err != nil {
+			return nil, fmt.Errorf("telegram: %w", err)
 		}
-		seen[u] = struct{}{}
-		deduped = append(deduped, u)
+		if len(raw) > maxPhotoBytes {
+			return nil, fmt.Errorf("telegram: photo exceeds %d bytes", maxPhotoBytes)
+		}
+		return &models.InputFileUpload{Filename: "photo" + ext, Data: bytes.NewReader(raw)}, nil
 	}
-	urls = deduped
+	return &models.InputFileString{Data: u}, nil
+}
 
+// sendReply sends text and any image URLs found in it (or extra photo URLs).
+func (c *Channel) sendReply(ctx context.Context, b *bot.Bot, chatID int64, threadID int, text string, extra ...string) error {
+	urls, rest := channel.MergePhotoURLs(text, extra...)
 	caption := clipCaption(rest)
 	for i, u := range urls {
 		photoCaption := ""
@@ -115,10 +115,14 @@ func (c *Channel) sendReply(ctx context.Context, b *bot.Bot, chatID int64, threa
 			photoCaption, captionHTML = htmlCaption(caption)
 			caption = "" // only first photo gets the text caption
 		}
+		file, err := photoInput(u)
+		if err != nil {
+			return err
+		}
 		p := &bot.SendPhotoParams{
 			ChatID:          chatID,
 			MessageThreadID: threadID,
-			Photo:           &models.InputFileString{Data: u},
+			Photo:           file,
 			Caption:         photoCaption,
 		}
 		if captionHTML {

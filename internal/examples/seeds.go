@@ -327,6 +327,16 @@ var DefaultSeeds = []Seed{
 		},
 	},
 	{
+		ID:      "image-photo-generate",
+		Title:   "Draw: turn a prompt into a PNG in this chat",
+		Servers: []string{"image"},
+		Steps: []string{
+			"If image is off, mcp_enable image then call",
+			"Call image__photo_generate with a specific prompt (subject, style, composition)",
+			"Do not describe the picture instead of calling — the host sends the PNG to chat",
+		},
+	},
+	{
 		ID:      "math-eval",
 		Title:   "Numbers: let the math tool do the arithmetic (no mental math)",
 		Servers: []string{"math"},

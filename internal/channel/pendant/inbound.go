@@ -34,6 +34,7 @@ type inboundFrame struct {
 
 type outboundFrame struct {
 	Text     string          `json:"text,omitempty"`
+	Images   []channel.Image `json:"images,omitempty"`
 	Kind     string          `json:"kind,omitempty"`
 	UserID   string          `json:"user_id,omitempty"`
 	ID       string          `json:"id,omitempty"`

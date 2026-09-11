@@ -339,3 +339,46 @@ func TestSendReply_PhotoURL(t *testing.T) {
 		t.Fatal("sendPhoto")
 	}
 }
+
+func TestSendReply_DataURLUploads(t *testing.T) {
+	api := newAPIMock(t)
+	ch := testChannel(t)
+	b := testBot(t, api.srv.URL)
+	data := "data:image/png;base64,AQID"
+	err := ch.sendReply(context.Background(), b, 1, 0, "a drawing", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if api.count("sendPhoto") < 1 {
+		t.Fatal("sendPhoto")
+	}
+}
+
+func TestMakeHandler_MCPPhotoSink(t *testing.T) {
+	api := newAPIMock(t)
+	ch := testChannel(t)
+	b := testBot(t, api.srv.URL)
+
+	handler := ch.makeHandler(func(ctx context.Context, _ channel.Message) (string, error) {
+		if s := channel.PhotoSinkFrom(ctx); s != nil {
+			s.Add("data:image/png;base64,AQID")
+		}
+		return "drew a red bike", nil
+	})
+
+	handler(context.Background(), b, &models.Update{
+		Message: &models.Message{
+			ID:   8,
+			Text: "draw a red bike",
+			Chat: models.Chat{ID: 99, Type: "private"},
+			From: &models.User{ID: 42, Username: "chris"},
+		},
+	})
+
+	if api.count("sendPhoto") < 1 {
+		t.Fatal("expected sendPhoto from MCP PhotoSink")
+	}
+	if api.count("sendMessage") < 1 && api.count("sendPhoto") < 1 {
+		t.Fatal("expected a reply")
+	}
+}

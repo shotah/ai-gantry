@@ -173,6 +173,24 @@ func TestDefaultSeeds_Maps(t *testing.T) {
 	}
 }
 
+func TestDefaultSeeds_Image(t *testing.T) {
+	imageOnly := examples.ServerPrefixes([]provider.ToolDef{
+		{Name: "image__photo_generate"},
+		{Name: "image__photo_edit"},
+	})
+	elig := examples.Eligible(examples.DefaultSeeds, imageOnly)
+	ids := map[string]bool{}
+	for _, s := range elig {
+		ids[s.ID] = true
+	}
+	if !ids["image-photo-generate"] {
+		t.Fatalf("image catalog missing image-photo-generate: %v", ids)
+	}
+	if ids["maps-near-me"] {
+		t.Fatal("maps seed should not match image-only catalog")
+	}
+}
+
 func TestDefaultSeeds_FeedsAndTwitter(t *testing.T) {
 	feedsOnly := examples.ServerPrefixes([]provider.ToolDef{
 		{Name: "feeds__items_list"},

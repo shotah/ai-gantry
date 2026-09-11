@@ -35,6 +35,7 @@ type editStream struct {
 	latest      string
 	lastFlushed string
 	lastFlushAt time.Time
+	photos      []string
 }
 
 func newEditStream(write frameWriter, userID string) *editStream {
@@ -102,6 +103,15 @@ func (s *editStream) Discard(_ context.Context) error {
 	return s.write(outboundFrame{Kind: "draft", UserID: userID, Text: ""})
 }
 
+func (s *editStream) setPhotos(urls []string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.photos = append([]string(nil), urls...)
+	s.mu.Unlock()
+}
+
 func (s *editStream) Finish(_ context.Context, final string) error {
 	s.mu.Lock()
 	s.status = ""
@@ -131,11 +141,21 @@ func (s *editStream) Finish(_ context.Context, final string) error {
 	s.started = true
 	s.latest = s.body
 	userID := s.userID
+	body := clipRunes(s.body)
+	extra := append([]string(nil), s.photos...)
+	s.photos = nil
 	s.mu.Unlock()
-	if strings.TrimSpace(s.body) == "" {
+	frames := replyFrames("reply", userID, "", body, extra...)
+	if len(frames) == 0 {
 		return nil
 	}
-	return s.write(outboundFrame{Kind: "reply", UserID: userID, Text: clipRunes(s.body)})
+	var first error
+	for _, f := range frames {
+		if err := s.write(f); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
 }
 
 func (s *editStream) pushLocked(force bool) error {

@@ -61,6 +61,9 @@ type Outbound struct {
 	Text      string
 	// PhotoURL, when set, is sent via SendPhoto (Telegram) in addition to Text.
 	PhotoURL string
+	// Photos are extra SendPhoto URLs (https or data:image/…). MCP image
+	// tools fill these via PhotoSink; they are not stored in session history.
+	Photos []string
 	// ID is an optional mailbox frame id so crane logs, the Worker queue, and
 	// the phone bubble share one token. Pendant generates one when empty.
 	ID string

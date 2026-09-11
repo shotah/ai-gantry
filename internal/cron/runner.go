@@ -210,6 +210,7 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 		SessionID: job.SessionID,
 		Text:      text,
 	}
+	handleCtx, sink := channel.AttachPhotoSink(handleCtx)
 	reply, err := r.Handle(handleCtx, msg)
 	if err != nil {
 		log.Warn("cron job handle failed", append(jobDest(job), "err", err, "outcome", "error")...)
@@ -226,14 +227,16 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 		return
 	}
 	outcome := "push"
+	photos := sink.URLs()
 	if IsSilentReply(reply) {
 		outcome = "silent"
 		log.Info("cron silent skip", append(jobDest(job), "outcome", outcome, "reply_chars", len(reply))...)
-	} else if reply != "" {
+	} else if reply != "" || len(photos) > 0 {
 		frameID := fmt.Sprintf("cron-%d-%d", job.ID, time.Now().UnixMilli())
 		if err := r.Pusher.Push(ctx, channel.Outbound{
-			Text: reply,
-			ID:   frameID,
+			Text:   reply,
+			Photos: photos,
+			ID:     frameID,
 		}); err != nil {
 			log.Warn("cron push failed", append(jobDest(job), "err", err, "outcome", "error", "frame_id", frameID)...)
 			_ = r.Store.Finish(ctx, job, fmt.Errorf("push: %w", err))

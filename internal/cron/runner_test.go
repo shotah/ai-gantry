@@ -110,6 +110,52 @@ func TestRunner_ScheduleFirePushCancel(t *testing.T) {
 	}
 }
 
+func TestRunner_PushesMCPPhotos(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+
+	store, err := cron.OpenDB(sess.DB(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().UTC().Add(-time.Minute)
+	_, err = store.Schedule(ctx, "draw the bike", cron.Parsed{
+		Kind:     cron.KindOnce,
+		Expr:     past.Format(time.RFC3339Nano),
+		NextRun:  past,
+		Timezone: "UTC",
+	}, cron.Delivery{SessionID: "telegram:1:2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pusher := &memPusher{}
+	runner := &cron.Runner{
+		Store: store,
+		Handle: func(handleCtx context.Context, _ channel.Message) (string, error) {
+			if s := channel.PhotoSinkFrom(handleCtx); s != nil {
+				s.Add("data:image/png;base64,AQID")
+			}
+			return "drew it", nil
+		},
+		Pusher: pusher,
+	}
+	runner.FireDueForTest(ctx)
+
+	pusher.mu.Lock()
+	defer pusher.mu.Unlock()
+	if len(pusher.msgs) != 1 {
+		t.Fatalf("pushes=%d", len(pusher.msgs))
+	}
+	if len(pusher.msgs[0].Photos) != 1 || !strings.HasPrefix(pusher.msgs[0].Photos[0], "data:image/png") {
+		t.Fatalf("photos=%v", pusher.msgs[0].Photos)
+	}
+}
+
 func TestRunner_SilentReplySkipsPush(t *testing.T) {
 	ctx := context.Background()
 	sess, err := session.Open(t.TempDir(), 20, 8000)

@@ -77,6 +77,14 @@
 # # tools = ["link_resolve", "place_resolve", "place_search", "route_eta"]
 # # GOOGLE_MAPS_API_KEY must be in the gantry process env (child inherits it)
 #
+# --- Image gen (shotah/image-generation-mcp) — photo_generate / photo_edit ----
+# [[server]]
+# name = "image"
+# command = "image-generation-mcp"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/image-generation-mcp/releases/download/{tag}/image-generation-mcp_{version}_{os}_{arch}.tar.gz"
+# # IMAGE_API_KEY wins; else crane LLM_API_KEY. Do not grant fat google for drawing.
+#
 # --- Yard corkboard (shotah/boards-mcp) — watch: boards__challenges_list -----
 # [[server]]
 # name = "boards"

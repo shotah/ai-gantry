@@ -324,6 +324,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		handleCtx = channel.WithReplyWriter(ctx, stream)
 	}
 
+	handleCtx, sink := channel.AttachPhotoSink(handleCtx)
 	reply, err := handle(handleCtx, channel.Message{
 		SessionID: sid,
 		UserID:    sub,
@@ -333,6 +334,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		Geo:       geo,
 	})
 	stopTyping()
+	photos := sink.URLs()
 	if err != nil {
 		if stream != nil && stream.Started() {
 			_ = stream.Discard(ctx)
@@ -340,17 +342,15 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		c.log.Error("pendant handle", "err", err)
 		return nil
 	}
-	if strings.TrimSpace(reply) == "" && stream != nil && stream.Started() {
+	if strings.TrimSpace(reply) == "" && len(photos) == 0 && stream != nil && stream.Started() {
 		_ = stream.Discard(ctx)
 		return nil
 	}
 	if stream != nil && stream.Started() {
+		stream.setPhotos(photos)
 		return stream.Finish(ctx, reply)
 	}
-	if strings.TrimSpace(reply) == "" {
-		return nil
-	}
-	return c.writeOn(cn, outboundFrame{Text: reply, Kind: "reply", UserID: sub})
+	return c.writeFrames(cn, replyFrames("reply", sub, "", reply, photos...))
 }
 
 // Push sends a cron/spark outbound to every allowlisted (and learned) Google
@@ -369,7 +369,7 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 		} else if len(targets) > 1 {
 			id = fmt.Sprintf("%s-%d", idBase, i)
 		}
-		if err := c.writePush(ctx, msg.Text, sub, id); err != nil && first == nil {
+		if err := c.writePush(ctx, msg.Text, sub, id, channel.PhotoURLs(msg)...); err != nil && first == nil {
 			first = err
 		}
 	}
@@ -401,11 +401,14 @@ func (c *Channel) pushTargets() []string {
 	return out
 }
 
-func (c *Channel) writePush(ctx context.Context, text, sub, id string) error {
-	body := outboundFrame{Text: text, Kind: "push", UserID: sub, ID: id}
+func (c *Channel) writePush(ctx context.Context, text, sub, id string, extra ...string) error {
+	frames := replyFrames("push", sub, id, text, extra...)
+	if len(frames) == 0 {
+		frames = []outboundFrame{{Text: text, Kind: "push", UserID: sub, ID: id}}
+	}
 	via := "live"
 	if live := c.getLive(); live != nil {
-		werr := c.writeOn(live, body)
+		werr := c.writeFrames(live, frames)
 		if werr == nil {
 			c.log.Info("pendant push", "slug", c.slug, "user_id", sub, "via", via, "frame_id", id, "chars", len(text))
 			return nil
@@ -420,10 +423,31 @@ func (c *Channel) writePush(ctx context.Context, text, sub, id string) error {
 		return err
 	}
 	defer func() { _ = cn.Close() }()
-	if err := writeFrame(cn, body); err != nil {
+	if err := writeFrames(cn, frames); err != nil {
 		return err
 	}
 	c.log.Info("pendant push", "slug", c.slug, "user_id", sub, "via", via, "frame_id", id, "chars", len(text))
+	return nil
+}
+
+func (c *Channel) writeFrames(cn conn, frames []outboundFrame) error {
+	if c == nil || len(frames) == 0 {
+		return nil
+	}
+	for _, f := range frames {
+		if err := c.writeOn(cn, f); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeFrames(cn conn, frames []outboundFrame) error {
+	for _, f := range frames {
+		if err := writeFrame(cn, f); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

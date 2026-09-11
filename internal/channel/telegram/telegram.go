@@ -245,6 +245,7 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 		defer stream.stopFlusher()
 	}
 
+	handleCtx, sink := channel.AttachPhotoSink(handleCtx)
 	reply, err := handle(handleCtx, msg)
 	if err != nil {
 		c.log.Error("telegram handler error", "err", err, "session_id", msg.SessionID)
@@ -255,17 +256,18 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 		})
 		return
 	}
+	photos := sink.URLs()
 	// /cancel and superseded follow-ups return "". A steer follow-up never
 	// Starts this stream — the in-flight Handle owns the bubble. Discard
 	// only if *this* Handle already posted a placeholder.
-	if reply == "" && stream != nil && stream.Started() {
+	if reply == "" && len(photos) == 0 && stream != nil && stream.Started() {
 		if err := stream.Discard(ctx); err != nil {
 			c.log.Warn("telegram stream discard failed", "err", err, "session_id", msg.SessionID)
 		}
 		return
 	}
 	if stream != nil && stream.Started() {
-		urls, rest := channel.ExtractImageURLs(reply)
+		urls, rest := channel.MergePhotoURLs(reply, photos...)
 		if err := stream.Finish(ctx, rest); err != nil {
 			// Already-flushed final text: Telegram rejects a no-op edit; do not
 			// SendMessage again or the user sees a duplicate bubble.
@@ -273,18 +275,23 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 				return
 			}
 			c.log.Warn("telegram stream finish failed; falling back to send", "err", err)
-			if reply != "" {
-				if err := c.sendReply(ctx, b, chatID, threadID, reply, ""); err != nil {
+			if reply != "" || len(photos) > 0 {
+				if err := c.sendReply(ctx, b, chatID, threadID, reply, photos...); err != nil {
 					c.log.Error("telegram send failed", "err", err, "session_id", msg.SessionID)
 				}
 			}
 			return
 		}
 		for _, u := range urls {
+			file, err := photoInput(u)
+			if err != nil {
+				c.log.Error("telegram sendPhoto failed", "err", err, "session_id", msg.SessionID)
+				continue
+			}
 			sent, err := b.SendPhoto(ctx, &bot.SendPhotoParams{
 				ChatID:          chatID,
 				MessageThreadID: threadID,
-				Photo:           &models.InputFileString{Data: u},
+				Photo:           file,
 			})
 			if err != nil {
 				c.log.Error("telegram sendPhoto failed", "err", err, "session_id", msg.SessionID)
@@ -296,10 +303,10 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 		}
 		return
 	}
-	if reply == "" {
+	if reply == "" && len(photos) == 0 {
 		return
 	}
-	if err := c.sendReply(ctx, b, chatID, threadID, reply, ""); err != nil {
+	if err := c.sendReply(ctx, b, chatID, threadID, reply, photos...); err != nil {
 		c.log.Error("telegram send failed", "err", err, "session_id", msg.SessionID)
 	}
 }
@@ -368,7 +375,7 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 	}
 	var first error
 	for _, chatID := range ids {
-		if err := c.sendReply(ctx, b, chatID, 0, msg.Text, msg.PhotoURL); err != nil && first == nil {
+		if err := c.sendReply(ctx, b, chatID, 0, msg.Text, channel.PhotoURLs(msg)...); err != nil && first == nil {
 			first = err
 		}
 	}

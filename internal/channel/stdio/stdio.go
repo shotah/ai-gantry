@@ -96,6 +96,7 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 			handleCtx = channel.WithReplyWriter(ctx, stream)
 		}
 
+		handleCtx, sink := channel.AttachPhotoSink(handleCtx)
 		reply, err := handle(handleCtx, channel.Message{
 			SessionID: sessionID,
 			UserID:    userID,
@@ -110,10 +111,16 @@ func (c *Channel) Run(ctx context.Context, handle channel.Handler) error {
 		}
 		if stream != nil && stream.Started() {
 			_ = stream.Finish(ctx, reply)
+			if n := len(sink.URLs()); n > 0 {
+				_, _ = fmt.Fprintf(out, "[photo] %d image(s)\n", n)
+			}
 			continue
 		}
 		if reply != "" {
 			_, _ = fmt.Fprintln(out, reply)
+		}
+		if n := len(sink.URLs()); n > 0 {
+			_, _ = fmt.Fprintf(out, "[photo] %d image(s)\n", n)
 		}
 	}
 }

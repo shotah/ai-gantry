@@ -271,6 +271,7 @@ func (c *Channel) dispatch(ctx context.Context, userID, channelID, ts, threadTS,
 		handleCtx = channel.WithReplyWriter(ctx, stream)
 	}
 
+	handleCtx, sink := channel.AttachPhotoSink(handleCtx)
 	reply, err := handle(handleCtx, channel.Message{
 		SessionID: channel.AgentSession,
 		UserID:    userID,
@@ -280,15 +281,16 @@ func (c *Channel) dispatch(ctx context.Context, userID, channelID, ts, threadTS,
 	})
 	if err != nil {
 		c.log.Error("slack handler error", "err", err, "session_id", channel.AgentSession)
-		_ = c.sendReply(ctx, api, channelID, parentTS, "sorry — something went wrong handling that message", "")
+		_ = c.sendReply(ctx, api, channelID, parentTS, "sorry — something went wrong handling that message")
 		return
 	}
+	photos := sink.URLs()
 	if stream != nil && stream.Started() {
-		urls, rest := channel.ExtractImageURLs(reply)
+		urls, rest := channel.MergePhotoURLs(reply, photos...)
 		if err := stream.Finish(ctx, rest); err != nil {
 			c.log.Warn("slack stream finish failed; falling back to send", "err", err)
-			if reply != "" {
-				if err := c.sendReply(ctx, api, channelID, parentTS, reply, ""); err != nil {
+			if reply != "" || len(photos) > 0 {
+				if err := c.sendReply(ctx, api, channelID, parentTS, reply, photos...); err != nil {
 					c.log.Error("slack send failed", "err", err, "session_id", channel.AgentSession)
 				}
 			}
@@ -301,10 +303,10 @@ func (c *Channel) dispatch(ctx context.Context, userID, channelID, ts, threadTS,
 		}
 		return
 	}
-	if reply == "" {
+	if reply == "" && len(photos) == 0 {
 		return
 	}
-	if err := c.sendReply(ctx, api, channelID, parentTS, reply, ""); err != nil {
+	if err := c.sendReply(ctx, api, channelID, parentTS, reply, photos...); err != nil {
 		c.log.Error("slack send failed", "err", err, "session_id", channel.AgentSession)
 	}
 }
@@ -366,7 +368,7 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 			}
 			continue
 		}
-		if err := c.sendReply(ctx, api, ch.ID, "", msg.Text, msg.PhotoURL); err != nil && first == nil {
+		if err := c.sendReply(ctx, api, ch.ID, "", msg.Text, channel.PhotoURLs(msg)...); err != nil && first == nil {
 			first = err
 		}
 	}

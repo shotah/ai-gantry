@@ -82,22 +82,8 @@ func inboundImages(ctx context.Context, api poster, files []slackapi.File) ([]ch
 	return out, nil
 }
 
-func (c *Channel) sendReply(ctx context.Context, api poster, channelID, threadTS, text, extraPhoto string) error {
-	urls, rest := channel.ExtractImageURLs(text)
-	if extra := strings.TrimSpace(extraPhoto); extra != "" {
-		urls = append([]string{extra}, urls...)
-	}
-	seen := map[string]struct{}{}
-	deduped := urls[:0]
-	for _, u := range urls {
-		if _, ok := seen[u]; ok {
-			continue
-		}
-		seen[u] = struct{}{}
-		deduped = append(deduped, u)
-	}
-	urls = deduped
-
+func (c *Channel) sendReply(ctx context.Context, api poster, channelID, threadTS, text string, extra ...string) error {
+	urls, rest := channel.MergePhotoURLs(text, extra...)
 	if rest != "" {
 		parts := splitMessage(rest, c.chunkMax)
 		for i, part := range parts {
@@ -145,29 +131,9 @@ func sendImage(ctx context.Context, api poster, channelID, threadTS, u string) e
 }
 
 func sendDataImage(ctx context.Context, api poster, channelID, threadTS, dataURL string) error {
-	comma := strings.IndexByte(dataURL, ',')
-	if comma < 0 {
-		return fmt.Errorf("slack: bad data url")
-	}
-	meta := dataURL[len("data:"):comma]
-	raw, err := base64.StdEncoding.DecodeString(dataURL[comma+1:])
+	raw, _, ext, err := channel.DecodeDataURL(dataURL)
 	if err != nil {
-		return fmt.Errorf("slack: decode data url: %w", err)
-	}
-	mime := meta
-	if i := strings.IndexByte(mime, ';'); i >= 0 {
-		mime = mime[:i]
-	}
-	ext := ".bin"
-	switch mime {
-	case "image/png":
-		ext = ".png"
-	case "image/jpeg", "image/jpg":
-		ext = ".jpg"
-	case "image/gif":
-		ext = ".gif"
-	case "image/webp":
-		ext = ".webp"
+		return fmt.Errorf("slack: %w", err)
 	}
 	_, err = api.UploadFileContext(ctx, slackapi.UploadFileParameters{
 		Reader:          bytes.NewReader(raw),
