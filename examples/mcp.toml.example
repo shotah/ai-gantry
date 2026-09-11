@@ -105,6 +105,14 @@
 # # IMAGE_API_KEY wins; else crane LLM_API_KEY. Do not grant fat google for drawing.
 #
 # [[server]]
+# name    = "pendant"
+# command = "pendant-mcp"
+# download_tag = "latest"
+# download_url = "https://github.com/shotah/pendant-mcp/releases/download/{tag}/pendant-mcp_{version}_{os}_{arch}.tar.gz"
+# # PENDANT_MAILBOX_URL + PENDANT_BEARER already in process env when CHANNEL=pendant.
+# # IMAGE_OUTPUT_DIR must be set for the picture pair (avatar_update / backdrop_update).
+#
+# [[server]]
 # name    = "boards"
 # command = "boards-mcp"
 # download_tag = "latest"

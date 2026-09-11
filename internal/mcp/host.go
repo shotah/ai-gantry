@@ -750,12 +750,13 @@ func (c *sdkConn) CallTool(ctx context.Context, name string, arguments map[strin
 	if err != nil {
 		return "", err
 	}
-	text := contentToString(res)
+	text := contentToString(res, false)
 	if res.IsError {
 		return "", classifiedToolError(text)
 	}
-	if sink := channel.PhotoSinkFrom(ctx); sink != nil {
+	if sink := channel.PhotoSinkFrom(ctx); sink != nil && isChatPhotoTool(name) {
 		sink.Add(imagesFromResult(res)...)
+		text = contentToString(res, true)
 	}
 	return text, nil
 }
@@ -782,7 +783,7 @@ func schemaToMap(schema any) (map[string]any, error) {
 	return m, nil
 }
 
-func contentToString(res *mcpsdk.CallToolResult) string {
+func contentToString(res *mcpsdk.CallToolResult, delivered bool) string {
 	if res == nil {
 		return ""
 	}
@@ -796,7 +797,8 @@ func contentToString(res *mcpsdk.CallToolResult) string {
 			}
 		case *mcpsdk.ImageContent, *mcpsdk.AudioContent:
 			// Binary stays off the model prompt (TOOL_RESULT_MAX_CHARS would
-			// truncate it anyway). Mouths SendPhoto via PhotoSink.
+			// truncate it anyway). Chat pictures go via PhotoSink; pendant
+			// avatar_get writes a path instead of a bubble.
 			images++
 		default:
 			b, err := json.Marshal(v)
@@ -813,14 +815,27 @@ func contentToString(res *mcpsdk.CallToolResult) string {
 			parts = append(parts, string(b))
 		}
 	}
-	// Always tell the model the picture already reached the user, even when a
-	// summary is present — otherwise it only sees {"bytes":…} and may claim it
-	// cannot show images or invent a path. Appended last so the summary still
-	// survives TOOL_RESULT_MAX_CHARS.
-	if images > 0 {
+	// Tell the model the picture already reached the user — otherwise it only
+	// sees {"bytes":…} and may claim it cannot show images. Appended last so
+	// the summary (and source_path) still survives TOOL_RESULT_MAX_CHARS.
+	// avatar_get ImageContent is not a chat photo — skip this line.
+	if delivered && images > 0 {
 		parts = append(parts, fmt.Sprintf("[image] %d picture(s) delivered to chat", images))
+	} else if len(parts) == 0 && images > 0 {
+		return fmt.Sprintf("[image] %d picture(s)", images)
 	}
 	return strings.Join(parts, "\n")
+}
+
+// isChatPhotoTool reports tools whose ImageContent should become a mouth
+// SendPhoto / mailbox images[] bubble. Face/backdrop GET is a room blob.
+func isChatPhotoTool(name string) bool {
+	switch name {
+	case "photo_generate", "photo_edit":
+		return true
+	default:
+		return false
+	}
 }
 
 func imagesFromResult(res *mcpsdk.CallToolResult) []string {

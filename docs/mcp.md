@@ -54,12 +54,15 @@ Examples:
 | `twitter` | `posts_list` | `twitter__posts_list` |
 | `maps` | `place_search`, `route_eta` | `maps__place_search` |
 | `image` | `photo_generate`, `photo_edit` | `image__photo_generate` |
+| `pendant` | `avatar_update`, `theme_list` | `pendant__avatar_update` |
 | `boards` | `challenges_list` | `boards__challenges_list` |
 
 MCP `ImageContent` (image-generation-mcp) is **not** stuffed into the model
 prompt — hosts truncate tool results. The JSON summary stays; Telegram /
 Discord / Slack `SendPhoto` the PNG; pendant puts `images: [{ url }]` on the
 mailbox reply (same shape as inbound). Grant prefix `image` (not fat `google`).
+Image bytes that another tool must read go to disk via `IMAGE_OUTPUT_DIR`;
+downstream tools (pendant `avatar_update` / `backdrop_update`) take `source_path`.
 
 **Why the prefix?** OpenAI-safe characters, no collisions across servers, and
 obvious provenance in logs / collapsed history markers.

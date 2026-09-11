@@ -164,6 +164,16 @@ func defaultDial(ctx context.Context, mailbox string, header http.Header) (conn,
 	return c, nil
 }
 
+func ignoredKind(kind string) bool {
+	switch kind {
+	case "ack", "error", "reply", "push", "cmds", "allow", "typing", "draft",
+		"face", "backdrop", "theme":
+		return true
+	default:
+		return false
+	}
+}
+
 func (c *Channel) isAllowed(sub, email string) bool {
 	sub = strings.TrimSpace(sub)
 	email = strings.ToLower(strings.TrimSpace(email))
@@ -280,7 +290,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		c.log.Warn("pendant bad frame")
 		return nil
 	}
-	if frame.Kind == "ack" || frame.Kind == "error" || frame.Kind == "reply" || frame.Kind == "push" || frame.Kind == "cmds" || frame.Kind == "allow" || frame.Kind == "typing" || frame.Kind == "draft" {
+	if frame.Kind != "" && ignoredKind(frame.Kind) {
 		return nil
 	}
 	sub := strings.TrimSpace(frame.UserID)

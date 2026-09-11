@@ -29,17 +29,17 @@ func TestSchemaToMap(t *testing.T) {
 }
 
 func TestContentToString(t *testing.T) {
-	if contentToString(nil) != "" {
+	if contentToString(nil, false) != "" {
 		t.Fatal("nil")
 	}
 	res := &mcpsdk.CallToolResult{
 		Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: "hello"}},
 	}
-	if contentToString(res) != "hello" {
-		t.Fatalf("got %q", contentToString(res))
+	if contentToString(res, false) != "hello" {
+		t.Fatalf("got %q", contentToString(res, false))
 	}
 	res = &mcpsdk.CallToolResult{StructuredContent: map[string]any{"ok": true}}
-	if contentToString(res) == "" {
+	if contentToString(res, false) == "" {
 		t.Fatal("expected structured json")
 	}
 
@@ -50,7 +50,7 @@ func TestContentToString(t *testing.T) {
 			&mcpsdk.ImageContent{Data: png, MIMEType: "image/png"},
 		},
 	}
-	got := contentToString(res)
+	got := contentToString(res, true)
 	// Summary first (survives TOOL_RESULT_MAX_CHARS), then the delivery note so
 	// the model knows the user already has the picture and just captions it.
 	if got != "{\"prompt\":\"red bike\",\"bytes\":8}\n[image] 1 picture(s) delivered to chat" {
@@ -59,12 +59,25 @@ func TestContentToString(t *testing.T) {
 	if strings.Contains(got, `"type":"image"`) || strings.Contains(got, "iVBOR") {
 		t.Fatal("must not dump ImageContent JSON or base64 into the model prompt")
 	}
+	got = contentToString(res, false)
+	if got != `{"prompt":"red bike","bytes":8}` {
+		t.Fatalf("avatar-style (not a chat photo): %q", got)
+	}
 
 	res = &mcpsdk.CallToolResult{
 		Content: []mcpsdk.Content{&mcpsdk.ImageContent{Data: []byte{1, 2, 3}, MIMEType: "image/png"}},
 	}
-	if !strings.Contains(contentToString(res), "delivered to chat") {
-		t.Fatalf("image-only: %q", contentToString(res))
+	if !strings.Contains(contentToString(res, true), "delivered to chat") {
+		t.Fatalf("image-only: %q", contentToString(res, true))
+	}
+}
+
+func TestIsChatPhotoTool(t *testing.T) {
+	if !isChatPhotoTool("photo_generate") || !isChatPhotoTool("photo_edit") {
+		t.Fatal("draw tools are chat photos")
+	}
+	if isChatPhotoTool("avatar_get") || isChatPhotoTool("avatar_update") {
+		t.Fatal("face GET is a room blob, not a chat bubble")
 	}
 }
 

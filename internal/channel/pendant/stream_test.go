@@ -341,6 +341,36 @@ func TestDispatch_EmptyReplyDiscardsDraft(t *testing.T) {
 	}
 }
 
+func TestDispatch_IgnoresRoomNotices(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 8)}
+	for _, kind := range []string{"face", "backdrop", "theme"} {
+		called := false
+		raw, _ := json.Marshal(inboundFrame{Kind: kind, Text: "1725"})
+		if err := ch.dispatch(context.Background(), fc, raw, func(context.Context, channel.Message) (string, error) {
+			called = true
+			return "nope", nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if called {
+			t.Fatalf("%s notice must not start a turn", kind)
+		}
+	}
+	select {
+	case <-fc.writes:
+		t.Fatal("no write on room notices")
+	default:
+	}
+}
+
 func TestDispatch_IgnoresDraftFrame(t *testing.T) {
 	ch, err := New(Config{
 		MailboxURL:   "wss://x.workers.dev/ws/kit",

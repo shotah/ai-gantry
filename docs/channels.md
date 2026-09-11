@@ -71,6 +71,11 @@ PENDANT_BEARER=...
 PENDANT_ALLOWED_USERS=118212345678901234567:ada@example.com, bob@example.com
 ```
 
+Grant `image` and `pendant` in `mcp.toml` and set `IMAGE_OUTPUT_DIR` (both
+children inherit it) so Kit can draw a face or wallpaper and wear it via
+`source_path`. Chat photos still go on the mailbox reply; face and backdrop
+are HTTP blobs, not bubbles.
+
 Recreate the container after env changes (restart keeps a ghost allowlist).
 
 | Entry | Parse |
