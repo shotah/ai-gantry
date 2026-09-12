@@ -111,6 +111,7 @@ var (
 	_ channel.ProgressWriter = (*editStream)(nil)
 	_ channel.StatusWriter   = (*editStream)(nil)
 	_ channel.Discarder      = (*editStream)(nil)
+	_ channel.PhotoAttacher  = (*editStream)(nil)
 )
 
 // MailboxSlug is the crane id in PENDANT_MAILBOX_URL (/ws/<slug>).
@@ -352,17 +353,22 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	stopTyping()
 	photos := sink.URLs()
 	if err != nil {
-		if stream != nil && stream.Started() {
+		if stream != nil && stream.Started() && !stream.Replied() {
 			_ = stream.Discard(ctx)
 		}
 		c.log.Error("pendant handle", "err", err)
 		return nil
 	}
 	if strings.TrimSpace(reply) == "" && len(photos) == 0 && stream != nil && stream.Started() {
-		_ = stream.Discard(ctx)
+		if !stream.Replied() {
+			_ = stream.Discard(ctx)
+		}
 		return nil
 	}
 	if stream != nil && stream.Started() {
+		if stream.Replied() {
+			return nil
+		}
 		stream.setPhotos(photos)
 		return stream.Finish(ctx, reply)
 	}

@@ -160,6 +160,33 @@ func TestEditStream_UpdateThrottled(t *testing.T) {
 	}
 }
 
+func TestEditStream_FinishIdempotent(t *testing.T) {
+	w := &captureWriter{}
+	s := newEditStream(w.write, "1182")
+	ctx := context.Background()
+	if err := s.Update(ctx, "Hello"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Finish(ctx, "Hello"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Finish(ctx, "Hello again"); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, f := range w.all() {
+		if f.Kind == "reply" {
+			n++
+			if f.Text != "Hello" {
+				t.Fatalf("second finish mutated reply: %+v", f)
+			}
+		}
+	}
+	if n != 1 {
+		t.Fatalf("replies = %d want 1: %+v", n, w.all())
+	}
+}
+
 func TestEditStream_FinishCancelsTrailingDraft(t *testing.T) {
 	prev := streamMinGap
 	streamMinGap = time.Hour

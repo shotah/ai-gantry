@@ -43,6 +43,7 @@ type editStream struct {
 	useHTML          bool
 	showThinking     bool // SHOW_THINKING — live italics + final expandable CoT
 	started          bool
+	finalized        bool
 	rateLimitedUntil time.Time
 	flushStop        chan struct{}
 	flushDone        chan struct{}
@@ -418,6 +419,14 @@ func (s *editStream) Discard(ctx context.Context) error {
 }
 
 func (s *editStream) Finish(ctx context.Context, final string) error {
+	s.mu.Lock()
+	if s.finalized {
+		s.mu.Unlock()
+		return nil
+	}
+	s.finalized = true
+	s.mu.Unlock()
+
 	s.mu.Lock()
 	// The status line is a waiting indicator — never part of the final bubble,
 	// even if the turn ended by error or cancel before anything cleared it.

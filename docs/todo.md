@@ -85,6 +85,11 @@ can be short.
       on the phone while a nudge / tool round runs. If the silence
       still reads as frozen, an `UpdateStatus` line during a
       `TOOL_TRACE`-off tool round is already force-flushed.
+- [x] Finalization hitch after a complete draft: crane `Finish`es the
+      stream **before** `sessions.Append` / wait cron. Worker fans
+      `reply` to live sockets **before** queue+transcript writes.
+      PWA keeps a stable `kit-live` key so promoting the draft does
+      not remount the bubble.
 - [x] Log mailbox `error` frames instead of dropping them
       (`ignoredKind` in `pendant.go`). A rate-refused `reply` is lost
       silently today. `typing` every 4 s costs 15 of the crane's 30
@@ -100,11 +105,16 @@ can be short.
       prose without calling` (a nudge round). That attributes the
       10 s.
 
-### Sibling (not this tree)
+### Sibling (mouths)
 
-Nothing in the Worker, PWA, or Cab for the stutter. Pendant may
-exempt `typing` from the crane rate bucket the way `draft` is; that
-is `worker/mailbox.ts`, not here.
+Worker + PWA were on the **finalization** hitch, not the draft
+cadence. Live `reply` used to `rememberPhone` before `send`, and
+promoting `__draft__` → a new id remounted markdown. Closed in
+gantry-pendant this round (fan first; stable `kit-live` key). Cab
+still keys the draft by `DRAFT_ID` then a new reply id.
+
+Pendant may still exempt `typing` from the crane rate bucket the
+way `draft` is; that is `worker/mailbox.ts`, not here.
 
 ---
 

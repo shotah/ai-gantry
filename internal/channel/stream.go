@@ -24,6 +24,12 @@ type Discarder interface {
 	Discard(ctx context.Context) error
 }
 
+// PhotoAttacher is an optional ReplyWriter that can put Handle-produced
+// photos on the finishing reply (pendant drafts carry them on the frame).
+type PhotoAttacher interface {
+	AttachPhotos(urls []string)
+}
+
 // ReplyWriter updates a progressive outbound reply (Telegram edit / stdio).
 type ReplyWriter interface {
 	// Update replaces the visible reply with fullText so far.

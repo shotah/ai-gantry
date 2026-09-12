@@ -23,6 +23,7 @@ type editStream struct {
 	lastEdit time.Time
 	pending  string
 	started  bool
+	done     bool
 }
 
 func newEditStream(s session, channelID string, chunkMax int) *editStream {
@@ -60,9 +61,10 @@ func (s *editStream) Update(_ context.Context, fullText string) error {
 }
 
 func (s *editStream) Finish(ctx context.Context, final string) error {
-	if !s.started {
+	if s.done || !s.started {
 		return nil
 	}
+	s.done = true
 	if final == "" {
 		final = s.pending
 	}

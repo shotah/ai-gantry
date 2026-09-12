@@ -316,5 +316,8 @@ sequenceDiagram
   A->>T: Finish (final text; overflow as extra messages)
 ```
 
-Tool-call chunks skip live text updates; cron push stays buffered.
+Finish is the last **visible** step. `sessions.Append` and wait-cron
+`AfterReply` run after it so a complete draft is not stuck italic while
+SQLite fold or cron work happens. Tool-call chunks skip live text
+updates; cron push stays buffered.
 

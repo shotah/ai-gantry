@@ -5,10 +5,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/provider"
+	"github.com/shotah/ai-gantry/internal/session"
 )
 
 type streamCompleter struct {
@@ -115,4 +117,69 @@ func TestAgent_StreamStripsWaitToken(t *testing.T) {
 			t.Fatalf("stream leaked [wait]: %q in %v", txt, w.texts)
 		}
 	}
+}
+
+func TestAgent_Handle_FinishesStreamBeforeAppend(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	finished := make(chan struct{})
+	hist := &gateHistory{memHistory: newMemHistory(), entered: entered, release: release}
+	w := &finishWriter{finished: finished}
+	a, err := agent.New(agent.Options{
+		Completer:     &streamCompleter{parts: []string{"done"}},
+		Sessions:      hist,
+		StreamReplies: true,
+		Model:         "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := channel.WithReplyWriter(context.Background(), w)
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "hi"})
+		errCh <- err
+	}()
+	select {
+	case <-finished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Finish did not run before Append unblocked")
+	}
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Append never started")
+	}
+	close(release)
+	if err := <-errCh; err != nil {
+		t.Fatal(err)
+	}
+}
+
+type finishWriter struct {
+	memWriter
+	once     sync.Once
+	finished chan struct{}
+}
+
+func (f *finishWriter) Finish(ctx context.Context, final string) error {
+	err := f.memWriter.Finish(ctx, final)
+	f.once.Do(func() { close(f.finished) })
+	return err
+}
+
+type gateHistory struct {
+	*memHistory
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (g *gateHistory) Append(ctx context.Context, id string, msgs ...session.Message) error {
+	close(g.entered)
+	select {
+	case <-g.release:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return g.memHistory.Append(ctx, id, msgs...)
 }

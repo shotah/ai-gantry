@@ -604,6 +604,9 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		return "", err
 	}
 
+	stripped := cron.StripWaitTokens(reply)
+	a.flushStream(turnCtx, stripped)
+
 	if err := a.sessions.Append(turnCtx, msg.SessionID,
 		session.Message{Role: session.RoleUser, Content: a.turnStoreText(msg.SessionID, storeText)},
 		session.Message{Role: session.RoleAssistant, Content: storedAssistantReply(reply)},
@@ -620,7 +623,26 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			a.log.Warn("wait after reply failed", "err", err)
 		}
 	}
-	return cron.StripWaitTokens(reply), nil
+	return stripped, nil
+}
+
+// flushStream promotes the draft to a reply before SQLite persist / wait
+// cron, so the mouth is not stuck on a complete italic draft while fold
+// or AfterReply runs. Finish is idempotent; the channel may call it again.
+func (a *Agent) flushStream(ctx context.Context, text string) {
+	w, ok := channel.ReplyWriterFrom(ctx)
+	if !ok || !w.Started() {
+		return
+	}
+	if strings.TrimSpace(text) == "" || cron.IsSilentReply(text) {
+		return
+	}
+	if p, ok := w.(channel.PhotoAttacher); ok {
+		p.AttachPhotos(channel.PhotoSinkFrom(ctx).URLs())
+	}
+	if err := w.Finish(ctx, text); err != nil {
+		a.log.Warn("stream finish before persist failed", "err", err)
+	}
 }
 
 // promptShape describes how much of the assembled prompt is cacheable. The

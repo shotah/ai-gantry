@@ -41,6 +41,7 @@ type editStream struct {
 	flushTimer  *time.Timer
 	flushWG     sync.WaitGroup
 	photos      []string
+	replied     bool
 }
 
 func newEditStream(write frameWriter, userID string) *editStream {
@@ -110,6 +111,16 @@ func (s *editStream) Discard(_ context.Context) error {
 	return s.write(outboundFrame{Kind: "draft", UserID: userID, Text: ""})
 }
 
+func (s *editStream) AttachPhotos(urls []string) {
+	s.setPhotos(urls)
+}
+
+func (s *editStream) Replied() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.replied
+}
+
 func (s *editStream) setPhotos(urls []string) {
 	if s == nil {
 		return
@@ -122,10 +133,19 @@ func (s *editStream) setPhotos(urls []string) {
 func (s *editStream) Finish(_ context.Context, final string) error {
 	s.mu.Lock()
 	s.stopFlushLocked()
+	if s.replied {
+		s.mu.Unlock()
+		return nil
+	}
 	s.mu.Unlock()
 	s.flushWG.Wait()
 
 	s.mu.Lock()
+	if s.replied {
+		s.mu.Unlock()
+		return nil
+	}
+	s.replied = true
 	s.status = ""
 	final = strings.TrimSpace(final)
 	switch {
