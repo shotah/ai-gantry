@@ -222,7 +222,7 @@ One WAL SQLite file: `$DATA_DIR/gantry.db`.
 1. System: `PERSONA.md` then `SELF.md` (+ memory persona-precedence note when memory on)
 2. System: `[session summary]` (optional)
 3. System: `[mcp prefixes]` when dynamic tools are on
-4. History: user/assistant turns (bounded)
+4. History: user/assistant turns (bounded; trailing cron `— tools:` audit line stripped, footer-only assistant turns omitted)
 5. System: `[memory]` hydration block (optional, ≤ ~30 rows; after history so the prefix stays cacheable)
 6. System: MCP server health (when tools are wired)
 7. User: current message (typed words / `[photo]` / steers only)

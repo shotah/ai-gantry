@@ -118,3 +118,39 @@ func TestLastUserContent(t *testing.T) {
 		t.Fatalf("empty = %q", got)
 	}
 }
+
+func TestStripToolsFooter(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		in, want string
+	}{
+		{in: "Sleep 81\n\n— tools: garmin__sleep_get", want: "Sleep 81"},
+		{in: "— tools: web_search", want: ""},
+		{in: "\n\n— tools: web_search", want: ""},
+		{in: "hello\n— tools: watch_list, cron_list", want: "hello"},
+		{in: "Sleep score 74 — from Garmin.", want: "Sleep score 74 — from Garmin."},
+		{in: "what does — tools: mean", want: "what does — tools: mean"},
+		{in: "", want: ""},
+	}
+	for _, tc := range cases {
+		if got := stripToolsFooter(tc.in); got != tc.want {
+			t.Fatalf("stripToolsFooter(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+	if !isToolsFooterOnly("— tools: web_search") || !isToolsFooterOnly("\n\n— tools: web_search\n") {
+		t.Fatal("footer-only not detected")
+	}
+	if isToolsFooterOnly("Sleep 81\n\n— tools: garmin__sleep_get") {
+		t.Fatal("body+footer should not be footer-only")
+	}
+	if isToolsFooterOnly("Sleep score 74 — from Garmin.") {
+		t.Fatal("em-dash prose is not a tools footer")
+	}
+	stored := storedAssistantReply("Sleep 81\n\n— tools: garmin__sleep_get")
+	if stored != "Sleep 81" {
+		t.Fatalf("storedAssistantReply = %q", stored)
+	}
+	if got := storedAssistantReply("— tools: web_search"); got != "— tools: web_search" {
+		t.Fatalf("footer-only store fallback = %q", got)
+	}
+}

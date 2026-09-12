@@ -72,6 +72,7 @@ repairs those instead of erroring the turn.
 | **Closest-name hint** | Unknown name returns the nearest real tools, model-facing |
 | **Grammar-constrained retry** | Next Completer call is constrained to those candidate names (`response_format` json_schema). Ollama often omits `tool_calls` under a grammar — we parse the call out of the text and still run it |
 | **Printed-call salvage** | Model writes `{"name":…}` as the reply → execute it, don’t show JSON to the human |
+| **Cron tools-footer** | Scheduled pushes may append `— tools: name` for the human. That line is stripped from session store and Completer history. A footer-only model reply is nudged, not shipped |
 | **Think stall promote** | After tools, CoT-only output is promoted to the reply instead of another ERROR round |
 | **Landing call** | At `TOOL_MAX_ITERATIONS` a final **no-tools** call forces a real reply (warning at ~70% of the budget) |
 | **Gemini 3 signatures** | `thought_signature` on tool rounds is preserved (and synthesized when stream deltas omit it) so multi-step cloud turns don’t 400 |

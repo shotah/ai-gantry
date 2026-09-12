@@ -9,6 +9,105 @@ lists: pendant [todo.md](https://github.com/shotah/gantry-pendant/blob/main/docs
 
 ---
 
+## Pendant draft stutter (`bo` … 10 s … full reply)
+
+Seen on the PWA and Cab: the Kit bubble paints the first delta
+(`bo`), freezes, then the whole reply lands ~10 s later. Traced from
+the pendant checkout. **This repo. Not the mailbox, not the
+Cloudflare plan, not the 429s.**
+
+### Where it is
+
+`internal/channel/pendant/stream.go` `pushLocked`:
+
+```go
+if !force && s.lastFlushed != "" && time.Since(s.lastFlushAt) < streamMinGap {
+    return nil // dropped — nothing ever re-sends it
+}
+```
+
+`streamMinGap` is 1 s and the throttle is **leading-edge only**. A
+delta that lands inside the gap is dropped and no timer flushes
+`s.latest` later. So:
+
+- Steady tokens → at best one draft per second. That is the stutter.
+- Fast model (whole answer inside ~1 s of the first delta) → only
+  the first delta ever paints. The bubble sits on `bo` until
+  `Finish` writes the `reply`.
+- Between end-of-stream and `Finish` nothing paints: theater nudge
+  (a second Completer call), tool rounds (silent unless
+  `TOOL_TRACE` is on), `finishText`, `sessions.Append`. That is the
+  10 s. `typing` every 4 s is the only heartbeat.
+
+Telegram's `editStream` does not have this: `flushLoop` ticks every
+`streamFlushEvery` and sends `latest` whenever it differs from
+`lastFlushed`, so the trailing edge comes free. Pendant skipped the
+loop because a draft is one WebSocket frame, and lost the trailing
+edge with it.
+
+### Not the mailbox, not $5
+
+- Worker `draft` path (`worker/mailbox.ts`): one cached `roomUsers`
+  read and a fan-out. No `seq`, no queue row, no transcript write,
+  and exempt from the 30 frames/min bucket (`cranePublishedDraft`
+  skips `take`).
+- Workers Free vs Paid changes quotas, not latency. DO CPU per
+  WebSocket message is 30 s on both. Free caps (100k req/day with
+  WS messages billed 20:1, 13k GB-s/day, 100k row writes/day) fail
+  with an error when hit; they do not slow down.
+- The Worker's only 429s are `/api/auth/*` and `/api/push` (40/min
+  per IP, per isolate). `/ws/` never 429s; a refused chat frame is
+  an `error` `rate` frame, which drafts skip.
+
+### Debounce, or wait for more of the answer?
+
+Neither. Debounce (wait for quiet) is the wrong shape: tokens do not
+go quiet until the end, so it degrades to "paint once at Finish".
+Waiting for N chars gives bigger, rarer jumps. The bubble wants a
+**throttle with a trailing edge**: at most one draft per gap, and
+always one more after the last delta. A draft is cheap, so the gap
+can be short.
+
+### This checkout (`pendant/stream.go`)
+
+- [x] Trailing flush in `pendant/stream.go`. When `pushLocked`
+      suppresses a push, arm `time.AfterFunc(streamMinGap - since)`
+      that re-runs the flush for `s.latest` if it is still newer than
+      `lastFlushed`. Invariant: a draft is never more than one gap
+      stale.
+- [x] Stop that timer under `s.mu` in `Finish` and `Discard`
+      **before** the `reply` / empty `draft` goes out. Guard the
+      callback with a `finished` flag, not just `timer.Stop()`.
+- [x] `streamMinGap` 1 s → 250 ms. Mailbox cost is nil (no storage,
+      no rate tokens; a 10 s answer at 4 Hz is 40 WS messages = 2
+      billable DO requests).
+- [x] With the trailing flush the streamed text is at least complete
+      on the phone while a nudge / tool round runs. If the silence
+      still reads as frozen, an `UpdateStatus` line during a
+      `TOOL_TRACE`-off tool round is already force-flushed.
+- [x] Log mailbox `error` frames instead of dropping them
+      (`ignoredKind` in `pendant.go`). A rate-refused `reply` is lost
+      silently today. `typing` every 4 s costs 15 of the crane's 30
+      frames/min, so two concurrent turns can starve a `reply`.
+- [x] Tests: `TestEditStream_UpdateThrottled` — `streamMinGap = 20ms`,
+      two quick `Update`s, no further calls → a second draft `Hello`
+      arrives within a few gaps. Still one draft per gap. 
+      `TestEditStream_FinishCancelsTrailingDraft`: `Finish` right
+      after a suppressed `Update` yields no `draft` after the `reply`.
+- [ ] Verify on a real turn from the crane log: `model call`
+      (`first_token_ms`, `dur_ms`, `iteration`), `tool call` /
+      `tool done` (`dur_ms`), and `model narrated tool action in
+      prose without calling` (a nudge round). That attributes the
+      10 s.
+
+### Sibling (not this tree)
+
+Nothing in the Worker, PWA, or Cab for the stutter. Pendant may
+exempt `typing` from the crane rate bucket the way `draft` is; that
+is `worker/mailbox.ts`, not here.
+
+---
+
 ## User-role clock leak
 
 Kit (the running agent) called this out: a **context auto-hydration

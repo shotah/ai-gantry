@@ -30,6 +30,7 @@ type inboundFrame struct {
 	Kind    string          `json:"kind,omitempty"`
 	UserID  string          `json:"user_id,omitempty"`
 	Email   string          `json:"email,omitempty"`
+	ID      string          `json:"id,omitempty"`
 }
 
 type outboundFrame struct {

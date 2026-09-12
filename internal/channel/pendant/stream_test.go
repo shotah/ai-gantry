@@ -1,8 +1,10 @@
 package pendant
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -124,6 +126,42 @@ func TestEditStream_DiscardClearsDraft(t *testing.T) {
 
 func TestEditStream_UpdateThrottled(t *testing.T) {
 	prev := streamMinGap
+	streamMinGap = 20 * time.Millisecond
+	t.Cleanup(func() { streamMinGap = prev })
+
+	w := &captureWriter{}
+	s := newEditStream(w.write, "1182")
+	ctx := context.Background()
+	if err := s.Update(ctx, "Hel"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Update(ctx, "Hell"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Update(ctx, "Hello"); err != nil {
+		t.Fatal(err)
+	}
+	if n := countDrafts(w.all()); n != 1 {
+		t.Fatalf("drafts = %d want 1 (one per gap): %+v", n, w.all())
+	}
+	if w.all()[0].Text != "Hel" {
+		t.Fatalf("leading draft %+v", w.all()[0])
+	}
+	drafts := waitDrafts(t, w, 2, 300*time.Millisecond)
+	if drafts[len(drafts)-1].Text != "Hello" {
+		t.Fatalf("trailing draft %+v", drafts)
+	}
+	if err := s.Finish(ctx, "Hello"); err != nil {
+		t.Fatal(err)
+	}
+	last := w.all()[len(w.all())-1]
+	if last.Kind != "reply" || last.Text != "Hello" {
+		t.Fatalf("finish %+v", last)
+	}
+}
+
+func TestEditStream_FinishCancelsTrailingDraft(t *testing.T) {
+	prev := streamMinGap
 	streamMinGap = time.Hour
 	t.Cleanup(func() { streamMinGap = prev })
 
@@ -136,21 +174,59 @@ func TestEditStream_UpdateThrottled(t *testing.T) {
 	if err := s.Update(ctx, "Hello"); err != nil {
 		t.Fatal(err)
 	}
+	if err := s.Finish(ctx, "Hello"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	frames := w.all()
+	replyAt := -1
+	for i, f := range frames {
+		if f.Kind == "reply" {
+			replyAt = i
+			break
+		}
+	}
+	if replyAt < 0 {
+		t.Fatalf("missing reply: %+v", frames)
+	}
+	if frames[replyAt].Text != "Hello" {
+		t.Fatalf("reply %+v", frames[replyAt])
+	}
+	for i, f := range frames {
+		if i > replyAt && f.Kind == "draft" {
+			t.Fatalf("draft after reply: %+v", frames)
+		}
+	}
+}
+
+func countDrafts(frames []outboundFrame) int {
 	n := 0
-	for _, f := range w.all() {
+	for _, f := range frames {
 		if f.Kind == "draft" {
 			n++
 		}
 	}
-	if n != 1 {
-		t.Fatalf("drafts = %d want 1 (throttled): %+v", n, w.all())
-	}
-	if err := s.Finish(ctx, "Hello"); err != nil {
-		t.Fatal(err)
-	}
-	last := w.all()[len(w.all())-1]
-	if last.Kind != "reply" || last.Text != "Hello" {
-		t.Fatalf("finish %+v", last)
+	return n
+}
+
+func waitDrafts(t *testing.T, w *captureWriter, n int, d time.Duration) []outboundFrame {
+	t.Helper()
+	deadline := time.Now().Add(d)
+	for {
+		all := w.all()
+		var drafts []outboundFrame
+		for _, f := range all {
+			if f.Kind == "draft" {
+				drafts = append(drafts, f)
+			}
+		}
+		if len(drafts) >= n {
+			return drafts
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("want %d drafts, got %d: %+v", n, len(drafts), all)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -395,6 +471,40 @@ func TestDispatch_IgnoresDraftFrame(t *testing.T) {
 	select {
 	case <-fc.writes:
 		t.Fatal("no write on inbound draft")
+	default:
+	}
+}
+
+func TestDispatch_LogsMailboxError(t *testing.T) {
+	var logs bytes.Buffer
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+		Logger:       slog.New(slog.NewTextHandler(&logs, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 8)}
+	called := false
+	raw, _ := json.Marshal(inboundFrame{Kind: "error", Text: "rate", ID: "r1", UserID: "1182"})
+	if err := ch.dispatch(context.Background(), fc, raw, func(context.Context, channel.Message) (string, error) {
+		called = true
+		return "nope", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if called {
+		t.Fatal("mailbox error must not start a turn")
+	}
+	out := logs.String()
+	if !strings.Contains(out, "pendant mailbox error") || !strings.Contains(out, "rate") || !strings.Contains(out, "r1") {
+		t.Fatalf("log = %q", out)
+	}
+	select {
+	case <-fc.writes:
+		t.Fatal("no write on mailbox error")
 	default:
 	}
 }

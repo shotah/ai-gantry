@@ -291,6 +291,12 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		return nil
 	}
 	if frame.Kind != "" && ignoredKind(frame.Kind) {
+		if frame.Kind == "error" {
+			c.log.Warn("pendant mailbox error",
+				"text", strings.TrimSpace(frame.Text),
+				"id", strings.TrimSpace(frame.ID),
+			)
+		}
 		return nil
 	}
 	sub := strings.TrimSpace(frame.UserID)

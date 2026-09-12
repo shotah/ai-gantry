@@ -17,7 +17,9 @@ const makingCallsPrefix = "Making Calls:"
 
 // How often Update (token stream) may hit the wire. Status and tool traces
 // flush immediately — they are few per turn. Tests may shorten this.
-var streamMinGap = time.Second
+// 250ms with a trailing flush: at most one draft per gap, and one more
+// after the last delta so a fast model does not leave the bubble on "bo".
+var streamMinGap = 250 * time.Millisecond
 
 type frameWriter func(outboundFrame) error
 
@@ -32,9 +34,12 @@ type editStream struct {
 	body        string
 	answer      string
 	started     bool
+	finished    bool
 	latest      string
 	lastFlushed string
 	lastFlushAt time.Time
+	flushTimer  *time.Timer
+	flushWG     sync.WaitGroup
 	photos      []string
 }
 
@@ -88,6 +93,7 @@ func (s *editStream) UpdateStatus(_ context.Context, note string) error {
 
 func (s *editStream) Discard(_ context.Context) error {
 	s.mu.Lock()
+	s.stopFlushLocked()
 	had := s.started
 	s.status = ""
 	s.body = ""
@@ -97,6 +103,7 @@ func (s *editStream) Discard(_ context.Context) error {
 	s.started = false
 	userID := s.userID
 	s.mu.Unlock()
+	s.flushWG.Wait()
 	if !had {
 		return nil
 	}
@@ -113,6 +120,11 @@ func (s *editStream) setPhotos(urls []string) {
 }
 
 func (s *editStream) Finish(_ context.Context, final string) error {
+	s.mu.Lock()
+	s.stopFlushLocked()
+	s.mu.Unlock()
+	s.flushWG.Wait()
+
 	s.mu.Lock()
 	s.status = ""
 	final = strings.TrimSpace(final)
@@ -160,18 +172,72 @@ func (s *editStream) Finish(_ context.Context, final string) error {
 
 func (s *editStream) pushLocked(force bool) error {
 	defer s.mu.Unlock()
+	if s.finished {
+		return nil
+	}
 	display := s.displayLocked()
 	s.started = true
 	s.latest = display
 	if display == "" || display == s.lastFlushed {
 		return nil
 	}
-	if !force && s.lastFlushed != "" && time.Since(s.lastFlushAt) < streamMinGap {
+	now := time.Now()
+	throttled := !force && streamMinGap > 0 && s.lastFlushed != "" && now.Sub(s.lastFlushAt) < streamMinGap
+	if throttled {
+		s.armTrailingLocked()
 		return nil
+	}
+	s.cancelTimerLocked()
+	s.lastFlushed = display
+	s.lastFlushAt = now
+	return s.write(outboundFrame{Kind: "draft", UserID: s.userID, Text: display})
+}
+
+func (s *editStream) armTrailingLocked() {
+	if s.finished || s.flushTimer != nil || streamMinGap <= 0 {
+		return
+	}
+	wait := streamMinGap - time.Since(s.lastFlushAt)
+	if wait < 0 {
+		wait = 0
+	}
+	s.flushWG.Add(1)
+	s.flushTimer = time.AfterFunc(wait, s.trailingFlush)
+}
+
+func (s *editStream) trailingFlush() {
+	defer s.flushWG.Done()
+	s.mu.Lock()
+	s.flushTimer = nil
+	if s.finished {
+		s.mu.Unlock()
+		return
+	}
+	display := s.latest
+	if display == "" || display == s.lastFlushed {
+		s.mu.Unlock()
+		return
 	}
 	s.lastFlushed = display
 	s.lastFlushAt = time.Now()
-	return s.write(outboundFrame{Kind: "draft", UserID: s.userID, Text: display})
+	userID := s.userID
+	s.mu.Unlock()
+	_ = s.write(outboundFrame{Kind: "draft", UserID: userID, Text: display})
+}
+
+func (s *editStream) stopFlushLocked() {
+	s.finished = true
+	s.cancelTimerLocked()
+}
+
+func (s *editStream) cancelTimerLocked() {
+	if s.flushTimer == nil {
+		return
+	}
+	if s.flushTimer.Stop() {
+		s.flushWG.Done()
+	}
+	s.flushTimer = nil
 }
 
 func (s *editStream) displayLocked() string {

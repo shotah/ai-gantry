@@ -890,9 +890,10 @@ func TestAgent_Handle_CronLiveDataReportWithoutToolsGetsNudged(t *testing.T) {
 		defs: []provider.ToolDef{{Name: "garmin__sleep_get", Parameters: map[string]any{"type": "object"}}},
 		out:  `{"sleepScore":74}`,
 	}
+	hist := newMemHistory()
 	a, err := agent.New(agent.Options{
 		Completer:    fc,
-		Sessions:     newMemHistory(),
+		Sessions:     hist,
 		Tools:        tools,
 		Model:        "m",
 		MaxToolIters: 5,
@@ -907,6 +908,20 @@ func TestAgent_Handle_CronLiveDataReportWithoutToolsGetsNudged(t *testing.T) {
 	}
 	if !strings.Contains(reply, "Sleep score 74") || !strings.Contains(reply, "— tools: garmin__sleep_get") {
 		t.Fatalf("reply = %q", reply)
+	}
+	msgs, err := hist.Messages(ctx, "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) < 1 {
+		t.Fatal("no session messages")
+	}
+	stored := msgs[len(msgs)-1].Content
+	if strings.Contains(stored, "— tools:") {
+		t.Fatalf("session stored the cron tools footer: %q", stored)
+	}
+	if !strings.Contains(stored, "Sleep score 74") {
+		t.Fatalf("stored = %q", stored)
 	}
 	if len(tools.calls) != 1 || tools.calls[0] != "garmin__sleep_get" {
 		t.Fatalf("tools = %v", tools.calls)
@@ -1208,6 +1223,109 @@ func TestAgent_Handle_CronOmitsPriorCronHistory(t *testing.T) {
 	}
 	if !strings.Contains(blob, "hey") || !strings.Contains(blob, "hi there") {
 		t.Fatalf("interactive history was dropped:\n%s", blob)
+	}
+}
+
+// User turns keep prior cron replies (so a ping stays in context) but must
+// not few-shot the "— tools:" audit line as the next answer.
+func TestAgent_Handle_UserTurnOmitsCronToolsFooterFromPrompt(t *testing.T) {
+	ctx := context.Background()
+	hist := newMemHistory()
+	if err := hist.Append(ctx, "s",
+		session.Message{Role: session.RoleUser, Content: cron.JobUserPrefix + "Fetch Garmin sleep"},
+		session.Message{Role: session.RoleAssistant, Content: "Sleep 81\n\n— tools: garmin__sleep_get"},
+		session.Message{Role: session.RoleUser, Content: "hoping same context is gone"},
+		session.Message{Role: session.RoleAssistant, Content: "— tools: web_search"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	var first provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		if first.Messages == nil {
+			first = req
+		}
+		return &provider.Result{Content: "Android looks clean."}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Completer: fc,
+		Sessions:  hist,
+		Model:     "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "andddddddd from Android"}); err != nil {
+		t.Fatal(err)
+	}
+	blob := ""
+	for _, m := range first.Messages {
+		blob += m.Content + "\n"
+	}
+	if strings.Contains(blob, "— tools:") {
+		t.Fatalf("tools footer leaked into Completer history:\n%s", blob)
+	}
+	if !strings.Contains(blob, "Sleep 81") {
+		t.Fatalf("cron body was dropped:\n%s", blob)
+	}
+	if !strings.Contains(blob, "hoping same context is gone") {
+		t.Fatalf("user turn before footer-only reply was dropped:\n%s", blob)
+	}
+}
+
+// Flash copies the cron audit line as the whole reply with zero tool_calls.
+// Nudge and ship the real text — do not call web_search, do not show the footer.
+func TestAgent_Handle_ToolsFooterOnlyGetsNudged(t *testing.T) {
+	ctx := context.Background()
+	var reqs int
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		reqs++
+		switch reqs {
+		case 1:
+			return &provider.Result{Content: "— tools: web_search"}, nil
+		case 2:
+			last := req.Messages[len(req.Messages)-1]
+			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "harness audit footer") {
+				t.Fatalf("missing tools-footer nudge: %+v", last)
+			}
+			return &provider.Result{Content: "Android looks clean."}, nil
+		default:
+			t.Fatalf("unexpected completion #%d", reqs)
+			return nil, nil
+		}
+	}}
+	tools := &fakeTools{
+		defs: []provider.ToolDef{{Name: "web_search", Parameters: map[string]any{"type": "object"}}},
+	}
+	hist := newMemHistory()
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     hist,
+		Tools:        tools,
+		Model:        "m",
+		MaxToolIters: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: "hoping same context is gone"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply != "Android looks clean." {
+		t.Fatalf("reply = %q", reply)
+	}
+	if len(tools.calls) != 0 {
+		t.Fatalf("tools = %v, want none", tools.calls)
+	}
+	if reqs != 2 {
+		t.Fatalf("completions = %d, want 2", reqs)
+	}
+	msgs, err := hist.Messages(ctx, "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) < 1 || strings.Contains(msgs[len(msgs)-1].Content, "— tools:") {
+		t.Fatalf("stored footer-only reply: %+v", msgs)
 	}
 }
 

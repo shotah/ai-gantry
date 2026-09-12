@@ -87,6 +87,10 @@ const waitReplyNote = `[system] Follow-up is not a tool. A question they should 
 // another Completer round — Gemini often returns empty on that follow-up.
 const theaterCueMaxChars = 1500
 
+// toolsFooterNudge fires when the model prints the cron audit line
+// ("— tools: web_search") as the whole reply instead of tool_calls or text.
+const toolsFooterNudge = `[system] That "— tools:" line is a harness audit footer, not a user-visible reply and not a tool call. Nothing ran from it. Write the actual answer as plain assistant text. If you still need data, emit real tool_calls via the tools API. Do not print "— tools:".`
+
 // Options configures the agent.
 type Options struct {
 	Persona       string
@@ -464,9 +468,16 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		history = session.StripFillerHistory(history)
 	}
 	for _, h := range history {
+		content := h.Content
+		if h.Role == session.RoleAssistant {
+			content = stripToolsFooter(content)
+			if strings.TrimSpace(content) == "" {
+				continue
+			}
+		}
 		messages = append(messages, provider.Message{
 			Role:    provider.Role(h.Role),
-			Content: h.Content,
+			Content: content,
 		})
 	}
 	// Volatile per-turn blocks (hydration, clock) go AFTER history so the
@@ -595,7 +606,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 
 	if err := a.sessions.Append(turnCtx, msg.SessionID,
 		session.Message{Role: session.RoleUser, Content: a.turnStoreText(msg.SessionID, storeText)},
-		session.Message{Role: session.RoleAssistant, Content: reply},
+		session.Message{Role: session.RoleAssistant, Content: storedAssistantReply(reply)},
 	); err != nil {
 		if errors.Is(err, context.Canceled) {
 			return "", nil
@@ -923,7 +934,7 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 				recoveries++
 			}
 		}
-		if c := strings.TrimSpace(res.Content); c != "" {
+		if c := strings.TrimSpace(res.Content); c != "" && !isToolsFooterOnly(c) {
 			lastNarration = c
 		}
 		if len(res.ToolCalls) == 0 {
@@ -967,6 +978,44 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 						continue
 					}
 					return "", fmt.Errorf("agent: model stalled after thinking (no reply, no tool call; thinking_chars=%d)", len(res.Thinking))
+				}
+				return "", fmt.Errorf("agent: empty model reply")
+			}
+			// Cron pushes append "— tools: name" for the human. Flash then
+			// few-shots that line as the whole reply (no tool_calls). Do not
+			// ship it; discard a streamed draft so Finish does not keep it.
+			if isToolsFooterOnly(res.Content) {
+				a.log.Warn("model printed tools footer as the reply",
+					"chars", len(res.Content),
+					"iteration", iter+1,
+					"saw_tools", sawTools,
+				)
+				if streamedRound {
+					discardReply(ctx, writer)
+				}
+				if !nudged && !final {
+					nudged = true
+					recoveries++
+					messages = append(messages, provider.Message{
+						Role:    provider.RoleAssistant,
+						Content: res.Content,
+					})
+					messages = append(messages, provider.Message{
+						Role:    provider.RoleSystem,
+						Content: toolsFooterNudge,
+					})
+					continue
+				}
+				if prior := strings.TrimSpace(lastNarration); prior != "" {
+					var steered bool
+					messages, prior, steered, err = a.finishText(ctx, sessionID, messages, prior)
+					if err != nil {
+						return "", err
+					}
+					if steered {
+						continue
+					}
+					return prior, nil
 				}
 				return "", fmt.Errorf("agent: empty model reply")
 			}
@@ -1438,6 +1487,63 @@ func withCronToolFooter(reply string, called []string) string {
 		label = strings.Join(called, ", ")
 	}
 	return strings.TrimRight(reply, "\n") + "\n\n— tools: " + label
+}
+
+const toolsFooterPrefix = "— tools:"
+
+func isToolsFooterLine(s string) bool {
+	return strings.HasPrefix(strings.TrimSpace(s), toolsFooterPrefix)
+}
+
+// isToolsFooterOnly reports a reply that is only the cron audit footer
+// (with optional blank lines). That is not user-facing speech.
+func isToolsFooterOnly(s string) bool {
+	t := strings.TrimSpace(s)
+	if t == "" || !strings.Contains(t, toolsFooterPrefix) {
+		return false
+	}
+	return strings.TrimSpace(stripToolsFooter(t)) == ""
+}
+
+// stripToolsFooter drops a trailing "— tools: …" audit line. Cron Handle
+// still returns the footer to the mouth; session history and Completer
+// prompts must not keep it or Flash few-shots it as the next reply.
+func stripToolsFooter(s string) string {
+	s = strings.TrimRight(s, "\n")
+	if s == "" {
+		return ""
+	}
+	lines := strings.Split(s, "\n")
+	end := len(lines)
+	for end > 0 && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	if end > 0 && isToolsFooterLine(lines[end-1]) {
+		end--
+		for end > 0 && strings.TrimSpace(lines[end-1]) == "" {
+			end--
+		}
+		return strings.TrimRight(strings.Join(lines[:end], "\n"), "\n")
+	}
+	return s
+}
+
+func storedAssistantReply(reply string) string {
+	if stripped := stripToolsFooter(reply); strings.TrimSpace(stripped) != "" {
+		return stripped
+	}
+	return reply
+}
+
+func discardReply(ctx context.Context, w channel.ReplyWriter) {
+	if w == nil {
+		return
+	}
+	d, ok := w.(channel.Discarder)
+	if !ok {
+		return
+	}
+	_ = d.Discard(ctx)
 }
 
 // dropCronHistory removes prior scheduled and watch user/assistant pairs so
