@@ -42,12 +42,11 @@ tz into `text`. Do not "fix" this by rewriting bodies in the Worker.
 ### Mouths (open in those repos)
 
 Happy-path `"near me"` without `[location]` in `text` is **not** the
-ticket. Each mouth still strips a pasted `[current time]` / `[harness]`
-/ `[hours]` / `[memory]` / `[location…]` header **on send**.
+Cab ticket. Cab still strips a pasted header **on send**. PWA is done.
 
 | Mouth | Repo | Ticket |
 | --- | --- | --- |
-| PWA | gantry-pendant **FE** | `docs/audit_todo.md` §14, `docs/todo.md` This repo |
+| PWA | gantry-pendant **FE** | closed (`stripHarnessContext` + geo-only `context`) |
 | Cab | gantry-cab | `docs/todo.md` Small |
 | Worker | gantry-pendant **BE** | no work |
 
@@ -75,12 +74,6 @@ ticket. Each mouth still strips a pasted `[current time]` / `[harness]`
 
 ### Sibling (mouths — not this tree)
 
-Crane Completer footer is **closed here**. Pendant PWA and Cab still
-must strip a pasted / concatenated harness header **on send**:
-
-- Pendant FE: `docs/todo.md` This repo + `docs/audit_todo.md` §14
-  (`PhoneShell.sendText`, `lib/phone/…`). **Not the Worker.**
-- Cab FE: `docs/todo.md` Small (`inbound()` / `Wire.kt`).
-
-Do not implement those from this checkout. Do not tell those agents
-the ticket is only ai-gantry.
+PWA send strip is closed in gantry-pendant (`stripHarnessContext` +
+geo-only `context`). Cab still owns its Kotlin strip (`docs/todo.md`
+Small). Do not implement Cab from this checkout.
