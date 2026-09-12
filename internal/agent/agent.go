@@ -280,6 +280,7 @@ func (a *Agent) personaText() string {
 
 // Handle is a channel.Handler: assemble prompt, call model (with tools), return reply.
 func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error) {
+	msg.Text = stripHarnessContext(msg.Text)
 	text := strings.TrimSpace(msg.Text)
 	if text == "" && len(msg.Images) == 0 {
 		return "", nil
@@ -399,6 +400,7 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 			return "", nil
 		}
 		msg = joined
+		msg.Text = stripHarnessContext(msg.Text)
 		text = strings.TrimSpace(msg.Text)
 	}
 
@@ -506,10 +508,10 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			userMsg.ImageURLs = append(userMsg.ImageURLs, u)
 		}
 	}
-	// Clock footer (not stored in history): same user message, after their
-	// words. A trailing RoleSystem note is easy to skip when the model
-	// inspects "the message"; leading with [current time] primed
-	// calendar/tool fixation on small local models. Fresh each Handle.
+	// Clock is prompt-only, not session history. RoleUser is speech;
+	// a tagged RoleSystem after their words keeps NOW recency-weighted
+	// without looking like they typed it. Leading with [current time]
+	// primed calendar/tool fixation on small local models. Fresh each Handle.
 	now := time.Now().In(loc)
 	if msg.Geo != nil {
 		here.Remember(msg.SessionID, msg.Geo, now)
@@ -530,8 +532,13 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		}
 		clock += "\n" + memory.ParseHours(raw).Footer()
 	}
-	userMsg.Content = storeText + "\n\n" + clock
 	messages = append(messages, userMsg)
+	if block := formatHarnessClock(clock); block != "" {
+		messages = append(messages, provider.Message{
+			Role:    provider.RoleSystem,
+			Content: block,
+		})
+	}
 	if a.wait != nil {
 		messages = append(messages, provider.Message{
 			Role:    provider.RoleSystem,

@@ -220,12 +220,18 @@ One WAL SQLite file: `$DATA_DIR/gantry.db`.
 ## Prompt assembly (order)
 
 1. System: `PERSONA.md` then `SELF.md` (+ memory persona-precedence note when memory on)
-2. System: `[memory]` hydration block (optional, ≤ ~30 rows)
-3. System: `[session summary]` (optional)
+2. System: `[session summary]` (optional)
+3. System: `[mcp prefixes]` when dynamic tools are on
 4. History: user/assistant turns (bounded)
-5. User: current message
+5. System: `[memory]` hydration block (optional, ≤ ~30 rows; after history so the prefix stays cacheable)
+6. System: MCP server health (when tools are wired)
+7. User: current message (typed words / `[photo]` / steers only)
+8. System: `[harness]` location + `[current time]` + `[hours]` (prompt-only; not session history)
+9. System: follow-up / conversation / `mcp_enable` review / cron tool-first notes as applicable
 
 Tool schemas are attached on the completion request, not as chat messages.
+Clock used to ride on the user body; that leaked into “raw message text.”
+Tracked and closed: [todo.md](todo.md#user-role-clock-leak).
 
 ## External dependencies (import over write)
 

@@ -55,7 +55,7 @@ func skipCoalesce(text string) bool {
 }
 
 func messageStoreText(msg channel.Message) string {
-	t := strings.TrimSpace(msg.Text)
+	t := strings.TrimSpace(stripHarnessContext(msg.Text))
 	if t == "" {
 		return "[photo]"
 	}

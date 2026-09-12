@@ -162,11 +162,12 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
 - Photos: inbound → vision; outbound `SendPhoto` for image URLs in the reply
 - Last known GPS is cached in memory (pendant send or Telegram pin; silent
   GPS-only frames update the cache and do not start a turn). `[location]` with
-  when it was from goes on this turn’s **user** footer (not stored in history)
+  when it was from goes on this turn’s **`[harness]`** system message after
+  their words (not stored in history)
 
 ### Time, cron, spark, examples
 
-- Per-turn **temporal footer** on this turn’s user message (not stored in
+- Per-turn **`[harness]`** clock after the user message (not stored in
   history): NOW, day-part, last known `[location]` when we have one, yesterday/today/tomorrow, week grid
   with ISO dates so “Monday” cannot reuse after the week rolls
 - **Cron**: SQLite jobs, `cron_schedule` / `cron_list` / `cron_cancel`,
