@@ -5,12 +5,14 @@ persona, one LLM endpoint, and a set of MCP tool processes so the agent can
 **plan on a long horizon**. Scaling is horizontal: one container (or systemd
 unit) per brain. Harness contract (env, loop, memory):
 [design.md](design.md). Hello path: [root readme](../readme.md).
+How this binary sits with gantree, pendant, and cab:
+[ecosystem.md](ecosystem.md).
 
 ## Container view
 
 ```mermaid
 flowchart LR
-  CH[Telegram / Discord / Slack / pendant] <-->|outbound only| K
+  CH[Telegram / Discord / Slack / pendant mailbox]
 
   subgraph Host["host or Distroless container"]
     K[gantry]
@@ -20,6 +22,7 @@ flowchart LR
     K -->|stdio MCP| M2
   end
 
+  K -->|outbound only| CH
   K -->|OpenAI-compat| LLM[one LLM endpoint]
   K --- P[("PERSONA.md + SELF.md")]
   K --- MF[("mcp.toml")]

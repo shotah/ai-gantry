@@ -2,8 +2,11 @@
 
 One `CHANNEL` per process. All mouths are outbound-only + allowlist (empty
 list fails boot). Default is Telegram. Discord, Slack, and
-[pendant](https://github.com/shotah/gantry-pendant) are opt-in. Stdio is the
-local REPL (`make run`). Want two mouths? Two compose services.
+[pendant](https://github.com/shotah/gantry-pendant) are opt-in.
+[Cab](https://github.com/shotah/gantry-cab) is another mouth on that same
+mailbox, not a second channel. Stdio is the local REPL (`make run`).
+Want two mouths? Two compose services. Family diagram:
+[ecosystem.md](ecosystem.md).
 
 Env table: [design.md](design.md#environment-variables). Allowlist is the
 gate: [design.md](design.md#security).
@@ -62,6 +65,8 @@ required (`xapp-` is not the bot token).
 
 Outbound WSS to the [gantry-pendant](https://github.com/shotah/gantry-pendant)
 mailbox. The crane dials; nothing listens. Setup in that repo’s `docs/setup.md`.
+[Cab](https://github.com/shotah/gantry-cab) is another client on this mailbox
+(Android Auto). The crane still uses `CHANNEL=pendant`.
 
 ```bash
 CHANNEL=pendant

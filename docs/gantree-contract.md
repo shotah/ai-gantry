@@ -2,6 +2,7 @@
 
 What a yard console may **write** and **read** against this harness.
 Gantree is the consumer: [shotah/gantree](https://github.com/shotah/gantree).
+How the four repos talk: [ecosystem.md](ecosystem.md).
 
 The harness never learns instance names. The console never sits in a chat
 turn. If a field is not on this page, do not invent a hook for it.

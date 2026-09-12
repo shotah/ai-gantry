@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ai-gantry">
+  <!-- CNC gantry on a dark tile. Beam is flat so the mark still reads at 16px. -->
+  <rect width="64" height="64" rx="14" fill="#0e1316"/>
+  <g fill="#f07848">
+    <rect x="8" y="12" width="48" height="7" rx="1.5"/>
+    <rect x="10" y="14" width="44" height="2" rx="1" fill="#f3b199"/>
+    <rect x="12" y="19" width="6" height="28" rx="1"/>
+    <rect x="46" y="19" width="6" height="28" rx="1"/>
+    <rect x="10" y="47" width="44" height="5" rx="1"/>
+    <rect x="27" y="19" width="10" height="5" rx="1"/>
+    <rect x="30.5" y="24" width="3" height="8" rx="0.5"/>
+    <rect x="23" y="32" width="18" height="12" rx="2.5"/>
+  </g>
+  <circle cx="28" cy="38" r="1.7" fill="#3db8a0"/>
+</svg>

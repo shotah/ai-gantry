@@ -1,8 +1,8 @@
 # ai-gantry
 
-![ai-gantry — an AI harness for long-horizon planning](https://raw.githubusercontent.com/shotah/ai-gantry/main/assets/banner.png)
+![ai-gantry — the crane. A long-horizon AI harness around one model. Nothing listens.](https://raw.githubusercontent.com/shotah/ai-gantry/main/assets/banner.png)
 
-**Run your own agent.** Pull this image, point it at a local model or paste an
+**The product is the crane.** Pull this image, point it at a local model or paste an
 API key, and chat from your phone. No dashboard. No config UI. **No open ports.**
 This image is an **AI harness** for **long-horizon planning** — memory, cron,
 and personality survive `/new`.
@@ -79,7 +79,7 @@ Also on GHCR: `ghcr.io/shotah/ai-gantry` (same tags). Multi-arch: `linux/amd64`,
 - Entrypoint: `gantry` (`run` | `status` | `version` | …)
 - Healthcheck: `["CMD","/usr/local/bin/gantry","status"]` (exit code; **no port**)
 - Config: env + bind mounts (`PERSONA_DIR`, `MCP_MANIFEST`, `DATA_DIR`)
-- Channels: Telegram (default), Discord, Slack, or `stdio`
+- Channels: Telegram (default), Discord, Slack, pendant, or `stdio`
 
 MCP tool binaries are **not** baked in. Grant tools by baking/mounting static
 binaries + uncommenting `mcp.toml`. A full life-stack is a separate consumer
@@ -128,7 +128,7 @@ The image is the harness; you bring the model and the chat token.
 
 | Pick this image when… | Pick something else when… |
 | --- | --- |
-| You want `docker compose up` and a bot on your phone | You need a web UI or team workspace |
+| You want `docker compose up` and a bot on your phone | Several agents + a board → [gantree](https://github.com/shotah/gantree) |
 | Allowlist + no inbound ports | You need WhatsApp / Teams webhooks |
 | Env + mounts is enough config | You want a dashboard or no-code canvas |
 
@@ -143,6 +143,7 @@ The image is the harness; you bring the model and the chat token.
 | Native + Ollama | [deploy-native.md](https://github.com/shotah/ai-gantry/blob/main/docs/deploy-native.md) |
 | MCP host | [mcp.md](https://github.com/shotah/ai-gantry/blob/main/docs/mcp.md) |
 | Channels | [channels.md](https://github.com/shotah/ai-gantry/blob/main/docs/channels.md) |
+| Family (gantree / pendant / cab) | [ecosystem.md](https://github.com/shotah/ai-gantry/blob/main/docs/ecosystem.md) |
 | Hello path | [readme.md](https://github.com/shotah/ai-gantry/blob/main/readme.md) |
 | Harness contract | [design.md](https://github.com/shotah/ai-gantry/blob/main/docs/design.md) |
 

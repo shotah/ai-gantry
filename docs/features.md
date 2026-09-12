@@ -12,7 +12,10 @@ survives `/new` — **zero MCP required**.
 A full life-stack (Workspace / Strava / Garmin / …) is **not this tree**.
 One-off consumers: [`examples/`](../examples/). N isolated agents on a box
 is a sibling console — [gantree](https://github.com/shotah/gantree) — not an
-appliance folder in this checkout.
+appliance folder in this checkout. Mouths we own:
+[gantry-pendant](https://github.com/shotah/gantry-pendant) and
+[gantry-cab](https://github.com/shotah/gantry-cab). How the four repos
+talk: [ecosystem.md](ecosystem.md).
 
 ---
 
@@ -325,6 +328,7 @@ house keys out of *this* git.
 | MCP | Manifest grant, fetch/plan, filters, `mcp_enable`, fail-soft, Distroless children | [mcp](mcp.md) |
 | Chat ops | Slash cmds, `/auth`, stream, thinking, tool trace, steer, spin-up, photos, reactions, pin | [auth](auth.md) · [deploy-native](deploy-native.md#host-signals) |
 | Channels | Telegram / Discord / Slack / pendant / stdio, allowlist, no ports | [channels](channels.md) |
+| Family | How gantree, pendant, and cab talk to this binary | [ecosystem](ecosystem.md) |
 | Persona files | `PERSONA.md` → `SELF.md`, harness stamps | [persona](persona.md) |
 | Runtime | Static Go, Distroless, heartbeat, drain, SIGHUP, logfwd | [architecture](architecture.md) |
 | Deploy | Hub compose, native systemd+Ollama, GCP/AWS templates | [deploy-docker](deploy-docker.md) · [deploy-native](deploy-native.md) |
@@ -332,4 +336,4 @@ house keys out of *this* git.
 | Won’t | Dashboard, pairing, inbound webhooks, WhatsApp/Teams, multi-agent router | [design](design.md#who-its-for) |
 
 Contract (env table, loop bounds, security): [design.md](design.md).
-Diagrams: [architecture.md](architecture.md).
+Diagrams: [architecture.md](architecture.md) · [ecosystem.md](ecosystem.md).

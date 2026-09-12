@@ -1,7 +1,7 @@
-# ai-gantry 🏗️
+# <img src="assets/logo.svg" alt="" width="40" height="40"> ai-gantry
 
 <p align="center">
-  <img src="assets/banner.svg" alt="ai-gantry — an AI harness for long-horizon planning" width="100%">
+  <img src="assets/banner.svg" alt="ai-gantry — the crane. A long-horizon AI harness around one model. Nothing listens." width="100%">
 </p>
 
 <!-- Hub uses docs/dockerhub.md + assets/banner.png (SVG/mermaid break on Docker Hub). -->
@@ -14,54 +14,96 @@
   <a href="https://hub.docker.com/r/shotah/ai-gantry"><img src="https://img.shields.io/docker/pulls/shotah/ai-gantry?logo=docker" alt="Docker pulls"></a>
 </p>
 
-> **gantry** *(n.)* — the rigid frame in a CNC machine or crane that holds and
-> positions tools. The frame does nothing by itself; the tools do everything.
-> That frame is an **AI harness**: the runtime around the model (loop, tools,
-> memory, context) so the agent can **plan on a long horizon** — days and
-> weeks, not a single chat turn.
+> **gantry** *(n.)* — the rigid frame that holds and positions tools. The
+> frame does nothing by itself; the tools and the memory do the work.
+> That frame is this binary: an **AI harness** around one model so an
+> agent can **plan on a long horizon**.
 
-> Make a local harness small enough to understand, efficient enough to run
-> continuously, resilient enough for imperfect local models, and stateful
-> enough for long-horizon planning: a useful personality and standing goals
-> rather than a stateless chatbot every time context gets expensive.
-
-**Run your own agent.** Pull a container, point it at a local model or paste an
-API key, and chat from your phone. No dashboard in the thing you talk to.
-Nothing listens on a port.
+**The product is the crane.** A Distroless Go process you run. One
+persona. One OpenAI-compat model — Gemini, ChatGPT, Grok, or Ollama.
+Chat dials *out*. Memory you can `sqlite3`. Aims that still exist on
+Thursday. `/new` distills; it does not lobotomize.
 
 ```text
-container + persona + any OpenAI-compat LLM  →  outbound chat
+static binary + persona + any OpenAI-compat LLM  →  outbound chat
 ```
 
-Gemini or ChatGPT with a key. Ollama on the same machine. Chat, memory,
-reminders, and web search work with **zero extra tools** — add MCP binaries
-later if you want.
+Nothing listens. There is no dashboard in the thing you talk to. Health
+is an exit code, not a port. Chat, memory, cron, and web search work
+with **zero extra tools** — MCP is a grant you add later.
 
-We spent the engineering budget on the **harness** — tool calling, MCP,
-context economics, memory that outlives a session, and finishing turns on
-small local models. The harness is the product. Console, metrics, and
-fleet automation live one layer up in
-**[gantree](https://github.com/shotah/gantree)** — the shipping yard — and
-stay out of this binary. Completeness of the platform is not the goal.
-Long-horizon planning is.
+The engineering budget went into the **loop**: parallel tool batches,
+repairs so a small local model can finish a turn, context that does not
+rot, personality that survives a reset. Console, metrics, and fleet
+live one layer up in **[gantree](https://github.com/shotah/gantree)** —
+the shipping yard — and never sit in a chat turn. Mouths we own are
+**[gantry-pendant](https://github.com/shotah/gantry-pendant)** (phone)
+and **[gantry-cab](https://github.com/shotah/gantry-cab)** (Android
+Auto). Telegram stays the default.
 
-If it clicks, the same binary grows with you (persona files, inspectable
-SQLite, optional tools). If you need a team workspace on day one, this is
-the wrong repo — and that’s fine.
+If you need a team workspace on day one, this is the wrong repo — and
+that's fine.
+
+---
+
+## The family
+
+Four public repos. This one is the product. The others exist so you can
+operate it and talk to it without anyone sitting in a token path.
+
+<p align="center">
+  <img src="assets/ecosystem.svg" alt="How the four repos talk: pendant and cab dial the mailbox; the crane dials the mailbox and Telegram; gantree writes files and never sits in the turn." width="100%">
+</p>
+
+| Repo | Job | How it talks |
+| --- | --- | --- |
+| **This repo** | The crane. One process, one person, one model. | Dials out. Reads env + files. Never learns the yard exists. |
+| **[gantree](https://github.com/shotah/gantree)** | Shipping yard. Board, grants, doctor, spend. | Writes `.env`, `mcp.toml`, persona, Docker. Pulls logs. Never in a chat turn. |
+| **[gantry-pendant](https://github.com/shotah/gantry-pendant)** | Handheld + mailbox. Phone PWA + Cloudflare Durable Object. | Phone and crane both **dial in**. Zero inbound ports on the Mini. |
+| **[gantry-cab](https://github.com/shotah/gantry-cab)** | The seat. Android Auto mouth. | Same mailbox, same crane. Not a second Worker. |
+
+Telegram, Discord, and Slack are vendor mouths: the crane dials them
+directly. Pendant and cab go through the mailbox we own. MCP binaries
+are optional children on `PATH` — not a fifth product.
+
+How the wires and the three doors line up:
+**[docs/ecosystem.md](docs/ecosystem.md)**.
+
+```mermaid
+flowchart LR
+  subgraph mouths["Mouths we own"]
+    PWA["pendant PWA"]
+    CAB["gantry-cab"]
+  end
+  TG["Telegram / Discord / Slack"]
+  DO["gantry-pendant mailbox"]
+  subgraph crane["ai-gantry"]
+    K["gantry"]
+    MCP["optional MCP"]
+  end
+  Y["gantree"]
+  LLM["OpenAI-compat LLM"]
+  PWA -->|"wss in"| DO
+  CAB -->|"wss in"| DO
+  K -->|"outbound wss"| DO
+  K -->|"outbound"| TG
+  Y -.->|"files + docker"| K
+  K --> LLM
+  K --> MCP
+```
 
 ---
 
 ## Hello (Docker)
 
-You need Docker, a chat bot, and a model.
+You need Docker, a chat mouth, and a model.
 
 1. A [Gemini API key](https://aistudio.google.com/apikey) **or** any
    OpenAI-compatible endpoint (Ollama, xAI, …).
 2. A Telegram bot token from [@BotFather](https://t.me/BotFather) and your
    numeric user id (e.g. [@userinfobot](https://t.me/userinfobot)).
    Discord and Slack work too — same compose file, different env.
-   The mouth we own is **[gantry-pendant](https://github.com/shotah/gantry-pendant)**
-   (`CHANNEL=pendant`). Telegram stays the default.
+   Pendant is `CHANNEL=pendant` after the Worker exists.
 
 ```bash
 docker pull shotah/ai-gantry:latest
@@ -110,6 +152,7 @@ LLM_MODEL=gemini-3.5-flash
 | **[examples/hosting/gcp/](examples/hosting/gcp/)** · **[aws](examples/hosting/aws/)** | Small always-on VM |
 | **[gantree](https://github.com/shotah/gantree)** | Console, metrics, grant tools, several agents |
 | **[gantry-pendant](https://github.com/shotah/gantry-pendant)** | Phone chat we own (`CHANNEL=pendant`) |
+| **[gantry-cab](https://github.com/shotah/gantry-cab)** | Android Auto, same mailbox |
 | `make init && make run` | Hack on the binary (`CHANNEL=stdio`) |
 
 Cookbook: **[examples/README.md](examples/README.md)**.
@@ -132,8 +175,9 @@ chat turn.
 | `/auth` | Headless MCP login — paste a code; no laptop callback |
 
 Telegram is the default. Discord, Slack, and
-**[pendant](https://github.com/shotah/gantry-pendant)** (our chat client) are
-shipped (one `CHANNEL` per process). Headless OAuth: **[docs/auth.md](docs/auth.md)**.
+**[pendant](https://github.com/shotah/gantry-pendant)** (our chat
+client) are shipped (one `CHANNEL` per process). Cab is another mouth
+on that same mailbox. Headless OAuth: **[docs/auth.md](docs/auth.md)**.
 
 ### Two files, not a catalog
 
@@ -146,7 +190,7 @@ like someone after a long chat, then `/new` wipes them.
 | `SELF.md` | The agent — voice, jokes, rituals, a few north-star aims that survive `/new` (you can delete any line) |
 
 MCP tools are **not** listed in `PERSONA.md`. They come from the live catalog
-(`/tools`, this turn’s schemas, `[mcp prefixes]`). Keep `PERSONA.md` short
+(`/tools`, this turn's schemas, `[mcp prefixes]`). Keep `PERSONA.md` short
 (2–4k characters, examples over rule dumps) or the middle of it gets ignored.
 Progress logs and dated to-dos are memory / cron, not persona.
 
@@ -160,6 +204,7 @@ Horizon split: **[docs/persona.md](docs/persona.md#where-the-horizon-lives)**.
 
 | If you want… | Go here |
 | --- | --- |
+| How the four repos talk | **[docs/ecosystem.md](docs/ecosystem.md)** |
 | What we actually built (honest inventory) | **[docs/features.md](docs/features.md)** |
 | How to write `PERSONA.md` (tight, no MCP catalog, where the horizon lives) | **[docs/persona.md](docs/persona.md)** |
 | How the harness is put together | **[docs/architecture.md](docs/architecture.md)** |
@@ -168,10 +213,11 @@ Horizon split: **[docs/persona.md](docs/persona.md#where-the-horizon-lives)**.
 | Discord / Slack / pendant | **[docs/channels.md](docs/channels.md)** |
 | Console, metrics, or several agents | **[gantree](https://github.com/shotah/gantree)** |
 | Chat from a phone we own | **[gantry-pendant](https://github.com/shotah/gantry-pendant)** |
+| Chat from the car | **[gantry-cab](https://github.com/shotah/gantry-cab)** |
 
 The harness is a small static Go binary. Tools are optional MCP processes.
 We spent the budget on the loop so a **small local model** can finish a
-tool turn instead of ERROR — that’s the production story, not a requirement
+tool turn instead of ERROR — that's the production story, not a requirement
 to start. Long-horizon planning is the reason the loop, memory, cron, and
 `SELF.md` exist.
 
