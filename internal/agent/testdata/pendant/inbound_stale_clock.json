@@ -1,0 +1,15 @@
+{
+  "kind": "inbound",
+  "user_id": "118212345678901234567",
+  "id": "cccccccc-dddd-4eee-8fff-000000000000",
+  "text": "what's near me",
+  "context": {
+    "at": "2020-01-01T00:00:00.000Z",
+    "tz": "UTC",
+    "geo": {
+      "lat": 47.6,
+      "lon": -122.3,
+      "accuracy_m": 8
+    }
+  }
+}

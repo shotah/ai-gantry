@@ -1,6 +1,7 @@
 package pendant
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -165,6 +166,46 @@ func isDigits(s string) bool {
 func isEmail(s string) bool {
 	at := strings.IndexByte(s, '@')
 	return at > 0 && at < len(s)-1
+}
+
+// InboundTurn maps mailbox inbound JSON to the Message Handle sees.
+// ok is false for GPS-only pins (cache, no turn) and empty frames.
+// Does not apply the allowlist or here.Remember — dispatch still does that.
+func InboundTurn(raw []byte) (channel.Message, bool, error) {
+	var frame inboundFrame
+	if err := json.Unmarshal(raw, &frame); err != nil {
+		return channel.Message{}, false, err
+	}
+	msg, ok := turnFromFrame(frame)
+	return msg, ok, nil
+}
+
+func turnFromFrame(frame inboundFrame) (channel.Message, bool) {
+	sub := strings.TrimSpace(frame.UserID)
+	geo := frameGeo(frame.Context)
+	if silentPin(frame.Text, frame.Images, frame.Context) {
+		return channel.Message{
+			SessionID: channel.AgentSession,
+			UserID:    sub,
+			ChatID:    sub,
+			Geo:       geo,
+		}, false
+	}
+	text := strings.TrimSpace(frame.Text)
+	if text == "" && len(frame.Images) > 0 {
+		text = "[photo]"
+	}
+	if text == "" && len(frame.Images) == 0 {
+		return channel.Message{}, false
+	}
+	return channel.Message{
+		SessionID: channel.AgentSession,
+		UserID:    sub,
+		Text:      text,
+		Images:    frame.Images,
+		ChatID:    sub,
+		Geo:       geo,
+	}, true
 }
 
 func frameGeo(ctx *frameContext) *channel.Geo {

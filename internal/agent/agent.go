@@ -108,6 +108,8 @@ type Options struct {
 	// Location is the operator timezone for the per-turn temporal anchor (CRON_TZ).
 	Location *time.Location
 	TZName   string // IANA name for display (e.g. America/Los_Angeles)
+	// Now freezes the [harness] clock. Nil is time.Now. Tests pin Completer dumps.
+	Now func() time.Time
 	// CoalesceSettle waits this long after the last bubble before injecting
 	// one steer into the live turn (or starting a new turn if the first
 	// already finished). 0 disables. Production default is DefaultCoalesceSettle.
@@ -154,6 +156,7 @@ type Agent struct {
 	startedAt     time.Time
 	loc           *time.Location
 	tzName        string
+	nowFn         func() time.Time
 
 	turnMu       sync.Mutex
 	turnSeq      uint64
@@ -232,6 +235,7 @@ func New(opts Options) (*Agent, error) {
 		startedAt:      started,
 		loc:            loc,
 		tzName:         tzName,
+		nowFn:          opts.Now,
 		coalesceSettle: opts.CoalesceSettle,
 		spinupNotice:   opts.SpinupNotice,
 		consolidator:   opts.Consolidator,
@@ -274,6 +278,13 @@ func (a *Agent) clockZone() (*time.Location, string) {
 	a.personaMu.RLock()
 	defer a.personaMu.RUnlock()
 	return a.loc, a.tzName
+}
+
+func (a *Agent) clockNow() time.Time {
+	if a.nowFn != nil {
+		return a.nowFn()
+	}
+	return time.Now()
 }
 
 func (a *Agent) personaText() string {
@@ -523,7 +534,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	// a tagged RoleSystem after their words keeps NOW recency-weighted
 	// without looking like they typed it. Leading with [current time]
 	// primed calendar/tool fixation on small local models. Fresh each Handle.
-	now := time.Now().In(loc)
+	now := a.clockNow().In(loc)
 	if msg.Geo != nil {
 		here.Remember(msg.SessionID, msg.Geo, now)
 	}

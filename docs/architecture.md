@@ -233,6 +233,16 @@ Tool schemas are attached on the completion request, not as chat messages.
 Clock used to ride on the user body; that leaked into “raw message text.”
 Tracked and closed: [todo.md](todo.md#user-role-clock-leak).
 
+Read the completed Completer request (not the inserts): PWA inbound JSON
+in `internal/agent/testdata/pendant/inbound_geo.json` is parsed by
+`pendant.InboundTurn`, run through `Handle`, and pinned as
+`completer_geo.txt`. GPS-off is `inbound_nogeo.json` /
+`completer_nogeo.txt`. Gate: `TestPendantInbound_CompleterPayload`. Clock
+is frozen at 2026-09-14 12:02 PDT so the dump is stable. Production
+`CRON_TZ` still uses `time.Now`. Memory hydration, `[hours]`, MCP health,
+wait notes, and tool schemas are omitted there so the mouth contract is
+readable; they still append after this prefix when those subsystems are on.
+
 ## External dependencies (import over write)
 
 | Concern | Library | Why |

@@ -37,6 +37,56 @@ func TestInboundFrame_PendantGPSJSON(t *testing.T) {
 	}
 }
 
+func TestInboundTurn_GeoOnlyPWA(t *testing.T) {
+	raw := []byte(`{"kind":"inbound","user_id":"1182","text":"what's near me","context":{"geo":{"lat":47.6,"lon":-122.3,"accuracy_m":8}}}`)
+	msg, ok, err := InboundTurn(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected a turn")
+	}
+	if msg.Text != "what's near me" {
+		t.Fatalf("text %q", msg.Text)
+	}
+	if strings.Contains(msg.Text, "[location]") || strings.Contains(msg.Text, "[current time]") {
+		t.Fatalf("clock leaked into Text: %q", msg.Text)
+	}
+	if msg.Geo == nil || msg.Geo.Lat != 47.6 || msg.Geo.Lon != -122.3 || msg.Geo.AccuracyM != 8 {
+		t.Fatalf("geo %+v", msg.Geo)
+	}
+	if msg.UserID != "1182" || msg.SessionID != channel.AgentSession {
+		t.Fatalf("ids %+v", msg)
+	}
+}
+
+func TestInboundTurn_IgnoresPhoneClockFields(t *testing.T) {
+	raw := []byte(`{"kind":"inbound","user_id":"1182","text":"hi","context":{"at":"2020-01-01T00:00:00Z","tz":"UTC","geo":{"lat":1,"lon":2}}}`)
+	msg, ok, err := InboundTurn(raw)
+	if err != nil || !ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	if msg.Text != "hi" {
+		t.Fatalf("text %q", msg.Text)
+	}
+	if msg.Geo == nil || msg.Geo.Lat != 1 {
+		t.Fatalf("geo %+v", msg.Geo)
+	}
+}
+
+func TestInboundTurn_SilentPin(t *testing.T) {
+	msg, ok, err := InboundTurn([]byte(`{"kind":"pin","user_id":"1182","context":{"geo":{"lat":47.6,"lon":-122.3}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("pin must not start a turn")
+	}
+	if msg.Geo == nil || msg.Geo.Lat != 47.6 {
+		t.Fatalf("geo %+v", msg.Geo)
+	}
+}
+
 func TestSilentPin(t *testing.T) {
 	ctx := &frameContext{Geo: &geo{Lat: 1, Lon: 2}}
 	if !silentPin("", nil, ctx) {

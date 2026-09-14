@@ -312,23 +312,18 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	}
 	sid := channel.AgentSession
 	c.noteUser(ctx, sid, sub)
-	geo := frameGeo(frame.Context)
-	here.Remember(sid, geo, time.Now())
-	if silentPin(frame.Text, frame.Images, frame.Context) {
-		c.log.Info("pendant gps cached (no text)", "session_id", sid)
+	msg, start := turnFromFrame(frame)
+	here.Remember(sid, msg.Geo, time.Now())
+	if !start {
+		if silentPin(frame.Text, frame.Images, frame.Context) {
+			c.log.Info("pendant gps cached (no text)", "session_id", sid)
+		}
 		return nil
 	}
-	if geo != nil {
+	if msg.Geo != nil {
 		c.log.Info("pendant gps", "session_id", sid)
 	} else {
 		c.log.Info("pendant inbound without geo", "session_id", sid)
-	}
-	text := strings.TrimSpace(frame.Text)
-	if text == "" && len(frame.Images) > 0 {
-		text = "[photo]"
-	}
-	if text == "" && len(frame.Images) == 0 {
-		return nil
 	}
 	stopTyping := c.startTyping(ctx, cn, sub)
 
@@ -342,14 +337,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	}
 
 	handleCtx, sink := channel.AttachPhotoSink(handleCtx)
-	reply, err := handle(handleCtx, channel.Message{
-		SessionID: sid,
-		UserID:    sub,
-		Text:      text,
-		Images:    frame.Images,
-		ChatID:    sub,
-		Geo:       geo,
-	})
+	reply, err := handle(handleCtx, msg)
 	stopTyping()
 	photos := sink.URLs()
 	if err != nil {

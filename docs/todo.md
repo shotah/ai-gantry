@@ -177,6 +177,10 @@ Cab ticket. Cab still strips a pasted header **on send**. PWA is done.
       (`stripHarnessContext`).
 - [x] `docs/architecture.md` prompt order matches the loop (hydration
       after history; `[harness]` clock after user speech).
+- [x] Completer payload is pinned, not hypothetical: PWA inbound JSON
+      → `pendant.InboundTurn` → `Handle` → `testdata/pendant/completer_*.txt`.
+      Time and location live on `[harness]` after RoleUser, not in `text`.
+      Phone `context.at` / `tz` are ignored. GPS-off still has `[current time]`.
 - [ ] Phone `context.at` / `tz` / `surface` / `battery` / `net` —
       PWA no longer stamps them (geo only). Old Cab may still send
       them. Unused here except `geo` → `here`. Not this ticket.
