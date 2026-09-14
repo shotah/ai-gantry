@@ -11,17 +11,18 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel/pendant"
+	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
 // Frozen Pacific noon so testdata/pendant/*.txt is a readable Completer dump,
 // not a moving NOW. Production still uses time.Now.
 //
-// These dumps omit memory hydration, [hours], MCP health, wait notes, and
-// tool schemas (nil Memory/Tools/Wait). completer_*.txt is the agent
+// These dumps omit memory hydration, MCP health, wait notes, and tool
+// schemas unless the test wires Memory. completer_*.txt is the agent
 // Request (trailing [harness] system). completer_*_gemini_wire.txt is
-// what Gemini's OpenAI-compat body actually gets: one system instruction
-// with this-turn clock/GPS prepended. Open completer_geo_gemini_wire.txt.
+// what Gemini's OpenAI-compat body actually gets. Hours/aims/loops:
+// completer_horizon_harness.txt.
 func payloadClock() (loc *time.Location, now time.Time) {
 	loc, err := time.LoadLocation("America/Los_Angeles")
 	if err != nil {
@@ -107,6 +108,56 @@ func formatCompleterRequest(req provider.Request) string {
 		}
 	}
 	return b.String()
+}
+
+func TestPendantInbound_CompleterPayloadHorizon(t *testing.T) {
+	ctx := context.Background()
+	mem, err := memory.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = mem.Close() })
+	if _, err := mem.Store(ctx, memory.KindPreference, memory.SubjectHours, "sleep: 22:00-06:00\nwork: 07:00-14:00\nquiet: (none)\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mem.Store(ctx, memory.KindInsight, "aim/training", "3x gym this month"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mem.Store(ctx, memory.KindFact, "waiting/dentist", "book cleaning"); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join("testdata", "pendant", "inbound_geo.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, ok, err := pendant.InboundTurn(raw)
+	if err != nil || !ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	msg.SessionID = "payload-horizon"
+	loc, now := payloadClock()
+	var captured provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		captured = req
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Persona:   "You are Kit.",
+		Completer: fc,
+		Sessions:  newMemHistory(),
+		Memory:    mem,
+		Model:     "m",
+		Location:  loc,
+		TZName:    "America/Los_Angeles",
+		Now:       func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(ctx, msg); err != nil {
+		t.Fatal(err)
+	}
+	assertGolden(t, filepath.Join("testdata", "pendant", "completer_horizon_harness.txt"), promptHarnessClock(captured.Messages)+"\n")
 }
 
 func assertGolden(t *testing.T, path, got string) {

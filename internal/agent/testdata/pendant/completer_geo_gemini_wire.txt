@@ -1,7 +1,7 @@
 tools: 0
 
 ## [0] system
-[harness] Not user text — location, clock, and hours for this turn.
+[harness] Not user text — location, clock, hours, and horizon for this turn.
 [location ±8m] 47.600000, -122.300000 at Mon Sep 14, 2026 12:02 PM PDT (just now)
 [current time] NOW: Monday September 14, 2026 12:02 PM PDT (America/Los_Angeles, offset -07:00) — lunch window. Human local time, not UTC.
 already today: 12:00 AM–12:02 PM (overnight, early morning, morning)

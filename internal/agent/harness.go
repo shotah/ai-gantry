@@ -5,7 +5,7 @@ import "strings"
 // harnessClockNote labels the per-turn clock so Completer RoleUser stays
 // speech. Trailing unlabeled RoleSystem was easy to skip; leading with
 // [current time] primed calendar/tool fixation. After their words, tagged.
-const harnessClockNote = "[harness] Not user text — location, clock, and hours for this turn."
+const harnessClockNote = "[harness] Not user text — location, clock, hours, and horizon for this turn."
 
 func formatHarnessClock(clock string) string {
 	clock = strings.TrimSpace(clock)
@@ -68,6 +68,8 @@ func harnessTagLine(line string) bool {
 		strings.HasPrefix(line, "[location"),
 		strings.HasPrefix(line, "[current time]"),
 		strings.HasPrefix(line, "[hours]"),
+		strings.HasPrefix(line, "[aims]"),
+		strings.HasPrefix(line, "[loops]"),
 		strings.HasPrefix(line, "[memory]"):
 		return true
 	default:

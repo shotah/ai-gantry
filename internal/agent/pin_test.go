@@ -9,6 +9,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/agent"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/here"
+	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
@@ -183,6 +184,51 @@ func TestHandle_StripsPastedClockFromInbound(t *testing.T) {
 		if m.Role == "user" && m.Content != "tacos tonight" {
 			t.Fatalf("stored user = %q", m.Content)
 		}
+	}
+}
+
+func TestHandle_HarnessStampsHoursAimsLoops(t *testing.T) {
+	ctx := context.Background()
+	mem, err := memory.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = mem.Close() })
+	if _, err := mem.Store(ctx, memory.KindPreference, memory.SubjectHours, "sleep: 22:00-06:00\nwork: 07:00-14:00\nquiet: (none)\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mem.Store(ctx, memory.KindInsight, "aim/training", "3x gym this month"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mem.Store(ctx, memory.KindFact, "waiting/dentist", "book cleaning"); err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		user := lastPromptUser(req.Messages)
+		clock := promptHarnessClock(req.Messages)
+		if user != "hi" {
+			t.Errorf("RoleUser = %q", user)
+		}
+		if strings.Contains(user, "[hours]") || strings.Contains(user, "[aims]") || strings.Contains(user, "[loops]") {
+			t.Errorf("horizon leaked into RoleUser: %q", user)
+		}
+		if !strings.Contains(clock, "[hours] sleep 22:00-06:00 · work 07:00-14:00") {
+			t.Errorf("hours missing: %q", clock)
+		}
+		if !strings.Contains(clock, "[aims] training: 3x gym this month") {
+			t.Errorf("aims missing: %q", clock)
+		}
+		if !strings.Contains(clock, "[loops] waiting/dentist: book cleaning") {
+			t.Errorf("loops missing: %q", clock)
+		}
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{Completer: fc, Sessions: newMemHistory(), Memory: mem, Model: "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(ctx, channel.Message{SessionID: "horizon", Text: "hi"}); err != nil {
+		t.Fatal(err)
 	}
 }
 

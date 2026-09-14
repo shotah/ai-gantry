@@ -311,3 +311,39 @@ func TestTools_CallRoundTrip(t *testing.T) {
 		t.Fatal("empty forget result")
 	}
 }
+
+func TestListBySubjectPrefix(t *testing.T) {
+	b, err := memory.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = b.Close() })
+	ctx := context.Background()
+	if _, err := b.Store(ctx, memory.KindInsight, "aim/training", "3x gym"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Store(ctx, memory.KindInsight, "aim/spanish", "B1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Store(ctx, memory.KindFact, "waiting/dentist", "book"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Store(ctx, memory.KindPreference, "pref/hours", "sleep: 22:00-06:00"); err != nil {
+		t.Fatal(err)
+	}
+	aims, err := b.ListBySubjectPrefix(ctx, memory.KindInsight, memory.SubjectAimPrefix, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(aims) != 2 {
+		t.Fatalf("aims=%d", len(aims))
+	}
+	wait, err := b.ListBySubjectPrefix(ctx, memory.KindFact, memory.SubjectWaitingPrefix, 5)
+	if err != nil || len(wait) != 1 || wait[0].Subject != "waiting/dentist" {
+		t.Fatalf("waiting %+v err=%v", wait, err)
+	}
+	none, err := b.ListBySubjectPrefix(ctx, memory.KindInsight, "nope/", 5)
+	if err != nil || len(none) != 0 {
+		t.Fatalf("none %+v err=%v", none, err)
+	}
+}

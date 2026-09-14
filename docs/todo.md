@@ -185,6 +185,9 @@ Cab ticket. Cab still strips a pasted header **on send**. PWA is done.
       the user does not land in `system_instruction`. `WireMessages`
       folds it into the one system message (`completer_geo_gemini_wire.txt`).
       OpenAI/Ollama keep the trailing system.
+- [x] `[harness]` also stamps `[hours]` (always, when memory is on),
+      `[aims]` (live `aim/<area>` insight), and `[loops]` (`waiting/` /
+      `follow/` facts). North-stars stay in `SELF.md`. No new `goal` kind.
 - [ ] Phone `context.at` / `tz` / `surface` / `battery` / `net` —
       PWA no longer stamps them (geo only). Old Cab may still send
       them. Unused here except `geo` → `here`. Not this ticket.

@@ -226,7 +226,7 @@ One WAL SQLite file: `$DATA_DIR/gantry.db`.
 5. System: `[memory]` hydration block (optional, ≤ ~30 rows; after history so the prefix stays cacheable)
 6. System: MCP server health (when tools are wired)
 7. User: current message (typed words / `[photo]` / steers only)
-8. System: `[harness]` location + `[current time]` + `[hours]` (prompt-only; not session history)
+8. System: `[harness]` location + `[current time]` + `[hours]` + `[aims]` / `[loops]` (prompt-only; not session history)
 9. System: follow-up / conversation / `mcp_enable` review / cron tool-first notes as applicable
 
 Tool schemas are attached on the completion request, not as chat messages.
@@ -243,6 +243,7 @@ is frozen at 2026-09-14 12:02 PDT so the dump is stable. Production
 `CRON_TZ` still uses `time.Now`. Memory hydration, `[hours]`, MCP health,
 wait notes, and tool schemas are omitted there so the mouth contract is
 readable; they still append after this prefix when those subsystems are on.
+Hours, aims, and loops need Memory: `completer_horizon_harness.txt`.
 
 Gemini's OpenAI-compat layer keeps **one** system instruction. A trailing
 `[harness]` `role=system` after the user is dropped or overwrites the

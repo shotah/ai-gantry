@@ -47,6 +47,9 @@ type Memory interface {
 	Hydrate(ctx context.Context, query string, limit int) ([]Entry, error)
 	Get(ctx context.Context, id int64) (Entry, error)
 	ActiveByKindSubject(ctx context.Context, kind, subject string) (Entry, bool, error)
+	// ListBySubjectPrefix returns live rows whose subject starts with prefix
+	// (aim/, waiting/). Empty kind or prefix returns nil.
+	ListBySubjectPrefix(ctx context.Context, kind, prefix string, limit int) ([]Entry, error)
 	Close() error
 }
 

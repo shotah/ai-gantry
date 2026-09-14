@@ -279,6 +279,31 @@ func (b *Builtin) ActiveByKindSubject(ctx context.Context, kind, subject string)
 	return e, true, nil
 }
 
+// ListBySubjectPrefix returns live rows whose subject starts with prefix.
+func (b *Builtin) ListBySubjectPrefix(ctx context.Context, kind, prefix string, limit int) ([]Entry, error) {
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	prefix = strings.TrimSpace(prefix)
+	if kind == "" || prefix == "" {
+		return nil, nil
+	}
+	if limit < 1 {
+		limit = harnessHorizonMax
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	rows, err := b.db.QueryContext(ctx, `
+		SELECT id, kind, subject, content, source, confidence, created_at, updated_at, expires_at, superseded_by
+		FROM memory
+		WHERE kind = ? AND subject LIKE ? AND superseded_by IS NULL
+		  AND (expires_at IS NULL OR expires_at > ?)
+		ORDER BY updated_at DESC
+		LIMIT ?`, kind, prefix+"%", now, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	return scanEntries(rows)
+}
+
 // Recall runs FTS5 + recency ranking.
 func (b *Builtin) Recall(ctx context.Context, query string, limit int) ([]Entry, error) {
 	if limit < 1 {

@@ -170,7 +170,10 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
 
 - Per-turn **`[harness]`** clock after the user message (not stored in
   history): NOW, day-part, last known `[location]` when we have one, yesterday/today/tomorrow, week grid
-  with ISO dates so “Monday” cannot reuse after the week rolls
+  with ISO dates so “Monday” cannot reuse after the week rolls. When memory
+  is on: `[hours]` from `pref/hours`, `[aims]` from live `aim/<area>`
+  insight, `[loops]` from `waiting/` and `follow/` facts. Gemini folds
+  this block into the one system instruction.
 - **Cron**: SQLite jobs, `cron_schedule` / `cron_list` / `cron_cancel`,
   timezone, overlap policy, `[silent]` skip-push
 - Live-data cron: tool-first wrapper; zero-tool draft gets one nudge, then

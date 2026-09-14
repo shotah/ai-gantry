@@ -553,6 +553,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			raw = e.Content
 		}
 		clock += "\n" + memory.ParseHours(raw).Footer()
+		clock += a.horizonStamp(turnCtx)
 	}
 	messages = append(messages, userMsg)
 	if block := formatHarnessClock(clock); block != "" {
@@ -654,6 +655,34 @@ func (a *Agent) flushStream(ctx context.Context, text string) {
 	if err := w.Finish(ctx, text); err != nil {
 		a.log.Warn("stream finish before persist failed", "err", err)
 	}
+}
+
+func (a *Agent) horizonStamp(ctx context.Context) string {
+	if a.memory == nil {
+		return ""
+	}
+	var b strings.Builder
+	aims, err := a.memory.ListBySubjectPrefix(ctx, memory.KindInsight, memory.SubjectAimPrefix, 0)
+	if err != nil {
+		a.log.Warn("aims lookup failed", "err", err)
+	} else if line := memory.FormatAims(aims); line != "" {
+		b.WriteByte('\n')
+		b.WriteString(line)
+	}
+	waiting, err := a.memory.ListBySubjectPrefix(ctx, memory.KindFact, memory.SubjectWaitingPrefix, 0)
+	if err != nil {
+		a.log.Warn("waiting lookup failed", "err", err)
+	}
+	follow, err := a.memory.ListBySubjectPrefix(ctx, memory.KindFact, memory.SubjectFollowPrefix, 0)
+	if err != nil {
+		a.log.Warn("follow lookup failed", "err", err)
+	}
+	loops := append(append([]memory.Entry(nil), waiting...), follow...)
+	if line := memory.FormatLoops(loops); line != "" {
+		b.WriteByte('\n')
+		b.WriteString(line)
+	}
+	return b.String()
 }
 
 // promptShape describes how much of the assembled prompt is cacheable. The
