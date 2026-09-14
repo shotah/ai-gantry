@@ -18,8 +18,10 @@ import (
 // not a moving NOW. Production still uses time.Now.
 //
 // These dumps omit memory hydration, [hours], MCP health, wait notes, and
-// tool schemas (nil Memory/Tools/Wait). The mouth contract is persona +
-// RoleUser speech + [harness] after it. Open completer_geo.txt to read it.
+// tool schemas (nil Memory/Tools/Wait). completer_*.txt is the agent
+// Request (trailing [harness] system). completer_*_gemini_wire.txt is
+// what Gemini's OpenAI-compat body actually gets: one system instruction
+// with this-turn clock/GPS prepended. Open completer_geo_gemini_wire.txt.
 func payloadClock() (loc *time.Location, now time.Time) {
 	loc, err := time.LoadLocation("America/Los_Angeles")
 	if err != nil {
@@ -88,6 +90,9 @@ func TestPendantInbound_CompleterPayload(t *testing.T) {
 			}
 			got := formatCompleterRequest(captured)
 			assertGolden(t, filepath.Join("testdata", "pendant", tc.want), got)
+			gemini := captured
+			gemini.Messages = provider.WireMessages("gemini-3.6-flash", captured.Messages)
+			assertGolden(t, filepath.Join("testdata", "pendant", strings.TrimSuffix(tc.want, ".txt")+"_gemini_wire.txt"), formatCompleterRequest(gemini))
 		})
 	}
 }

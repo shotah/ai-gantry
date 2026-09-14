@@ -181,6 +181,10 @@ Cab ticket. Cab still strips a pasted header **on send**. PWA is done.
       → `pendant.InboundTurn` → `Handle` → `testdata/pendant/completer_*.txt`.
       Time and location live on `[harness]` after RoleUser, not in `text`.
       Phone `context.at` / `tz` are ignored. GPS-off still has `[current time]`.
+- [x] Gemini OpenAI-compat mismatch: trailing `[harness]` system after
+      the user does not land in `system_instruction`. `WireMessages`
+      folds it into the one system message (`completer_geo_gemini_wire.txt`).
+      OpenAI/Ollama keep the trailing system.
 - [ ] Phone `context.at` / `tz` / `surface` / `battery` / `net` —
       PWA no longer stamps them (geo only). Old Cab may still send
       them. Unused here except `geo` → `here`. Not this ticket.

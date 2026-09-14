@@ -140,7 +140,7 @@ func (c *Client) buildParams(req Request) (openai.ChatCompletionNewParams, error
 	if c.reasoningEffort != "" {
 		params.ReasoningEffort = shared.ReasoningEffort(c.reasoningEffort)
 	}
-	for _, m := range req.Messages {
+	for _, m := range WireMessages(c.model, req.Messages) {
 		msg, err := toParam(m)
 		if err != nil {
 			return params, err
