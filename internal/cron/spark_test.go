@@ -55,10 +55,24 @@ func TestParseSparkPrompts(t *testing.T) {
 	if !strings.Contains(cron.SparkPingPrefix, "[wait]") {
 		t.Fatal("spark prefix must mention [wait] for unanswered questions")
 	}
-	var sawFood, sawGarmin, sawHours, sawEmptyCal, sawPrepCue bool
+	var sawFood, sawGarmin, sawHours, sawEmptyCal, sawPrepCue, sawRoom bool
 	for _, p := range defaults {
 		if strings.Contains(p, "pref/food") {
 			sawFood = true
+		}
+		// The room line is gated on the [room] stamp (pendant mouth + MCP) so a
+		// Telegram crane skips it. A nudge, not a recipe — the tool descriptions
+		// already say how; a how-to here is what overloads a small model.
+		if strings.HasPrefix(p, "Room:") {
+			sawRoom = true
+			if !strings.Contains(p, "only if [room] is in [harness]") {
+				t.Fatalf("room line must be gated on [room]: %q", p)
+			}
+			for _, recipe := range []string{"theme_list", "theme_update", "photo_generate", "avatar_update", "→", "1:1", "9:16"} {
+				if strings.Contains(p, recipe) {
+					t.Fatalf("room line must not carry tool recipes (%q): %q", recipe, p)
+				}
+			}
 		}
 		if strings.Contains(strings.ToLower(p), "garmin") {
 			sawGarmin = true
@@ -73,8 +87,8 @@ func TestParseSparkPrompts(t *testing.T) {
 			sawPrepCue = true
 		}
 	}
-	if !sawFood || !sawGarmin || !sawHours || !sawEmptyCal || !sawPrepCue {
-		t.Fatalf("pool missing user-model/gym/hours/empty-cal/prep lines food=%v garmin=%v hours=%v emptyCal=%v prep=%v", sawFood, sawGarmin, sawHours, sawEmptyCal, sawPrepCue)
+	if !sawFood || !sawGarmin || !sawHours || !sawEmptyCal || !sawPrepCue || !sawRoom {
+		t.Fatalf("pool missing user-model/gym/hours/empty-cal/prep/room lines food=%v garmin=%v hours=%v emptyCal=%v prep=%v room=%v", sawFood, sawGarmin, sawHours, sawEmptyCal, sawPrepCue, sawRoom)
 	}
 	// commas/colons stay inside a single prompt
 	single := cron.ParseSparkPrompts("Tell a joke, then smile: briefly.")

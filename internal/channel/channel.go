@@ -26,6 +26,17 @@ type Message struct {
 	ThreadID int
 }
 
+// Room is the pendant mouth's look as last announced on the crane socket:
+// the mailbox tells every socket when the face, wallpaper, or theme changes.
+// A zero time means no notice for that piece since boot.
+type Room struct {
+	Theme      string // catalog id; empty with ThemeAt set means cleared
+	ThemeAt    time.Time
+	Backdrop   bool // wallpaper set; false with BackdropAt set means cleared
+	BackdropAt time.Time
+	FaceAt     time.Time
+}
+
 // Geo is this-send coordinates from the mouth.
 type Geo struct {
 	Lat       float64

@@ -76,7 +76,7 @@ const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data,
 // sparkToolFirstNote sits after the clock on spark-of-life turns. Spark looks
 // after the user (aims, live tools, useful knowledge). Empty zero-tool jokes
 // are still nudged off; grounded jokes after tools are allowed.
-const sparkToolFirstNote = "[system] Spark-of-life turn: the user is the aim. Review [mcp prefixes] on vs off. [hours], [aims], [loops], and [wakes] are already in [harness] — do not memory_recall or cron_list for those. Emit independent tool calls now — memory_recall only for detail (aim/<area>, pref/calendar), then live tools (Garmin, calendar, search) or cron_schedule. mcp_enable a prefix if it is off and needed. Shape the message by [current time]. A joke is allowed when it is grounded in this turn's tool results and an aim — never a joke with zero tools. [hours] unknown → ask sleep/work once. Else at most one user-model question. A real empty calendar is a hole: ask ONE what they want on it today (lunch/dinner or training) — not [silent], never agree-and-stop; try to get something scheduled (ask first before writing events). A clock time you commit is cron_schedule with memory_id or one offer to ping — a calendar event is not the reminder. No [aims] line: ask ONE months-scale question — do not invent an aim. If you asked a question they should answer, put [wait] on its own line. After the work, [silent] unless the human needs a specific hole, nudge, or next step."
+const sparkToolFirstNote = "[system] Spark-of-life turn: the user is the aim. Review [mcp prefixes] on vs off. [hours], [aims], [loops], and [wakes] are already in [harness] — do not memory_recall or cron_list for those. Emit independent tool calls now — memory_recall only for detail (aim/<area>, pref/calendar), then live tools (Garmin, calendar, search) or cron_schedule. mcp_enable a prefix if it is off and needed. Shape the message by [current time]. If [room] is stamped and stale, redress it in the same batch. A joke is allowed when it is grounded in this turn's tool results and an aim — never a joke with zero tools. [hours] unknown → ask sleep/work once. Else at most one user-model question. A real empty calendar is a hole: ask ONE what they want on it today (lunch/dinner or training) — not [silent], never agree-and-stop; try to get something scheduled (ask first before writing events). A clock time you commit is cron_schedule with memory_id or one offer to ping — a calendar event is not the reminder. No [aims] line: ask ONE months-scale question — do not invent an aim. If you asked a question they should answer, put [wait] on its own line. After the work, [silent] unless the human needs a specific hole, nudge, or next step."
 
 // waitReplyNote sits after the clock when follow-up is wired. [wait] is a
 // reply token like [silent], not a tool — models otherwise invent wait_for_reply.
@@ -133,6 +133,9 @@ type Options struct {
 	Wait WaitControl
 	// Wakes is optional (*cron.Store); stamps this session's next jobs as [wakes].
 	Wakes WakeLister
+	// Room is optional (the pendant channel); stamps the phone's look as [room]
+	// when the pendant MCP is in the catalog.
+	Room RoomSource
 	// HistoryStripFillers applies session.StripFillerHistory at prompt time.
 	HistoryStripFillers bool
 	// Enable filters MCP schemas per session (nil = publish the full catalog).
@@ -183,6 +186,8 @@ type Agent struct {
 	spark       SparkControl
 	wait        WaitControl
 	wakes       WakeLister
+	roomMu      sync.RWMutex
+	room        RoomSource
 
 	stripFillers bool
 
@@ -247,6 +252,7 @@ func New(opts Options) (*Agent, error) {
 		spark:          opts.Spark,
 		wait:           opts.Wait,
 		wakes:          opts.Wakes,
+		room:           opts.Room,
 		stripFillers:   opts.HistoryStripFillers,
 		enable:         opts.Enable,
 		enableForce:    opts.EnableForce,
@@ -255,6 +261,20 @@ func New(opts Options) (*Agent, error) {
 	a.initTurns()
 	a.SetPersona(opts.Persona)
 	return a, nil
+}
+
+// SetRoom binds the pendant mouth after New (the channel is built after the
+// agent in run.go). Nil turns the [room] stamp off.
+func (a *Agent) SetRoom(src RoomSource) {
+	a.roomMu.Lock()
+	a.room = src
+	a.roomMu.Unlock()
+}
+
+func (a *Agent) roomSource() RoomSource {
+	a.roomMu.RLock()
+	defer a.roomMu.RUnlock()
+	return a.room
 }
 
 // SetPersona replaces the system persona text (e.g. after SIGHUP reload).
@@ -536,6 +556,14 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 			userMsg.ImageURLs = append(userMsg.ImageURLs, u)
 		}
 	}
+	// Published before the clock: [room] tells the model whether the pendant
+	// prefix is on this turn or needs mcp_enable first.
+	var toolDefs []provider.ToolDef
+	toolsOff := a.tools == nil || channel.NoToolsFrom(ctx)
+	if !toolsOff {
+		toolDefs = a.publishedTools(turnCtx, msg.SessionID)
+	}
+
 	// Clock is prompt-only, not session history. RoleUser is speech;
 	// a tagged RoleSystem after their words keeps NOW recency-weighted
 	// without looking like they typed it. Leading with [current time]
@@ -557,6 +585,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	}
 	clock += stampLine(a.wakesStamp(turnCtx, msg.SessionID, now))
 	clock += stampLine(surfaceStamp(msg.Surface))
+	clock += stampLine(a.roomStamp(now, toolDefs, toolsOff))
 	clock += stampLine(a.lastContactStamp(turnCtx, msg.SessionID, now))
 	messages = append(messages, userMsg)
 	if block := formatHarnessClock(clock); block != "" {
@@ -584,10 +613,6 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		})
 	}
 
-	var toolDefs []provider.ToolDef
-	if a.tools != nil && !channel.NoToolsFrom(ctx) {
-		toolDefs = a.publishedTools(turnCtx, msg.SessionID)
-	}
 	if turnSource(text) == "cron" && len(toolDefs) > 0 && !cron.IsFollowUpTurn(text) {
 		note := cronToolFirstNote
 		if cron.IsSparkTurn(text) {

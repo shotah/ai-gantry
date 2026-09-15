@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/agent"
+	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/channel/pendant"
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/memory"
@@ -165,9 +166,15 @@ func TestPendantInbound_CompleterPayloadHorizon(t *testing.T) {
 	assertGolden(t, filepath.Join("testdata", "pendant", "completer_horizon_harness.txt"), promptHarnessClock(captured.Messages)+"\n")
 }
 
-// Full board: real session + cron stores, memory on, Cab head unit. Pins
-// [hours] [aims] [loops] [wakes] [surface] [last contact] together, and that
-// rows already on [aims] are not paid again in [memory] hydration.
+// roomAt is the pendant mouth's cached look for the full-board golden.
+type roomAt struct{ r channel.Room }
+
+func (f roomAt) Room() channel.Room { return f.r }
+
+// Full board: real session + cron stores, memory on, Cab head unit, pendant
+// MCP mounted. Pins [hours] [aims] [loops] [wakes] [surface] [room]
+// [last contact] together, and that rows already on [aims] are not paid
+// again in [memory] hydration.
 func TestPendantInbound_CompleterPayloadFullBoard(t *testing.T) {
 	ctx := context.Background()
 	loc, now := payloadClock()
@@ -228,10 +235,20 @@ func TestPendantInbound_CompleterPayloadFullBoard(t *testing.T) {
 		Sessions:  sessions,
 		Memory:    mem,
 		Wakes:     jobs,
-		Model:     "m",
-		Location:  loc,
-		TZName:    "America/Los_Angeles",
-		Now:       func() time.Time { return now },
+		Tools: &fakeTools{defs: []provider.ToolDef{
+			{Name: "pendant__theme_list"}, {Name: "pendant__theme_update"},
+			{Name: "pendant__avatar_update"}, {Name: "pendant__backdrop_update"},
+			{Name: "image__photo_generate"},
+		}},
+		Room: roomAt{channel.Room{
+			Theme: "paper", ThemeAt: now.Add(-5 * time.Hour),
+			Backdrop: true, BackdropAt: now.Add(-5 * time.Hour),
+			FaceAt: now.Add(-3 * 24 * time.Hour),
+		}},
+		Model:    "m",
+		Location: loc,
+		TZName:   "America/Los_Angeles",
+		Now:      func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatal(err)

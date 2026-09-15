@@ -204,7 +204,7 @@ Small). Do not implement Cab from this checkout.
 
 Landed: RoleUser is speech; one tagged `[harness]` RoleSystem after it
 carries `[location]`, `[current time]`, `[hours]`, `[aims]`, `[loops]`,
-`[wakes]`, `[surface]`, `[last contact]`. Gemini folds it into the one
+`[wakes]`, `[surface]`, `[room]`, `[last contact]`. Gemini folds it into the one
 system instruction (`provider.WireMessages`, `LLM_SYSTEM_FOLD`). Goldens:
 `internal/agent/testdata/pendant/completer_*.txt` — the agent Request,
 the Gemini wire, the horizon block, and the full board. In
@@ -266,6 +266,21 @@ persona — nothing is missing. `go test ./internal/agent/ -run Payload
       ignored): `last human message 3h ago (Mon 2:15 PM)` or `none in this
       session — first message`. Optional History capability; test fakes
       without it stamp nothing.
+- [x] `[room]` from the pendant channel's cached `face` / `backdrop` /
+      `theme` notices (the mailbox already sent them to the crane socket;
+      `ignoredKind` used to drop them). Stamped only when `pendant__*` is
+      in the catalog; prefix off this chat → `pendant is off this chat`
+      instead of the nudge. State plus one clause — no tool recipes on
+      the stamp, the spark note, or the `Room:` pool line; the tool
+      descriptions carry the how. Wired via `ag.SetRoom(ch)` when the
+      channel implements `agent.RoomSource`. Gates: `TestRoomStamp_*`
+      (including a no-recipe check), `TestNoteRoom_*`, full-board golden.
+- [ ] `[room]` after a crane restart reads `theme not seen since boot`
+      until the next notice — the Worker flushes theme to phones on
+      connect (`flush`, role `phone`), not to the crane. Three-line change
+      in gantry-pendant `worker/mailbox.ts` to send the stored theme /
+      backdrop rev / face rev to a `crane` socket too; old cranes already
+      drop those kinds.
 
 ### Test gap
 

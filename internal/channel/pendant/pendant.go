@@ -60,6 +60,7 @@ type Channel struct {
 	mu      sync.Mutex
 	writeMu sync.Mutex
 	live    conn
+	room    channel.Room // last face / backdrop / theme notices (room.go)
 }
 
 // New requires mailbox URL, bearer, and a non-empty allowlist.
@@ -297,6 +298,9 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 				"text", strings.TrimSpace(frame.Text),
 				"id", strings.TrimSpace(frame.ID),
 			)
+		}
+		if c.noteRoom(frame, time.Now()) {
+			c.log.Info("pendant room notice", "kind", frame.Kind)
 		}
 		return nil
 	}

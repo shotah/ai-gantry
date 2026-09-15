@@ -33,6 +33,10 @@ type inboundFrame struct {
 	UserID  string          `json:"user_id,omitempty"`
 	Email   string          `json:"email,omitempty"`
 	ID      string          `json:"id,omitempty"`
+	// Room notices from the Durable Object (frontends.md): backdrop carries
+	// rev (0 = cleared), theme carries a catalog id or null; face uses Text.
+	Rev   json.RawMessage `json:"rev,omitempty"`
+	Theme json.RawMessage `json:"theme,omitempty"`
 }
 
 type outboundFrame struct {

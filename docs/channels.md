@@ -81,6 +81,16 @@ children inherit it) so Kit can draw a face or wallpaper and wear it via
 `source_path`. Chat photos still go on the mailbox reply; face and backdrop
 are HTTP blobs, not bubbles.
 
+The mailbox announces `face` / `backdrop` / `theme` changes on the crane
+socket too. The channel caches them (`Room()`), and when `pendant` is in
+the catalog the agent stamps `[room] theme ember (set 3h ago) · wallpaper
+set 3h ago · face changed 2d ago — yours; redress when the hour or your
+mood moves on` on every turn's `[harness]`. State plus one clause; the
+tool descriptions carry the how. Prefix off for this chat → `— pendant is
+off this chat`. Fresh boot → `theme not seen since boot` (the mailbox
+flushes theme to phones on connect, not to the crane). Spark turns read
+the same line and redress when it is stale.
+
 Recreate the container after env changes (restart keeps a ghost allowlist).
 
 | Entry | Parse |

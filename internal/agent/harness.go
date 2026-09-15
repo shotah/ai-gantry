@@ -10,6 +10,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/memory"
+	"github.com/shotah/ai-gantry/internal/provider"
 )
 
 // harnessNotePrefix labels the per-turn block so Completer RoleUser stays
@@ -27,6 +28,7 @@ var harnessTags = []struct{ tag, word string }{
 	{"[loops]", "horizon"},
 	{"[wakes]", "wakes"},
 	{"[surface]", "surface"},
+	{"[room]", "room"},
 	{"[last contact]", "last contact"},
 }
 
@@ -169,6 +171,65 @@ func surfaceStamp(surface string) string {
 	default:
 		return "[surface] " + surface
 	}
+}
+
+// RoomSource is the pendant channel: the phone's look (theme, wallpaper,
+// face) as last announced by the mailbox, for the [room] stamp.
+type RoomSource interface {
+	Room() channel.Room
+}
+
+// roomToolPrefix is the pendant MCP's server prefix — the room's tools.
+const roomToolPrefix = "pendant__"
+
+// roomStamp is the [room] line: what the phone looks like now, with ages,
+// and one clause of nudge. The tool descriptions carry the how; the model
+// only needs to know the room is its own and when it last changed. Needs
+// the pendant mouth (RoomSource) and the pendant MCP in the catalog —
+// absent either, no line. Prefix off for this chat → say so, no nudge.
+func (a *Agent) roomStamp(now time.Time, published []provider.ToolDef, toolsOff bool) string {
+	src := a.roomSource()
+	if src == nil || a.tools == nil || toolsOff {
+		return ""
+	}
+	catalog := a.tools.Tools()
+	if !hasToolPrefix(catalog, roomToolPrefix) {
+		return ""
+	}
+	r := src.Room()
+	parts := make([]string, 0, 3)
+	switch {
+	case r.ThemeAt.IsZero():
+		parts = append(parts, "theme not seen since boot (theme_list shows it)")
+	case r.Theme == "":
+		parts = append(parts, "theme cleared "+channel.Age(now.Sub(r.ThemeAt)))
+	default:
+		parts = append(parts, fmt.Sprintf("theme %s (set %s)", r.Theme, channel.Age(now.Sub(r.ThemeAt))))
+	}
+	if !r.BackdropAt.IsZero() {
+		if r.Backdrop {
+			parts = append(parts, "wallpaper set "+channel.Age(now.Sub(r.BackdropAt)))
+		} else {
+			parts = append(parts, "no wallpaper")
+		}
+	}
+	if !r.FaceAt.IsZero() {
+		parts = append(parts, "face changed "+channel.Age(now.Sub(r.FaceAt)))
+	}
+	line := "[room] " + strings.Join(parts, " · ")
+	if !hasToolPrefix(published, roomToolPrefix) {
+		return line + " — pendant is off this chat"
+	}
+	return line + " — yours; redress when the hour or your mood moves on"
+}
+
+func hasToolPrefix(defs []provider.ToolDef, prefix string) bool {
+	for _, d := range defs {
+		if strings.HasPrefix(d.Name, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // lastContactSource is the optional History capability behind [last contact]

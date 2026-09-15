@@ -87,7 +87,7 @@ anyone who wants the agent to author its own tooling.
 | User model | **Deliberate** | Captured at fold (`Facts:`), not re-derived per turn. Per-turn cost is ≤30 FTS rows keyed on the user's words, no model call. |
 | Memory capture | **Deliberate** | Explicit `memory_store` only; the fold is the one compaction call. No flush turn, no auto-save. See [How memory gets written](#how-memory-gets-written). |
 | Channels | **Different model** | One hardened host per mouth, not one gateway holding every messenger credential. Telegram (production), Discord, Slack, pendant, stdio. |
-| Model-controlled client | **Unique** | Face, wallpaper, and theme on the pendant / cab are the agent's to set (`pendant-mcp`, 7 tools). Picture handoff by `source_path`; theme from a closed catalog with mood lines; humans can unfollow. Initiative is still prompt work — the model waits to be asked. |
+| Model-controlled client | **Unique** | Face, wallpaper, and theme on the pendant / cab are the agent's to set (`pendant-mcp`, 7 tools). Picture handoff by `source_path`; theme from a closed catalog with mood lines; humans can unfollow. `[room]` on `[harness]` shows the current look with ages so the model — and spark — redress it without being asked. |
 | Security / authorization | **Thin** | Allowlist + manifest-is-grant. No per-tool approval; ask-first is prompt text. |
 | Ops surface | **Strong for one box** | No inbound port, Distroless, `gantry status` heartbeat, chat is the console, `/auth` headless OAuth. Fleet ops is gantree, not here. |
 | Multi-model / multi-agent | **Absent by design** | No router, no fallback, no subagents. One process = one brain. |
@@ -102,7 +102,7 @@ anyone who wants the agent to author its own tooling.
 | --- | --- | --- | --- | --- |
 | Runtime | One static Go binary, `CGO_ENABLED=0`, Distroless, no inbound port | Node 22+ Gateway with Control UI, binds a port | Harness + agents stored in Letta Cloud for multi-computer; local server option | Python agent + gateway process, seven terminal backends |
 | Prompt contract | Goldens from mouth JSON to HTTP body; wire == agent layout by test | Not published as a pinned artifact | Not published as a pinned artifact | Not published as a pinned artifact |
-| Harness-side context (no tool call) | `[current time]` week grid, `[location]` with fix age, `[hours]`, `[aims]`, `[loops]`, `[wakes]`, `[surface]`, `[last contact]` | Model reads workspace files; cron in gateway | Memory blocks in context (persona / human / custom) | `MEMORY.md` / `USER.md` loaded at session start; skills by name |
+| Harness-side context (no tool call) | `[current time]` week grid, `[location]` with fix age, `[hours]`, `[aims]`, `[loops]`, `[wakes]`, `[surface]`, `[room]`, `[last contact]` | Model reads workspace files; cron in gateway | Memory blocks in context (persona / human / custom) | `MEMORY.md` / `USER.md` loaded at session start; skills by name |
 | Catalog disclosure | `[mcp prefixes]` on/off by server prefix, byte-stable; `mcp_enable` ships schemas next call with a TTL; force list for always-on | Full toolset per agent; skills by name | Tools + skills; skill text loaded on demand | Skill *name* in prompt, `skill_view` loads the file; 60+ builtin tools always on |
 | Procedure lives in | Tool descriptions (manifest is the grant and the recipe) + `skill/<area>` memory rows | Workspace Markdown, skills | Skills + memory blocks, MemFS | `SKILL.md` files written by a background review agent, curated by a Curator |
 | Weak-model tool repair | Alias, ≤5 closest names, grammar-constrained retry, salvage, CoT promote, landing call; counted in `/toolstats` | Assumes capable model ("use the strongest latest-generation model") | Model-agnostic, frontier-oriented | Model-agnostic; RL / trajectory tooling for training tool-callers |
@@ -129,8 +129,9 @@ it hold up: the picture never crosses the model as bytes (`source_path`
 from `image__photo_generate`, encoded to budget in the MCP), the theme is
 an id from a catalog with a mood line (no invented hex), the wallpaper
 has a `delete`, and a human can unfollow and keep their own theme. It is
-the connection feature; it is also the one the model uses least on its
-own — see the seam below.
+the connection feature. POC 1 proved the path; the `[room]` stamp is what
+makes it a habit rather than a party trick — see the seam below for what
+it still leaves on the table.
 
 Why the skills comparison flips: Hermes and Letta need recipe files
 because their tool surface is generic (bash, browser, a fixed builtin
@@ -210,13 +211,21 @@ up as a platform.
 - `skill/<area>` rows exist only if the model stores them; a bland model
   on a fiddly tool will re-learn the pitfall. That is the auto-save-off
   trade, applied to procedure.
-- The room tools are used when asked and rarely otherwise. The model has
-  `[current time]` day-part and `[surface]` on every turn and a theme
-  catalog with mood lines, and still waits for "change the theme." That
-  is persona and spark work, not harness code: a spark line that treats
-  the room like the calendar (redress at day-part changes, after a heavy
-  session, when the mood shifts) would make the feature feel alive
-  instead of latent.
+- The room tools used to be called only when asked. Now `[room]` rides
+  `[harness]` on every pendant turn — theme, wallpaper, face, each with an
+  age, and one clause: yours, redress when the hour or mood moves on. No
+  recipe; the tool descriptions have it, and a how-to on the stamp is what
+  overloads a small model. The spark note adds the same clause. Both
+  prerequisites gate it in code, not prose: the pendant channel is
+  the only `RoomSource`, and the line is skipped unless `pendant__*` is in
+  the catalog (and says `mcp_enable pendant` when the prefix is off for
+  the chat). What is left: after a crane restart the line reads `theme not
+  seen since boot` until the next change, because the Worker flushes
+  theme to phones on connect and not to the crane — a three-line Worker
+  change tracked in [todo.md](todo.md#harness-stamp-harness-block). And
+  whether one clause produces taste or churn is a model question the
+  goldens cannot answer; watch `/toolstats` for `pendant__theme_update`
+  counts over a week.
 
 ---
 

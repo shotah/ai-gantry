@@ -406,6 +406,11 @@ func run() int {
 		logger.Error("channel init failed", "err", err)
 		return 1
 	}
+	if room, ok := ch.(agent.RoomSource); ok {
+		// Pendant: the mailbox announces face / backdrop / theme changes on the
+		// crane socket; the agent stamps them as [room] when pendant-mcp is mounted.
+		ag.SetRoom(room)
+	}
 	if errFwd != nil {
 		if tg, ok := ch.(*telegram.Channel); ok {
 			errFwd.SetSender(logfwd.SenderFunc(tg.NotifyHTML))

@@ -244,8 +244,10 @@ is frozen at 2026-09-14 12:02 PDT so the dump is stable. Production
 wait notes, and tool schemas are omitted there so the mouth contract is
 readable; they still append after this prefix when those subsystems are on.
 Hours, aims, and loops need Memory: `completer_horizon_harness.txt`. The
-whole board — memory, cron `[wakes]`, Cab `[surface]`, `[last contact]` —
-is `completer_fullboard_harness.txt`. `prompt_wire_test.go` posts the same
+whole board — memory, cron `[wakes]`, Cab `[surface]`, pendant `[room]`
+(the channel's cached face / backdrop / theme notices, stamped only when
+`pendant__*` is in the catalog), `[last contact]` — is
+`completer_fullboard_harness.txt`. `prompt_wire_test.go` posts the same
 turn through a real `provider.Client` to an `httptest` server and diffs
 the HTTP body against those same goldens, so agent layout and wire cannot
 drift apart. `go test ./internal/agent/ -run Payload -update` rewrites
@@ -253,7 +255,7 @@ goldens; read the diff before trusting it.
 
 The `[harness]` header names only the tags present (`location and clock`
 on a memory-off turn; `location, clock, hours, horizon, wakes, surface,
-and last contact` on the full board). `[aims]` / `[loops]` carry `(12d
+room, and last contact` on the full board). `[aims]` / `[loops]` carry `(12d
 ago)` from `updated_at` after the first day, `[loops]` past three weeks add
 `— resolve or memory_forget`, and both say `(+N more — memory_recall …)`
 instead of truncating silently. Rows already on `[aims]` / `[loops]` are
