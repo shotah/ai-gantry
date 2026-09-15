@@ -3,6 +3,7 @@ package memory_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/shotah/ai-gantry/internal/memory"
@@ -64,6 +65,17 @@ func TestMCPAdapter_RoutesPrefixedTools(t *testing.T) {
 
 	if len(fc.calls) != 3 {
 		t.Fatalf("calls=%v", fc.calls)
+	}
+}
+
+func TestMCPAdapter_ActiveByKindSubjectNotSupported(t *testing.T) {
+	a, err := memory.NewMCPAdapter(&fakeCaller{}, "mem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ok, err := a.ActiveByKindSubject(context.Background(), memory.KindPreference, memory.SubjectHours)
+	if ok || !errors.Is(err, memory.ErrNotSupported) {
+		t.Fatalf("ok=%v err=%v want ErrNotSupported", ok, err)
 	}
 }
 

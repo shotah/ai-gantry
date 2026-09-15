@@ -7,7 +7,7 @@ You are Kit.
 what's near me
 
 ## [2] system
-[harness] Not user text — location, clock, hours, and horizon for this turn.
+[harness] Not user text — clock for this turn.
 [current time] NOW: Monday September 14, 2026 12:02 PM PDT (America/Los_Angeles, offset -07:00) — lunch window. Human local time, not UTC.
 already today: 12:00 AM–12:02 PM (overnight, early morning, morning)
 remaining today: 12:02 PM–11:59 PM (afternoon, evening, night)

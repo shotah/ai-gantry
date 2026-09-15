@@ -188,12 +188,98 @@ Cab ticket. Cab still strips a pasted header **on send**. PWA is done.
 - [x] `[harness]` also stamps `[hours]` (always, when memory is on),
       `[aims]` (live `aim/<area>` insight), and `[loops]` (`waiting/` /
       `follow/` facts). North-stars stay in `SELF.md`. No new `goal` kind.
-- [ ] Phone `context.at` / `tz` / `surface` / `battery` / `net` —
-      PWA no longer stamps them (geo only). Old Cab may still send
-      them. Unused here except `geo` → `here`. Not this ticket.
+- [x] Phone `context.at` / `tz` / `battery` / `net` stay ignored (crane
+      clock wins). `context.surface` is now read (closed set) → `[surface]`;
+      see the harness stamp section below.
 
 ### Sibling (mouths — not this tree)
 
 PWA send strip is closed in gantry-pendant (`stripHarnessContext` +
 geo-only `context`). Cab still owns its Kotlin strip (`docs/todo.md`
 Small). Do not implement Cab from this checkout.
+
+---
+
+## Harness stamp (`[harness]` block)
+
+Landed: RoleUser is speech; one tagged `[harness]` RoleSystem after it
+carries `[location]`, `[current time]`, `[hours]`, `[aims]`, `[loops]`,
+`[wakes]`, `[surface]`, `[last contact]`. Gemini folds it into the one
+system instruction (`provider.WireMessages`, `LLM_SYSTEM_FOLD`). Goldens:
+`internal/agent/testdata/pendant/completer_*.txt` — the agent Request,
+the Gemini wire, the horizon block, and the full board. In
+`completer_geo_gemini_wire.txt` the line `You are Kit.` **is** the fixture
+persona — nothing is missing. `go test ./internal/agent/ -run Payload
+-update` rewrites goldens; read the diff first.
+
+### Fixes
+
+- [x] Gemini fold order. Standing (persona, summary, `[mcp prefixes]`,
+      `[memory]`) first, this-turn (`[harness]`, wait note, talk footer)
+      last. Identity leads, stable prefix stays cacheable, clock has
+      recency. Gate: `TestWireMessages_GeminiFoldsHarnessIntoSystem` +
+      `*_gemini_wire.txt`.
+- [x] `[loops]` starved `follow/`. `FormatLoops(waiting, follow)`
+      interleaves so five open waits cannot hide a follow. Gate:
+      `TestFormatLoops_FollowSurvivesFiveWaits`.
+- [x] Silent truncation. `[aims] … (+3 more — memory_recall aim/)`,
+      `[loops] … (+N more — memory_recall waiting/ follow/)`.
+      `ListBySubjectPrefix` default window is 30 so the count is honest.
+- [x] Age on aims/loops. `(12d ago)` from `updated_at` after the first
+      day (`channel.Age`, the same helper `[location]` uses). Loops past
+      three weeks add `— resolve or memory_forget`. Gate:
+      `TestHorizonAge_StampsDaysAndStaleCue`.
+- [x] `[hours] unknown` nagged forever on `MEMORY_BACKEND=mcp`.
+      `MCPAdapter.ActiveByKindSubject` returns `memory.ErrNotSupported`;
+      `hoursStamp` skips the line. Gate:
+      `TestHandle_HarnessSkipsHoursOnMCPBackend`.
+- [x] Spark prompts read the stamps. `sparkToolFirstNote`, the spark
+      nudge, `cron.SparkPingPrefix`, `cron/spark.go` pool,
+      `selfnote/stamp.go` "Empty board" all say `[hours]` / `[aims]` /
+      `[loops]` / `[wakes]` are in `[harness]`; `memory_recall` only for
+      detail; `cron_list` only for the full audit. Gates:
+      `TestSparkPrompts_ReadHarnessNotRecall`,
+      `TestSparkNotes_ReadHarnessNotRecall`.
+- [x] Hydration double-stamps. `horizon.dropStamped` removes rows already
+      on `[aims]` / `[loops]` from `[memory]`. Gate: full-board test
+      (`pref/food` hydrates, `aim/training` does not repeat).
+- [x] `LLM_SYSTEM_FOLD=auto|one|many` (`provider.WireMessagesMode`,
+      `Client.WithSystemFold`). `auto` keeps the `gemini*` guess.
+- [ ] Check each local template you run with `LLM_SYSTEM_FOLD=many`
+      (default for non-Gemini). Ollama Gemma renders system only at
+      position 0, so a trailing `[harness]` may be dropped — if the model
+      cannot say NOW without a tool, set `one`. Needs a live Ollama, not
+      a unit test.
+- [x] `[harness]` header names only the tags present (`harnessNote`).
+      Gate: `TestHarnessNote_NamesOnlyPresentTags` + every golden.
+
+### Additions (same pattern, data already in SQLite)
+
+- [x] `[wakes]` next ≤3 enabled once/daily/every jobs for this session
+      (`cron.FormatWakes`; spark, examples, wait pokes skipped). Wired via
+      `agent.Options.Wakes = cronStore`. `(+N more — cron_list)`.
+- [x] `[surface]` from phone `context.surface` (closed set: browser,
+      android, android_auto, ios, carplay). `android_auto` / `carplay`
+      add "one short spoken sentence, no markdown or lists". Battery / net
+      stay dropped. Fixture: `inbound_cab_auto.json`.
+- [x] `[last contact]` from `session.Store.LastUserAt` (cron rows
+      ignored): `last human message 3h ago (Mon 2:15 PM)` or `none in this
+      session — first message`. Optional History capability; test fakes
+      without it stamp nothing.
+
+### Test gap
+
+- [x] End-to-end wire body: `prompt_wire_test.go` runs `Handle` through a
+      real `provider.Client` into `httptest` and diffs the JSON body
+      against `completer_geo.txt` (OpenAI name) and
+      `completer_geo_gemini_wire.txt` (Gemini name) — the same goldens
+      the agent-side test pins, byte for byte.
+
+### Not harness
+
+Weather, calendar, mail are live data — tools, not stamp. Battery and
+net change no behaviour. Keep the block boring and bounded.
+
+**No `[from]` / speaker stamp.** One person, one mouth. Multi-user
+session logic was stripped from this tree once already; do not add it
+back as a harness line or anywhere else.

@@ -98,6 +98,7 @@ type Client struct {
 	model           string
 	maxTokens       int    // 0 = omit (provider default)
 	reasoningEffort string // empty = omit; e.g. "none" for Ollama/Qwen no-think
+	systemFold      string // FoldAuto|FoldOne|FoldMany; empty = FoldAuto
 }
 
 // New builds a Client for the given base URL, API key, and model id.
@@ -129,6 +130,13 @@ func (c *Client) WithReasoningEffort(effort string) *Client {
 	return c
 }
 
+// WithSystemFold sets LLM_SYSTEM_FOLD (FoldAuto|FoldOne|FoldMany). Empty is
+// FoldAuto: gemini* models get one leading system message. Returns c.
+func (c *Client) WithSystemFold(mode string) *Client {
+	c.systemFold = strings.ToLower(strings.TrimSpace(mode))
+	return c
+}
+
 func (c *Client) buildParams(req Request) (openai.ChatCompletionNewParams, error) {
 	params := openai.ChatCompletionNewParams{
 		Model:    c.model,
@@ -140,7 +148,7 @@ func (c *Client) buildParams(req Request) (openai.ChatCompletionNewParams, error
 	if c.reasoningEffort != "" {
 		params.ReasoningEffort = shared.ReasoningEffort(c.reasoningEffort)
 	}
-	for _, m := range WireMessages(c.model, req.Messages) {
+	for _, m := range WireMessagesMode(c.systemFold, c.model, req.Messages) {
 		msg, err := toParam(m)
 		if err != nil {
 			return params, err

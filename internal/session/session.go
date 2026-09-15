@@ -316,6 +316,17 @@ func (s *Store) Stats(ctx context.Context, sessionID string) (messages int, estT
 // UserActiveSince reports whether a human user message exists at or after since.
 // Cron-injected turns ("[cron]…") are ignored so spark jobs do not suppress themselves.
 func (s *Store) UserActiveSince(ctx context.Context, sessionID string, since time.Time) (bool, error) {
+	t, ok, err := s.LastUserAt(ctx, sessionID)
+	if err != nil || !ok {
+		return false, err
+	}
+	return !t.Before(since.UTC()), nil
+}
+
+// LastUserAt is when the last human message landed in sessionID (the
+// [last contact] stamp). Cron-injected turns are ignored. ok is false for a
+// fresh session or an unparseable timestamp.
+func (s *Store) LastUserAt(ctx context.Context, sessionID string) (time.Time, bool, error) {
 	var created string
 	err := s.db.QueryRowContext(ctx, `
 		SELECT created_at FROM session_message
@@ -323,19 +334,19 @@ func (s *Store) UserActiveSince(ctx context.Context, sessionID string, since tim
 		  AND content NOT LIKE '[cron]%'
 		ORDER BY id DESC LIMIT 1`, sessionID, RoleUser).Scan(&created)
 	if err == sql.ErrNoRows {
-		return false, nil
+		return time.Time{}, false, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("session: last user message: %w", err)
+		return time.Time{}, false, fmt.Errorf("session: last user message: %w", err)
 	}
 	t, err := time.Parse(time.RFC3339Nano, created)
 	if err != nil {
 		t, err = time.Parse(time.RFC3339, created)
 		if err != nil {
-			return false, nil
+			return time.Time{}, false, nil
 		}
 	}
-	return !t.Before(since.UTC()), nil
+	return t, true, nil
 }
 
 // planTrimTx returns oldest messages that would be removed to satisfy bounds

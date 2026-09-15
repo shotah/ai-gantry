@@ -358,6 +358,7 @@ func TestLoad_MoreValidation(t *testing.T) {
 		{"TOOL_MAX_ITERATIONS", "0", "TOOL_MAX_ITERATIONS"},
 		{"TOOL_SCHEMA_MAX_TOKENS", "-1", "TOOL_SCHEMA_MAX_TOKENS"},
 		{"TOOL_TRACE", "verbose", "TOOL_TRACE"},
+		{"LLM_SYSTEM_FOLD", "sideways", "LLM_SYSTEM_FOLD"},
 		{"MEMORY_CONSOLIDATE_MINUTES", "-1", "MEMORY_CONSOLIDATE_MINUTES"},
 		{"WATCH_MAX", "0", "WATCH_MAX"},
 		{"MEMORY_BACKEND", "mcp:", "MEMORY_BACKEND"},
@@ -385,5 +386,25 @@ func TestLoad_MoreValidation(t *testing.T) {
 				t.Fatalf("err = %v, want %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestLoad_SystemFold(t *testing.T) {
+	setRequiredLLM(t)
+	t.Setenv("CHANNEL", "stdio")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LLMSystemFold != "auto" {
+		t.Fatalf("default LLMSystemFold=%q want auto", cfg.LLMSystemFold)
+	}
+	t.Setenv("LLM_SYSTEM_FOLD", " ONE ")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LLMSystemFold != "one" {
+		t.Fatalf("LLMSystemFold=%q want one", cfg.LLMSystemFold)
 	}
 }

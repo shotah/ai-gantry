@@ -53,6 +53,7 @@ func run() int {
 		"model", cfg.LLMModel,
 		"max_tokens", cfg.LLMMaxTokens,
 		"reasoning_effort", cfg.LLMReasoningEffort,
+		"system_fold", cfg.LLMSystemFold,
 		"persona_dir", cfg.PersonaDir,
 		"data_dir", cfg.DataDir,
 		"mcp_manifest", cfg.MCPManifest,
@@ -92,7 +93,8 @@ func run() int {
 
 	completer := provider.New(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel).
 		WithMaxTokens(cfg.LLMMaxTokens).
-		WithReasoningEffort(cfg.LLMReasoningEffort)
+		WithReasoningEffort(cfg.LLMReasoningEffort).
+		WithSystemFold(cfg.LLMSystemFold)
 
 	sessions, err := session.Open(cfg.DataDir, cfg.HistoryMaxMessages, cfg.HistoryMaxTokens)
 	if err != nil {
@@ -375,6 +377,9 @@ func run() int {
 	}
 	if selfStore != nil {
 		agentOpts.SelfNotes = selfStore
+	}
+	if cronStore != nil {
+		agentOpts.Wakes = cronStore
 	}
 	ag, err := agent.New(agentOpts)
 	if err != nil {

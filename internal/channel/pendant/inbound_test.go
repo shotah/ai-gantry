@@ -58,6 +58,29 @@ func TestInboundTurn_GeoOnlyPWA(t *testing.T) {
 	if msg.UserID != "1182" || msg.SessionID != channel.AgentSession {
 		t.Fatalf("ids %+v", msg)
 	}
+	if msg.Surface != "" {
+		t.Fatalf("PWA geo-only frame has no surface: %q", msg.Surface)
+	}
+}
+
+func TestInboundTurn_SurfaceClosedSet(t *testing.T) {
+	cases := map[string]string{
+		"android_auto": "android_auto",
+		" CarPlay ":    "carplay",
+		"browser":      "browser",
+		"pendant":      "",
+		"car":          "",
+	}
+	for in, want := range cases {
+		raw := []byte(`{"kind":"inbound","user_id":"1182","text":"hi","context":{"surface":"` + in + `"}}`)
+		msg, ok, err := InboundTurn(raw)
+		if err != nil || !ok {
+			t.Fatalf("%q: ok=%v err=%v", in, ok, err)
+		}
+		if msg.Surface != want {
+			t.Fatalf("surface %q → %q want %q", in, msg.Surface, want)
+		}
+	}
 }
 
 func TestInboundTurn_IgnoresPhoneClockFields(t *testing.T) {

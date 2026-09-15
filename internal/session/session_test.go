@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/session"
@@ -60,6 +61,48 @@ func TestStore_AppendTrimReset(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(dir, "gantry.db")); err != nil {
 		t.Fatalf("db file missing: %v", err)
+	}
+}
+
+func TestStore_LastUserAt_SkipsCronRows(t *testing.T) {
+	store, err := session.Open(t.TempDir(), 20, 100000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	ctx := context.Background()
+	id := "contact"
+
+	if _, ok, err := store.LastUserAt(ctx, id); err != nil || ok {
+		t.Fatalf("fresh session ok=%v err=%v", ok, err)
+	}
+	before := time.Now().Add(-time.Second)
+	if err := store.Append(ctx, id,
+		session.Message{Role: session.RoleUser, Content: "hi"},
+		session.Message{Role: session.RoleAssistant, Content: "hello"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	at, ok, err := store.LastUserAt(ctx, id)
+	if err != nil || !ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	if at.Before(before) || at.After(time.Now().Add(time.Second)) {
+		t.Fatalf("at=%v not around now", at)
+	}
+	if err := store.Append(ctx, id,
+		session.Message{Role: session.RoleUser, Content: "[cron] Spark of life — the user is the aim"},
+		session.Message{Role: session.RoleAssistant, Content: "[silent]"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	again, ok, err := store.LastUserAt(ctx, id)
+	if err != nil || !ok || !again.Equal(at) {
+		t.Fatalf("cron row moved last contact: %v → %v (ok=%v err=%v)", at, again, ok, err)
+	}
+	active, err := store.UserActiveSince(ctx, id, before)
+	if err != nil || !active {
+		t.Fatalf("UserActiveSince active=%v err=%v", active, err)
 	}
 }
 

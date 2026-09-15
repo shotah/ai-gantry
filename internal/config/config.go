@@ -30,6 +30,9 @@ type Config struct {
 	// LLMReasoningEffort is sent as reasoning_effort when non-empty (Ollama/Qwen:
 	// "none" disables thinking so max_tokens is not eaten by hidden chain-of-thought).
 	LLMReasoningEffort string `env:"LLM_REASONING_EFFORT"`
+	// LLMSystemFold is how system blocks reach the wire: auto (gemini* → one
+	// leading system message, else the agent layout), one, or many.
+	LLMSystemFold string `env:"LLM_SYSTEM_FOLD" envDefault:"auto"`
 
 	TelegramBotToken     string  `env:"TELEGRAM_BOT_TOKEN"`
 	TelegramAllowedUsers []int64 `env:"TELEGRAM_ALLOWED_USERS" envSeparator:","`
@@ -263,6 +266,12 @@ func (c *Config) Validate() error {
 		default:
 			return fmt.Errorf("LLM_REASONING_EFFORT: must be none|minimal|low|medium|high|xhigh|max, got %q", c.LLMReasoningEffort)
 		}
+	}
+	c.LLMSystemFold = strings.ToLower(strings.TrimSpace(c.LLMSystemFold))
+	switch c.LLMSystemFold {
+	case "", "auto", "one", "many":
+	default:
+		return fmt.Errorf("LLM_SYSTEM_FOLD: must be auto|one|many, got %q", c.LLMSystemFold)
 	}
 	if c.HistoryMaxMessages < 1 {
 		return fmt.Errorf("HISTORY_MAX_MESSAGES: must be >= 1, got %d", c.HistoryMaxMessages)

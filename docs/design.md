@@ -165,6 +165,7 @@ Boot is fail-fast: missing required env = clear error + exit 1.
 | `LLM_MODEL` | yes | `gemini-3.5-flash` |
 | `LLM_MAX_TOKENS` | no | `4096` (completion output cap; `0` = provider default) |
 | `LLM_REASONING_EFFORT` | no | empty (Ollama/Qwen: `none` disables thinking so max tokens aren't eaten by CoT) |
+| `LLM_SYSTEM_FOLD` | no | `auto` (`gemini*` → `one` leading system message; else `many` keeps the trailing `[harness]`). Set `one` for a local template that renders system only at position 0 |
 | `TELEGRAM_BOT_TOKEN` | yes (telegram) | — |
 | `TELEGRAM_ALLOWED_USERS` | yes (telegram) | `123456789,987654321` (numeric IDs; **allowlist only — no pairing**) |
 | `TELEGRAM_ERROR_REPORTING` | no | `off` (`off`\|`error`\|`warn` — tee slog into the Telegram chat) |

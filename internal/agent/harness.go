@@ -1,18 +1,196 @@
 package agent
 
-import "strings"
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
 
-// harnessClockNote labels the per-turn clock so Completer RoleUser stays
+	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/cron"
+	"github.com/shotah/ai-gantry/internal/memory"
+)
+
+// harnessNotePrefix labels the per-turn block so Completer RoleUser stays
 // speech. Trailing unlabeled RoleSystem was easy to skip; leading with
 // [current time] primed calendar/tool fixation. After their words, tagged.
-const harnessClockNote = "[harness] Not user text — location, clock, hours, and horizon for this turn."
+const harnessNotePrefix = "[harness] Not user text — "
+
+// harnessTags is the stamp order inside the block and the word the header
+// uses for each. The header names only what is actually present.
+var harnessTags = []struct{ tag, word string }{
+	{"[location", "location"},
+	{"[current time]", "clock"},
+	{"[hours]", "hours"},
+	{"[aims]", "horizon"},
+	{"[loops]", "horizon"},
+	{"[wakes]", "wakes"},
+	{"[surface]", "surface"},
+	{"[last contact]", "last contact"},
+}
 
 func formatHarnessClock(clock string) string {
 	clock = strings.TrimSpace(clock)
 	if clock == "" {
 		return ""
 	}
-	return harnessClockNote + "\n" + clock
+	return harnessNote(clock) + "\n" + clock
+}
+
+// harnessNote is the header built from the tags in this turn's block, so a
+// memory-off turn is not told about hours it does not have.
+func harnessNote(clock string) string {
+	var words []string
+	for _, t := range harnessTags {
+		if !strings.Contains(clock, t.tag) {
+			continue
+		}
+		if n := len(words); n > 0 && words[n-1] == t.word {
+			continue
+		}
+		words = append(words, t.word)
+	}
+	return harnessNotePrefix + joinAnd(words) + " for this turn."
+}
+
+func joinAnd(words []string) string {
+	switch len(words) {
+	case 0:
+		return "context"
+	case 1:
+		return words[0]
+	case 2:
+		return words[0] + " and " + words[1]
+	default:
+		return strings.Join(words[:len(words)-1], ", ") + ", and " + words[len(words)-1]
+	}
+}
+
+// stampLine prefixes a non-empty stamp with its newline.
+func stampLine(s string) string {
+	if s == "" {
+		return ""
+	}
+	return "\n" + s
+}
+
+// hoursStamp is the [hours] line. Skipped (not "unknown") when the backend
+// cannot answer a live-row lookup, so MCP memory does not nag every turn.
+func (a *Agent) hoursStamp(ctx context.Context) string {
+	e, ok, err := a.memory.ActiveByKindSubject(ctx, memory.KindPreference, memory.SubjectHours)
+	if err != nil {
+		if !errors.Is(err, memory.ErrNotSupported) {
+			a.log.Warn("hours lookup failed", "err", err)
+		}
+		return ""
+	}
+	raw := ""
+	if ok {
+		raw = e.Content
+	}
+	return stampLine(memory.ParseHours(raw).Footer())
+}
+
+// horizon is this turn's aim/ and waiting/ follow/ rows: stamped on
+// [harness] and dropped from [memory] hydration so they are not paid twice.
+type horizon struct {
+	aims, waiting, follow []memory.Entry
+}
+
+func (a *Agent) loadHorizon(ctx context.Context) horizon {
+	var h horizon
+	list := func(kind, prefix, what string) []memory.Entry {
+		rows, err := a.memory.ListBySubjectPrefix(ctx, kind, prefix, 0)
+		if err != nil {
+			a.log.Warn(what+" lookup failed", "err", err)
+			return nil
+		}
+		return rows
+	}
+	h.aims = list(memory.KindInsight, memory.SubjectAimPrefix, "aims")
+	h.waiting = list(memory.KindFact, memory.SubjectWaitingPrefix, "waiting")
+	h.follow = list(memory.KindFact, memory.SubjectFollowPrefix, "follow")
+	return h
+}
+
+func (h horizon) stamp(now time.Time) string {
+	return stampLine(memory.FormatAims(h.aims, now)) + stampLine(memory.FormatLoops(h.waiting, h.follow, now))
+}
+
+// dropStamped filters hydration rows already on [aims] / [loops].
+func (h horizon) dropStamped(entries []memory.Entry) []memory.Entry {
+	stamped := make(map[int64]struct{}, len(h.aims)+len(h.waiting)+len(h.follow))
+	for _, set := range [][]memory.Entry{h.aims, h.waiting, h.follow} {
+		for _, e := range set {
+			if e.ID > 0 {
+				stamped[e.ID] = struct{}{}
+			}
+		}
+	}
+	if len(stamped) == 0 {
+		return entries
+	}
+	kept := make([]memory.Entry, 0, len(entries))
+	for _, e := range entries {
+		if _, dup := stamped[e.ID]; dup {
+			continue
+		}
+		kept = append(kept, e)
+	}
+	return kept
+}
+
+// WakeLister is *cron.Store: this session's jobs for the [wakes] stamp.
+type WakeLister interface {
+	ListSession(ctx context.Context, sessionID string, includeDisabled bool) ([]cron.Job, error)
+}
+
+func (a *Agent) wakesStamp(ctx context.Context, sessionID string, now time.Time) string {
+	if a.wakes == nil {
+		return ""
+	}
+	jobs, err := a.wakes.ListSession(ctx, sessionID, false)
+	if err != nil {
+		a.log.Warn("wakes lookup failed", "err", err)
+		return ""
+	}
+	return cron.FormatWakes(jobs, now)
+}
+
+// surfaceStamp is the [surface] line. Driving surfaces get the shape hint;
+// the phone tells the harness, the harness tells the model, nobody types it.
+func surfaceStamp(surface string) string {
+	switch surface {
+	case "":
+		return ""
+	case "android_auto", "carplay":
+		return "[surface] " + surface + " — driving: one short spoken sentence, no markdown or lists"
+	default:
+		return "[surface] " + surface
+	}
+}
+
+// lastContactSource is the optional History capability behind [last contact]
+// (session.Store has it; test fakes need not).
+type lastContactSource interface {
+	LastUserAt(ctx context.Context, sessionID string) (time.Time, bool, error)
+}
+
+func (a *Agent) lastContactStamp(ctx context.Context, sessionID string, now time.Time) string {
+	src, ok := a.sessions.(lastContactSource)
+	if !ok {
+		return ""
+	}
+	at, ok, err := src.LastUserAt(ctx, sessionID)
+	if err != nil {
+		a.log.Warn("last contact lookup failed", "err", err)
+		return ""
+	}
+	if !ok {
+		return "[last contact] none in this session — first message"
+	}
+	return fmt.Sprintf("[last contact] last human message %s (%s)", channel.Age(now.Sub(at)), channel.WhenShort(at, now))
 }
 
 // stripHarnessContext drops pasted / old-client clock and hydration blocks
@@ -63,16 +241,13 @@ func stripTrailingHarnessLines(s string) string {
 }
 
 func harnessTagLine(line string) bool {
-	switch {
-	case strings.HasPrefix(line, "[harness]"),
-		strings.HasPrefix(line, "[location"),
-		strings.HasPrefix(line, "[current time]"),
-		strings.HasPrefix(line, "[hours]"),
-		strings.HasPrefix(line, "[aims]"),
-		strings.HasPrefix(line, "[loops]"),
-		strings.HasPrefix(line, "[memory]"):
+	if strings.HasPrefix(line, "[harness]") || strings.HasPrefix(line, "[memory]") {
 		return true
-	default:
-		return false
 	}
+	for _, t := range harnessTags {
+		if strings.HasPrefix(line, t.tag) {
+			return true
+		}
+	}
+	return false
 }

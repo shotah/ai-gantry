@@ -1,7 +1,9 @@
 tools: 0
 
 ## [0] system
-[harness] Not user text — location, clock, hours, and horizon for this turn.
+You are Kit.
+
+[harness] Not user text — location and clock for this turn.
 [location ±8m] 47.600000, -122.300000 at Mon Sep 14, 2026 12:02 PM PDT (just now)
 [current time] NOW: Monday September 14, 2026 12:02 PM PDT (America/Los_Angeles, offset -07:00) — lunch window. Human local time, not UTC.
 already today: 12:00 AM–12:02 PM (overnight, early morning, morning)
@@ -10,8 +12,6 @@ yesterday=2026-09-13 (Sunday) · today=2026-09-14 (Monday) · tomorrow=2026-09-1
 this week: Sun 09-13 past · Mon 09-14 TODAY · Tue 09-15 upcoming · Wed 09-16 upcoming · Thu 09-17 upcoming · Fri 09-18 upcoming · Sat 09-19 upcoming
 next week starts 2026-09-20 — weekday-only notes (e.g. "Monday") are not this week
 Relative words in earlier turns, summary, and memory are stale. NOW is the split: before = past, after = upcoming. Tool date args: this timezone, offset -07:00 — never Z / UTC unless the schema requires it.
-
-You are Kit.
 
 ## [1] user
 what's near me

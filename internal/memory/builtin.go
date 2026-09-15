@@ -279,7 +279,8 @@ func (b *Builtin) ActiveByKindSubject(ctx context.Context, kind, subject string)
 	return e, true, nil
 }
 
-// ListBySubjectPrefix returns live rows whose subject starts with prefix.
+// ListBySubjectPrefix returns live rows whose subject starts with prefix,
+// most recently updated first. limit < 1 is the harness window (horizonFetch).
 func (b *Builtin) ListBySubjectPrefix(ctx context.Context, kind, prefix string, limit int) ([]Entry, error) {
 	kind = strings.ToLower(strings.TrimSpace(kind))
 	prefix = strings.TrimSpace(prefix)
@@ -287,7 +288,7 @@ func (b *Builtin) ListBySubjectPrefix(ctx context.Context, kind, prefix string, 
 		return nil, nil
 	}
 	if limit < 1 {
-		limit = harnessHorizonMax
+		limit = horizonFetch
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	rows, err := b.db.QueryContext(ctx, `

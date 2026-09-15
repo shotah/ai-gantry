@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -228,6 +229,37 @@ func TestHandle_HarnessStampsHoursAimsLoops(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := a.Handle(ctx, channel.Message{SessionID: "horizon", Text: "hi"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// quietMCP is an MCP memory server with nothing stored: recall returns no rows.
+type quietMCP struct{}
+
+func (quietMCP) Call(context.Context, string, json.RawMessage) (string, error) {
+	return "no matches", nil
+}
+
+func TestHandle_HarnessSkipsHoursOnMCPBackend(t *testing.T) {
+	mem, err := memory.NewMCPAdapter(quietMCP{}, "mem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		clock := promptHarnessClock(req.Messages)
+		if strings.Contains(clock, "[hours]") {
+			t.Errorf("MCP backend cannot answer hours; must not nag unknown: %q", clock)
+		}
+		if !strings.Contains(clock, "[current time]") {
+			t.Errorf("clock missing: %q", clock)
+		}
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{Completer: fc, Sessions: newMemHistory(), Memory: mem, Model: "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(context.Background(), channel.Message{SessionID: "mcp-hours", Text: "hi"}); err != nil {
 		t.Fatal(err)
 	}
 }

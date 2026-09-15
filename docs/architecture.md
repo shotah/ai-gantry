@@ -243,13 +243,33 @@ is frozen at 2026-09-14 12:02 PDT so the dump is stable. Production
 `CRON_TZ` still uses `time.Now`. Memory hydration, `[hours]`, MCP health,
 wait notes, and tool schemas are omitted there so the mouth contract is
 readable; they still append after this prefix when those subsystems are on.
-Hours, aims, and loops need Memory: `completer_horizon_harness.txt`.
+Hours, aims, and loops need Memory: `completer_horizon_harness.txt`. The
+whole board — memory, cron `[wakes]`, Cab `[surface]`, `[last contact]` —
+is `completer_fullboard_harness.txt`. `prompt_wire_test.go` posts the same
+turn through a real `provider.Client` to an `httptest` server and diffs
+the HTTP body against those same goldens, so agent layout and wire cannot
+drift apart. `go test ./internal/agent/ -run Payload -update` rewrites
+goldens; read the diff before trusting it.
+
+The `[harness]` header names only the tags present (`location and clock`
+on a memory-off turn; `location, clock, hours, horizon, wakes, surface,
+and last contact` on the full board). `[aims]` / `[loops]` carry `(12d
+ago)` from `updated_at` after the first day, `[loops]` past three weeks add
+`— resolve or memory_forget`, and both say `(+N more — memory_recall …)`
+instead of truncating silently. Rows already on `[aims]` / `[loops]` are
+dropped from `[memory]` hydration. `[hours]` is skipped (not "unknown")
+when the backend cannot do a live-row lookup (`memory.ErrNotSupported`,
+MCP memory).
 
 Gemini's OpenAI-compat layer keeps **one** system instruction. A trailing
 `[harness]` `role=system` after the user is dropped or overwrites the
 persona — Tim never sees NOW/GPS without a tool. `provider.WireMessages`
-prepends this-turn system blocks into that one system message for
-`gemini*` models. OpenAI/Ollama keep the trailing system (prefix cache).
+folds every system block into one leading system message for `gemini*`
+models: standing blocks (persona, summary, hydration) first so identity
+leads and the stable prefix stays cacheable, this-turn blocks (`[harness]`,
+wait note) last for recency. OpenAI/Ollama keep the trailing system (prefix
+cache). `LLM_SYSTEM_FOLD=auto|one|many` overrides the model-name guess —
+`one` for a local chat template that renders system only at position 0.
 
 ## External dependencies (import over write)
 

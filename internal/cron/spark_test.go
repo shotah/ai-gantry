@@ -17,7 +17,10 @@ func TestParseSparkPrompts(t *testing.T) {
 		if strings.Contains(strings.ToLower(p), "no tools") {
 			t.Fatalf("default spark prompt must allow tools: %q", p)
 		}
-		if !strings.Contains(p, "aim/") && !strings.Contains(p, "SELF.md") && !strings.Contains(p, "cron") {
+		// Horizon work reads the [harness] stamps ([aims] / [wakes]) or the
+		// aim/ subject, SELF.md north-stars, or the cron board.
+		if !strings.Contains(p, "aim/") && !strings.Contains(p, "[aims]") && !strings.Contains(p, "[wakes]") &&
+			!strings.Contains(p, "SELF.md") && !strings.Contains(p, "cron") {
 			t.Fatalf("default spark prompt must be horizon work: %q", p)
 		}
 		if !strings.Contains(p, "[silent]") && !strings.Contains(p, "silent") {
@@ -92,6 +95,33 @@ func TestParseSparkPrompts(t *testing.T) {
 	}
 	if len(picked) < 2 {
 		t.Fatalf("expected variety from pool, got %v", picked)
+	}
+}
+
+// [hours] [aims] [loops] [wakes] ride [harness] every turn; spark prompts
+// must not spend a tool round re-fetching them.
+func TestSparkPrompts_ReadHarnessNotRecall(t *testing.T) {
+	stale := []string{"recall aim/ + pref/hours", "memory_recall aim/.", "memory_recall pref/hours.", "Empty aim board"}
+	if !strings.Contains(cron.SparkPingPrefix, "[harness]") {
+		t.Fatalf("SparkPingPrefix must point at [harness]: %q", cron.SparkPingPrefix)
+	}
+	for _, s := range stale {
+		if strings.Contains(cron.SparkPingPrefix, s) {
+			t.Fatalf("SparkPingPrefix still says %q", s)
+		}
+	}
+	for _, p := range cron.ParseSparkPrompts("") {
+		for _, s := range stale {
+			if strings.Contains(p, s) {
+				t.Fatalf("default spark line still says %q: %q", s, p)
+			}
+		}
+		if strings.HasPrefix(p, "First:") && !strings.Contains(p, "[aims]") {
+			t.Fatalf("bootstrap line must read [aims]: %q", p)
+		}
+		if strings.HasPrefix(p, "Hours bootstrap:") && !strings.Contains(p, "[hours]") {
+			t.Fatalf("hours line must read [hours]: %q", p)
+		}
 	}
 }
 

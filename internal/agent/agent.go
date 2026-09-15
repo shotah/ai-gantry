@@ -76,7 +76,7 @@ const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data,
 // sparkToolFirstNote sits after the clock on spark-of-life turns. Spark looks
 // after the user (aims, live tools, useful knowledge). Empty zero-tool jokes
 // are still nudged off; grounded jokes after tools are allowed.
-const sparkToolFirstNote = "[system] Spark-of-life turn: the user is the aim. Review [mcp prefixes] on vs off. Emit independent tool calls now — memory_recall for aim/, pref/hours, pref/calendar, cron_list, then live tools (Garmin, calendar, search) or cron_schedule. mcp_enable a prefix if it is off and needed. Shape the message by [current time]. A joke is allowed when it is grounded in this turn's tool results and an aim — never a joke with zero tools. Hours unknown → ask sleep/work once. Else at most one user-model question. A real empty calendar is a hole: ask ONE what they want on it today (lunch/dinner or training) — not [silent], never agree-and-stop; try to get something scheduled (ask first before writing events). A clock time you commit is cron_schedule with memory_id or one offer to ping — a calendar event is not the reminder. Empty aim board: ask ONE months-scale question — do not invent an aim. If you asked a question they should answer, put [wait] on its own line. After the work, [silent] unless the human needs a specific hole, nudge, or next step."
+const sparkToolFirstNote = "[system] Spark-of-life turn: the user is the aim. Review [mcp prefixes] on vs off. [hours], [aims], [loops], and [wakes] are already in [harness] — do not memory_recall or cron_list for those. Emit independent tool calls now — memory_recall only for detail (aim/<area>, pref/calendar), then live tools (Garmin, calendar, search) or cron_schedule. mcp_enable a prefix if it is off and needed. Shape the message by [current time]. A joke is allowed when it is grounded in this turn's tool results and an aim — never a joke with zero tools. [hours] unknown → ask sleep/work once. Else at most one user-model question. A real empty calendar is a hole: ask ONE what they want on it today (lunch/dinner or training) — not [silent], never agree-and-stop; try to get something scheduled (ask first before writing events). A clock time you commit is cron_schedule with memory_id or one offer to ping — a calendar event is not the reminder. No [aims] line: ask ONE months-scale question — do not invent an aim. If you asked a question they should answer, put [wait] on its own line. After the work, [silent] unless the human needs a specific hole, nudge, or next step."
 
 // waitReplyNote sits after the clock when follow-up is wired. [wait] is a
 // reply token like [silent], not a tool — models otherwise invent wait_for_reply.
@@ -131,6 +131,8 @@ type Options struct {
 	Spark SparkControl
 	// Wait is optional; arms follow-up pokes when the model replies with [wait].
 	Wait WaitControl
+	// Wakes is optional (*cron.Store); stamps this session's next jobs as [wakes].
+	Wakes WakeLister
 	// HistoryStripFillers applies session.StripFillerHistory at prompt time.
 	HistoryStripFillers bool
 	// Enable filters MCP schemas per session (nil = publish the full catalog).
@@ -180,6 +182,7 @@ type Agent struct {
 	examples    ExamplesControl
 	spark       SparkControl
 	wait        WaitControl
+	wakes       WakeLister
 
 	stripFillers bool
 
@@ -243,6 +246,7 @@ func New(opts Options) (*Agent, error) {
 		examples:       opts.Examples,
 		spark:          opts.Spark,
 		wait:           opts.Wait,
+		wakes:          opts.Wakes,
 		stripFillers:   opts.HistoryStripFillers,
 		enable:         opts.Enable,
 		enableForce:    opts.EnableForce,
@@ -503,11 +507,13 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		hydrateQuery = storeText
 	}
 	loc, tzName := a.clockZone()
+	var hz horizon
 	if a.memory != nil {
+		hz = a.loadHorizon(turnCtx)
 		entries, err := a.memory.Hydrate(turnCtx, hydrateQuery, 30)
 		if err != nil {
 			a.log.Warn("memory hydrate failed", "err", err)
-		} else if block := memory.FormatHydration(entries, loc); block != "" {
+		} else if block := memory.FormatHydration(hz.dropStamped(entries), loc); block != "" {
 			shape.hydration = (len(block) + 3) / 4
 			messages = append(messages, provider.Message{
 				Role:    provider.RoleSystem,
@@ -546,15 +552,12 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		}
 	}
 	if a.memory != nil {
-		raw := ""
-		if e, ok, err := a.memory.ActiveByKindSubject(turnCtx, memory.KindPreference, memory.SubjectHours); err != nil {
-			a.log.Warn("hours lookup failed", "err", err)
-		} else if ok {
-			raw = e.Content
-		}
-		clock += "\n" + memory.ParseHours(raw).Footer()
-		clock += a.horizonStamp(turnCtx)
+		clock += a.hoursStamp(turnCtx)
+		clock += hz.stamp(now)
 	}
+	clock += stampLine(a.wakesStamp(turnCtx, msg.SessionID, now))
+	clock += stampLine(surfaceStamp(msg.Surface))
+	clock += stampLine(a.lastContactStamp(turnCtx, msg.SessionID, now))
 	messages = append(messages, userMsg)
 	if block := formatHarnessClock(clock); block != "" {
 		messages = append(messages, provider.Message{
@@ -655,34 +658,6 @@ func (a *Agent) flushStream(ctx context.Context, text string) {
 	if err := w.Finish(ctx, text); err != nil {
 		a.log.Warn("stream finish before persist failed", "err", err)
 	}
-}
-
-func (a *Agent) horizonStamp(ctx context.Context) string {
-	if a.memory == nil {
-		return ""
-	}
-	var b strings.Builder
-	aims, err := a.memory.ListBySubjectPrefix(ctx, memory.KindInsight, memory.SubjectAimPrefix, 0)
-	if err != nil {
-		a.log.Warn("aims lookup failed", "err", err)
-	} else if line := memory.FormatAims(aims); line != "" {
-		b.WriteByte('\n')
-		b.WriteString(line)
-	}
-	waiting, err := a.memory.ListBySubjectPrefix(ctx, memory.KindFact, memory.SubjectWaitingPrefix, 0)
-	if err != nil {
-		a.log.Warn("waiting lookup failed", "err", err)
-	}
-	follow, err := a.memory.ListBySubjectPrefix(ctx, memory.KindFact, memory.SubjectFollowPrefix, 0)
-	if err != nil {
-		a.log.Warn("follow lookup failed", "err", err)
-	}
-	loops := append(append([]memory.Entry(nil), waiting...), follow...)
-	if line := memory.FormatLoops(loops); line != "" {
-		b.WriteByte('\n')
-		b.WriteString(line)
-	}
-	return b.String()
 }
 
 // promptShape describes how much of the assembled prompt is cacheable. The
@@ -1128,8 +1103,8 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 						"Do not ask for a moment or promise another attempt without calling a tool."
 				} else if sparkHorizon {
 					nudge = "[system] This spark-of-life turn is for looking after the user (aims, live tools, useful knowledge), not an empty check-in. " +
-						"Call tools now in one response: memory_recall for aim/ and pref/hours, cron_list, then any live tools or cron_schedule that would move an aim. " +
-						"If the board is empty, ask ONE months-scale question — do not invent an aim. " +
+						"[hours], [aims], [loops], and [wakes] are already in [harness] — do not recall them. Call tools now in one response: live tools or cron_schedule that would move an aim; memory_recall only for detail. " +
+						"If there is no [aims] line, ask ONE months-scale question — do not invent an aim. " +
 						"mcp_enable a prefix if it is off and needed. Do not invent progress. " +
 						"A joke is fine after tools return, not instead of tools. " +
 						"If the human does not need a message after the work, reply with exactly [silent]."

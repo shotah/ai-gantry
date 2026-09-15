@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Message is an inbound user message from a channel.
@@ -17,7 +18,10 @@ type Message struct {
 	Images []Image
 	// Geo is this-send coordinates (pendant GPS, Telegram location/venue).
 	// Not persisted in session history.
-	Geo      *Geo
+	Geo *Geo
+	// Surface is the mouth's screen for this send (browser, android,
+	// android_auto, ios, carplay). Prompt-only [surface] stamp; not persisted.
+	Surface  string
 	ChatID   string
 	ThreadID int
 }
@@ -28,6 +32,38 @@ type Geo struct {
 	Lon       float64
 	Label     string  // venue title, if any
 	AccuracyM float64 // meters; 0 means unknown
+}
+
+// Age is the prompt-side "how long ago" for a harness stamp: just now,
+// 5m ago, 3h ago, 12d ago. Negative durations read as just now.
+func Age(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	}
+}
+
+// WhenShort is a harness clock stamp relative to now: "5:00 PM" today,
+// "Wed 8:00 AM" inside six days, else "Sep 22 8:00 AM". Rendered in now's zone.
+func WhenShort(at, now time.Time) string {
+	at = at.In(now.Location())
+	switch {
+	case at.Year() == now.Year() && at.YearDay() == now.YearDay():
+		return at.Format("3:04 PM")
+	case at.Sub(now) < 6*24*time.Hour && now.Sub(at) < 6*24*time.Hour:
+		return at.Format("Mon 3:04 PM")
+	default:
+		return at.Format("Jan 2 3:04 PM")
+	}
 }
 
 // Footer is the prompt line for this turn's time footer. Empty if g is nil.

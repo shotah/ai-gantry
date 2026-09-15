@@ -19,9 +19,10 @@ type geo struct {
 }
 
 type frameContext struct {
-	At  string `json:"at,omitempty"`
-	TZ  string `json:"tz,omitempty"`
-	Geo *geo   `json:"geo,omitempty"`
+	At      string `json:"at,omitempty"`
+	TZ      string `json:"tz,omitempty"`
+	Geo     *geo   `json:"geo,omitempty"`
+	Surface string `json:"surface,omitempty"`
 }
 
 type inboundFrame struct {
@@ -205,7 +206,22 @@ func turnFromFrame(frame inboundFrame) (channel.Message, bool) {
 		Images:    frame.Images,
 		ChatID:    sub,
 		Geo:       geo,
+		Surface:   frameSurface(frame.Context),
 	}, true
+}
+
+// frameSurface is the closed set from pendant docs/frontends.md. Unknown
+// names (Cab's old "pendant") are dropped; at/tz/battery/net stay ignored.
+func frameSurface(ctx *frameContext) string {
+	if ctx == nil {
+		return ""
+	}
+	switch s := strings.ToLower(strings.TrimSpace(ctx.Surface)); s {
+	case "browser", "android", "android_auto", "ios", "carplay":
+		return s
+	default:
+		return ""
+	}
 }
 
 func frameGeo(ctx *frameContext) *channel.Geo {

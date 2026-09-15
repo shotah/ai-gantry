@@ -119,9 +119,10 @@ func (a *MCPAdapter) Get(context.Context, int64) (Entry, error) {
 	return Entry{}, fmt.Errorf("memory: mcp backend has no get by id")
 }
 
-// ActiveByKindSubject is not supported on the MCP memory backend.
+// ActiveByKindSubject is not supported on the MCP memory backend. The
+// sentinel lets the [hours] stamp skip instead of nagging "unknown" forever.
 func (a *MCPAdapter) ActiveByKindSubject(context.Context, string, string) (Entry, bool, error) {
-	return Entry{}, false, nil
+	return Entry{}, false, ErrNotSupported
 }
 
 // ListBySubjectPrefix recalls then keeps live rows matching kind+prefix.
@@ -132,7 +133,7 @@ func (a *MCPAdapter) ListBySubjectPrefix(ctx context.Context, kind, prefix strin
 		return nil, nil
 	}
 	if limit < 1 {
-		limit = harnessHorizonMax
+		limit = horizonFetch
 	}
 	entries, err := a.Recall(ctx, prefix, limit*2)
 	if err != nil {

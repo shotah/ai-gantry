@@ -68,7 +68,7 @@ func Format(p Pin, now time.Time, tzName string) string {
 		tag, p.Lat, p.Lon,
 		at.Format("Mon Jan 2, 2006 3:04 PM"),
 		formatZone(at, tzName),
-		age(now.Sub(p.At)),
+		channel.Age(now.Sub(p.At)),
 	)
 	if p.Label != "" {
 		line += " — " + p.Label
@@ -85,20 +85,4 @@ func formatZone(at time.Time, tzName string) string {
 		return abbr
 	}
 	return tzName
-}
-
-func age(d time.Duration) string {
-	if d < 0 {
-		d = 0
-	}
-	switch {
-	case d < time.Minute:
-		return "just now"
-	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", int(d.Minutes()))
-	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(d.Hours()))
-	default:
-		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
-	}
 }

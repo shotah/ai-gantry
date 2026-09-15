@@ -1,0 +1,14 @@
+{
+  "kind": "inbound",
+  "user_id": "118212345678901234567",
+  "id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+  "text": "what's near me",
+  "context": {
+    "geo": {
+      "lat": 47.6,
+      "lon": -122.3,
+      "accuracy_m": 8
+    },
+    "surface": "android_auto"
+  }
+}

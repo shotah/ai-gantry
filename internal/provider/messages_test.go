@@ -44,14 +44,21 @@ func TestWireMessages_GeminiFoldsHarnessIntoSystem(t *testing.T) {
 		t.Fatalf("first role %s", got[0].Role)
 	}
 	sys := got[0].Content
-	if !strings.HasPrefix(sys, "[harness]") {
-		t.Fatalf("this-turn harness must lead the one Gemini system instruction:\n%s", sys)
+	if !strings.HasPrefix(sys, "You are Kit.") {
+		t.Fatalf("persona must lead the one Gemini system instruction:\n%s", sys)
 	}
 	if !strings.Contains(sys, "[location] 47.6") || !strings.Contains(sys, "[current time] NOW") {
 		t.Fatalf("clock/GPS missing from system:\n%s", sys)
 	}
-	if !strings.Contains(sys, "You are Kit.") || !strings.Contains(sys, "[memory] a fact") || !strings.Contains(sys, "wait note") {
+	if !strings.Contains(sys, "[memory] a fact") || !strings.Contains(sys, "wait note") {
 		t.Fatalf("standing system dropped:\n%s", sys)
+	}
+	// Standing (persona, hydration) before this-turn (harness, wait note):
+	// identity first, stable prefix cacheable, clock last for recency.
+	persona, mem := strings.Index(sys, "You are Kit."), strings.Index(sys, "[memory]")
+	harness, wait := strings.Index(sys, "[harness]"), strings.Index(sys, "wait note")
+	if persona >= mem || mem >= harness || harness >= wait {
+		t.Fatalf("fold order persona=%d memory=%d harness=%d wait=%d:\n%s", persona, mem, harness, wait, sys)
 	}
 	if got[1].Role != provider.RoleUser || got[1].Content != "old" {
 		t.Fatalf("history user %+v", got[1])
@@ -63,6 +70,64 @@ func TestWireMessages_GeminiFoldsHarnessIntoSystem(t *testing.T) {
 		if m.Role == provider.RoleSystem {
 			t.Fatalf("trailing system still on wire at %d: %+v", i+1, m)
 		}
+	}
+}
+
+func TestWireMessagesMode_OverridesModelName(t *testing.T) {
+	in := []provider.Message{
+		{Role: provider.RoleSystem, Content: "You are Kit."},
+		{Role: provider.RoleUser, Content: "hi"},
+		{Role: provider.RoleSystem, Content: "[harness] NOW"},
+	}
+	one := provider.WireMessagesMode(provider.FoldOne, "gpt-5.4", in)
+	if len(one) != 2 || !strings.HasPrefix(one[0].Content, "You are Kit.") || !strings.HasSuffix(one[0].Content, "[harness] NOW") {
+		t.Fatalf("one on openai name %+v", one)
+	}
+	many := provider.WireMessagesMode(provider.FoldMany, "gemini-3.6-flash", in)
+	if len(many) != 3 || many[2].Content != "[harness] NOW" {
+		t.Fatalf("many on gemini name %+v", many)
+	}
+	if auto := provider.WireMessagesMode("", "gemini-3.6-flash", in); len(auto) != 2 {
+		t.Fatalf("empty mode is auto %+v", auto)
+	}
+	if bogus := provider.WireMessagesMode("sideways", "gpt-5.4", in); len(bogus) != 3 {
+		t.Fatalf("unknown mode is auto %+v", bogus)
+	}
+}
+
+func TestClient_Complete_SystemFoldOne_OpenAIName(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if len(body.Messages) != 2 || body.Messages[0].Role != "system" || !strings.Contains(body.Messages[0].Content, "[harness]") {
+			t.Fatalf("fold=one wire %+v", body.Messages)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "x",
+			"choices": []map[string]any{
+				{"index": 0, "message": map[string]any{"role": "assistant", "content": "ok"}},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "gemma4").WithSystemFold(provider.FoldOne)
+	if _, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{
+			{Role: provider.RoleSystem, Content: "You are Kit."},
+			{Role: provider.RoleUser, Content: "what's near me"},
+			{Role: provider.RoleSystem, Content: "[harness]\n[current time] NOW"},
+		},
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 
