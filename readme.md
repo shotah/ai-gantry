@@ -206,6 +206,7 @@ Horizon split: **[docs/persona.md](docs/persona.md#where-the-horizon-lives)**.
 | --- | --- |
 | How the four repos talk | **[docs/ecosystem.md](docs/ecosystem.md)** |
 | What we actually built (honest inventory) | **[docs/features.md](docs/features.md)** |
+| How it rates as a harness, gaps, and how it sits next to OpenClaw / Letta / Hermes | **[docs/evaluation.md](docs/evaluation.md)** |
 | How to write `PERSONA.md` (tight, no MCP catalog, where the horizon lives) | **[docs/persona.md](docs/persona.md)** |
 | How the harness is put together | **[docs/architecture.md](docs/architecture.md)** |
 | Env, loop, memory, security | **[docs/design.md](docs/design.md)** |
