@@ -28,7 +28,7 @@ Gantry is a **disciplined, single-purpose harness**: one static Go binary,
 one persona, one OpenAI-compat socket, optional MCP children, SQLite. It
 refuses most of what the category is currently adding (UIs, routers,
 subagents, skills marketplaces, inbound ports) and spends that budget on
-four things the others mostly leave to the model:
+five things the others mostly leave to the model — or do not do at all:
 
 1. **What the model actually sees.** The prompt is a pinned contract. PWA
    inbound JSON → `Handle` → Completer request → HTTP body are all
@@ -49,6 +49,12 @@ four things the others mostly leave to the model:
 4. **Personality that survives reset, with an operator veto.** `SELF.md`,
    Voice ledger on fold, distill on `/new`, and a plain text file you can
    prune. Facts go to SQLite, not into the persona.
+5. **A mouth the model can dress.** On the pendant and cab the agent
+   owns its own face, the chat wallpaper, and the room's color mood —
+   `pendant__avatar_update` / `backdrop_update` / `theme_update` from a
+   picture it generated and a closed theme catalog it listed. The
+   household owns the whole path (crane → Worker → every socket). No
+   comparator gives the agent control of the client it is talked to in.
 
 The cost of that discipline: no authorization layer beyond the allowlist
 and the manifest, no behavioral regression suite (goldens pin bytes, not
@@ -60,8 +66,9 @@ voice are *not* gaps; they are declined, and the reasons hold.
 **Verdict:** best-in-class at *harness-side context*, at running well on
 weak models, and at keeping the tool catalog cheap; deliberately behind on
 breadth (channels, UI, multi-agent). Right choice for one person, one
-mouth, one brain on a hardened small box. Wrong choice for a team, a
-shared gateway, or anyone who wants the agent to author its own tooling.
+mouth, one brain on a hardened small box, with a phone and a car screen
+the agent can make its own. Wrong choice for a team, a shared gateway, or
+anyone who wants the agent to author its own tooling.
 
 ---
 
@@ -80,6 +87,7 @@ shared gateway, or anyone who wants the agent to author its own tooling.
 | User model | **Deliberate** | Captured at fold (`Facts:`), not re-derived per turn. Per-turn cost is ≤30 FTS rows keyed on the user's words, no model call. |
 | Memory capture | **Deliberate** | Explicit `memory_store` only; the fold is the one compaction call. No flush turn, no auto-save. See [How memory gets written](#how-memory-gets-written). |
 | Channels | **Different model** | One hardened host per mouth, not one gateway holding every messenger credential. Telegram (production), Discord, Slack, pendant, stdio. |
+| Model-controlled client | **Unique** | Face, wallpaper, and theme on the pendant / cab are the agent's to set (`pendant-mcp`, 7 tools). Picture handoff by `source_path`; theme from a closed catalog with mood lines; humans can unfollow. Initiative is still prompt work — the model waits to be asked. |
 | Security / authorization | **Thin** | Allowlist + manifest-is-grant. No per-tool approval; ask-first is prompt text. |
 | Ops surface | **Strong for one box** | No inbound port, Distroless, `gantry status` heartbeat, chat is the console, `/auth` headless OAuth. Fleet ops is gantree, not here. |
 | Multi-model / multi-agent | **Absent by design** | No router, no fallback, no subagents. One process = one brain. |
@@ -100,17 +108,29 @@ shared gateway, or anyone who wants the agent to author its own tooling.
 | Weak-model tool repair | Alias, ≤5 closest names, grammar-constrained retry, salvage, CoT promote, landing call; counted in `/toolstats` | Assumes capable model ("use the strongest latest-generation model") | Model-agnostic, frontier-oriented | Model-agnostic; RL / trajectory tooling for training tool-callers |
 | In-turn context bounding | Last 2 tool payloads in full; older and same-name repeats → one-line marker, args stubbed, signatures kept | Compaction at threshold | Compaction / MemFS | Compaction |
 | Personality across reset | `SELF.md` Voice ledger, distill, operator prune | `IDENTITY.md` static; memory flush before compaction | Persona memory block, agent rewrites it | `SOUL.md` static voice; skills carry procedure |
+| Agent controls its client | Pendant + cab: own face (`avatar_update`), chat wallpaper (`backdrop_update`), room mood from a closed theme catalog (`theme_list` → `theme_update`); Durable Object broadcasts to every socket | Canvas on companion apps — the agent renders *content* on a surface; client identity and theme are the user's | Chat at chat.letta.com / desktop app; no agent control of the client | TUI + messaging; no agent control of the client |
 | Event watches | Cursor + poll on an MCP fetch tool; Completer only on new ids | Cron / webhooks | — | Cron |
 | Memory inspectability | `sqlite3 gantry.db`, typed rows, no vector SaaS | Markdown files + SQLite index | Memory blocks; MemFS git-backed context repo | Markdown + FTS5 session DB + external Honcho |
 
-Three of these matter most. **The prompt contract** — nobody else ships a
+Four of these matter most. **The prompt contract** — nobody else ships a
 test that diffs the socket bytes against the agent layout; it is why the
 time/GPS blind spot was found and closed in a day. **The harness stamp** —
 time, place, hours, horizon delivered without a tool round. **Catalog
 disclosure by prefix** — Hermes discloses skill names and loads text on
 demand; gantry does the same thing one level down, at the tool schema,
 which is where the tokens actually are, and the on/off line is stable
-enough for prefix caching.
+enough for prefix caching. **The agent's own client** — the others meet
+the user in someone else's app (Telegram, WhatsApp, a TUI) or a vendor
+web chat, so the agent has a name and a text bubble. On the pendant and
+cab the agent has a face it drew, a wallpaper it picked for the hour, and
+a color mood it chose to match how the day is going — and when it changes
+one, every open phone and car screen repaints. The plumbing is what makes
+it hold up: the picture never crosses the model as bytes (`source_path`
+from `image__photo_generate`, encoded to budget in the MCP), the theme is
+an id from a catalog with a mood line (no invented hex), the wallpaper
+has a `delete`, and a human can unfollow and keep their own theme. It is
+the connection feature; it is also the one the model uses least on its
+own — see the seam below.
 
 Why the skills comparison flips: Hermes and Letta need recipe files
 because their tool surface is generic (bash, browser, a fixed builtin
@@ -190,6 +210,13 @@ up as a platform.
 - `skill/<area>` rows exist only if the model stores them; a bland model
   on a fiddly tool will re-learn the pitfall. That is the auto-save-off
   trade, applied to procedure.
+- The room tools are used when asked and rarely otherwise. The model has
+  `[current time]` day-part and `[surface]` on every turn and a theme
+  catalog with mood lines, and still waits for "change the theme." That
+  is persona and spark work, not harness code: a spark line that treats
+  the room like the calendar (redress at day-part changes, after a heavy
+  session, when the mood shifts) would make the feature feel alive
+  instead of latent.
 
 ---
 
