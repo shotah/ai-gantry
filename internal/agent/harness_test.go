@@ -208,7 +208,52 @@ func TestSurfaceStamp(t *testing.T) {
 	if got := surfaceStamp("browser"); got != "[surface] browser" {
 		t.Fatalf("browser %q", got)
 	}
-	if got := surfaceStamp("carplay"); got != "[surface] carplay — driving: one short spoken sentence, no markdown or lists" {
+	if got := surfaceStamp("carplay"); got != "[surface] carplay — driving; "+spokenHint {
 		t.Fatalf("carplay %q", got)
+	}
+	if got := surfaceStamp("android_auto"); got != "[surface] android_auto — driving; "+spokenHint {
+		t.Fatalf("android_auto %q", got)
+	}
+}
+
+// The car and the pocket are read aloud the same way: short, plain prose,
+// nothing a speech engine would spell out. The doc's ask, in one string.
+func TestSpokenHint_Shape(t *testing.T) {
+	for _, want := range []string{"read aloud", "like a person", "a few short sentences", "no markdown", "lists", "code", "links", "emoji"} {
+		if !strings.Contains(spokenHint, want) {
+			t.Fatalf("spokenHint missing %q: %q", want, spokenHint)
+		}
+	}
+	if strings.ContainsAny(spokenHint, "*_`#") {
+		t.Fatalf("spokenHint must not carry markdown itself: %q", spokenHint)
+	}
+}
+
+func TestInputStamp(t *testing.T) {
+	if inputStamp("", "") != "" || inputStamp("", "carplay") != "" {
+		t.Fatal("typed turn has no [input] line")
+	}
+	if got := inputStamp("spoken", ""); got != "[input] spoken — "+spokenHint {
+		t.Fatalf("spoken %q", got)
+	}
+	if got := inputStamp("spoken", "browser"); got != "[input] spoken — "+spokenHint {
+		t.Fatalf("spoken on browser %q", got)
+	}
+	// The dash already said it on [surface]; do not nag twice.
+	if got := inputStamp("spoken", "android_auto"); got != "[input] spoken" {
+		t.Fatalf("spoken on android_auto %q", got)
+	}
+	if got := inputStamp("spoken", "carplay"); got != "[input] spoken" {
+		t.Fatalf("spoken on carplay %q", got)
+	}
+}
+
+func TestHarnessNote_Input(t *testing.T) {
+	got := harnessNote("[current time] y\n[surface] browser\n[input] spoken — x\n[last contact] c")
+	if got != harnessNotePrefix+"clock, surface, input, and last contact for this turn." {
+		t.Fatalf("got %q", got)
+	}
+	if stripHarnessContext("hi\n[input] spoken — read aloud") != "hi" {
+		t.Fatal("[input] must strip like the other stamps")
 	}
 }

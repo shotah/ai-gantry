@@ -291,9 +291,10 @@ household owns end to end. Channel count is not the axis this is built on.
 
 OpenClaw and Hermes do voice in the agent. Priced and declined: harness
 voice means paying an STT/TTS API per turn. The cab mouth uses the phone's
-on-device recognizer, the harness sees text, `[surface] android_auto` asks
-for one spoken sentence, and the phone reads it back. Same experience,
-no bill.
+on-device recognizer, the harness sees text, `[surface] android_auto` (or
+`[input] spoken` from a pendant hold-to-talk turn) asks for a few short
+plain sentences with no markdown, and the phone reads it back. Same
+experience, no bill.
 
 ---
 

@@ -21,7 +21,11 @@ type Message struct {
 	Geo *Geo
 	// Surface is the mouth's screen for this send (browser, android,
 	// android_auto, ios, carplay). Prompt-only [surface] stamp; not persisted.
-	Surface  string
+	Surface string
+	// Input is how the human produced this turn: "spoken" for hold-to-talk,
+	// where the mouth reads the reply aloud. Prompt-only [input] stamp; not
+	// persisted. Empty means typed.
+	Input    string
 	ChatID   string
 	ThreadID int
 }

@@ -260,8 +260,14 @@ persona — nothing is missing. `go test ./internal/agent/ -run Payload
       `agent.Options.Wakes = cronStore`. `(+N more — cron_list)`.
 - [x] `[surface]` from phone `context.surface` (closed set: browser,
       android, android_auto, ios, carplay). `android_auto` / `carplay`
-      add "one short spoken sentence, no markdown or lists". Battery / net
-      stay dropped. Fixture: `inbound_cab_auto.json`.
+      add the shared read-aloud hint (`spokenHint`: like a person, a few
+      short sentences, no markdown / lists / code / links / emoji).
+      Battery / net stay dropped. Fixture: `inbound_cab_auto.json`.
+- [x] `[input]` from phone `context.input` (closed set: `spoken` —
+      pendant hold-to-talk, the pocket reads the reply via `/api/tts`).
+      Same `spokenHint` as the car; bare `[input] spoken` when the
+      surface is already driving so the model is not told twice.
+      Fixture: `inbound_pwa_spoken.json` → `completer_spoken.txt`.
 - [x] `[last contact]` from `session.Store.LastUserAt` (cron rows
       ignored): `last human message 3h ago (Mon 2:15 PM)` or `none in this
       session — first message`. Optional History capability; test fakes

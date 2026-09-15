@@ -28,6 +28,7 @@ var harnessTags = []struct{ tag, word string }{
 	{"[loops]", "horizon"},
 	{"[wakes]", "wakes"},
 	{"[surface]", "surface"},
+	{"[input]", "input"},
 	{"[room]", "room"},
 	{"[last contact]", "last contact"},
 }
@@ -160,16 +161,41 @@ func (a *Agent) wakesStamp(ctx context.Context, sessionID string, now time.Time)
 	return cron.FormatWakes(jobs, now)
 }
 
-// surfaceStamp is the [surface] line. Driving surfaces get the shape hint;
+// spokenHint is the read-aloud shape. The reply goes to a speaker, not a
+// screen: Auto / CarPlay read the card with the host engine, a hold-to-talk
+// turn is read back by the pocket. One string so the two mouths cannot drift.
+const spokenHint = "read aloud like a person: conversational prose, a few short sentences, no markdown, lists, code, links, or emoji"
+
+// drivingSurface is a car head unit: the host speaks and the human cannot read.
+func drivingSurface(surface string) bool {
+	return surface == "android_auto" || surface == "carplay"
+}
+
+// surfaceStamp is the [surface] line. Driving surfaces get the spoken hint;
 // the phone tells the harness, the harness tells the model, nobody types it.
 func surfaceStamp(surface string) string {
-	switch surface {
-	case "":
+	switch {
+	case surface == "":
 		return ""
-	case "android_auto", "carplay":
-		return "[surface] " + surface + " — driving: one short spoken sentence, no markdown or lists"
+	case drivingSurface(surface):
+		return "[surface] " + surface + " — driving; " + spokenHint
 	default:
 		return "[surface] " + surface
+	}
+}
+
+// inputStamp is the [input] line: how the human produced the turn. The
+// closed set is "spoken" (hold-to-talk; the mouth reads the reply). A
+// driving surface already carries the hint on [surface], so the line stays
+// bare there rather than saying it twice.
+func inputStamp(input, surface string) string {
+	switch {
+	case input == "":
+		return ""
+	case drivingSurface(surface):
+		return "[input] " + input
+	default:
+		return "[input] " + input + " — " + spokenHint
 	}
 }
 

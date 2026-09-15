@@ -23,6 +23,7 @@ type frameContext struct {
 	TZ      string `json:"tz,omitempty"`
 	Geo     *geo   `json:"geo,omitempty"`
 	Surface string `json:"surface,omitempty"`
+	Input   string `json:"input,omitempty"`
 }
 
 type inboundFrame struct {
@@ -211,7 +212,20 @@ func turnFromFrame(frame inboundFrame) (channel.Message, bool) {
 		ChatID:    sub,
 		Geo:       geo,
 		Surface:   frameSurface(frame.Context),
+		Input:     frameInput(frame.Context),
 	}, true
+}
+
+// frameInput is the closed set from pendant docs/voice.md: "spoken" is a
+// hold-to-talk turn whose reply the mouth reads aloud. Anything else is typed.
+func frameInput(ctx *frameContext) string {
+	if ctx == nil {
+		return ""
+	}
+	if strings.EqualFold(strings.TrimSpace(ctx.Input), "spoken") {
+		return "spoken"
+	}
+	return ""
 }
 
 // frameSurface is the closed set from pendant docs/frontends.md. Unknown

@@ -28,7 +28,8 @@ import (
 // what Gemini's OpenAI-compat body actually gets (prompt_wire_test.go
 // proves it from the socket). Hours/aims/loops: completer_horizon_harness.txt.
 // Everything at once (cron wakes, Cab surface, last contact):
-// completer_fullboard_harness.txt.
+// completer_fullboard_harness.txt. A pocket hold-to-talk turn ([surface]
+// browser + [input] spoken): completer_spoken.txt.
 func payloadClock() (loc *time.Location, now time.Time) {
 	loc, err := time.LoadLocation("America/Los_Angeles")
 	if err != nil {
@@ -57,6 +58,11 @@ func TestPendantInbound_CompleterPayload(t *testing.T) {
 			name:    "old mouth at/tz ignored — crane clock wins",
 			inbound: "inbound_stale_clock.json",
 			want:    "completer_geo.txt",
+		},
+		{
+			name:    "PWA hold-to-talk — [surface] browser plus [input] spoken",
+			inbound: "inbound_pwa_spoken.json",
+			want:    "completer_spoken.txt",
 		},
 	}
 	for _, tc := range tests {

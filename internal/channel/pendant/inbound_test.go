@@ -83,6 +83,33 @@ func TestInboundTurn_SurfaceClosedSet(t *testing.T) {
 	}
 }
 
+func TestInboundTurn_InputClosedSet(t *testing.T) {
+	cases := map[string]string{
+		"spoken":   "spoken",
+		" Spoken ": "spoken",
+		"typed":    "",
+		"audio":    "",
+		"":         "",
+	}
+	for in, want := range cases {
+		raw := []byte(`{"kind":"inbound","user_id":"1182","text":"hi","context":{"surface":"browser","input":"` + in + `"}}`)
+		msg, ok, err := InboundTurn(raw)
+		if err != nil || !ok {
+			t.Fatalf("%q: ok=%v err=%v", in, ok, err)
+		}
+		if msg.Input != want {
+			t.Fatalf("input %q → %q want %q", in, msg.Input, want)
+		}
+		if msg.Surface != "browser" {
+			t.Fatalf("input must not disturb surface: %q", msg.Surface)
+		}
+	}
+	msg, ok, err := InboundTurn([]byte(`{"kind":"inbound","user_id":"1182","text":"hi"}`))
+	if err != nil || !ok || msg.Input != "" {
+		t.Fatalf("no context: ok=%v err=%v input=%q", ok, err, msg.Input)
+	}
+}
+
 func TestInboundTurn_IgnoresPhoneClockFields(t *testing.T) {
 	raw := []byte(`{"kind":"inbound","user_id":"1182","text":"hi","context":{"at":"2020-01-01T00:00:00Z","tz":"UTC","geo":{"lat":1,"lon":2}}}`)
 	msg, ok, err := InboundTurn(raw)

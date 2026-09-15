@@ -585,6 +585,7 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	}
 	clock += stampLine(a.wakesStamp(turnCtx, msg.SessionID, now))
 	clock += stampLine(surfaceStamp(msg.Surface))
+	clock += stampLine(inputStamp(msg.Input, msg.Surface))
 	clock += stampLine(a.roomStamp(now, toolDefs, toolsOff))
 	clock += stampLine(a.lastContactStamp(turnCtx, msg.SessionID, now))
 	messages = append(messages, userMsg)

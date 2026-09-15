@@ -1,0 +1,10 @@
+{
+  "kind": "inbound",
+  "user_id": "118212345678901234567",
+  "id": "cccccccc-dddd-4eee-8fff-000000000000",
+  "text": "what's the weather tonight",
+  "context": {
+    "surface": "browser",
+    "input": "spoken"
+  }
+}

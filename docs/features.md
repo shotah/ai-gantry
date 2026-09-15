@@ -176,7 +176,9 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
   age and a stale cue, `+N more` instead of silent truncation). With cron:
   `[wakes]` — the next three human jobs, so no `cron_list` just to avoid a
   double booking. From the mouth: `[surface]` (`android_auto` / `carplay`
-  ask for one spoken sentence) and, on the pendant with `pendant-mcp`
+  ask for read-aloud prose: a few short sentences, no markdown / lists /
+  code / links / emoji), `[input]` (`spoken` — a hold-to-talk turn the
+  pocket reads back, same hint) and, on the pendant with `pendant-mcp`
   mounted, `[room]` — the theme, wallpaper, and face the mailbox last
   announced, with ages, and one clause: yours, redress when the hour or
   mood moves on (or `pendant is off this chat`). From the
