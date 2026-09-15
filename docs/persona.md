@@ -112,15 +112,20 @@ A running joke → quote SELF.md. Don’t paraphrase it.
 Diverse: one task, one **horizon** (`aim/` recall *and* spark as the autonomous
 wake), one voice. Don’t add an example that only restates a bullet you already wrote.
 
-**Shape that works:**
+**Shape that works** (what each section is for and what must never be cut:
+[persona_doc_goals.md](persona_doc_goals.md)):
 
 1. Identity + voice (who, how it talks)
-2. A few examples (include one long-horizon recall)
+2. **Goals** — get the aim, nudge where today's tools disagree with it, do
+   the legwork — then a few examples (include one long-horizon recall)
 3. Hard do/don’t (tools-first, **Prefer parallel tool calls**, identity lock, ask-first)
 4. **Memory hygiene** — the three-layer split (north-star / tracker / wake).
    Keep that section; do not grow it into a project plan. Kernel stamps
    Self-notes + Location pins.
-5. **About you** (timezone as `- **Timezone:** Area/City`)
+5. **About you** (timezone as `- **Timezone:** Area/City`), then
+   **Directives** — standing orders for *this* human only (canonical
+   `user_google_email`). Not a second copy of Voice / Do; every rule
+   restated there is one more line the closer has to fight for attention.
 6. One load-bearing closer at the **end** (recency): review `[mcp prefixes]`
    on vs off; `mcp_enable` then call if off; if a tool is in this turn’s
    list, call it; **Prefer parallel tool calls**; independent lookups all in
@@ -129,7 +134,10 @@ wake), one voice. Don’t add an example that only restates a bullet you already
    to remind
 
 Put the rule that must never slip on the last line. Models weight the last
-instruction they saw.
+instruction they saw. That closer is the **only** place a rule may appear
+twice; the kernel-stamped Self-notes / Location pins / Follow-up sections
+already restate `self_note` scope and GPS handling, so the operator text
+should not.
 
 **Cut:** product pitches, duplicate sections, per-server encyclopedias,
 anything `/tools` already shows, **progress logs / mileage / open loops**
@@ -146,8 +154,8 @@ The yard console ([shotah/gantree](https://github.com/shotah/gantree)) keeps a
 what a new crane is seeded with and what **Replace from template** loads.
 
 **Inject user** (admin) then patches **About you** from the signed-in operator
-profile — name, email, timezone, location, notes, chat ids. **Identity** (the
-agent’s name from the slug) stays. Do not rename About you labels without
+profile — name, email, timezone, location, languages, notes, chat ids.
+**Identity** (the agent’s name from the slug) stays. Do not rename About you labels without
 updating `lib/yard/crane/injectPersona.ts`. Recreate never overwrites an
 existing `PERSONA.md`.
 

@@ -162,12 +162,50 @@ Ranked by how much a user would feel it.
 The goldens are the best prompt-bytes contract in the category. They say
 nothing about what the model *did*. `/perf` records iterations, batch
 size, recoveries per turn — in memory, in the log. There is no fixture
-set of turns with expected tool-call shape or reply class, and no replay.
-When a prompt string changes (this week: every spark line), the only gate
-is "the string contains `[aims]`". A JSONL trajectory log plus a `gantry
-eval` that replays with a scripted Completer would make prompt edits
-measurable. Hermes and Letta both export trajectories; neither is a
-regression gate either, but they have the raw material.
+set of turns with expected tool-call shape or reply class. When a prompt
+string changes (this week: every spark line, and now the persona seed),
+the only gate is "the string contains `[aims]`".
+
+**How, concretely.** The harness already exists.
+`TestPendantInbound_CompleterPayloadFullBoard` seeds memory rows, a cron
+board, tool defs, and a persona, loads an inbound fixture, and runs
+`agent.Handle`. The only reason it is a prompt test and not a behavior
+test is that its `fakeCompleter` answers `ok`. The integration variant:
+
+- **Live model, canned world.** `provider.New(baseURL, apiKey, model)` in
+  place of the fake, key from `.env`. Tools stay fake: a recording
+  `fakeTools` that returns canned results per name (calendar → `[]`,
+  garmin → no activity today) and logs every call with its args. No MCP
+  servers; the model is the only thing on the network.
+- **Assert shape, not prose.** Which tools were called and with what
+  (`cron_schedule` at 14:00 with `memory_id`; `memory_store` subject
+  `pref/calendar`), whether `[wait]` is on its own line, no markdown on a
+  spoken turn, `[silent]` or not. Never the sentence — that is the part
+  that changes run to run.
+- **The persona under test is the shipped seed**,
+  `examples/persona/PERSONA.example.md`, not `"You are Kit."`. That is the
+  file being edited; that is the file being gated.
+- **Fixtures are the scenario table** in
+  [persona_doc_goals.md](persona_doc_goals.md#proposed-scenario-checks),
+  one JSON each under `internal/agent/testdata/eval/`: the inbound (or a
+  spark wake), seed rows, canned tool results, expected calls and markers.
+- **Repeat for confidence.** Each scenario runs `N` times (default 3;
+  `-eval.n=10` when nervous) and must pass every run — a rule that holds
+  two times in three is a rule the persona is not carrying. Temperature 0
+  where the provider allows it.
+- **Never in `go test ./...`.** Build tag `//go:build integration`;
+  `t.Skip` when `LLM_API_KEY` is empty. `make integration-test` sources
+  `.env` and runs it. Seven scenarios × 3 runs × two or three completer
+  rounds is ~50 calls — cents on a Flash-class model, minutes of wall time.
+- **CI: release gate, not PR gate.** The key is a repository secret
+  (GitHub does not hand secrets to fork PRs). The job runs on tag push in
+  `release.yml` and on `workflow_dispatch` — bounded spend, and a release
+  is the moment the answer matters. `ci.yml` keeps running the free
+  goldens on every push.
+
+Both stay. Goldens are the byte contract (free, every push); the eval is
+the behavior contract (paid, on demand and at release). Hermes and Letta
+export trajectories; neither has the gate either.
 
 ### 2. No authorization layer
 
@@ -180,7 +218,7 @@ not permission controls. The smallest useful step: an `ask_first` list in
 `mcp.toml` whose tools return a harness-side `[confirm]` prompt on the
 first call and run only on the human's next turn. It fits the existing
 shape — `guardEnable` already intercepts every call before the host sees
-it.
+it. Declined — [why](#tool-call-confirmation-ask_first).
 
 ### 3. Harness stamp cost and template coverage
 
@@ -239,6 +277,16 @@ up as a platform.
 
 Comparators list these as features. Each was considered, and the reasoning
 is worth keeping next to the decision.
+
+### Tool-call confirmation (`ask_first`)
+
+Gap 2 above proposed an `ask_first` list in `mcp.toml`: flagged tools
+return a harness-side `[confirm]` and run on the human's next turn.
+Declined. It costs a turn on exactly the calls a personal assistant makes
+most — write the event, send the invite — and the point of this harness
+is fast and cheap. "Ask first" stays prompt text, in the persona and the
+spark wake. This is a POC; an operator who points it at a board-level
+inbox has made that call themselves.
 
 ### Skills files
 
@@ -367,14 +415,15 @@ Things the comparison could tempt someone to "fix" that are load-bearing:
 
 ## Suggested order
 
-1. Behavioral regression (gap 1) — cheapest insurance before touching
-   prompts again; the spark rewrite this week had only string gates.
-2. `ask_first` tool list (gap 2) — small, sits on `guardEnable`, and the
-   only item here that is about safety rather than quality.
-3. Verify `LLM_SYSTEM_FOLD=many` on a Gemma-style local template and put
+1. Behavioral regression (gap 1) — the persona seed is being rewritten
+   against [persona_doc_goals.md](persona_doc_goals.md), and the only gate
+   on it is string matching. The eval sketched under gap 1 is how that
+   changes: `make integration-test` locally, release-gated in Actions.
+   Build it before the next persona pass.
+2. Verify `LLM_SYSTEM_FOLD=many` on a Gemma-style local template and put
    `volatile_est_tokens` on the full-board golden so stamp growth has a
    number (gap 3).
 
-That is the list. Three items, none urgent. Channels, routers, subagents,
-skills files, flush turns, and UI stay out. They are the other products'
-shape, not this one's.
+That is the list. Two items, none urgent; `ask_first` is declined above.
+Channels, routers, subagents, skills files, flush turns, and UI stay out.
+They are the other products' shape, not this one's.
