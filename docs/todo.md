@@ -266,7 +266,8 @@ persona — nothing is missing. `go test ./internal/agent/ -run Payload
 - [x] `[input]` from phone `context.input` (closed set: `spoken` —
       pendant hold-to-talk, the pocket reads the reply via `/api/tts`).
       Same `spokenHint` as the car; bare `[input] spoken` when the
-      surface is already driving so the model is not told twice.
+      surface is already driving so the model is not told twice
+      (Cab Auto sends both — `inbound_cab_auto.json` on the full board).
       Fixture: `inbound_pwa_spoken.json` → `completer_spoken.txt`.
 - [x] `[last contact]` from `session.Store.LastUserAt` (cron rows
       ignored): `last human message 3h ago (Mon 2:15 PM)` or `none in this

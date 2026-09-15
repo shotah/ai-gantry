@@ -255,7 +255,8 @@ goldens; read the diff before trusting it.
 
 The `[harness]` header names only the tags present (`location and clock`
 on a memory-off turn; `location, clock, hours, horizon, wakes, surface,
-room, and last contact` on the full board). `[aims]` / `[loops]` carry `(12d
+input, room, and last contact` on the full board, where the Cab Auto
+fixture carries `input: spoken`). `[aims]` / `[loops]` carry `(12d
 ago)` from `updated_at` after the first day, `[loops]` past three weeks add
 `— resolve or memory_forget`, and both say `(+N more — memory_recall …)`
 instead of truncating silently. Rows already on `[aims]` / `[loops]` are

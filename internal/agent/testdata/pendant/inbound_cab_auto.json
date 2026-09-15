@@ -9,6 +9,7 @@
       "lon": -122.3,
       "accuracy_m": 8
     },
-    "surface": "android_auto"
+    "surface": "android_auto",
+    "input": "spoken"
   }
 }
