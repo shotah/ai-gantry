@@ -9,8 +9,15 @@ permissions:
   contents: write
 
 jobs:
+  # Behavior gate: the shipped persona seed against the live model
+  # (docs/evaluation.md). Skips green when the LLM_API_KEY secret is absent.
+  eval:
+    uses: ./.github/workflows/eval.yml
+    secrets: inherit
+
   release:
     name: GoReleaser
+    needs: eval
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

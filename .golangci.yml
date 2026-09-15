@@ -2,6 +2,9 @@ version: "2"
 
 run:
   timeout: 5m
+  # Lint the live eval too (internal/agent/eval_integration_test.go).
+  build-tags:
+    - integration
 
 linters:
   default: none

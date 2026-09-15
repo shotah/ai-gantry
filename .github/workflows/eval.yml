@@ -1,0 +1,49 @@
+name: eval
+
+# Behavioral eval against a live model (docs/evaluation.md, gap 1). Paid, so
+# not on every push: release.yml calls it as a gate on tag push, and it can be
+# run by hand. Needs the LLM_API_KEY repository secret (plus LLM_BASE_URL and
+# LLM_MODEL as repository variables); without them the test skips and the job
+# is green, so a fork without a key still releases.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "Runs per fixture (every run must pass)"
+        default: "3"
+      only:
+        description: "Run only this fixture name (blank = all)"
+        default: ""
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    name: Live model eval
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Eval fixtures against the model
+        env:
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          EVAL_N: ${{ inputs.runs || '3' }}
+          EVAL_ONLY: ${{ inputs.only || '' }}
+        run: |
+          if [ -z "$LLM_API_KEY" ]; then
+            echo "::notice::LLM_API_KEY not set; live eval skipped"
+          fi
+          make integration-test EVAL_ARGS="-eval.n=${EVAL_N} -eval.only=${EVAL_ONLY}"

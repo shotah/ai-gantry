@@ -166,46 +166,78 @@ set of turns with expected tool-call shape or reply class. When a prompt
 string changes (this week: every spark line, and now the persona seed),
 the only gate is "the string contains `[aims]`".
 
-**How, concretely.** The harness already exists.
-`TestPendantInbound_CompleterPayloadFullBoard` seeds memory rows, a cron
-board, tool defs, and a persona, loads an inbound fixture, and runs
-`agent.Handle`. The only reason it is a prompt test and not a behavior
-test is that its `fakeCompleter` answers `ok`. The integration variant:
+**Built** — `internal/agent/eval_harness_test.go` (the world),
+`eval_plumbing_test.go` (harness checks, in `go test ./...`),
+`eval_integration_test.go` (`//go:build integration`, the live run), and
+seven fixtures under `internal/agent/testdata/eval/`. Keys, the GitHub
+secret, and how to read a failure: [eval_setup.md](eval_setup.md).
 
-- **Live model, canned world.** `provider.New(baseURL, apiKey, model)` in
-  place of the fake, key from `.env`. Tools stay fake: a recording
-  `fakeTools` that returns canned results per name (calendar → `[]`,
-  garmin → no activity today) and logs every call with its args. No MCP
-  servers; the model is the only thing on the network.
-- **Assert shape, not prose.** Which tools were called and with what
-  (`cron_schedule` at 14:00 with `memory_id`; `memory_store` subject
-  `pref/calendar`), whether `[wait]` is on its own line, no markdown on a
-  spoken turn, `[silent]` or not. Never the sentence — that is the part
-  that changes run to run.
+```sh
+make integration-test                                   # 3 runs per fixture
+make integration-test EVAL_ARGS='-eval.n=10 -eval.only=scoop_at_2'
+```
+
+- **Live model, canned world.** The same stack as `cmd/gantry/run.go` —
+  real session, memory, cron, `mcp_enable`, and `SELF.md` stores in a temp
+  dir — with `provider.New(LLM_BASE_URL, LLM_API_KEY, LLM_MODEL)` from
+  `.env` and canned MCP tools at the bottom (calendar → `[]`, Garmin → no
+  activity). A recorder wraps the whole composite, so builtins
+  (`cron_schedule`, `memory_store`, `self_note`, `mcp_enable`) and MCP
+  calls are both seen. A call the agent blocks (prefix off, never enabled)
+  never reaches the recorder — the eval counts it as not made, which is
+  the truth the host would see.
+- **Assert shape, not prose.** The fixture `expect` vocabulary:
+  `tools_called` (name + `args_regex`), `tools_not_called`, `order`,
+  `reply_regex` / `reply_not_regex`, `max_questions`, `wait` (did
+  `waiting_for_reply` arm), `silent`, `memory` (a live row by subject; kind
+  optional), `cron_within` (a job lands N–M minutes out), and `any_of` for
+  "cron **or** one offer to ping". Never the sentence — that is the part
+  that changes run to run. A failure prints the calls, the flags, and the
+  reply.
 - **The persona under test is the shipped seed**,
-  `examples/persona/PERSONA.example.md`, not `"You are Kit."`. That is the
-  file being edited; that is the file being gated.
+  `examples/persona/PERSONA.example.md`, loaded through
+  `persona.SyncKernel` + `persona.Load` like boot, with the agent named
+  Kit and the human Sam. That is the file being edited; that is the file
+  being gated.
 - **Fixtures are the scenario table** in
-  [persona_doc_goals.md](persona_doc_goals.md#proposed-scenario-checks),
-  one JSON each under `internal/agent/testdata/eval/`: the inbound (or a
-  spark wake), seed rows, canned tool results, expected calls and markers.
-- **Repeat for confidence.** Each scenario runs `N` times (default 3;
-  `-eval.n=10` when nervous) and must pass every run — a rule that holds
-  two times in three is a rule the persona is not carrying. Temperature 0
-  where the provider allows it.
-- **Never in `go test ./...`.** Build tag `//go:build integration`;
-  `t.Skip` when `LLM_API_KEY` is empty. `make integration-test` sources
-  `.env` and runs it. Seven scenarios × 3 runs × two or three completer
-  rounds is ~50 calls — cents on a Flash-class model, minutes of wall time.
-- **CI: release gate, not PR gate.** The key is a repository secret
-  (GitHub does not hand secrets to fork PRs). The job runs on tag push in
-  `release.yml` and on `workflow_dispatch` — bounded spend, and a release
-  is the moment the answer matters. `ci.yml` keeps running the free
+  [persona_doc_goals.md](persona_doc_goals.md#scenario-checks): scoop at
+  2, get-something-on-it, what's-on-today (empty), off prefix → enable then
+  call, "thanks, sounds good" (with two turns of history), no aims → one
+  question, spark wake with a gym aim and blank Garmin. Each names its
+  `why` in one sentence.
+- **Real clock.** `cron.Tools` parses schedules against `time.Now()`, so
+  the harness clock is not frozen; a fixture says `{{+120m}}` and the
+  runner writes the local clock ("2:00PM") into the inbound, and
+  `cron_within` checks the job against the turn's start.
+- **Repeat for confidence.** Each fixture runs `N` times (default 3) and
+  must pass every run — a rule that holds two times in three is a rule
+  the persona is not carrying. The client has no temperature knob; the
+  provider default is what production gets, so it is what the eval gets.
+- **Never in `go test ./...`.** Build tag `integration`; the test skips
+  unless all three `LLM_*` are set — the same three the binary requires.
+  The Makefile target sources `.env`. Seven fixtures × 3 runs × two or
+  three completer rounds is ~50 calls — cents on a Flash-class model,
+  minutes of wall time. `golangci-lint` lints the tagged file too
+  (`run.build-tags` in `.golangci.yml`).
+- **CI: release gate, not PR gate.** `.github/workflows/eval.yml` is a
+  reusable workflow; `release.yml` calls it and `needs` it before
+  GoReleaser, and it runs by hand with `runs` / `only` inputs. It reads
+  the `LLM_API_KEY` repository **secret** and `LLM_BASE_URL` /
+  `LLM_MODEL` repository **variables** (GitHub does not hand secrets to
+  fork PRs). Without the secret the test skips and the job is green, so a
+  fork without a key still releases. `ci.yml` keeps running the free
   goldens on every push.
 
 Both stay. Goldens are the byte contract (free, every push); the eval is
 the behavior contract (paid, on demand and at release). Hermes and Letta
 export trajectories; neither has the gate either.
+
+What is **not** proven yet: this checkout has no key, so the seven
+fixtures have run only against the scripted completer. The first live
+`make integration-test` is the first real reading of the distilled seed,
+and some expectations will need tuning against what the model actually
+does — that tuning is the point, and it happens in the fixture JSON, not
+in the persona.
 
 ### 2. No authorization layer
 
@@ -415,15 +447,16 @@ Things the comparison could tempt someone to "fix" that are load-bearing:
 
 ## Suggested order
 
-1. Behavioral regression (gap 1) — the persona seed is being rewritten
-   against [persona_doc_goals.md](persona_doc_goals.md), and the only gate
-   on it is string matching. The eval sketched under gap 1 is how that
-   changes: `make integration-test` locally, release-gated in Actions.
-   Build it before the next persona pass.
+1. [x] Behavioral regression (gap 1) — built: `make integration-test`
+   locally, release-gated in Actions. Next: drop a key in `.env`, run it
+   against the distilled seed, and tune the fixtures to what the model
+   actually does before the next persona pass. Add the `LLM_API_KEY`
+   secret and `LLM_BASE_URL` / `LLM_MODEL` variables to the repository so
+   the release gate is live.
 2. Verify `LLM_SYSTEM_FOLD=many` on a Gemma-style local template and put
    `volatile_est_tokens` on the full-board golden so stamp growth has a
    number (gap 3).
 
-That is the list. Two items, none urgent; `ask_first` is declined above.
+That is the list. One item open; `ask_first` is declined above.
 Channels, routers, subagents, skills files, flush turns, and UI stay out.
 They are the other products' shape, not this one's.

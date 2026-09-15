@@ -1,0 +1,44 @@
+{
+  "name": "thanks_sounds_good",
+  "why": "Consent to an offer is the go-ahead: do the thing (event or cron) or ask the next question. Never a bare 'got it'.",
+  "history": [
+    { "role": "user", "text": "can you look at my week?" },
+    { "role": "assistant", "text": "Tuesday and Thursday mornings are open. Want me to block Thursday 7–8 for the gym?" }
+  ],
+  "inbound": "thanks, sounds good",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "force": ["google"],
+  "tools": [
+    {
+      "name": "google__calendar_list_events",
+      "description": "List calendar events for a day. Args: date (YYYY-MM-DD, default today).",
+      "params": { "type": "object", "properties": { "date": { "type": "string", "description": "YYYY-MM-DD; default today" } } },
+      "result": "[]"
+    },
+    {
+      "name": "google__calendar_create_event",
+      "description": "Create a calendar event.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "string" },
+          "start": { "type": "string", "description": "RFC3339" },
+          "end": { "type": "string", "description": "RFC3339" }
+        },
+        "required": ["summary", "start"]
+      },
+      "result": "{\"id\":\"evt_1\",\"status\":\"confirmed\"}"
+    }
+  ],
+  "expect": {
+    "reply_not_regex": "(?i)^\\s*(got it|yes boss|okay|ok|sure|sounds good|will do|done)[.!]*\\s*$",
+    "any_of": [
+      { "tools_called": [{ "name": "google__calendar_create_event" }] },
+      { "tools_called": [{ "name": "cron_schedule" }] },
+      { "reply_regex": "\\?" }
+    ]
+  }
+}

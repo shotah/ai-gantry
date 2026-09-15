@@ -1,0 +1,36 @@
+{
+  "name": "spark_gym_no_workout",
+  "why": "Spark wake with a gym aim and Garmin listed: Garmin is called, not assumed; the nudge is tied to the aim; not [silent].",
+  "spark": "Gym / fitness aim",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month; none yet this week" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "self": "- North-star: show up for the gym three mornings a week. The shoes by the door are the running joke.",
+  "force": ["garmin", "google"],
+  "tools": [
+    {
+      "name": "garmin__activities_list",
+      "description": "Recorded workouts for a date range. Args: start, end (YYYY-MM-DD).",
+      "params": {
+        "type": "object",
+        "properties": {
+          "start": { "type": "string", "description": "YYYY-MM-DD" },
+          "end": { "type": "string", "description": "YYYY-MM-DD" }
+        }
+      },
+      "result": "[]"
+    },
+    {
+      "name": "google__calendar_list_events",
+      "description": "List calendar events for a day. Args: date (YYYY-MM-DD, default today).",
+      "params": { "type": "object", "properties": { "date": { "type": "string", "description": "YYYY-MM-DD; default today" } } },
+      "result": "[]"
+    }
+  ],
+  "expect": {
+    "tools_called": [{ "name": "garmin__activities_list" }],
+    "silent": false,
+    "reply_regex": "(?i)gym|workout|train|lift|shoes|move|session"
+  }
+}

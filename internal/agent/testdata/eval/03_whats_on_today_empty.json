@@ -1,0 +1,39 @@
+{
+  "name": "whats_on_today_empty",
+  "why": "Every listed day-tool called; a real empty day is a hole — ask what goes on it. Never a bare 'nothing today'.",
+  "inbound": "what's on today?",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" },
+    { "kind": "preference", "subject": "pref/food", "content": "loves Thai, not sushi" }
+  ],
+  "force": ["google"],
+  "tools": [
+    {
+      "name": "google__calendar_list_events",
+      "description": "List calendar events for a day. Args: date (YYYY-MM-DD, default today).",
+      "params": { "type": "object", "properties": { "date": { "type": "string", "description": "YYYY-MM-DD; default today" } } },
+      "result": "[]"
+    },
+    {
+      "name": "google__calendar_create_event",
+      "description": "Create a calendar event.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "string" },
+          "start": { "type": "string", "description": "RFC3339" },
+          "end": { "type": "string", "description": "RFC3339" }
+        },
+        "required": ["summary", "start"]
+      },
+      "result": "{\"id\":\"evt_1\",\"status\":\"confirmed\"}"
+    }
+  ],
+  "expect": {
+    "tools_called": [{ "name": "google__calendar_list_events" }],
+    "reply_regex": "\\?",
+    "silent": false,
+    "wait": true
+  }
+}

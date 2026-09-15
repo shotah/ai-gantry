@@ -1,0 +1,38 @@
+{
+  "name": "get_something_on_it",
+  "why": "They taught a loop: memory_store pref/calendar AND run it this turn — ask what goes on today. Never just agree.",
+  "inbound": "If nothing is on my schedule, get something on it.",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "force": ["google"],
+  "tools": [
+    {
+      "name": "google__calendar_list_events",
+      "description": "List calendar events for a day. Args: date (YYYY-MM-DD, default today).",
+      "params": { "type": "object", "properties": { "date": { "type": "string", "description": "YYYY-MM-DD; default today" } } },
+      "result": "[]"
+    },
+    {
+      "name": "google__calendar_create_event",
+      "description": "Create a calendar event.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "string" },
+          "start": { "type": "string", "description": "RFC3339" },
+          "end": { "type": "string", "description": "RFC3339" }
+        },
+        "required": ["summary", "start"]
+      },
+      "result": "{\"id\":\"evt_1\",\"status\":\"confirmed\"}"
+    }
+  ],
+  "expect": {
+    "memory": [{ "subject": "pref/calendar" }],
+    "reply_regex": "\\?",
+    "reply_not_regex": "(?i)^\\s*(got it|yes boss|okay|ok|sure|sounds good|will do)[.!]*\\s*$",
+    "wait": true
+  }
+}

@@ -63,6 +63,7 @@ help: ## Show available targets
 	@echo   make test           Run all tests
 	@echo   make test-verbose   Run tests with -v
 	@echo   make race           Race detector (needs CGO)
+	@echo   make integration-test  Live-model behavior eval (LLM_* in .env; docs/evaluation.md)
 	@echo   make coverage       Write coverage.out + func summary
 	@echo   make coverage-html  HTML report -^> coverage.html
 	@echo   make vet            go vet ./...
@@ -130,6 +131,15 @@ test-verbose: ## Run all tests with -v
 .PHONY: race
 race: ## Run tests with the race detector (requires CGO)
 	CGO_ENABLED=1 go test -race ./...
+
+# Behavioral eval against a live model (docs/evaluation.md). Sources .env for
+# LLM_BASE_URL / LLM_API_KEY / LLM_MODEL; skips when they are unset. Fixtures:
+# internal/agent/testdata/eval. EVAL_ARGS='-eval.n=10 -eval.only=scoop_at_2'.
+EVAL_ARGS ?=
+.PHONY: integration-test
+integration-test: ## Live-model behavior eval (needs LLM_* in .env; POSIX shell)
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+	go test -tags integration -run '^TestEval_Live$$' -count=1 -v ./internal/agent/ $(EVAL_ARGS)
 
 .PHONY: coverage
 coverage: ## Write coverage.out for ./internal/... ./cmd/... ./examples/... (matches CI badge)

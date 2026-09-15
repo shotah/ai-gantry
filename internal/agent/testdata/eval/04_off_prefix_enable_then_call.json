@@ -1,0 +1,24 @@
+{
+  "name": "off_prefix_enable_then_call",
+  "why": "A prefix listed off is mcp_enable this turn, then the call — same turn. No bluffing a tool that is off.",
+  "inbound": "what's on my calendar today?",
+  "memory": [
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "tools": [
+    {
+      "name": "google__calendar_list_events",
+      "description": "List calendar events for a day. Args: date (YYYY-MM-DD, default today).",
+      "params": { "type": "object", "properties": { "date": { "type": "string", "description": "YYYY-MM-DD; default today" } } },
+      "result": "[{\"summary\":\"Sprint planning\",\"start\":\"14:30\",\"end\":\"15:30\"},{\"summary\":\"Dentist\",\"start\":\"17:00\",\"end\":\"17:45\"}]"
+    }
+  ],
+  "expect": {
+    "tools_called": [
+      { "name": "mcp_enable", "args_regex": "google" },
+      { "name": "google__calendar_list_events" }
+    ],
+    "order": ["mcp_enable", "google__calendar_list_events"],
+    "reply_regex": "(?i)sprint|dentist"
+  }
+}

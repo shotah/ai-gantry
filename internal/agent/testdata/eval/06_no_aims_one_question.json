@@ -1,0 +1,14 @@
+{
+  "name": "no_aims_one_question",
+  "why": "No aim/ row and no [aims] line: ONE months-scale question. Not a task menu, not [silent].",
+  "inbound": "hey",
+  "memory": [
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "expect": {
+    "silent": false,
+    "reply_regex": "\\?",
+    "max_questions": 1,
+    "wait": true
+  }
+}

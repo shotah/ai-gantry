@@ -213,26 +213,34 @@ bullet (quote the joke), not an example. Spark is kernel.
    `cron_list` → `cron_schedule` 14:00 (`follow/` + `memory_id`), or ask once
    “ping you at 2?” Never list 2:00 as chat-only.
 
-## Proposed: scenario checks
+## Scenario checks
 
-What “pinned” means. Replay against a live crane before and after the
-distill; the transcript is the check. (The prompt goldens in
-`prompt_payload_test.go` pin what the model **sees**, not what it does — so
-this is a transcript check, by hand first.)
+What “pinned” means. Each row is a fixture under
+`internal/agent/testdata/eval/`, replayed against the live model with the
+shipped seed by `make integration-test` — how it works is in
+[evaluation.md](evaluation.md#1-no-behavioral-regression-suite). The check
+is shape (tools called, `[wait]` armed, a row stored, a job on the board),
+never the sentence. (The prompt goldens in `prompt_payload_test.go` pin
+what the model **sees**, not what it does.)
 
-| Send | Must see in the turn |
-| --- | --- |
-| “Sprint is 2:30; take the scoop at 2.” | Calendar update **and** `cron_schedule` 14:00 with `memory_id`, or one “ping you at 2?” Not 2:00 as chat only. |
-| “If nothing is on my schedule, get something on it.” | `memory_store` `pref/calendar` **and** a question about today, same turn. |
-| “what's on today?” with an empty calendar | Every listed day-tool + recall in one response, then a question about what goes on the day. Not “nothing today.” |
-| Any question the agent asks | `[wait]` on its own line; poke at 2 min and 15 min; nothing after. |
-| Ask that needs a prefix listed off | `mcp_enable` then the call, same turn. |
-| “thanks, sounds good” | A next question or a tool. Not a bare “got it.” |
-| A joke lands / they reveal a ritual | `self_note` that turn, exact wording. |
-| No `aim/` row, no `[aims]` line | One months-scale question. Not a task menu, not `[silent]`. |
-| Spark wake; `aim/weight` = lose 20 lbs; dinner out on today's calendar | Calendar **and** aims read; the nudge is tied to the aim (a meal thought), not a generic check-in. |
-| Spark wake, morning; `aim/gym`; Garmin listed and shows no workout today | Garmin **called**, not assumed; nudge tied to the aim; short joke, not a lecture. Calendar alone is not enough here. |
-| “I need to be in Denver on the 14th.” | Flight search called or offered **this turn**; event on the calendar; `follow/` + cron if a booking is pending. Not “let me know when you want me to look.” |
+| Send | Must see in the turn | Fixture |
+| --- | --- | --- |
+| “Sprint is 2:30; take the scoop at 2.” | Calendar update **and** `cron_schedule` 14:00 with `memory_id`, or one “ping you at 2?” Not 2:00 as chat only. | `01_scoop_at_2` (relative clock: `{{+120m}}`) |
+| “If nothing is on my schedule, get something on it.” | `memory_store` `pref/calendar` **and** a question about today, same turn. | `02_get_something_on_it` |
+| “what's on today?” with an empty calendar | Every listed day-tool + recall in one response, then a question about what goes on the day. Not “nothing today.” | `03_whats_on_today_empty` |
+| Any question the agent asks | `[wait]` on its own line; poke at 2 min and 15 min; nothing after. | `wait: true` in 02, 03, 06 |
+| Ask that needs a prefix listed off | `mcp_enable` then the call, same turn. | `04_off_prefix_enable_then_call` |
+| “thanks, sounds good” | A next question or a tool. Not a bare “got it.” | `05_thanks_sounds_good` |
+| A joke lands / they reveal a ritual | `self_note` that turn, exact wording. | — |
+| No `aim/` row, no `[aims]` line | One months-scale question. Not a task menu, not `[silent]`. | `06_no_aims_one_question` |
+| Spark wake; `aim/weight` = lose 20 lbs; dinner out on today's calendar | Calendar **and** aims read; the nudge is tied to the aim (a meal thought), not a generic check-in. | — |
+| Spark wake, morning; `aim/gym`; Garmin listed and shows no workout today | Garmin **called**, not assumed; nudge tied to the aim; short joke, not a lecture. Calendar alone is not enough here. | `07_spark_gym_no_workout` |
+| “I need to be in Denver on the 14th.” | Flight search called or offered **this turn**; event on the calendar; `follow/` + cron if a booking is pending. Not “let me know when you want me to look.” | — |
+
+The three without a fixture are next: `self_note` on a landed joke needs
+an `expect` that reads `SELF.md`; the weight/dinner spark and the Denver
+flight need canned tools that do not exist yet (a search, a flights MCP).
+A fixture is one JSON file; add the row, add the file.
 
 ## Candidates to cut (repetition only)
 
@@ -258,7 +266,9 @@ Target after distill: **2–4k characters**, three examples, one closer.
 
 ## Order of work
 
-1. Run the scenario checks against the current persona — record what passes.
+1. [x] Build the scenario checks — `make integration-test` (fixtures above).
+   Run it against the distilled seed with a key in `.env` and record what
+   passes; tune the fixture `expect` to what the model actually does.
 2. [x] Distill `examples/persona/PERSONA.example.md`; copy to
    `examples/native/persona/` and the Gantree template in the same change.
    Landed at ~5.6k characters (from 5.7k): the **Goals** section is new, and
@@ -267,6 +277,7 @@ Target after distill: **2–4k characters**, three examples, one closer.
    catalog. The Gantree seed tests pin the load-bearing phrases
    (`pref/hours`, `pref/calendar`, `yes boss`, `Prefer parallel tool calls`)
    and caught three of them slipping during the trim — keep those tests.
-3. Re-run the scenario checks (Gantree **Replace from template** on a test
-   crane). Anything that regressed goes back in.
+3. Re-run `make integration-test` after every seed edit (and Gantree
+   **Replace from template** on a test crane for the live feel). Anything
+   that regressed goes back in.
 4. [x] `docs/persona.md` “Shape that works” points here for the why.
