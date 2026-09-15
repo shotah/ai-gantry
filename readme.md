@@ -137,7 +137,7 @@ The agent does not care which vendor you picked. Set these three and restart:
 | Ollama on Linux | **[examples/native/](examples/native/)** · [deploy-native](docs/deploy-native.md) |
 
 ```bash
-# examples/docker/.env — xAI, for instance
+# examples/docker/.env — Gemini spelled out, for instance
 LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
 LLM_API_KEY=...
 LLM_MODEL=gemini-3.5-flash
@@ -186,17 +186,33 @@ like someone after a long chat, then `/new` wipes them.
 
 | File | Who writes it |
 | --- | --- |
-| `PERSONA.md` | You — who it should be, who you are, harness-builtin policy |
+| `PERSONA.md` | You — who it should be, who you are (name, timezone, languages), what you are aiming at |
 | `SELF.md` | The agent — voice, jokes, rituals, a few north-star aims that survive `/new` (you can delete any line) |
 
 MCP tools are **not** listed in `PERSONA.md`. They come from the live catalog
 (`/tools`, this turn's schemas, `[mcp prefixes]`). Keep `PERSONA.md` short
-(2–4k characters, examples over rule dumps) or the middle of it gets ignored.
-Progress logs and dated to-dos are memory / cron, not persona.
+(examples over rule dumps) or the middle of it gets ignored. Progress logs
+and dated to-dos are memory / cron, not persona.
+
+The shipped seed is built around **goals**: you name the aim, the agent
+nudges toward it where today's tools disagree with it, does the legwork
+(the flight, the event, the reminder) the same turn, and treats an empty
+day as a hole to fill — not "nothing today."
 
 How to write one: **[docs/persona.md](docs/persona.md)**.
-Horizon split: **[docs/persona.md](docs/persona.md#where-the-horizon-lives)**.
+The rules behind the seed: **[docs/persona_doc_goals.md](docs/persona_doc_goals.md)**.
 `SELF.md` drift: **[docs/troubleshooting.md](docs/troubleshooting.md#selfmd--personality-drift)**.
+
+### Tested two ways
+
+| Contract | What it pins | Runs |
+| --- | --- | --- |
+| **Goldens** | The bytes the model sees — pendant JSON → `Handle` → Completer request → HTTP body, every `[harness]` stamp, on the OpenAI *and* Gemini layouts | `go test ./...`, every push, free |
+| **Behavior eval** | What the model *did* with the shipped seed on a live model — tools called and their args, `[wait]` armed, `[silent]` or not, the memory row, the cron job. Never the sentence | `make integration-test`, release gate, paid |
+
+Seven scenarios from the goals doc, N runs each, every run must pass; a
+rule that holds two times in three is a rule the persona is not carrying.
+Setup: **[docs/eval_setup.md](docs/eval_setup.md)**.
 
 ---
 

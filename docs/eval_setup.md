@@ -1,6 +1,6 @@
 # Eval setup
 
-> Why it exists: [evaluation.md](evaluation.md#1-no-behavioral-regression-suite) ·
+> Why it exists: [evaluation.md](evaluation.md#1-behavioral-regression-closed) ·
 > What it checks: [persona_doc_goals.md](persona_doc_goals.md#scenario-checks) ·
 > Fixtures: `internal/agent/testdata/eval/`
 
@@ -39,8 +39,10 @@ is canned.
    ```
 
    The target sources `.env`, then runs `go test -tags integration` on
-   `TestEval_Live`. Seven fixtures × 3 runs × two or three completer rounds
-   is ~50 calls — cents on a Flash-class model, a few minutes of wall time.
+   `TestEval_Live`. A turn is ~15 s on a Flash-class model: seven fixtures
+   × 3 runs is ~5 minutes, × 10 is ~20. The target passes
+   `-timeout $(EVAL_TIMEOUT)` (default `120m`) because Go's default 10 m
+   kills a long run mid-fixture with `panic: test timed out`.
 
    Without the three values it does not fail, it skips:
 
@@ -54,10 +56,11 @@ is canned.
    ```sh
    make integration-test EVAL_ARGS='-eval.only=scoop_at_2'          # one fixture
    make integration-test EVAL_ARGS='-eval.n=10'                     # nervous
-   make integration-test EVAL_ARGS='-eval.n=1 -eval.only=no_aims_one_question'
+   make integration-test EVAL_ARGS='-eval.n=3 -eval.only=no_aims_one_question,spark_gym_no_workout'
    ```
 
-   `-eval.only` takes the fixture `name` (the JSON field, not the file name).
+   `-eval.only` takes fixture `name`s (the JSON field, not the file name),
+   comma-separated.
 
    Windows: the target is POSIX shell. Set the three variables in the
    session and run the `go test` line from the Makefile directly.

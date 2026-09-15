@@ -24,7 +24,8 @@ jobs:
   eval:
     name: Live model eval
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # ~15s a turn; 7 fixtures x 3 runs is ~5min, x 10 is ~20min.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:

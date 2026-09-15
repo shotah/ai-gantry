@@ -5,7 +5,7 @@ package agent_test
 // Live behavioral eval — docs/evaluation.md gap 1. Never in `go test ./...`:
 //
 //	make integration-test              # sources .env, 3 runs per fixture
-//	make integration-test EVAL_ARGS='-eval.n=10 -eval.only=scoop_at_2'
+//	make integration-test EVAL_ARGS='-eval.n=10 -eval.only=scoop_at_2,spark_gym_no_workout'
 //
 // Each fixture under testdata/eval runs N times against the configured model
 // with the shipped persona seed and canned tools; every run must pass. A rule
@@ -15,6 +15,7 @@ import (
 	"context"
 	"flag"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -24,8 +25,22 @@ import (
 
 var (
 	evalN    = flag.Int("eval.n", 3, "runs per fixture; every run must pass")
-	evalOnly = flag.String("eval.only", "", "run only the fixture with this name")
+	evalOnly = flag.String("eval.only", "", "comma-separated fixture names to run (default all)")
 )
+
+// evalSelected parses -eval.only; nil means every fixture.
+func evalSelected() []string {
+	if *evalOnly == "" {
+		return nil
+	}
+	var names []string
+	for _, n := range strings.Split(*evalOnly, ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			names = append(names, n)
+		}
+	}
+	return names
+}
 
 // evalTurnTimeout bounds one turn (two or three completer rounds).
 const evalTurnTimeout = 3 * time.Minute
@@ -38,8 +53,9 @@ func TestEval_Live(t *testing.T) {
 	completer := provider.New(baseURL, apiKey, model)
 	t.Logf("model %s at %s; %d run(s) per fixture", model, baseURL, *evalN)
 
+	selected := evalSelected()
 	for _, fx := range loadEvalFixtures(t, evalFixtureDir) {
-		if *evalOnly != "" && fx.Name != *evalOnly {
+		if selected != nil && !slices.Contains(selected, fx.Name) {
 			continue
 		}
 		t.Run(fx.Name, func(t *testing.T) {

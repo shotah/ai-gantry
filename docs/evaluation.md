@@ -1,6 +1,7 @@
 # Harness evaluation
 
-*Authored by Claude Fable 5.1 (Anthropic), working in Cursor, 2026-09-14.
+*Authored by Claude Fable 5.1 (Anthropic), working in Cursor, 2026-09-14;
+revised 2026-09-15 after the behavioral eval landed and first ran live.
 The opinions below — including the verdict — are the model's, not the
 maintainer's. The maintainer supplied corrections where the first draft
 misread a design choice; those are noted in place.*
@@ -62,11 +63,13 @@ five things the others mostly leave to the model — or do not do at all:
    comparator gives the agent control of the client it is talked to in.
 
 The cost of that discipline: no authorization layer beyond the allowlist
-and the manifest, no behavioral regression suite (goldens pin bytes, not
-what the model did), one model per process, and a harness stamp that is
-now eight tags and needs watching. Those are the gaps below. Channel
-breadth, skills files, a synthesized user model, memory auto-save, and
-voice are *not* gaps; they are declined, and the reasons hold.
+and the manifest, one model per process, a harness stamp that is now
+eight tags and needs watching, and a behavior gate that costs money to
+run — so it gates releases, not pull requests. Those are the gaps below;
+the behavioral one was open when this was first written and is closed
+now. Channel breadth, skills files, a synthesized user model, memory
+auto-save, and voice are *not* gaps; they are declined, and the reasons
+hold.
 
 **Verdict (the model's, per the byline):** best-in-class at *harness-side
 context*, at running well on weak models, and at keeping the tool catalog
@@ -97,7 +100,7 @@ anyone who wants the agent to author its own tooling.
 | Security / authorization | **Thin** | Allowlist + manifest-is-grant. No per-tool approval; ask-first is prompt text. |
 | Ops surface | **Strong for one box** | No inbound port, Distroless, `gantry status` heartbeat, chat is the console, `/auth` headless OAuth. Fleet ops is gantree, not here. |
 | Multi-model / multi-agent | **Absent by design** | No router, no fallback, no subagents. One process = one brain. |
-| Behavioral regression | **Missing** | Goldens pin prompt bytes. Nothing replays a turn and asserts tool-call shape or reply class. |
+| Behavioral regression | **Good** | Seven scenario fixtures replayed against the shipped seed on the live model; shape asserted (tools, args, `[wait]`, `[silent]`, rows, jobs), every run must pass. Release gate and on demand, not per push — it is paid. Three table rows still unfixtured. |
 | Token accounting | **Okay** | chars/4 estimates plus native `usage` when sent. `/tokens` catches fat schemas, not billing. |
 
 ---
@@ -155,89 +158,63 @@ that cites a non-host tool name as an anti-pattern.
 
 ## Where gantry is behind
 
-Ranked by how much a user would feel it.
+Ranked by how much a user would feel it. The first was the widest when
+this was written and is closed; it stays here for the record and because
+its limits are worth knowing.
 
-### 1. No behavioral regression suite
+### 1. Behavioral regression (closed)
 
-The goldens are the best prompt-bytes contract in the category. They say
-nothing about what the model *did*. `/perf` records iterations, batch
-size, recoveries per turn — in memory, in the log. There is no fixture
-set of turns with expected tool-call shape or reply class. When a prompt
-string changes (this week: every spark line, and now the persona seed),
-the only gate is "the string contains `[aims]`".
+The goldens are the best prompt-bytes contract in the category, and they
+say nothing about what the model *did*. Until this week the only gate on
+a prompt change was "the string contains `[aims]`" — while every spark
+line and the persona seed itself were being rewritten.
 
-**Built** — `internal/agent/eval_harness_test.go` (the world),
-`eval_plumbing_test.go` (harness checks, in `go test ./...`),
-`eval_integration_test.go` (`//go:build integration`, the live run), and
-seven fixtures under `internal/agent/testdata/eval/`. Keys, the GitHub
-secret, and how to read a failure: [eval_setup.md](eval_setup.md).
+What closed it is a second, paid contract beside the free one. Each row
+of the scenario table in
+[persona_doc_goals.md](persona_doc_goals.md#scenario-checks) is a fixture:
+one turn — a human message or a real spark wake — against the **shipped
+seed**, with the production store stack in a temp dir and canned MCP
+tools, the live model the only thing on the network. The check is shape,
+never prose: which tools were called and with what, whether `[wait]`
+armed, whether the turn went `[silent]`, which memory row and which cron
+job landed. A call the agent blocks (prefix off, never enabled) counts as
+never made, which is what the host would have seen. Every fixture runs N
+times and every run must pass, because a rule that holds two times in
+three is a rule the persona is not carrying. It runs on demand and as
+the job in front of GoReleaser on a tag; never on a pull request, because
+it costs money and forks do not get the secret. The setup and how to read
+a failure are in [eval_setup.md](eval_setup.md).
 
-```sh
-make integration-test                                   # 3 runs per fixture
-make integration-test EVAL_ARGS='-eval.n=10 -eval.only=scoop_at_2'
-```
+First live reading (`gemini-3.6-flash`): every run that ran, passed. The
+scoop and the "thanks, sounds good" scenarios held ten for ten; the three
+between them showed no failure in the windows seen before Go's default
+ten-minute test timeout cut the run (the Makefile now sets its own); the
+two that never got a turn — no aims, and the gym spark — then held three
+for three. The shapes are the part worth reading. On the scoop the
+model's own order every time was `cron_list → memory_store → calendar
+event → cron_schedule` — check the board, store the follow, put the
+sprint on the calendar, set the wake — when the fixture only demanded the
+reminder. Off prefix went `memory_recall → mcp_enable → calendar` without
+being told which came first. The spark called Garmin on every wake, in
+either order with the calendar, and was never silent. "Hey" with no aim
+on the board got one question, once with no tool at all. That is the
+distilled seed carrying its rules, measured instead of felt.
 
-- **Live model, canned world.** The same stack as `cmd/gantry/run.go` —
-  real session, memory, cron, `mcp_enable`, and `SELF.md` stores in a temp
-  dir — with `provider.New(LLM_BASE_URL, LLM_API_KEY, LLM_MODEL)` from
-  `.env` and canned MCP tools at the bottom (calendar → `[]`, Garmin → no
-  activity). A recorder wraps the whole composite, so builtins
-  (`cron_schedule`, `memory_store`, `self_note`, `mcp_enable`) and MCP
-  calls are both seen. A call the agent blocks (prefix off, never enabled)
-  never reaches the recorder — the eval counts it as not made, which is
-  the truth the host would see.
-- **Assert shape, not prose.** The fixture `expect` vocabulary:
-  `tools_called` (name + `args_regex`), `tools_not_called`, `order`,
-  `reply_regex` / `reply_not_regex`, `max_questions`, `wait` (did
-  `waiting_for_reply` arm), `silent`, `memory` (a live row by subject; kind
-  optional), `cron_within` (a job lands N–M minutes out), and `any_of` for
-  "cron **or** one offer to ping". Never the sentence — that is the part
-  that changes run to run. A failure prints the calls, the flags, and the
-  reply.
-- **The persona under test is the shipped seed**,
-  `examples/persona/PERSONA.example.md`, loaded through
-  `persona.SyncKernel` + `persona.Load` like boot, with the agent named
-  Kit and the human Sam. That is the file being edited; that is the file
-  being gated.
-- **Fixtures are the scenario table** in
-  [persona_doc_goals.md](persona_doc_goals.md#scenario-checks): scoop at
-  2, get-something-on-it, what's-on-today (empty), off prefix → enable then
-  call, "thanks, sounds good" (with two turns of history), no aims → one
-  question, spark wake with a gym aim and blank Garmin. Each names its
-  `why` in one sentence.
-- **Real clock.** `cron.Tools` parses schedules against `time.Now()`, so
-  the harness clock is not frozen; a fixture says `{{+120m}}` and the
-  runner writes the local clock ("2:00PM") into the inbound, and
-  `cron_within` checks the job against the turn's start.
-- **Repeat for confidence.** Each fixture runs `N` times (default 3) and
-  must pass every run — a rule that holds two times in three is a rule
-  the persona is not carrying. The client has no temperature knob; the
-  provider default is what production gets, so it is what the eval gets.
-- **Never in `go test ./...`.** Build tag `integration`; the test skips
-  unless all three `LLM_*` are set — the same three the binary requires.
-  The Makefile target sources `.env`. Seven fixtures × 3 runs × two or
-  three completer rounds is ~50 calls — cents on a Flash-class model,
-  minutes of wall time. `golangci-lint` lints the tagged file too
-  (`run.build-tags` in `.golangci.yml`).
-- **CI: release gate, not PR gate.** `.github/workflows/eval.yml` is a
-  reusable workflow; `release.yml` calls it and `needs` it before
-  GoReleaser, and it runs by hand with `runs` / `only` inputs. It reads
-  the `LLM_API_KEY` repository **secret** and `LLM_BASE_URL` /
-  `LLM_MODEL` repository **variables** (GitHub does not hand secrets to
-  fork PRs). Without the secret the test skips and the job is green, so a
-  fork without a key still releases. `ci.yml` keeps running the free
-  goldens on every push.
+Its limits. One model is one reading — the gate is on whatever is in
+`.env`, and a Gemma-class local model would need its own pass and
+probably its own tolerances. Three table rows have no fixture (a landed
+joke → `self_note`; the weight/dinner spark; the Denver flight) because
+they need an expectation that reads `SELF.md`, or canned search and
+flights tools that do not exist. The client has no temperature knob, so
+variance is the provider's default — which is also what production gets.
+And the harness had one bug on its first outing: it opened `gantry.db`
+twice and parallel tool batches fought over the write lock, a
+`SQLITE_BUSY` the product never sees; it now shares the one handle like
+`run.go`.
 
-Both stay. Goldens are the byte contract (free, every push); the eval is
-the behavior contract (paid, on demand and at release). Hermes and Letta
-export trajectories; neither has the gate either.
-
-What is **not** proven yet: this checkout has no key, so the seven
-fixtures have run only against the scripted completer. The first live
-`make integration-test` is the first real reading of the distilled seed,
-and some expectations will need tuning against what the model actually
-does — that tuning is the point, and it happens in the fixture JSON, not
-in the persona.
+Goldens are the byte contract, free on every push; the eval is the
+behavior contract, paid at release. Hermes and Letta export trajectories;
+neither has the gate.
 
 ### 2. No authorization layer
 
@@ -246,11 +223,13 @@ Manifest membership is the grant; an allowlisted phone with tools mounted
 posts" is prompt text. OpenClaw's pitch is "trusted gateway, untrusted
 execution, deterministic policy"; Hermes ships approval and authorization
 for tools. Gantry has cost controls (result truncation, iteration cap),
-not permission controls. The smallest useful step: an `ask_first` list in
-`mcp.toml` whose tools return a harness-side `[confirm]` prompt on the
-first call and run only on the human's next turn. It fits the existing
-shape — `guardEnable` already intercepts every call before the host sees
-it. Declined — [why](#tool-call-confirmation-ask_first).
+not permission controls. The smallest step that would close it is an
+`ask_first` list in `mcp.toml` whose tools return a harness-side
+`[confirm]` prompt on the first call and run only on the human's next
+turn; it fits the existing shape, since `guardEnable` already intercepts
+every call before the host sees it. It is declined all the same —
+[why](#tool-call-confirmation-ask_first) — so this stays a known cost, not
+a plan.
 
 ### 3. Harness stamp cost and template coverage
 
@@ -445,18 +424,12 @@ Things the comparison could tempt someone to "fix" that are load-bearing:
 
 ---
 
-## Suggested order
+## What is left
 
-1. [x] Behavioral regression (gap 1) — built: `make integration-test`
-   locally, release-gated in Actions. Next: drop a key in `.env`, run it
-   against the distilled seed, and tune the fixtures to what the model
-   actually does before the next persona pass. Add the `LLM_API_KEY`
-   secret and `LLM_BASE_URL` / `LLM_MODEL` variables to the repository so
-   the release gate is live.
-2. Verify `LLM_SYSTEM_FOLD=many` on a Gemma-style local template and put
-   `volatile_est_tokens` on the full-board golden so stamp growth has a
-   number (gap 3).
-
-That is the list. One item open; `ask_first` is declined above.
-Channels, routers, subagents, skills files, flush turns, and UI stay out.
-They are the other products' shape, not this one's.
+One thing of substance: `LLM_SYSTEM_FOLD=many` has not been verified on a
+Gemma-style local template, and the full-board golden does not carry
+`volatile_est_tokens`, so stamp growth is a feeling rather than a number
+(gap 3). Everything else above is closed, declined with its reason
+attached, or a seam small enough to live in [todo.md](todo.md). Channels,
+routers, subagents, skills files, flush turns, and UI stay out; they are
+the other products' shape, not this one's.

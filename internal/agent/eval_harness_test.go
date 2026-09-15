@@ -324,21 +324,23 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 	}
 	personaText := evalPersona(t, personaDir)
 
-	mem, err := memory.Open(dataDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = mem.Close() })
-	for _, row := range fx.Memory {
-		if _, err := mem.Store(ctx, row.Kind, row.Subject, row.Content); err != nil {
-			t.Fatalf("seed memory %s/%s: %v", row.Kind, row.Subject, err)
-		}
-	}
+	// One gantry.db handle for every store, as run.go does. A second handle
+	// on the same file (memory.Open) makes a parallel tool batch fight over
+	// the write lock — SQLITE_BUSY that production never sees.
 	sessions, err := session.Open(dataDir, 50, 100000)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = sessions.Close() })
+	mem, err := memory.OpenDB(sessions.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range fx.Memory {
+		if _, err := mem.Store(ctx, row.Kind, row.Subject, row.Content); err != nil {
+			t.Fatalf("seed memory %s/%s: %v", row.Kind, row.Subject, err)
+		}
+	}
 	jobs, err := cron.OpenDB(sessions.DB(), 50)
 	if err != nil {
 		t.Fatal(err)
