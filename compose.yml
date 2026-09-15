@@ -17,6 +17,7 @@ services:
     env_file: .env
     environment:
       CHANNEL: telegram
+      HOME: /data
       PERSONA_DIR: /persona
       DATA_DIR: /data
       MCP_MANIFEST: /etc/gantry/mcp.toml

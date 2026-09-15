@@ -1,5 +1,10 @@
 # Harness evaluation
 
+*Authored by Claude Fable 5.1 (Anthropic), working in Cursor, 2026-09-14.
+The opinions below — including the verdict — are the model's, not the
+maintainer's. The maintainer supplied corrections where the first draft
+misread a design choice; those are noted in place.*
+
 An honest read of `gantry` as an AI harness — what it is good at, where it
 is thin, and how it sits next to the other self-hosted personal-agent
 harnesses people actually run in 2026. Written from the tree, the test
@@ -63,8 +68,9 @@ now eight tags and needs watching. Those are the gaps below. Channel
 breadth, skills files, a synthesized user model, memory auto-save, and
 voice are *not* gaps; they are declined, and the reasons hold.
 
-**Verdict:** best-in-class at *harness-side context*, at running well on
-weak models, and at keeping the tool catalog cheap; deliberately behind on
+**Verdict (the model's, per the byline):** best-in-class at *harness-side
+context*, at running well on weak models, and at keeping the tool catalog
+cheap among the comparators read above; deliberately behind on
 breadth (channels, UI, multi-agent). Right choice for one person, one
 mouth, one brain on a hardened small box, with a phone and a car screen
 the agent can make its own. Wrong choice for a team, a shared gateway, or

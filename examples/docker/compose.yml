@@ -46,8 +46,8 @@ services:
       - ./data:/data
       # Yard-wide corkboard (boards-mcp). Same host dir on every crane.
       # - ./boards:/boards
-      # Optional tool secrets:
-      # - ./secrets/google-mcp:/data/.config/google-mcp
+      # Optional tool secrets (google-mcp writes $DATA_DIR/.google_workspace_mcp, not .config/):
+      # - ./secrets/google-mcp:/data/.google_workspace_mcp
       # - ./secrets/strava:/data/.config/strava
       # - ./secrets/garmin:/data/.config/garmin
       # - ./data/.config/youtube:/data/.config/youtube
