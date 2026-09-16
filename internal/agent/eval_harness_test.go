@@ -172,7 +172,11 @@ type evalOutcome struct {
 	Rounds           int
 	PromptTokens     int // native usage summed over rounds; 0 when the provider omits it
 	CompletionTokens int
-	mem              memory.Memory
+	// Given is everything the model was handed besides tool results: the
+	// turn text, seeded memory, history, SELF.md. A "$2,400" that restates
+	// the human's own budget is not invented.
+	Given string
+	mem   memory.Memory
 }
 
 func loadEvalFixtures(t *testing.T, dir string) []evalFixture {
@@ -600,8 +604,27 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		Rounds:           counter.round(),
 		PromptTokens:     counter.usage.PromptTokens,
 		CompletionTokens: counter.usage.CompletionTokens,
+		Given:            evalGiven(fx, text),
 		mem:              mem,
 	}
+}
+
+// evalGiven joins the non-tool inputs of a turn for inventedPrices.
+func evalGiven(fx evalFixture, text string) string {
+	var b strings.Builder
+	b.WriteString(text)
+	b.WriteByte('\n')
+	b.WriteString(fx.Self)
+	b.WriteByte('\n')
+	for _, m := range fx.Memory {
+		b.WriteString(m.Content)
+		b.WriteByte('\n')
+	}
+	for _, h := range fx.History {
+		b.WriteString(h.Text)
+		b.WriteByte('\n')
+	}
+	return b.String()
 }
 
 // checkEval returns one line per failed expectation. Empty means pass.
@@ -661,8 +684,8 @@ func checkEval(ctx context.Context, out evalOutcome, want evalExpect) []string {
 		fails = append(fails, fmt.Sprintf("silent=%v, want %v", out.Silent, *want.Silent))
 	}
 	if want.PricesFromTools != nil && *want.PricesFromTools {
-		for _, p := range inventedPrices(reply, out.Calls) {
-			fails = append(fails, "invented price $"+p+" (in no tool result)")
+		for _, p := range inventedPrices(reply, out) {
+			fails = append(fails, "invented price $"+p+" (in no tool result or input)")
 		}
 	}
 	for _, m := range want.Memory {
@@ -712,15 +735,17 @@ func calledMatching(calls []evalCall, c evalCallExpect) bool {
 var evalPriceRe = regexp.MustCompile(`\$\s?(\d[\d,]*(?:\.\d+)?)`)
 
 // inventedPrices returns the "$N" figures in reply whose digits appear in
-// no tool result. Commas are ignored on both sides ($2,295 vs 2295).
-func inventedPrices(reply string, calls []evalCall) []string {
+// no tool result and nowhere in the turn's inputs (out.Given). Commas are
+// ignored on both sides ($2,295 vs 2295).
+func inventedPrices(reply string, out evalOutcome) []string {
 	var results strings.Builder
-	for _, c := range calls {
+	for _, c := range out.Calls {
 		results.WriteString(strings.ReplaceAll(c.Result, ",", ""))
 		results.WriteByte('\n')
 	}
+	results.WriteString(strings.ReplaceAll(out.Given, ",", ""))
 	haystack := results.String()
-	var out []string
+	var invented []string
 	seen := map[string]bool{}
 	for _, m := range evalPriceRe.FindAllStringSubmatch(reply, -1) {
 		raw := m[1]
@@ -730,9 +755,9 @@ func inventedPrices(reply string, calls []evalCall) []string {
 			continue
 		}
 		seen[digits] = true
-		out = append(out, raw)
+		invented = append(invented, raw)
 	}
-	return out
+	return invented
 }
 
 func countMatching(calls []evalCall, c evalCallExpect) int {

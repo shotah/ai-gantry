@@ -154,7 +154,7 @@ sequenceDiagram
     A->>M: Hydrate(query, ~30)
     A->>A: assemble system blocks + history + user
     loop until final text (at TOOL_MAX_ITERATIONS a no-tools landing call forces one)
-      A->>A: collapse tool results older than last 2 (and stub their args)
+      A->>A: collapse tool results from rounds older than the last 2 (and stub their args)
       A->>L: Complete(messages, tool schemas)
       alt tool_calls (one parallel batch)
         loop concurrent batch (results stay in call order)

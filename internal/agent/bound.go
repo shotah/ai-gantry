@@ -7,66 +7,71 @@ import (
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
-// keepRecentToolResults is how many trailing tool payloads stay in full.
-// Older tool results collapse to a one-line marker (readme §5 bounding rules).
-// Search-heavy MCPs (flights/rentals/cars) re-send results each iteration, so
-// keeping 2 (not 4) cuts in-turn prefill without losing the latest evidence.
-const keepRecentToolResults = 2
+// keepRecentToolRounds is how many trailing tool rounds — one model-emitted
+// batch each — keep their payloads in full. Older rounds collapse to a
+// one-line marker (readme §5 bounding rules). The unit is the round, not the
+// payload: a model that asks three things at once — two flight dates and the
+// calendar, as the persona's "prefer parallel tool calls" invites — has to
+// see all three answers next round. Counting payloads (and squeezing
+// same-name results to the newest) hid the first one behind a "[truncated]"
+// stub before it was ever read, and the model did the only sensible things:
+// searched again (a paid call, paid twice) or filled the hole in with a fare
+// no tool returned. Search-heavy MCPs (flights/rentals/cars) re-send results
+// each iteration, so 2 rounds (not 4) still bounds in-turn prefill.
+const keepRecentToolRounds = 2
 
 // collapsedToolArgs is the stub left on aging assistant tool-call arguments.
 // Name and id stay so the provider can pair the collapsed result.
 const collapsedToolArgs = "{}"
 
-// collapseOldToolResults shortens tool payloads older than the recent window
-// and stubs the matching assistant tool-call argument JSON. Within the window,
-// older results that share a tool name with a newer one are also collapsed so
-// repeated flights__offers_search calls do not stack.
+// collapseOldToolResults shortens tool payloads from rounds older than the
+// recent window and stubs the matching assistant tool-call argument JSON.
+// Everything in the last keepRecentToolRounds rounds stays whole, however
+// many calls a round made and whatever they were named.
 func collapseOldToolResults(messages []provider.Message) []provider.Message {
-	var toolIdx []int
-	for i, m := range messages {
-		if m.Role == provider.RoleTool {
-			toolIdx = append(toolIdx, i)
+	roundOf := make(map[string]int)
+	rounds := 0
+	for _, m := range messages {
+		if m.Role != provider.RoleAssistant || len(m.ToolCalls) == 0 {
+			continue
 		}
+		for _, tc := range m.ToolCalls {
+			roundOf[tc.ID] = rounds
+		}
+		rounds++
 	}
-	if len(toolIdx) == 0 {
+	if rounds <= keepRecentToolRounds {
 		return messages
 	}
+	oldestKept := rounds - keepRecentToolRounds
 	names := toolCallNames(messages)
-	newestByName := make(map[string]int, len(toolIdx))
-	for k := len(toolIdx) - 1; k >= 0; k-- {
-		i := toolIdx[k]
-		name := names[messages[i].ToolCallID]
-		if name == "" {
-			name = "result"
-		}
-		if _, ok := newestByName[name]; !ok {
-			newestByName[name] = i
-		}
-	}
-	cutoff := len(toolIdx) - keepRecentToolResults
-	if cutoff < 0 {
-		cutoff = 0
-	}
-	recent := make(map[int]bool, keepRecentToolResults)
-	for _, i := range toolIdx[cutoff:] {
-		recent[i] = true
-	}
 
 	out := make([]provider.Message, len(messages))
 	copy(out, messages)
 	collapsedIDs := make(map[string]bool)
-	for _, i := range toolIdx {
-		name := names[out[i].ToolCallID]
+	seen := 0 // rounds started before this position — the round of an unpaired result
+	for i, m := range messages {
+		if m.Role == provider.RoleAssistant && len(m.ToolCalls) > 0 {
+			seen++
+			continue
+		}
+		if m.Role != provider.RoleTool {
+			continue
+		}
+		round, ok := roundOf[m.ToolCallID]
+		if !ok {
+			round = seen - 1
+		}
+		if round >= oldestKept {
+			continue
+		}
+		name := names[m.ToolCallID]
 		if name == "" {
 			name = "result"
 		}
-		keep := recent[i] && newestByName[name] == i
-		if keep {
-			continue
-		}
-		out[i].Content = fmt.Sprintf("[tool %s: %d chars, truncated]", name, len(messages[i].Content))
-		if id := out[i].ToolCallID; id != "" {
-			collapsedIDs[id] = true
+		out[i].Content = fmt.Sprintf("[tool %s: %d chars, truncated]", name, len(m.Content))
+		if m.ToolCallID != "" {
+			collapsedIDs[m.ToolCallID] = true
 		}
 	}
 	if len(collapsedIDs) > 0 {

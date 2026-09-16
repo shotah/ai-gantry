@@ -234,13 +234,18 @@ func TestCheckEval_PricesFromTools(t *testing.T) {
 	}
 	bad := evalOutcome{Reply: "Sep 25 is cheaper: $139 on Alaska and $ 149 on United; Sep 18 is $189.", Calls: calls}
 	fails := checkEval(context.Background(), bad, evalExpect{PricesFromTools: &yes})
-	if len(fails) != 2 || fails[0] != "invented price $139 (in no tool result)" || fails[1] != "invented price $149 (in no tool result)" {
+	if len(fails) != 2 || fails[0] != "invented price $139 (in no tool result or input)" || fails[1] != "invented price $149 (in no tool result or input)" {
 		t.Fatalf("fails=%v", fails)
 	}
-	// Commas on either side do not matter.
-	rent := evalOutcome{Reply: "5417 NW 57th St at $2,295/mo", Calls: []evalCall{{Result: `{"price":2295}`}}}
+	// Commas on either side do not matter, and the human's own number —
+	// the budget in the cron prompt or an aim row — is given, not invented.
+	rent := evalOutcome{
+		Reply: "Two new 2BR under $2,400: 5417 NW 57th St at $2,295/mo",
+		Calls: []evalCall{{Result: `{"price":2295}`}},
+		Given: evalGiven(evalFixture{Cron: "new 2BR under $2400", Memory: []evalMemory{{Content: "under $2,400/mo by Nov 1"}}}, "under $2400"),
+	}
 	if fails := checkEval(context.Background(), rent, evalExpect{PricesFromTools: &yes}); len(fails) != 0 {
-		t.Fatalf("comma price flagged: %v", fails)
+		t.Fatalf("given/comma price flagged: %v", fails)
 	}
 }
 

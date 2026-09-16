@@ -145,8 +145,10 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
 
 - Eager tool schemas at boot; refresh on child restart
 - Each tool result truncated (`TOOL_RESULT_MAX_CHARS`)
-- Tool payloads older than the last 2 collapse to one-line markers; matching
-  tool-call args are stubbed. Session history never stores fat payloads
+- Tool payloads from rounds older than the last 2 tool rounds collapse to
+  one-line markers; matching tool-call args are stubbed. The unit is the
+  round (one parallel batch), so every answer a batch asked for is read back
+  whole. Session history never stores fat payloads
 - `thought_signature` kept even when args are stubbed
 - Per-objective logs: `source` / `user_id` / `session_id` / `iterations` / `tool_calls` / `max_batch` / `recoveries` /
   `prompt_est_tokens` / `gen_est_tokens` / native `prompt_tokens` / `completion_tokens` / `total_tokens` when the Completer sent `usage` /

@@ -293,7 +293,7 @@ shows the same numbers in chat.
 | History caps | Drop oldest past `HISTORY_MAX_MESSAGES` / `HISTORY_MAX_TOKENS` (chars/4 **estimate**). Prompt-only filler strip on user messages older than the last 40; assistant turns stay verbatim. SQLite is not rewritten. |
 | Rolling summary | Trimmed turns fold into `session.summary` (`Facts:` + `Voice:`) via the same LLM; Voice copies forward; reinjected later |
 | Tool truncate | Each MCP/memory tool result capped at `TOOL_RESULT_MAX_CHARS` |
-| Tool collapse | Tool payloads older than the last 2 become one-line markers; matching tool-call args are stubbed. Session history never stores tool payloads. |
+| Tool collapse | Tool payloads from rounds older than the last 2 tool rounds become one-line markers; matching tool-call args are stubbed. A round is one model-emitted batch, so a three-call batch is read back whole. Session history never stores tool payloads. |
 | Iteration cap | `TOOL_MAX_ITERATIONS` Completer rounds with tools, then one landing call with tools withheld |
 
 `/new` wipes the session. `Voice:` folds into `SELF.md` (when self-notes are
