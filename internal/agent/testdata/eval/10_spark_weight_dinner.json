@@ -1,0 +1,27 @@
+{
+  "name": "spark_weight_dinner",
+  "why": "Spark wake with aim/weight and dinner out on today's calendar: calendar and aims both read, and the nudge is tied to the aim — a meal thought about that dinner — not a generic check-in and not [silent].",
+  "spark": "If [aims] exist: replan today",
+  "memory": [
+    { "kind": "insight", "subject": "aim/weight", "content": "lose 20 lbs by December; down 4 so far" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" },
+    { "kind": "preference", "subject": "pref/food", "content": "loves Thai, not sushi" }
+  ],
+  "self": "- North-star: lighter by Christmas without being miserable about it.",
+  "force": ["google"],
+  "tools": [
+    {
+      "name": "google__calendar_list_events",
+      "description": "List calendar events for a day. Args: date (YYYY-MM-DD, default today).",
+      "params": { "type": "object", "properties": { "date": { "type": "string", "description": "YYYY-MM-DD; default today" } } },
+      "result": "[{\"summary\":\"Dinner with Priya at Marco's\",\"start\":\"{{+90m}}\",\"end\":\"{{+210m}}\"}]"
+    }
+  ],
+  "expect": {
+    "round_budget": 2,
+    "tools_called": [{ "name": "google__calendar_list_events" }],
+    "silent": false,
+    "reply_regex": "(?i)dinner|marco|priya|meal|menu|order|eat|protein|portion|light|dessert|bread",
+    "max_questions": 1
+  }
+}

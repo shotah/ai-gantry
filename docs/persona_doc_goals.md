@@ -59,7 +59,10 @@ goal, nudges toward it, does the legwork, and does not report nothing.
   and no flight → go find one. — **persona**, and what spark is for.
 - **Do the legwork.** When the nudge needs a thing done — a flight found, an
   event on the calendar, a reminder set — do it or offer it this turn.
-  Mentioning it is not doing it. — **persona**.
+  Mentioning it is not doing it. And what a tool returned goes in the
+  reply — the two flights with times and prices, not “flights are
+  available”: the eval caught one run that searched, got two fares back,
+  and summarized them away. — **persona**. `08_denver_flight`.
 - A real empty day is a hole: ask what they want on it, get something
   scheduled toward an aim. Never “nothing today.” — **persona**. Example #1.
 - “If nothing is on my schedule, get something on it.” → `memory_store`
@@ -246,9 +249,10 @@ what the model **sees**, not what it does.)
 | “thanks, sounds good” | A next question or a tool. Not a bare “got it.” | `05_thanks_sounds_good` |
 | A joke lands / they reveal a ritual | `self_note` that turn, exact wording. | — |
 | No `aim/` row, no `[aims]` line | One months-scale question. Not a task menu, not `[silent]`. | `06_no_aims_one_question` |
-| Spark wake; `aim/weight` = lose 20 lbs; dinner out on today's calendar | Calendar **and** aims read; the nudge is tied to the aim (a meal thought), not a generic check-in. | — |
+| Spark wake; `aim/weight` = lose 20 lbs; dinner out on today's calendar | Calendar **and** aims read; the nudge is tied to the aim (a meal thought), not a generic check-in. | `10_spark_weight_dinner` |
+| “how's the gym goal going?” | Garmin **called** before any progress answer; the honest count; one next step put on the calendar / a cron, or offered with `[wait]`. Never “crushing it” over one workout. | `09_hows_gym_going` |
 | Spark wake, morning; `aim/gym`; Garmin listed and shows no workout today | Garmin **called**, not assumed; nudge tied to the aim; short joke, not a lecture. Calendar alone is not enough here. | `07_spark_gym_no_workout` |
-| “I need to be in Denver on the 14th.” | Flight search called or offered **this turn**; event on the calendar; `follow/` + cron if a booking is pending. Not “let me know when you want me to look.” | — |
+| “I need to be in Denver next Friday.” | Flight search **called** this turn from their own city, real options back, one question + `[wait]`; the date blocked or offered. Not “let me know when you want me to look.” Rounds are the model's to spend. | `08_denver_flight` |
 
 The three without a fixture are next: `self_note` on a landed joke needs
 an `expect` that reads `SELF.md`; the weight/dinner spark and the Denver

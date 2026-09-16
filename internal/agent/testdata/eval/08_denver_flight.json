@@ -1,0 +1,59 @@
+{
+  "name": "denver_flight",
+  "why": "A trip with no flight is legwork: the search is called this turn (their search is free when they asked), real options come back with one question, [wait]. Never “let me know when you want me to look.” Rounds are the model's to spend — the check is that the work happened.",
+  "inbound": "I need to be in Denver next Friday for a client thing.",
+  "memory": [
+    { "kind": "insight", "subject": "aim/business", "content": "land two new clients this quarter" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "force": ["flights", "google"],
+  "tools": [
+    {
+      "name": "flights__search",
+      "description": "Search flights. Args: from, to (city or IATA), date (YYYY-MM-DD), optional return_date (YYYY-MM-DD).",
+      "params": {
+        "type": "object",
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "date": { "type": "string", "description": "YYYY-MM-DD" },
+          "return_date": { "type": "string", "description": "YYYY-MM-DD" }
+        },
+        "required": ["from", "to", "date"]
+      },
+      "result": "[{\"carrier\":\"United\",\"flight\":\"UA 1862\",\"depart\":\"06:45\",\"arrive\":\"10:10\",\"stops\":0,\"price_usd\":218},{\"carrier\":\"Alaska\",\"flight\":\"AS 704\",\"depart\":\"13:20\",\"arrive\":\"16:55\",\"stops\":0,\"price_usd\":189}]"
+    },
+    {
+      "name": "google__calendar_list_events",
+      "description": "List calendar events for a day. Args: date (YYYY-MM-DD, default today).",
+      "params": { "type": "object", "properties": { "date": { "type": "string", "description": "YYYY-MM-DD; default today" } } },
+      "result": "[]"
+    },
+    {
+      "name": "google__calendar_create_event",
+      "description": "Create a calendar event.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "string" },
+          "start": { "type": "string", "description": "RFC3339 or YYYY-MM-DD for all-day" },
+          "end": { "type": "string", "description": "RFC3339 or YYYY-MM-DD" }
+        },
+        "required": ["summary", "start"]
+      },
+      "result": "{\"id\":\"evt_1\",\"status\":\"confirmed\"}"
+    }
+  ],
+  "expect": {
+    "round_budget": 3,
+    "tools_called": [{ "name": "flights__search" }],
+    "silent": false,
+    "reply_regex": "(?i)united|alaska|\\$\\s?\\d{3}|189|218",
+    "reply_not_regex": "(?i)let me know (when|if|once) you|when you want me to|whenever you('re| are) ready",
+    "wait": true,
+    "any_of": [
+      { "tools_called": [{ "name": "google__calendar_create_event" }] },
+      { "reply_regex": "(?i)calendar|block|hold" }
+    ]
+  }
+}

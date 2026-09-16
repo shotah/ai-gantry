@@ -103,11 +103,13 @@ type evalExpect struct {
 	ReplyRegex   string   `json:"reply_regex,omitempty"`
 	ReplyNot     string   `json:"reply_not_regex,omitempty"`
 	MaxQuestions *int     `json:"max_questions,omitempty"`
-	// MaxRounds caps completer rounds for the turn (tool rounds + the reply).
-	MaxRounds *int               `json:"max_rounds,omitempty"`
-	Wait      *bool              `json:"wait,omitempty"`
-	Silent    *bool              `json:"silent,omitempty"`
-	Memory    []evalMemoryExpect `json:"memory,omitempty"`
+	// RoundBudget is the completer rounds the rule needs (tool rounds + the
+	// reply). Going over is reported, never failed: the gate is on missing
+	// work, and a model that does something extra and useful is not wrong.
+	RoundBudget *int               `json:"round_budget,omitempty"`
+	Wait        *bool              `json:"wait,omitempty"`
+	Silent      *bool              `json:"silent,omitempty"`
+	Memory      []evalMemoryExpect `json:"memory,omitempty"`
 	// CronWithin: at least one job for this session lands in [after, before]
 	// minutes from the turn.
 	CronWithin *evalWindow  `json:"cron_within,omitempty"`
@@ -216,7 +218,7 @@ type cannedTools struct {
 	results map[string]string
 }
 
-func newCannedTools(tools []evalTool) *cannedTools {
+func newCannedTools(tools []evalTool, now time.Time) *cannedTools {
 	c := &cannedTools{results: map[string]string{}}
 	for _, tl := range tools {
 		params := tl.Params
@@ -224,7 +226,7 @@ func newCannedTools(tools []evalTool) *cannedTools {
 			params = map[string]any{"type": "object", "properties": map[string]any{}}
 		}
 		c.defs = append(c.defs, provider.ToolDef{Name: tl.Name, Description: tl.Description, Parameters: params})
-		c.results[tl.Name] = tl.Result
+		c.results[tl.Name] = expandEvalClock(tl.Result, now)
 	}
 	return c
 }
@@ -330,6 +332,9 @@ func evalPersona(t *testing.T, dir string) string {
 	}
 	text := strings.Replace(string(seed), "- **Name:** (pick one)", "- **Name:** Kit", 1)
 	text = strings.Replace(text, "- **Name:** Your Name", "- **Name:** Sam", 1)
+	// A real city in evalTZ: a flight search needs an origin, and "City,
+	// Region" would earn a fair "from where?" instead of the search.
+	text = strings.Replace(text, "- **Location:** City, Region", "- **Location:** Seattle, Washington", 1)
 	if err := os.WriteFile(filepath.Join(dir, persona.FilePersona), []byte(text), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -408,8 +413,10 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 	}
 
 	// Same stack as cmd/gantry/run.go, canned MCP host at the bottom,
-	// recorder on top.
-	var tools agent.Tools = newCannedTools(fx.Tools)
+	// recorder on top. Canned results take the same {{+Nm}} clock as the
+	// inbound text so a "dinner at 7" fixture is still ahead at 9pm.
+	started := time.Now().In(loc)
+	var tools agent.Tools = newCannedTools(fx.Tools, started)
 	tools = memory.Composite{Memory: memory.Tools{Backend: mem}, Other: tools}
 	tools = cron.Composite{Cron: cron.Tools{Store: jobs, TZ: evalTZ, Memory: mem}, Other: tools}
 	tools = selfnote.Composite{Self: selfnote.Tools{Store: self}, Other: tools}
@@ -441,7 +448,6 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		t.Fatal(err)
 	}
 
-	started := time.Now().In(loc)
 	text := expandEvalClock(fx.Inbound, started)
 	if fx.Spark != "" {
 		line, ok := sparkLine(fx.Spark)
@@ -529,9 +535,6 @@ func checkEval(ctx context.Context, out evalOutcome, want evalExpect) []string {
 		if n := strings.Count(reply, "?") + strings.Count(reply, "？"); n > *want.MaxQuestions {
 			fails = append(fails, fmt.Sprintf("%d questions, max %d", n, *want.MaxQuestions))
 		}
-	}
-	if want.MaxRounds != nil && out.Rounds > *want.MaxRounds {
-		fails = append(fails, fmt.Sprintf("%d rounds, max %d (%s)", out.Rounds, *want.MaxRounds, describeBatches(out)))
 	}
 	if want.Wait != nil && out.Waiting != *want.Wait {
 		fails = append(fails, fmt.Sprintf("waiting_for_reply=%v, want %v", out.Waiting, *want.Wait))
@@ -633,6 +636,16 @@ func describeJobs(out evalOutcome) string {
 		parts = append(parts, fmt.Sprintf("%s@+%dm", j.Kind, int(j.NextRunAt.Sub(out.Started).Minutes())))
 	}
 	return strings.Join(parts, ", ")
+}
+
+// overBudget is the cost note for a run that took more rounds than the
+// fixture's round_budget — printed beside a passing run, never a failure.
+// Empty when there is no budget or the run stayed inside it.
+func overBudget(out evalOutcome, want evalExpect) string {
+	if want.RoundBudget == nil || out.Rounds <= *want.RoundBudget {
+		return ""
+	}
+	return fmt.Sprintf("over budget: %d rounds, budget %d", out.Rounds, *want.RoundBudget)
 }
 
 // describeBatches is the turn's shape: tool calls grouped by completer

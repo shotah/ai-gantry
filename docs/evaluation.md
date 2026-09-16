@@ -220,20 +220,54 @@ is the board, and no line means empty. Same fixtures, five runs each,
 thirty-five for thirty-five: 2.17 rounds and 11.3k prompt tokens per
 turn. The scoop went 3 → 2 rounds and 16.8k → 10.7k tokens; "hey" 3.3 →
 2 and 15.0k → 9.7k; off-prefix settled at a steady 3, its floor, because
-the enabled schema arrives on the next call. Every fixture now carries
-`max_rounds`, so the next sentence that costs a round fails the gate
-instead of the phone bill. What is left is variance: one run in twelve of
-"what's on today" spent a third round on a `memory_store` — and what it
-stored was the seed's own example sentence, `pref/calendar: "If nothing's
-on, get something on it."`, as if the human had said it. One sample;
-written down, not tuned for.
+the enabled schema arrives on the next call. What is left is variance:
+one run in twelve of "what's on today" spent a third round on a
+`memory_store` — and what it stored was the seed's own example sentence,
+`pref/calendar: "If nothing's on, get something on it."`, as if the human
+had said it. One sample; written down, not tuned for.
+
+Where that cutting stops matters more than where it got to. Nothing
+removed was work: the same tools were called, the same rows stored, the
+same wakes set, and the fixtures check all of it. What went was rounds in
+which the model did nothing new. The product's rule is the opposite of
+the token-saving reflex that makes a cheap model not worth using — the
+agent may spend ten rounds if the task takes ten, and the failure the
+eval exists to catch is stopping at two with "let me know when you want
+me to look." So the round number is a note, not a gate: each fixture
+carries a `round_budget` (the rounds its rule needs), a run over it is
+printed beside the pass and counted at the end, and never fails. The
+payback of removing the dead rounds is the human waiting a round less
+for the same answer, and — on a hard turn — the budget under
+`TOOL_MAX_ITERATIONS` going to the task instead of to re-reading
+`[harness]`. Lower `reasoning_effort` and a one-round "speculative
+reply" for write-only turns were considered and declined for the same
+reason: both are cheaper because the model plans or confirms less.
+
+The three table rows that had no fixture are the expensive turns, and
+they are now the completion fixtures: the Denver flight, "how's the gym
+going", and the weight/dinner spark. Their check is the legwork — the
+search *called* this turn from the human's own city with the real
+options back and one question; Garmin *read* before any progress answer
+and no "crushing it" over one workout in six days; the spark nudge tied
+to the dinner that is actually on the calendar. First reading, nine for
+nine; the flight took 3–4 rounds, once because "next Friday" on a Tuesday
+is honestly ambiguous and the model searched both dates and asked — the
+over-budget note said so and the run passed, which is the design. The
+second reading caught the thing the fixture is for: one run searched,
+got United at $218 and Alaska at $189 back, and replied "flights are
+available from SEA to DEN throughout the day" — the work done and not
+delivered, the exact failure a cheap model is known for. That is a red,
+not a regex to loosen. The seed's legwork line grew one sentence ("what a
+tool returned goes in the reply — the two flights with times and prices,
+not 'flights are available'"), and the fixture then held five for five.
+One sentence, found by a fixture, proven by the same fixture: the loop
+this whole apparatus exists for.
 
 Its limits. One model is one reading — the gate is on whatever is in
 `.env`, and a Gemma-class local model would need its own pass and
-probably its own tolerances. Three table rows have no fixture (a landed
-joke → `self_note`; the weight/dinner spark; the Denver flight) because
-they need an expectation that reads `SELF.md`, or canned search and
-flights tools that do not exist. The client has no temperature knob, so
+probably its own tolerances. One table row has no fixture (a landed
+joke → `self_note`) because it needs an expectation that reads
+`SELF.md`. The client has no temperature knob, so
 variance is the provider's default — which is also what production gets.
 And the harness had one bug on its first outing: it opened `gantry.db`
 twice and parallel tool batches fought over the write lock, a

@@ -29,7 +29,7 @@
     }
   ],
   "expect": {
-    "max_rounds": 2,
+    "round_budget": 2,
     "tools_called": [{ "name": "garmin__activities_list" }],
     "silent": false,
     "reply_regex": "(?i)gym|workout|train|lift|shoes|move|session"

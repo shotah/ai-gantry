@@ -14,7 +14,7 @@
     }
   ],
   "expect": {
-    "max_rounds": 4,
+    "round_budget": 3,
     "tools_called": [
       { "name": "mcp_enable", "args_regex": "google" },
       { "name": "google__calendar_list_events" }

@@ -143,7 +143,6 @@ Sprint's at 2:30 and the scoop is at 2 — I'll keep an eye on it.
 | `order: X before …` | Both called, wrong order (e.g. the tool before `mcp_enable`). |
 | `reply should match /re/` · `should not match` | Shape of the reply — a `?`, a bare “got it”. Never a sentence. |
 | `N questions, max M` | Counted `?` in the reply. |
-| `N rounds, max M ([a b] → [c] → reply)` | The turn took more Completer rounds than the fixture's `max_rounds`. The batches show where the serial round went — a write after the reads, a lookup for something `[harness]` already stamps. |
 | `waiting_for_reply=false, want true` | The model asked but did not put `[wait]` on its own line — the kernel follow-up rule. |
 | `silent=true, want false` | `[silent]` (or an empty reply) where a nudge was owed. |
 | `expected memory row kind subject` | No live `memory_store` row with that subject after the turn. |
@@ -152,6 +151,17 @@ Sprint's at 2:30 and the scoop is at 2 — I'll keep an eye on it.
 
 A rule that holds two runs in three is a rule the persona is not carrying —
 that is why every run must pass.
+
+One line is **not** a failure. `run 2/3 ok (over budget: 4 rounds, budget
+3)` means the turn passed and took more Completer rounds than the
+fixture's `round_budget`. The gate is on missing work; a model that does
+something extra — searches two dates because “next Friday” was ambiguous,
+stores a fact it noticed — is not wrong, so the budget is reported beside
+the pass and summed at the end (`… 1 over round budget`), never failed.
+The batches on that line show where the extra round went. Read it as a
+trend across runs: a fixture that is always over budget has a sentence in
+the seed costing a round for nothing (see the bake-off below); one run in
+five is the model being thorough.
 
 ## 4. Tuning
 
@@ -195,10 +205,20 @@ candidate wins when every run still passes and rounds or tokens fall;
 n=3 is too noisy to call a 0.2-round difference, use 5 or more. When it
 wins, copy it over the seed and its two lockstep copies
 (`examples/native/persona/`, Gantree's `lib/yard/crane/templates/`), and
-lower `max_rounds` on the fixtures that moved so the gain is a contract.
-The first pass this way took the seven fixtures from 2.57 to 2.17 rounds
-and 13.0k to 11.3k prompt tokens per turn; the story is in
+lower `round_budget` on the fixtures that moved so the next regression
+shows up as a run of over-budget notes. The first pass this way took the
+first seven fixtures from 2.57 to 2.17 rounds and 13.0k to 11.3k prompt
+tokens per turn; the story is in
 [evaluation.md](evaluation.md#1-behavioral-regression-closed).
+
+What a bake-off is not for: cutting the work. Every round removed so far
+was a round in which the model did nothing new — waited for an id it did
+not need, re-read a line already stamped in `[harness]`. A candidate that
+passes with fewer rounds because it searches less, stores less, or stops
+at “let me know when” is a loss, and the completion fixtures (the flight,
+the gym check-in, the dinner spark) are there to fail it. Likewise
+`LLM_REASONING_EFFORT`: lower is cheaper because the model plans less;
+that is the trade this product does not make.
 
 ## 5. Adding a fixture
 
@@ -214,9 +234,9 @@ list of rows; add the row there when you add the file.
 | `history` | Prior `user` / `assistant` turns appended to the session first. |
 | `memory` | Seed rows: `kind`, `subject`, `content`. `pref/hours` here gives the model `[hours]`. |
 | `self` | `SELF.md` body (`- ` bullets). Empty file when absent — that is the “empty SELF.md” scenario. |
-| `tools` | Canned MCP tools: `name` (must be `server__name`), `description`, optional `params` schema, `result` returned verbatim every call. |
+| `tools` | Canned MCP tools: `name` (must be `server__name`), `description`, optional `params` schema, `result` returned every call — `{{+90m}}` in a result expands like `inbound`, so a stub dinner is still ahead whenever the eval runs. |
 | `force` | MCP prefixes published without `mcp_enable`. Leave empty to test the off → enable → call path. |
-| `expect` | The shape contract — see the failure table above for each key. `max_rounds` is the cost contract: set it to the floor the rule needs (one batch + reply = 2; a prefix that must be `mcp_enable`d first = 3) plus the room the model has shown it needs, never lower than a green n=5 run. |
+| `expect` | The shape contract — see the failure table above for each key. `round_budget` is the cost note, not a check: the rounds the rule needs (one batch + reply = 2; a prefix that must be `mcp_enable`d first = 3). Over it is printed beside the pass. |
 
 Then:
 
@@ -225,7 +245,15 @@ go test ./internal/agent/ -run TestEvalFixtures_WellFormed     # parses, regexes
 make integration-test EVAL_ARGS='-eval.n=1 -eval.only=<name>'   # first live read
 ```
 
-The three table rows without a fixture yet (`self_note` on a landed joke,
-the weight/dinner spark, the Denver flight) need an `expect` that reads
-`SELF.md`, or canned search/flights tools — a small addition to
-`eval_harness_test.go` each, and one JSON file.
+Two kinds of fixture live in the directory. The first seven are single-batch
+rules — one tool round and a reply — and their `round_budget` is 2 or 3.
+The last three (`denver_flight`, `hows_gym_going`, `spark_weight_dinner`)
+are **completion** fixtures: the check is that the legwork happened — the
+search called with real options back, Garmin read before a progress
+answer, the nudge tied to the dinner on the calendar — and the model may
+take the rounds it needs to get there. Write new fixtures in that shape
+when the rule is “finish the task”: assert the tool, the row, the
+question and `[wait]`, forbid “let me know when you want me to look”, and
+leave the round count to the budget note. The one table row still without
+a fixture (`self_note` on a landed joke) needs an `expect` that reads
+`SELF.md` — a small addition to `eval_harness_test.go` and one JSON file.

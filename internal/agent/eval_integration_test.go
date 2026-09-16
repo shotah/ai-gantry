@@ -73,12 +73,16 @@ func TestEval_Live(t *testing.T) {
 				out := runEvalFixture(ctx, t, completer, fx)
 				fails := checkEval(ctx, out, fx.Expect)
 				cancel()
-				sub.add(out)
+				over := overBudget(out, fx.Expect)
+				sub.add(out, over != "")
 				if len(fails) > 0 {
 					t.Errorf("run %d/%d FAIL: %s\n%s", i, *evalN, strings.Join(fails, "; "), describeEval(out))
 					continue
 				}
-				t.Logf("run %d/%d ok: %s — %s", i, *evalN, describeCost(out), describeBatches(out))
+				if over != "" {
+					over = " (" + over + ")"
+				}
+				t.Logf("run %d/%d ok%s: %s — %s", i, *evalN, over, describeCost(out), describeBatches(out))
 				if *evalVerbose {
 					t.Log(describeEval(out))
 				}
@@ -90,17 +94,20 @@ func TestEval_Live(t *testing.T) {
 	t.Logf("all fixtures: %s", total.String())
 }
 
-// evalTotals is the cost roll-up the bake-off compares: mean rounds and
-// mean prompt tokens per turn.
+// evalTotals is the cost roll-up the bake-off compares: mean rounds, mean
+// prompt tokens per turn, and how many runs went over their round_budget.
 type evalTotals struct {
-	runs, rounds, prompt, completion int
+	runs, rounds, prompt, completion, over int
 }
 
-func (e *evalTotals) add(out evalOutcome) {
+func (e *evalTotals) add(out evalOutcome, overBudget bool) {
 	e.runs++
 	e.rounds += out.Rounds
 	e.prompt += out.PromptTokens
 	e.completion += out.CompletionTokens
+	if overBudget {
+		e.over++
+	}
 }
 
 func (e *evalTotals) merge(o evalTotals) {
@@ -108,6 +115,7 @@ func (e *evalTotals) merge(o evalTotals) {
 	e.rounds += o.rounds
 	e.prompt += o.prompt
 	e.completion += o.completion
+	e.over += o.over
 }
 
 func (e evalTotals) String() string {
@@ -115,6 +123,10 @@ func (e evalTotals) String() string {
 		return "no runs"
 	}
 	n := float64(e.runs)
-	return fmt.Sprintf("%d runs, mean %.2f rounds, mean %.1fk prompt / %.0f completion tokens per turn",
+	s := fmt.Sprintf("%d runs, mean %.2f rounds, mean %.1fk prompt / %.0f completion tokens per turn",
 		e.runs, float64(e.rounds)/n, float64(e.prompt)/n/1000, float64(e.completion)/n)
+	if e.over > 0 {
+		s += fmt.Sprintf(", %d over round budget", e.over)
+	}
+	return s
 }

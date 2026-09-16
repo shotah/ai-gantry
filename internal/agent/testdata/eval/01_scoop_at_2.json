@@ -30,7 +30,7 @@
     }
   ],
   "expect": {
-    "max_rounds": 2,
+    "round_budget": 2,
     "reply_not_regex": "(?i)^\\s*(got it|yes boss|okay|ok|sure|sounds good|will do)[.!]*\\s*$",
     "any_of": [
       { "tools_called": [{ "name": "cron_schedule" }], "cron_within": { "after_min": 100, "before_min": 140 } },

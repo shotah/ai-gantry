@@ -30,7 +30,7 @@
     }
   ],
   "expect": {
-    "max_rounds": 2,
+    "round_budget": 2,
     "memory": [{ "subject": "pref/calendar" }],
     "reply_regex": "\\?",
     "reply_not_regex": "(?i)^\\s*(got it|yes boss|okay|ok|sure|sounds good|will do)[.!]*\\s*$",

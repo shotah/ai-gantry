@@ -31,7 +31,7 @@
     }
   ],
   "expect": {
-    "max_rounds": 3,
+    "round_budget": 2,
     "tools_called": [{ "name": "google__calendar_list_events" }],
     "reply_regex": "\\?",
     "silent": false,

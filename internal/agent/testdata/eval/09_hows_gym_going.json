@@ -1,0 +1,56 @@
+{
+  "name": "hows_gym_going",
+  "why": "“how's the long goal going?” → live tools before an answer; never invent progress. Holes first, one next step — put it on the calendar or a cron, or offer to. Garmin is called, not assumed, and one workout in six days is not “crushing it.”",
+  "inbound": "how's the gym goal going?",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month; none yet this week" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "self": "- North-star: show up for the gym three mornings a week. The shoes by the door are the running joke.",
+  "force": ["garmin", "google"],
+  "tools": [
+    {
+      "name": "garmin__activities_list",
+      "description": "Recorded workouts for a date range. Args: start, end (YYYY-MM-DD).",
+      "params": {
+        "type": "object",
+        "properties": {
+          "start": { "type": "string", "description": "YYYY-MM-DD" },
+          "end": { "type": "string", "description": "YYYY-MM-DD" }
+        }
+      },
+      "result": "[{\"type\":\"strength\",\"duration_min\":48,\"days_ago\":6}]"
+    },
+    {
+      "name": "google__calendar_list_events",
+      "description": "List calendar events for a day. Args: date (YYYY-MM-DD, default today).",
+      "params": { "type": "object", "properties": { "date": { "type": "string", "description": "YYYY-MM-DD; default today" } } },
+      "result": "[]"
+    },
+    {
+      "name": "google__calendar_create_event",
+      "description": "Create a calendar event.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "string" },
+          "start": { "type": "string", "description": "RFC3339" },
+          "end": { "type": "string", "description": "RFC3339" }
+        },
+        "required": ["summary", "start"]
+      },
+      "result": "{\"id\":\"evt_1\",\"status\":\"confirmed\"}"
+    }
+  ],
+  "expect": {
+    "round_budget": 3,
+    "tools_called": [{ "name": "garmin__activities_list" }],
+    "silent": false,
+    "reply_not_regex": "(?i)crushing it|great progress|well on track|nailing it",
+    "any_of": [
+      { "tools_called": [{ "name": "google__calendar_create_event" }] },
+      { "tools_called": [{ "name": "cron_schedule" }] },
+      { "reply_regex": "\\?", "wait": true }
+    ]
+  }
+}

@@ -6,7 +6,7 @@
     { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
   ],
   "expect": {
-    "max_rounds": 3,
+    "round_budget": 2,
     "silent": false,
     "reply_regex": "\\?",
     "max_questions": 1,

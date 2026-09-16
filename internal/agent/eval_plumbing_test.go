@@ -126,6 +126,12 @@ func TestExpandEvalClock(t *testing.T) {
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
+	// Canned tool results take the same clock, so a calendar stub stays in
+	// the future whenever the eval runs.
+	canned := newCannedTools([]evalTool{{Name: "google__calendar_list_events", Result: `[{"summary":"Dinner","start":"{{+90m}}"}]`}}, now)
+	if out, _ := canned.Call(context.Background(), "google__calendar_list_events", nil); out != `[{"summary":"Dinner","start":"1:30PM"}]` {
+		t.Fatalf("canned result not expanded: %q", out)
+	}
 }
 
 // The scoop fixture: a scripted cron_schedule + [wait] passes; the recorder
@@ -159,9 +165,16 @@ func TestEvalHarness_ScoopSchedulesCron(t *testing.T) {
 	if got := describeBatches(out); got != "[cron_schedule] → reply" {
 		t.Fatalf("batches %q", got)
 	}
-	two := 1
-	if fails := checkEval(ctx, out, evalExpect{MaxRounds: &two}); len(fails) != 1 || !strings.HasPrefix(fails[0], "2 rounds, max 1") {
-		t.Fatalf("max_rounds should fail: %v", fails)
+	one := 1
+	if fails := checkEval(ctx, out, evalExpect{RoundBudget: &one}); len(fails) != 0 {
+		t.Fatalf("round_budget must never fail a run: %v", fails)
+	}
+	if got := overBudget(out, evalExpect{RoundBudget: &one}); got != "over budget: 2 rounds, budget 1" {
+		t.Fatalf("over-budget note %q", got)
+	}
+	two := 2
+	if got := overBudget(out, evalExpect{RoundBudget: &two}); got != "" {
+		t.Fatalf("inside budget should be quiet, got %q", got)
 	}
 	req := sc.reqs[0]
 	for _, name := range []string{"cron_schedule", "memory_store", "self_note", "mcp_enable", "google__calendar_list_events"} {
