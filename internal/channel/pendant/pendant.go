@@ -349,7 +349,9 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 			_ = stream.Discard(ctx)
 		}
 		c.log.Error("pendant handle", "err", err)
-		return nil
+		// Tell the human, like Telegram does. A discarded draft plus nothing
+		// else is indistinguishable from being ignored.
+		return c.writeFrames(cn, replyFrames("reply", sub, "", channel.HandleFailedText))
 	}
 	if strings.TrimSpace(reply) == "" && len(photos) == 0 && stream != nil && stream.Started() {
 		if !stream.Replied() {

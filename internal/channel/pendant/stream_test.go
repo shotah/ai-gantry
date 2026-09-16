@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"strings"
 	"sync"
@@ -400,6 +401,51 @@ func TestDispatch_StreamReplyCarriesPhoto(t *testing.T) {
 			return
 		default:
 			t.Fatalf("unexpected %+v", out)
+		}
+	}
+}
+
+// A Handle error must reach the human as a reply, not only the log: the
+// draft is discarded and one short line lands in its place.
+func TestDispatch_HandleErrorTellsHuman(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:    "wss://x.workers.dev/ws/kit",
+		Bearer:        "tok",
+		AllowedUsers:  []string{"1182"},
+		StreamReplies: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte, 1), writes: make(chan []byte, 16)}
+	raw, _ := json.Marshal(inboundFrame{Text: "hi", UserID: "1182"})
+	if err := ch.dispatch(context.Background(), fc, raw, func(ctx context.Context, _ channel.Message) (string, error) {
+		w, _ := channel.ReplyWriterFrom(ctx)
+		_ = w.(channel.StatusWriter).UpdateStatus(ctx, "⏳ spinning up")
+		return "", errors.New("provider: chat stream: 400 Bad Request")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sawDiscard, sawReply := false, false
+	deadline := time.After(2 * time.Second)
+	for !sawDiscard || !sawReply {
+		select {
+		case rawOut := <-fc.writes:
+			var out outboundFrame
+			if err := json.Unmarshal(rawOut, &out); err != nil {
+				t.Fatal(err)
+			}
+			switch {
+			case out.Kind == "draft" && out.Text == "":
+				sawDiscard = true
+			case out.Kind == "reply":
+				if out.Text != channel.HandleFailedText || out.UserID != "1182" {
+					t.Fatalf("error reply = %+v", out)
+				}
+				sawReply = true
+			}
+		case <-deadline:
+			t.Fatalf("discard=%v reply=%v: human was left in silence", sawDiscard, sawReply)
 		}
 	}
 }

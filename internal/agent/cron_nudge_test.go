@@ -114,6 +114,14 @@ func TestLastUserContent(t *testing.T) {
 	if got := lastUserContent(msgs); got != "latest ask" {
 		t.Fatalf("lastUserContent = %q", got)
 	}
+	// A kernel nudge rides as a user turn but is not the human's line.
+	nudged := append(msgs,
+		provider.Message{Role: provider.RoleAssistant, Content: "I'll pull that now."},
+		provider.Message{Role: provider.RoleUser, Content: harnessNudgePrefix + "No tool call was made."},
+	)
+	if got := lastUserContent(nudged); got != "latest ask" {
+		t.Fatalf("lastUserContent skipped nudge = %q", got)
+	}
 	if got := lastUserContent(nil); got != "" {
 		t.Fatalf("empty = %q", got)
 	}

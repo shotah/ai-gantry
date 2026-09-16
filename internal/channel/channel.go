@@ -124,6 +124,11 @@ type Outbound struct {
 // mouth; cron, memory, and history do not store a chat destination.
 const AgentSession = "gantry"
 
+// HandleFailedText is what every mouth says when Handle returns an error.
+// The human must hear something — silence reads as the agent ignoring them,
+// and on a car or voice surface there is nothing else to look at.
+const HandleFailedText = "sorry — something went wrong handling that message"
+
 // Handler processes one inbound message and returns reply text.
 type Handler func(ctx context.Context, msg Message) (reply string, err error)
 

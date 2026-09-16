@@ -53,6 +53,51 @@ func TestClient_CompleteStream(t *testing.T) {
 	}
 }
 
+// Gemini's compat layer answers a bad turn shape with a 400 whose body is a
+// JSON array. openai-go only lifts a top-level "error" object into the
+// message, so the SDK string ends at `400 Bad Request` and the reason is
+// lost. Both call paths must put the body back so the log explains itself.
+func TestClient_BadRequest_ErrorCarriesBody(t *testing.T) {
+	const geminiBody = `[{"error":{"code":400,"message":"Please ensure that function call turn comes immediately after a user turn or after a function response turn.","status":"INVALID_ARGUMENT"}}]`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(geminiBody))
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m")
+	req := provider.Request{Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}}}
+
+	_, err := c.CompleteStream(context.Background(), req, func(_, _ string) error { return nil })
+	if err == nil || !strings.Contains(err.Error(), "400 Bad Request") || !strings.Contains(err.Error(), "function call turn comes immediately after a user turn") {
+		t.Fatalf("stream err lost the body: %v", err)
+	}
+	_, err = c.Complete(context.Background(), req)
+	if err == nil || !strings.Contains(err.Error(), "400 Bad Request") || !strings.Contains(err.Error(), "INVALID_ARGUMENT") {
+		t.Fatalf("complete err lost the body: %v", err)
+	}
+}
+
+// The OpenAI object shape already rides in the SDK message; it is not
+// appended twice.
+func TestClient_BadRequest_ObjectBodyNotDuplicated(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"unknown model zzz","type":"invalid_request_error"}}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	c := provider.New(srv.URL, "k", "m")
+	_, err := c.Complete(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	})
+	if err == nil || strings.Count(err.Error(), "unknown model zzz") != 1 || strings.Contains(err.Error(), " body: ") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestClient_CompleteStream_Thinking(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")

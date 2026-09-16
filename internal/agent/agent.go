@@ -1140,8 +1140,15 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 						"Do not invent metrics, events, or search results. After tools return, then write the report. " +
 						"If a tool fails, report the failure."
 				}
+				// The nudge rides as a user turn, not a system one. On Gemini
+				// every system block folds into the leading instruction, which
+				// would leave the conversation ending on the assistant's own
+				// prose — a shape Gemini's compat layer rejects with a bare 400,
+				// and the human hears nothing. User-role keeps the alternation
+				// valid on every provider; the [system] prefix tells the model
+				// who is talking, and lastUserContent skips it.
 				messages = append(messages, provider.Message{
-					Role:    provider.RoleSystem,
+					Role:    provider.RoleUser,
 					Content: nudge,
 				})
 				continue
@@ -1635,9 +1642,15 @@ func dropCronHistory(history []session.Message) []session.Message {
 	return out
 }
 
+// harnessNudgePrefix opens every in-turn nudge the kernel injects as a user
+// turn. lastUserContent skips them so the spark / cron heuristics keep
+// reading the human's (or the runner's) line, not the kernel's.
+const harnessNudgePrefix = "[system] "
+
+// lastUserContent is the most recent user turn that is not a harness nudge.
 func lastUserContent(messages []provider.Message) string {
 	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Role == provider.RoleUser {
+		if messages[i].Role == provider.RoleUser && !strings.HasPrefix(messages[i].Content, harnessNudgePrefix) {
 			return messages[i].Content
 		}
 	}

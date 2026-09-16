@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/openai/openai-go/v3"
@@ -205,7 +206,7 @@ func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
 
 	resp, err := c.client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("provider: chat completion: %w", err)
+		return nil, fmt.Errorf("provider: chat completion: %w", apiErrorWithBody(err))
 	}
 	if len(resp.Choices) == 0 {
 		return nil, fmt.Errorf("provider: empty choices in response")
@@ -249,6 +250,43 @@ func (c *Client) Complete(ctx context.Context, req Request) (*Result, error) {
 	}
 	return out, nil
 }
+
+// apiErrorBodyMax bounds how much of a failed response is copied into the
+// error string. Provider error bodies are a few hundred bytes; this keeps a
+// stray HTML error page from flooding the log.
+const apiErrorBodyMax = 800
+
+// apiErrorWithBody re-attaches the response body to an SDK error whose
+// message lost it. openai-go lifts only the top-level "error" object into
+// the message; Gemini's compat layer answers a 400 with a JSON *array*, so
+// the SDK string ends at `400 Bad Request` and the reason is gone. The body
+// is still buffered on the response — read it back, clipped, so the next
+// 400 explains itself in the log instead of needing a live probe.
+func apiErrorWithBody(err error) error {
+	var aerr *openai.Error
+	if !errors.As(err, &aerr) || aerr.RawJSON() != "" || aerr.Response == nil || aerr.Response.Body == nil {
+		return err
+	}
+	raw, _ := io.ReadAll(io.LimitReader(aerr.Response.Body, apiErrorBodyMax))
+	body := strings.TrimSpace(string(raw))
+	if body == "" {
+		return err
+	}
+	return &apiBodyError{err: err, body: body}
+}
+
+// apiBodyError is an SDK error plus the response body it dropped. Unwrap
+// keeps errors.As(*openai.Error) working for callers that branch on status.
+type apiBodyError struct {
+	err  error
+	body string
+}
+
+func (e *apiBodyError) Error() string {
+	return strings.TrimSpace(e.err.Error()) + " body: " + e.body
+}
+
+func (e *apiBodyError) Unwrap() error { return e.err }
 
 func toParam(m Message) (openai.ChatCompletionMessageParamUnion, error) {
 	switch m.Role {

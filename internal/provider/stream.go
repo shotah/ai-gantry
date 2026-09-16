@@ -176,7 +176,7 @@ func (c *Client) CompleteStream(ctx context.Context, req Request, onProgress fun
 		}
 	}
 	if err := stream.Err(); err != nil {
-		return nil, fmt.Errorf("provider: chat stream: %w", err)
+		return nil, fmt.Errorf("provider: chat stream: %w", apiErrorWithBody(err))
 	}
 
 	out := &Result{

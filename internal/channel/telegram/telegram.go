@@ -252,7 +252,7 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:          chatID,
 			MessageThreadID: threadID,
-			Text:            "sorry — something went wrong handling that message",
+			Text:            channel.HandleFailedText,
 		})
 		return
 	}

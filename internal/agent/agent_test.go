@@ -607,8 +607,15 @@ func TestAgent_Handle_ProseToolPromiseGetsNudged(t *testing.T) {
 			}, nil
 		case 2:
 			last := req.Messages[len(req.Messages)-1]
-			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "no tool call was made") {
+			if last.Role != provider.RoleUser || !strings.Contains(last.Content, "no tool call was made") {
 				t.Fatalf("missing tool-promise nudge: %+v", last)
+			}
+			// On Gemini the system blocks fold to the top; the wire must still
+			// end on a user turn or the compat layer answers 400 and the human
+			// hears nothing.
+			wire := provider.WireMessages("gemini-x", req.Messages)
+			if tail := wire[len(wire)-1]; tail.Role != provider.RoleUser {
+				t.Fatalf("gemini wire ends on %s, want user: %+v", tail.Role, tail)
 			}
 			return &provider.Result{ToolCalls: []provider.ToolCall{
 				{ID: "c1", Name: "garmin__sleep_get", Arguments: `{}`},
@@ -667,7 +674,7 @@ func TestAgent_Handle_FakeSuccessClaimGetsNudged(t *testing.T) {
 			}, nil
 		case 2:
 			last := req.Messages[len(req.Messages)-1]
-			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "nothing actually happened") {
+			if last.Role != provider.RoleUser || !strings.Contains(last.Content, "nothing actually happened") {
 				t.Fatalf("missing fake-success nudge: %+v", last)
 			}
 			return &provider.Result{ToolCalls: []provider.ToolCall{
@@ -774,7 +781,7 @@ func TestAgent_Handle_TheaterNudgeEmptyKeepsProse(t *testing.T) {
 			return &provider.Result{Content: claim}, nil
 		default:
 			last := req.Messages[len(req.Messages)-1]
-			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "nothing actually happened") {
+			if last.Role != provider.RoleUser || !strings.Contains(last.Content, "nothing actually happened") {
 				t.Fatalf("missing fake-success nudge: %+v", last)
 			}
 			return nil, provider.ErrEmptyContent
@@ -876,7 +883,7 @@ func TestAgent_Handle_CronLiveDataReportWithoutToolsGetsNudged(t *testing.T) {
 			}, nil
 		case 2:
 			last := req.Messages[len(req.Messages)-1]
-			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "scheduled job needs live data") {
+			if last.Role != provider.RoleUser || !strings.Contains(last.Content, "scheduled job needs live data") {
 				t.Fatalf("missing cron live-data nudge: %+v", last)
 			}
 			return &provider.Result{ToolCalls: []provider.ToolCall{
@@ -1091,7 +1098,7 @@ func TestAgent_Handle_SparkHorizonWithoutToolsGetsNudged(t *testing.T) {
 			return &provider.Result{Content: "Here's a dry observation about modern work."}, nil
 		case 2:
 			last := req.Messages[len(req.Messages)-1]
-			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "spark-of-life turn is for looking after the user") {
+			if last.Role != provider.RoleUser || !strings.Contains(last.Content, "spark-of-life turn is for looking after the user") {
 				t.Fatalf("missing spark horizon nudge: %+v", last)
 			}
 			return &provider.Result{ToolCalls: []provider.ToolCall{
@@ -1347,7 +1354,7 @@ func TestAgent_Handle_PostToolDeferralGetsNudged(t *testing.T) {
 			}, nil
 		case 3:
 			last := req.Messages[len(req.Messages)-1]
-			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "left hanging") {
+			if last.Role != provider.RoleUser || !strings.Contains(last.Content, "left hanging") {
 				t.Fatalf("missing post-tool deferral nudge: %+v", last)
 			}
 			return &provider.Result{Content: "I give up — google__sheets_read_values failed with auth error."}, nil
