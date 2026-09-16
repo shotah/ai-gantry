@@ -1,6 +1,6 @@
 # Eval setup
 
-> Why it exists: [evaluation.md](evaluation.md#1-behavioral-regression-closed) ·
+> Why it exists: [evaluation.md](evaluation.md#the-behavior-contract) ·
 > What it checks: [persona_doc_goals.md](persona_doc_goals.md#scenario-checks) ·
 > Fixtures: `internal/agent/testdata/eval/`
 
@@ -210,14 +210,14 @@ n=3 is too noisy to call a 0.2-round difference, use 5 or more. When it
 wins, copy it over the seed and its two lockstep copies
 (`examples/native/persona/`, Gantree's `lib/yard/crane/templates/`), and
 lower `round_budget` on the fixtures that moved so the next regression
-shows up as a run of over-budget notes. The first pass this way took the
-first seven fixtures from 2.57 to 2.17 rounds and 13.0k to 11.3k prompt
-tokens per turn; the story is in
-[evaluation.md](evaluation.md#1-behavioral-regression-closed).
+shows up as a run of over-budget notes. A bake-off pass typically buys a
+few tenths of a round per turn — a sentence that made the model wait for
+an id it did not need, or re-read a line already stamped in `[harness]`.
+Why the round count is a note and not a gate is in
+[evaluation.md](evaluation.md#the-behavior-contract).
 
-What a bake-off is not for: cutting the work. Every round removed so far
-was a round in which the model did nothing new — waited for an id it did
-not need, re-read a line already stamped in `[harness]`. A candidate that
+What a bake-off is not for: cutting the work. A round worth removing is
+one in which the model did nothing new. A candidate that
 passes with fewer rounds because it searches less, stores less, or stops
 at “let me know when” is a loss, and the completion fixtures (the flight,
 the gym check-in, the dinner spark) are there to fail it. Likewise

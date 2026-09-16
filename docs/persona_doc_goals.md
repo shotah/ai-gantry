@@ -234,7 +234,7 @@ bullet (quote the joke), not an example. Spark is kernel.
 What “pinned” means. Each row is a fixture under
 `internal/agent/testdata/eval/`, replayed against the live model with the
 shipped seed by `make integration-test` — how it works is in
-[evaluation.md](evaluation.md#1-behavioral-regression-closed). The check
+[evaluation.md](evaluation.md#the-behavior-contract). The check
 is shape (tools called, `[wait]` armed, a row stored, a job on the board),
 never the sentence. (The prompt goldens in `prompt_payload_test.go` pin
 what the model **sees**, not what it does.)
