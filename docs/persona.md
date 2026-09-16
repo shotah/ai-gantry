@@ -52,7 +52,7 @@ is the same overspill as putting MCP recipes in `PERSONA.md`.
 | --- | --- | --- |
 | `SELF.md` | Yes (cap ~4KB) | Who you became: voice, jokes, rituals, **3–5 north-star sentences** that change how you show up for months. Not mileage, due dates, or this week’s open loops. |
 | SQLite memory | Hydrate ≤ ~30 rows (FTS + recency; `insight` sorts last). **`[hours]`**, **`[aims]`**, and **`[loops]`** are also stamped on every turn from `pref/hours`, live `aim/<area>` insight, and `waiting/` `follow/` facts — they do not depend on the hydrate query, and stamped rows are not repeated in `[memory]`. Loops untouched for three weeks carry `— resolve or memory_forget`. | The tracker. `aim/<area>` insight; `pref/food` `pref/hours` preference (same subject replaces the live row); `event/` `waiting/` `follow/` fact. |
-| cron / watch / spark | No — wakes a later turn | The loop. Spark looks after the user (aims, live tools, one question, grounded joke). Pin a wake with `cron_schedule` `memory_id`. User crons still fire at the time they picked; spark skips learned sleep. |
+| cron / watch / spark | No — wakes a later turn | The loop. Spark looks after the user (aims, live tools, one question, grounded joke). Pin a wake with `cron_schedule` `memory_subject` (or `memory_id` when the row already exists). User crons still fire at the time they picked; spark skips learned sleep. |
 | Calendar / Tasks (MCP) | No | Dated to-dos with a real due date. |
 
 **Not all SQL.** Hydration is still lossy for arbitrary facts. Live `aim/`
@@ -100,8 +100,8 @@ report nothing. They taught that loop → store it and ask **this turn**,
 never “yes boss.”
 “how’s the long goal going?” → recall `aim/` then live tools. Never invent
 progress.
-“[cron] Spark of life” → recall `aim/` + hours + cron_list, live tools in
-ONE response. Gym + Garmin + clock can be a grounded joke. Real empty
+“[cron] Spark of life” → `[aims]` / `[hours]` / `[wakes]` are already in
+`[harness]`; live tools in ONE response. Gym + Garmin + clock can be a grounded joke. Real empty
 calendar → one question: what do they want on it, not `[silent]`. A clock
 time she commits (scoop at 2) → `cron_schedule` or one offer to ping.
 Hours unknown: ask sleep/work once. `[silent]` if nothing useful.

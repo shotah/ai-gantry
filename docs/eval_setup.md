@@ -60,7 +60,24 @@ is canned.
    ```
 
    `-eval.only` takes fixture `name`s (the JSON field, not the file name),
-   comma-separated.
+   comma-separated. Two more flags: `-eval.v` prints every call with its
+   args and the reply for passing runs too (the failure dump, on green);
+   `-eval.persona=path` loads that file instead of the shipped seed — see
+   the bake-off below.
+
+   Every passing run prints its cost and shape:
+
+   ```text
+   run 1/3 ok: 2 rounds, 10.7k prompt / 259 completion tokens — [cron_schedule memory_store google__calendar_create_event] → reply
+   scoop_at_2: 3 runs, mean 2.00 rounds, mean 10.7k prompt / 259 completion tokens per turn
+   ...
+   all fixtures: 21 runs, mean 2.17 rounds, mean 11.3k prompt / 149 completion tokens per turn
+   ```
+
+   Rounds are Completer calls for the turn; the last one is the reply, so
+   one tool batch plus the answer is 2. Brackets are the calls that went
+   out in one batch; each `→` is a serial round. Tokens are the
+   provider's native usage summed over rounds (0 when it omits them).
 
    Windows: the target is POSIX shell. Set the three variables in the
    session and run the `go test` line from the Makefile directly.
@@ -126,6 +143,7 @@ Sprint's at 2:30 and the scoop is at 2 — I'll keep an eye on it.
 | `order: X before …` | Both called, wrong order (e.g. the tool before `mcp_enable`). |
 | `reply should match /re/` · `should not match` | Shape of the reply — a `?`, a bare “got it”. Never a sentence. |
 | `N questions, max M` | Counted `?` in the reply. |
+| `N rounds, max M ([a b] → [c] → reply)` | The turn took more Completer rounds than the fixture's `max_rounds`. The batches show where the serial round went — a write after the reads, a lookup for something `[harness]` already stamps. |
 | `waiting_for_reply=false, want true` | The model asked but did not put `[wait]` on its own line — the kernel follow-up rule. |
 | `silent=true, want false` | `[silent]` (or an empty reply) where a nudge was owed. |
 | `expected memory row kind subject` | No live `memory_store` row with that subject after the turn. |
@@ -157,6 +175,31 @@ Fixtures are validated in `go test ./...` before any model call:
 go test ./internal/agent/ -run 'TestEvalFixtures_WellFormed|TestEvalHarness'
 ```
 
+### The bake-off
+
+The same run is how a persona edit earns its place. Read the shapes first:
+a `→` inside a run that the rule did not need is the thing to cut, and it
+usually traces to one sentence — a pin the model can only know after a
+store returns, a "check first" for something `[harness]` already stamps.
+Then:
+
+```sh
+cp examples/persona/PERSONA.example.md /tmp/candidate.md
+# edit /tmp/candidate.md
+make integration-test EVAL_ARGS='-eval.n=5'                                   # seed: the number to beat
+make integration-test EVAL_ARGS='-eval.n=5 -eval.persona=/tmp/candidate.md'   # candidate
+```
+
+Compare the two `all fixtures:` lines and the per-fixture means. A
+candidate wins when every run still passes and rounds or tokens fall;
+n=3 is too noisy to call a 0.2-round difference, use 5 or more. When it
+wins, copy it over the seed and its two lockstep copies
+(`examples/native/persona/`, Gantree's `lib/yard/crane/templates/`), and
+lower `max_rounds` on the fixtures that moved so the gain is a contract.
+The first pass this way took the seven fixtures from 2.57 to 2.17 rounds
+and 13.0k to 11.3k prompt tokens per turn; the story is in
+[evaluation.md](evaluation.md#1-behavioral-regression-closed).
+
 ## 5. Adding a fixture
 
 Copy the nearest file under `internal/agent/testdata/eval/` and edit. The
@@ -173,7 +216,7 @@ list of rows; add the row there when you add the file.
 | `self` | `SELF.md` body (`- ` bullets). Empty file when absent — that is the “empty SELF.md” scenario. |
 | `tools` | Canned MCP tools: `name` (must be `server__name`), `description`, optional `params` schema, `result` returned verbatim every call. |
 | `force` | MCP prefixes published without `mcp_enable`. Leave empty to test the off → enable → call path. |
-| `expect` | The shape contract — see the failure table above for each key. |
+| `expect` | The shape contract — see the failure table above for each key. `max_rounds` is the cost contract: set it to the floor the rule needs (one batch + reply = 2; a prefix that must be `mcp_enable`d first = 3) plus the room the model has shown it needs, never lower than a green n=5 run. |
 
 Then:
 

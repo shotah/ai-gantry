@@ -99,6 +99,9 @@ func (a *Agent) hoursStamp(ctx context.Context) string {
 // [harness] and dropped from [memory] hydration so they are not paid twice.
 type horizon struct {
 	aims, waiting, follow []memory.Entry
+	// asked is the aim/bootstrap marker when the board is empty and the
+	// months-scale question has already gone out; nil otherwise.
+	asked *memory.Entry
 }
 
 func (a *Agent) loadHorizon(ctx context.Context) horizon {
@@ -114,16 +117,28 @@ func (a *Agent) loadHorizon(ctx context.Context) horizon {
 	h.aims = list(memory.KindInsight, memory.SubjectAimPrefix, "aims")
 	h.waiting = list(memory.KindFact, memory.SubjectWaitingPrefix, "waiting")
 	h.follow = list(memory.KindFact, memory.SubjectFollowPrefix, "follow")
+	if len(h.aims) == 0 {
+		if e, ok, err := a.memory.ActiveByKindSubject(ctx, memory.KindFact, memory.SubjectAimBootstrap); err == nil && ok {
+			h.asked = &e
+		}
+	}
 	return h
 }
 
 func (h horizon) stamp(now time.Time) string {
-	return stampLine(memory.FormatAims(h.aims, now)) + stampLine(memory.FormatLoops(h.waiting, h.follow, now))
+	aims := memory.FormatAims(h.aims, now)
+	if aims == "" {
+		aims = memory.FormatAimsEmpty(h.asked, now)
+	}
+	return stampLine(aims) + stampLine(memory.FormatLoops(h.waiting, h.follow, now))
 }
 
 // dropStamped filters hydration rows already on [aims] / [loops].
 func (h horizon) dropStamped(entries []memory.Entry) []memory.Entry {
-	stamped := make(map[int64]struct{}, len(h.aims)+len(h.waiting)+len(h.follow))
+	stamped := make(map[int64]struct{}, len(h.aims)+len(h.waiting)+len(h.follow)+1)
+	if h.asked != nil {
+		stamped[h.asked.ID] = struct{}{}
+	}
 	for _, set := range [][]memory.Entry{h.aims, h.waiting, h.follow} {
 		for _, e := range set {
 			if e.ID > 0 {

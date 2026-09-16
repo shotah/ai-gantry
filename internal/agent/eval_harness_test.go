@@ -43,6 +43,10 @@ const evalFixtureDir = "testdata/eval"
 // evalPersonaSeed is the file under test — the shipped seed, not a stub.
 const evalPersonaSeed = "../../examples/persona/PERSONA.example.md"
 
+// evalPersonaPath is the persona actually loaded; the live eval overrides it
+// with -eval.persona to bake off a candidate seed against the fixtures.
+var evalPersonaPath = evalPersonaSeed
+
 const evalTZ = "America/Los_Angeles"
 
 // evalFixture is one scenario. Time placeholders in Inbound are expanded at
@@ -95,13 +99,15 @@ type evalExpect struct {
 	ToolsCalled    []evalCallExpect `json:"tools_called,omitempty"`
 	ToolsNotCalled []string         `json:"tools_not_called,omitempty"`
 	// Order lists tool names whose first calls must appear in this order.
-	Order        []string           `json:"order,omitempty"`
-	ReplyRegex   string             `json:"reply_regex,omitempty"`
-	ReplyNot     string             `json:"reply_not_regex,omitempty"`
-	MaxQuestions *int               `json:"max_questions,omitempty"`
-	Wait         *bool              `json:"wait,omitempty"`
-	Silent       *bool              `json:"silent,omitempty"`
-	Memory       []evalMemoryExpect `json:"memory,omitempty"`
+	Order        []string `json:"order,omitempty"`
+	ReplyRegex   string   `json:"reply_regex,omitempty"`
+	ReplyNot     string   `json:"reply_not_regex,omitempty"`
+	MaxQuestions *int     `json:"max_questions,omitempty"`
+	// MaxRounds caps completer rounds for the turn (tool rounds + the reply).
+	MaxRounds *int               `json:"max_rounds,omitempty"`
+	Wait      *bool              `json:"wait,omitempty"`
+	Silent    *bool              `json:"silent,omitempty"`
+	Memory    []evalMemoryExpect `json:"memory,omitempty"`
 	// CronWithin: at least one job for this session lands in [after, before]
 	// minutes from the turn.
 	CronWithin *evalWindow  `json:"cron_within,omitempty"`
@@ -123,14 +129,16 @@ type evalWindow struct {
 	BeforeMin int `json:"before_min"`
 }
 
-// evalCall is one recorded tool call, builtin or MCP.
+// evalCall is one recorded tool call, builtin or MCP. Round is the completer
+// round that requested it (1-based), so a batch is the calls sharing a round.
 type evalCall struct {
-	Name string
-	Args string
+	Name  string
+	Args  string
+	Round int
 }
 
 // evalOutcome is what one turn produced, gathered from the recorder, the wait
-// hook, and the stores.
+// hook, the completer counter, and the stores.
 type evalOutcome struct {
 	Calls    []evalCall
 	Reply    string // what Handle returned (wait tokens stripped)
@@ -139,7 +147,11 @@ type evalOutcome struct {
 	Silent   bool
 	Jobs     []cron.Job
 	Started  time.Time
-	mem      memory.Memory
+	// Rounds is completer calls for the turn; the last one is the reply.
+	Rounds           int
+	PromptTokens     int // native usage summed over rounds; 0 when the provider omits it
+	CompletionTokens int
+	mem              memory.Memory
 }
 
 func loadEvalFixtures(t *testing.T, dir string) []evalFixture {
@@ -228,10 +240,40 @@ func (c *cannedTools) Call(_ context.Context, name string, _ json.RawMessage) (s
 	return "", fmt.Errorf("eval: no canned tool %q", name)
 }
 
+// countingCompleter counts rounds and sums native usage; the recorder reads
+// the round so each tool call is tagged with the batch it came from.
+type countingCompleter struct {
+	inner  provider.Completer
+	mu     sync.Mutex
+	rounds int
+	usage  provider.Usage
+}
+
+func (c *countingCompleter) Complete(ctx context.Context, req provider.Request) (*provider.Result, error) {
+	c.mu.Lock()
+	c.rounds++
+	c.mu.Unlock()
+	res, err := c.inner.Complete(ctx, req)
+	if res != nil {
+		c.mu.Lock()
+		c.usage.PromptTokens += res.Usage.PromptTokens
+		c.usage.CompletionTokens += res.Usage.CompletionTokens
+		c.mu.Unlock()
+	}
+	return res, err
+}
+
+func (c *countingCompleter) round() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.rounds
+}
+
 // recordingTools wraps the outermost composite so builtins and MCP calls are
 // both seen, then delegates.
 type recordingTools struct {
 	inner agent.Tools
+	round func() int
 	mu    sync.Mutex
 	calls []evalCall
 }
@@ -242,7 +284,7 @@ func (r *recordingTools) ToolCount() int { return r.inner.ToolCount() }
 
 func (r *recordingTools) Call(ctx context.Context, name string, args json.RawMessage) (string, error) {
 	r.mu.Lock()
-	r.calls = append(r.calls, evalCall{Name: name, Args: string(args)})
+	r.calls = append(r.calls, evalCall{Name: name, Args: string(args), Round: r.round()})
 	r.mu.Unlock()
 	return r.inner.Call(ctx, name, args)
 }
@@ -282,9 +324,9 @@ func (w *recordingWait) last() string {
 // agent, and loads it the way boot does (kernel sections stamped).
 func evalPersona(t *testing.T, dir string) string {
 	t.Helper()
-	seed, err := os.ReadFile(evalPersonaSeed)
+	seed, err := os.ReadFile(evalPersonaPath)
 	if err != nil {
-		t.Fatalf("read seed: %v", err)
+		t.Fatalf("read seed %s: %v", evalPersonaPath, err)
 	}
 	text := strings.Replace(string(seed), "- **Name:** (pick one)", "- **Name:** Kit", 1)
 	text = strings.Replace(text, "- **Name:** Your Name", "- **Name:** Sam", 1)
@@ -376,12 +418,13 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		Enable: mcpenable.Tools{Store: enable, Index: func() []string { return mcpenable.Index(base.Tools()) }},
 		Other:  base,
 	}
-	rec := &recordingTools{inner: tools}
+	counter := &countingCompleter{inner: completer}
+	rec := &recordingTools{inner: tools, round: counter.round}
 	wait := &recordingWait{inner: &cron.WaitService{State: sessions, Jobs: jobs, TZ: evalTZ}}
 
 	a, err := agent.New(agent.Options{
 		Persona:     personaText,
-		Completer:   completer,
+		Completer:   counter,
 		Sessions:    sessions,
 		Memory:      mem,
 		Tools:       rec,
@@ -429,14 +472,17 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 	}
 	raw := wait.last()
 	return evalOutcome{
-		Calls:    rec.snapshot(),
-		Reply:    reply,
-		RawReply: raw,
-		Waiting:  state.WaitingForReply,
-		Silent:   strings.TrimSpace(reply) == "" || cron.IsSilentReply(raw),
-		Jobs:     list,
-		Started:  started,
-		mem:      mem,
+		Calls:            rec.snapshot(),
+		Reply:            reply,
+		RawReply:         raw,
+		Waiting:          state.WaitingForReply,
+		Silent:           strings.TrimSpace(reply) == "" || cron.IsSilentReply(raw),
+		Jobs:             list,
+		Started:          started,
+		Rounds:           counter.round(),
+		PromptTokens:     counter.usage.PromptTokens,
+		CompletionTokens: counter.usage.CompletionTokens,
+		mem:              mem,
 	}
 }
 
@@ -483,6 +529,9 @@ func checkEval(ctx context.Context, out evalOutcome, want evalExpect) []string {
 		if n := strings.Count(reply, "?") + strings.Count(reply, "？"); n > *want.MaxQuestions {
 			fails = append(fails, fmt.Sprintf("%d questions, max %d", n, *want.MaxQuestions))
 		}
+	}
+	if want.MaxRounds != nil && out.Rounds > *want.MaxRounds {
+		fails = append(fails, fmt.Sprintf("%d rounds, max %d (%s)", out.Rounds, *want.MaxRounds, describeBatches(out)))
 	}
 	if want.Wait != nil && out.Waiting != *want.Wait {
 		fails = append(fails, fmt.Sprintf("waiting_for_reply=%v, want %v", out.Waiting, *want.Wait))
@@ -586,6 +635,35 @@ func describeJobs(out evalOutcome) string {
 	return strings.Join(parts, ", ")
 }
 
+// describeBatches is the turn's shape: tool calls grouped by completer
+// round, then the reply. "[a b] → [c] → reply" is three rounds; the
+// arrows are the serial cost.
+func describeBatches(out evalOutcome) string {
+	var parts []string
+	for r := 1; r <= out.Rounds; r++ {
+		var names []string
+		for _, c := range out.Calls {
+			if c.Round == r {
+				names = append(names, c.Name)
+			}
+		}
+		if len(names) > 0 {
+			parts = append(parts, "["+strings.Join(names, " ")+"]")
+		}
+	}
+	parts = append(parts, "reply")
+	return strings.Join(parts, " → ")
+}
+
+// describeCost is the per-run cost line: rounds and native tokens when the
+// provider reports them.
+func describeCost(out evalOutcome) string {
+	if out.PromptTokens == 0 {
+		return fmt.Sprintf("%d rounds", out.Rounds)
+	}
+	return fmt.Sprintf("%d rounds, %.1fk prompt / %d completion tokens", out.Rounds, float64(out.PromptTokens)/1000, out.CompletionTokens)
+}
+
 // describeEval is the failure dump: calls, then the reply.
 func describeEval(out evalOutcome) string {
 	var b strings.Builder
@@ -594,8 +672,9 @@ func describeEval(out evalOutcome) string {
 		b.WriteString("(none)\n")
 	}
 	for _, c := range out.Calls {
-		fmt.Fprintf(&b, "%s %s\n", c.Name, c.Args)
+		fmt.Fprintf(&b, "r%d %s %s\n", c.Round, c.Name, c.Args)
 	}
+	fmt.Fprintf(&b, "--- %s: %s ---\n", describeCost(out), describeBatches(out))
 	fmt.Fprintf(&b, "--- waiting=%v silent=%v jobs=%s ---\n", out.Waiting, out.Silent, describeJobs(out))
 	b.WriteString("--- reply ---\n")
 	b.WriteString(out.RawReply)

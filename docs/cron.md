@@ -22,8 +22,9 @@ A months-scale **aim** is not a cron by itself. North-star sentences live in
 after the user — aims, live tools, filling useful personal knowledge, and a
 joke when the data earns it. Empty zero-tool pings still stay `[silent]`.
 Learned `pref/hours` sleep skips spark/examples; explicit "remind me at 9pm"
-still fires. Pin follow-through with `memory_id` so the wake is not a hydrate
-lottery. A goal with no wake is a dusty row — [persona.md](persona.md#where-the-horizon-lives).
+still fires. Pin follow-through with `memory_subject` (or `memory_id`) so the
+wake is not a hydrate lottery — the subject is known before `memory_store`
+returns, so the store and the `cron_schedule` go out in one batch. A goal with no wake is a dusty row — [persona.md](persona.md#where-the-horizon-lives).
 
 Cron has no Telegram streaming / tool-trace bubble — only the final `Push`.
 Live-data replies append `— tools: name, …` or `— tools: (none)` so a skipped

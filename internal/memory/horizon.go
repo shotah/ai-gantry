@@ -14,8 +14,12 @@ const (
 	SubjectAimPrefix     = "aim/"
 	SubjectWaitingPrefix = "waiting/"
 	SubjectFollowPrefix  = "follow/"
-	harnessHorizonMax    = 5
-	harnessHorizonClip   = 72
+	// SubjectAimBootstrap is the fact row the model writes after asking the
+	// months-scale question on an empty board. Stamped on [aims] so the
+	// "did I already ask" check costs no memory_recall round.
+	SubjectAimBootstrap = "aim/bootstrap"
+	harnessHorizonMax   = 5
+	harnessHorizonClip  = 72
 	// horizonFetch is the ListBySubjectPrefix default window: wide enough
 	// that the "+N more" overflow count is honest for a real board.
 	horizonFetch = 30
@@ -38,6 +42,27 @@ func FormatAims(entries []Entry, now time.Time) string {
 		return ""
 	}
 	return "[aims] " + strings.Join(parts, " · ") + horizonMore(more, "memory_recall aim/")
+}
+
+// FormatAimsEmpty is the [aims] line when there are no live aim/ rows but
+// the model has already asked the months-scale question: the date it asked,
+// in now's zone, so "at most once per day" needs no lookup. Nil asked (never
+// asked) keeps the line absent — that absence is the ask cue.
+func FormatAimsEmpty(asked *Entry, now time.Time) string {
+	if asked == nil {
+		return ""
+	}
+	at := asked.UpdatedAt
+	if at.IsZero() {
+		at = asked.CreatedAt
+	}
+	if at.IsZero() {
+		return "[aims] none (asked)"
+	}
+	if !now.IsZero() {
+		at = at.In(now.Location())
+	}
+	return "[aims] none (asked " + at.Format("2006-01-02") + ")"
 }
 
 // FormatLoops is the per-turn [loops] line for open loops. waiting/ and

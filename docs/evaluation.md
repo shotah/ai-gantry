@@ -200,6 +200,34 @@ either order with the calendar, and was never silent. "Hey" with no aim
 on the board got one question, once with no tool at all. That is the
 distilled seed carrying its rules, measured instead of felt.
 
+The second reading used it as a knife. Once each recorded tool call
+carried the completer round that asked for it, a run read as batches —
+`[cron_list memory_store calendar] → [cron_schedule] → reply` — and the
+arrows were the bill: 2.57 rounds and 13.0k prompt tokens per turn across
+the seven fixtures, three of them a round above their floor. Every extra
+round traced to a sentence, not to the model. The scoop waited a round
+because the seed said pin the wake with `memory_id`, which exists only
+after `memory_store` returns; `cron_schedule` also takes
+`memory_subject`, which the model knows up front, so the seed now says
+that and the store and the wake ride in one batch. "Hey" on an empty
+board spent one or two `memory_recall`s asking whether it had already
+asked the months-scale question, because the `aim/bootstrap` marker is a
+fact row and `[aims]` listed only insights; the kernel now stamps
+`[aims] none (asked 2026-09-15)` when the marker exists, and the
+Self-notes section and the spark line say the missing line *is* the
+answer. `cron_list` before `cron_schedule` went the same way — `[wakes]`
+is the board, and no line means empty. Same fixtures, five runs each,
+thirty-five for thirty-five: 2.17 rounds and 11.3k prompt tokens per
+turn. The scoop went 3 → 2 rounds and 16.8k → 10.7k tokens; "hey" 3.3 →
+2 and 15.0k → 9.7k; off-prefix settled at a steady 3, its floor, because
+the enabled schema arrives on the next call. Every fixture now carries
+`max_rounds`, so the next sentence that costs a round fails the gate
+instead of the phone bill. What is left is variance: one run in twelve of
+"what's on today" spent a third round on a `memory_store` — and what it
+stored was the seed's own example sentence, `pref/calendar: "If nothing's
+on, get something on it."`, as if the human had said it. One sample;
+written down, not tuned for.
+
 Its limits. One model is one reading — the gate is on whatever is in
 `.env`, and a Gemma-class local model would need its own pass and
 probably its own tolerances. Three table rows have no fixture (a landed

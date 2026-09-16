@@ -1,11 +1,12 @@
 {
   "name": "no_aims_one_question",
-  "why": "No aim/ row and no [aims] line: ONE months-scale question. Not a task menu, not [silent].",
+  "why": "No aim/ row and no [aims] line: ONE months-scale question. Not a task menu, not [silent]. The missing line is the answer — no memory_recall to check for aims or aim/bootstrap; the marker is stored in the same batch.",
   "inbound": "hey",
   "memory": [
     { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
   ],
   "expect": {
+    "max_rounds": 3,
     "silent": false,
     "reply_regex": "\\?",
     "max_questions": 1,

@@ -14,6 +14,7 @@ package agent_test
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -24,8 +25,10 @@ import (
 )
 
 var (
-	evalN    = flag.Int("eval.n", 3, "runs per fixture; every run must pass")
-	evalOnly = flag.String("eval.only", "", "comma-separated fixture names to run (default all)")
+	evalN           = flag.Int("eval.n", 3, "runs per fixture; every run must pass")
+	evalOnly        = flag.String("eval.only", "", "comma-separated fixture names to run (default all)")
+	evalPersonaFlag = flag.String("eval.persona", "", "persona file to test instead of the shipped seed (bake-off)")
+	evalVerbose     = flag.Bool("eval.v", false, "dump calls with args and the reply for passing runs too")
 )
 
 // evalSelected parses -eval.only; nil means every fixture.
@@ -51,37 +54,67 @@ func TestEval_Live(t *testing.T) {
 		t.Skip("LLM_BASE_URL, LLM_API_KEY, LLM_MODEL required; put them in .env and run make integration-test")
 	}
 	completer := provider.New(baseURL, apiKey, model)
-	t.Logf("model %s at %s; %d run(s) per fixture", model, baseURL, *evalN)
+	if *evalPersonaFlag != "" {
+		evalPersonaPath = *evalPersonaFlag
+	}
+	t.Logf("model %s at %s; %d run(s) per fixture; persona %s", model, baseURL, *evalN, evalPersonaPath)
 
 	selected := evalSelected()
+	var total evalTotals
 	for _, fx := range loadEvalFixtures(t, evalFixtureDir) {
 		if selected != nil && !slices.Contains(selected, fx.Name) {
 			continue
 		}
 		t.Run(fx.Name, func(t *testing.T) {
 			t.Log(fx.Why)
+			var sub evalTotals
 			for i := 1; i <= *evalN; i++ {
 				ctx, cancel := context.WithTimeout(context.Background(), evalTurnTimeout)
 				out := runEvalFixture(ctx, t, completer, fx)
 				fails := checkEval(ctx, out, fx.Expect)
 				cancel()
+				sub.add(out)
 				if len(fails) > 0 {
 					t.Errorf("run %d/%d FAIL: %s\n%s", i, *evalN, strings.Join(fails, "; "), describeEval(out))
 					continue
 				}
-				t.Logf("run %d/%d ok: %s", i, *evalN, callNames(out))
+				t.Logf("run %d/%d ok: %s — %s", i, *evalN, describeCost(out), describeBatches(out))
+				if *evalVerbose {
+					t.Log(describeEval(out))
+				}
 			}
+			t.Logf("%s: %s", fx.Name, sub.String())
+			total.merge(sub)
 		})
 	}
+	t.Logf("all fixtures: %s", total.String())
 }
 
-func callNames(out evalOutcome) string {
-	if len(out.Calls) == 0 {
-		return "no tools"
+// evalTotals is the cost roll-up the bake-off compares: mean rounds and
+// mean prompt tokens per turn.
+type evalTotals struct {
+	runs, rounds, prompt, completion int
+}
+
+func (e *evalTotals) add(out evalOutcome) {
+	e.runs++
+	e.rounds += out.Rounds
+	e.prompt += out.PromptTokens
+	e.completion += out.CompletionTokens
+}
+
+func (e *evalTotals) merge(o evalTotals) {
+	e.runs += o.runs
+	e.rounds += o.rounds
+	e.prompt += o.prompt
+	e.completion += o.completion
+}
+
+func (e evalTotals) String() string {
+	if e.runs == 0 {
+		return "no runs"
 	}
-	names := make([]string, 0, len(out.Calls))
-	for _, c := range out.Calls {
-		names = append(names, c.Name)
-	}
-	return strings.Join(names, " → ")
+	n := float64(e.runs)
+	return fmt.Sprintf("%d runs, mean %.2f rounds, mean %.1fk prompt / %.0f completion tokens per turn",
+		e.runs, float64(e.rounds)/n, float64(e.prompt)/n/1000, float64(e.completion)/n)
 }

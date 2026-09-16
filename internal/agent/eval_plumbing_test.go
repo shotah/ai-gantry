@@ -153,6 +153,16 @@ func TestEvalHarness_ScoopSchedulesCron(t *testing.T) {
 	if firstCall(out.Calls, "cron_schedule") != 0 {
 		t.Fatalf("recorder missed cron_schedule\n%s", describeEval(out))
 	}
+	if out.Rounds != 2 || out.Calls[0].Round != 1 {
+		t.Fatalf("rounds=%d call round=%d, want 2 and 1", out.Rounds, out.Calls[0].Round)
+	}
+	if got := describeBatches(out); got != "[cron_schedule] → reply" {
+		t.Fatalf("batches %q", got)
+	}
+	two := 1
+	if fails := checkEval(ctx, out, evalExpect{MaxRounds: &two}); len(fails) != 1 || !strings.HasPrefix(fails[0], "2 rounds, max 1") {
+		t.Fatalf("max_rounds should fail: %v", fails)
+	}
 	req := sc.reqs[0]
 	for _, name := range []string{"cron_schedule", "memory_store", "self_note", "mcp_enable", "google__calendar_list_events"} {
 		if !hasToolDef(req.Tools, name) {
@@ -213,6 +223,9 @@ func TestEvalHarness_OffPrefixEnableThenCall(t *testing.T) {
 	}
 	if !hasToolDef(sc.reqs[1].Tools, "google__calendar_list_events") {
 		t.Error("round 2 did not publish the enabled prefix")
+	}
+	if got := describeBatches(out); got != "[mcp_enable] → [google__calendar_list_events] → reply" {
+		t.Errorf("batches %q", got)
 	}
 
 	// Reversed order is caught.

@@ -233,6 +233,45 @@ func TestHandle_HarnessStampsHoursAimsLoops(t *testing.T) {
 	}
 }
 
+// An empty board with the aim/bootstrap marker stamps the ask date on
+// [aims]; a live aim/ row wins and the marker stays off the line. Either way
+// the model never needs a memory_recall to learn whether it already asked.
+func TestHandle_HarnessStampsAimsAsked(t *testing.T) {
+	ctx := context.Background()
+	mem, err := memory.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = mem.Close() })
+	if _, err := mem.Store(ctx, memory.KindFact, memory.SubjectAimBootstrap, "asked 2026-09-15"); err != nil {
+		t.Fatal(err)
+	}
+	var clock string
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		clock = promptHarnessClock(req.Messages)
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{Completer: fc, Sessions: newMemHistory(), Memory: mem, Model: "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(ctx, channel.Message{SessionID: "asked", Text: "hey"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(clock, "[aims] none (asked 20") {
+		t.Fatalf("bootstrap marker not stamped: %q", clock)
+	}
+	if _, err := mem.Store(ctx, memory.KindInsight, "aim/training", "3x gym this month"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Handle(ctx, channel.Message{SessionID: "asked", Text: "hey"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(clock, "[aims] training: 3x gym this month") || strings.Contains(clock, "none (asked") {
+		t.Fatalf("live aim must replace the marker: %q", clock)
+	}
+}
+
 // quietMCP is an MCP memory server with nothing stored: recall returns no rows.
 type quietMCP struct{}
 

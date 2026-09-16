@@ -34,6 +34,7 @@
     }
   ],
   "expect": {
+    "max_rounds": 2,
     "reply_not_regex": "(?i)^\\s*(got it|yes boss|okay|ok|sure|sounds good|will do|done)[.!]*\\s*$",
     "any_of": [
       { "tools_called": [{ "name": "google__calendar_create_event" }] },

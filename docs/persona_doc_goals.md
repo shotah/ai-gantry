@@ -88,15 +88,19 @@ A question it asks does not evaporate. A time it commits to has a wake.
   `waiting_for_reply=true`, no new different question. — **kernel**
   (`internal/cron/wait.go`, `WaitSection`, `waitReplyNote`).
 - A clock time the agent commits to (“scoop at 2”, “leave at 5”) is a
-  `cron_schedule` with `memory_id`, or **one** offer to ping. A calendar event
-  is not the reminder. Never a timed checklist with no wake. — **persona**.
+  `cron_schedule` pinned by `memory_subject`, or **one** offer to ping. A
+  calendar event is not the reminder. Never a timed checklist with no wake.
+  Subject, not `memory_id`: the id exists only after `memory_store`
+  returns, which cost a round on every reminder; the subject is known up
+  front, so the store and the wake go out in one batch. — **persona**.
   Example #3.
 - Something they are waiting on → `memory_store` `waiting/` or `follow/`.
   Stamped as `[loops]` every turn; three weeks untouched carries “resolve or
   memory_forget”. — **kernel** stamps; **persona** says to store.
-- `cron_list` before `cron_schedule`; same `follow/` on the board → don't
-  twin. Done / “already did it” / stop → `cron_cancel`. “Not now” → later
-  cron. — **persona**.
+- `[wakes]` is the board; same `follow/` already on it → don't twin. No
+  `[wakes]` line means nothing scheduled — not a `cron_list` to check. Done
+  / “already did it” / stop → `cron_cancel`. “Not now” → later cron. —
+  **persona** says it; **kernel** stamps the line.
 
 ### Character growth (`SELF.md`)
 
@@ -128,8 +132,16 @@ character. We want **more** notes, not fewer.
   `mcp_enable` this turn, then call. Don't bluff a tool that is off. —
   **persona**.
 - Independent lookups in **one** response (parallel). Chain only when a later
-  call needs an earlier result. Stop ~10 rounds; same error twice → stop and
-  report. — **persona**.
+  call needs an earlier result. Writes the agent already knows it will make
+  (`memory_store`, `self_note`, `cron_schedule`) ride in that first batch,
+  not a round after. Stop ~10 rounds; same error twice → stop and report. —
+  **persona**.
+- `[harness]` is already the lookup: `[hours]` `[aims]` `[loops]` `[wakes]`
+  are the live rows and a missing line means none — no `memory_recall` or
+  `cron_list` to re-check them. `[aims] none (asked <date>)` is the
+  months-scale question already out, so “ask at most once a day” needs no
+  recall either. — **kernel** stamps; **persona** and the Self-notes
+  section say to trust it.
 
 ### Identity and consent
 
@@ -209,9 +221,10 @@ bullet (quote the joke), not an example. Spark is kernel.
 2. **“how's the long goal going?”** → recall `aim/` then live tools. Never
    invent progress. Holes first, then one next step — and offer to put that
    step on the calendar or a cron.
-3. **“Sprint is 2:30; take the scoop at 2.”** → update calendar **and**
-   `cron_list` → `cron_schedule` 14:00 (`follow/` + `memory_id`), or ask once
-   “ping you at 2?” Never list 2:00 as chat-only.
+3. **“Sprint is 2:30; take the scoop at 2.”** → update calendar,
+   `memory_store` `follow/scoop`, **and** `cron_schedule` 14:00 pinned by
+   `memory_subject` — one batch — or ask once “ping you at 2?” Never list
+   2:00 as chat-only.
 
 ## Scenario checks
 
@@ -225,7 +238,7 @@ what the model **sees**, not what it does.)
 
 | Send | Must see in the turn | Fixture |
 | --- | --- | --- |
-| “Sprint is 2:30; take the scoop at 2.” | Calendar update **and** `cron_schedule` 14:00 with `memory_id`, or one “ping you at 2?” Not 2:00 as chat only. | `01_scoop_at_2` (relative clock: `{{+120m}}`) |
+| “Sprint is 2:30; take the scoop at 2.” | Calendar update **and** `cron_schedule` 14:00 pinned by `memory_subject`, or one “ping you at 2?” Not 2:00 as chat only. Two rounds. | `01_scoop_at_2` (relative clock: `{{+120m}}`) |
 | “If nothing is on my schedule, get something on it.” | `memory_store` `pref/calendar` **and** a question about today, same turn. | `02_get_something_on_it` |
 | “what's on today?” with an empty calendar | Every listed day-tool + recall in one response, then a question about what goes on the day. Not “nothing today.” | `03_whats_on_today_empty` |
 | Any question the agent asks | `[wait]` on its own line; poke at 2 min and 15 min; nothing after. | `wait: true` in 02, 03, 06 |

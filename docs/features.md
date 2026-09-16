@@ -172,7 +172,9 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
   history): NOW, day-part, last known `[location]` when we have one, yesterday/today/tomorrow, week grid
   with ISO dates so “Monday” cannot reuse after the week rolls. When memory
   is on: `[hours]` from `pref/hours`, `[aims]` from live `aim/<area>`
-  insight, `[loops]` from `waiting/` and `follow/` facts (interleaved, with
+  insight (or `[aims] none (asked <date>)` once the months-scale question
+  has gone out, so "once a day" needs no recall), `[loops]` from
+  `waiting/` and `follow/` facts (interleaved, with
   age and a stale cue, `+N more` instead of silent truncation). With cron:
   `[wakes]` — the next three human jobs, so no `cron_list` just to avoid a
   double booking. From the mouth: `[surface]` (`android_auto` / `carplay`

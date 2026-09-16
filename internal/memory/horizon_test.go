@@ -27,6 +27,24 @@ func TestFormatAimsAndLoops(t *testing.T) {
 	}
 }
 
+// The bootstrap marker renders the ask date in the operator's zone so the
+// "once per day" rule is answered by the stamp, not by a memory_recall.
+func TestFormatAimsEmpty(t *testing.T) {
+	if FormatAimsEmpty(nil, time.Time{}) != "" {
+		t.Fatal("never asked must leave the line absent")
+	}
+	la, _ := time.LoadLocation("America/Los_Angeles")
+	// 04:30Z on the 16th is still the 15th in LA.
+	asked := Entry{Subject: SubjectAimBootstrap, UpdatedAt: time.Date(2026, 9, 16, 4, 30, 0, 0, time.UTC)}
+	now := time.Date(2026, 9, 16, 6, 0, 0, 0, la)
+	if got := FormatAimsEmpty(&asked, now); got != "[aims] none (asked 2026-09-15)" {
+		t.Fatalf("got %q", got)
+	}
+	if got := FormatAimsEmpty(&Entry{Subject: SubjectAimBootstrap}, now); got != "[aims] none (asked)" {
+		t.Fatalf("no timestamp: %q", got)
+	}
+}
+
 func TestFormatAims_ClipsAndCountsOverflow(t *testing.T) {
 	got := FormatAims([]Entry{{Subject: "aim/x", Content: strings.Repeat("x", 90)}}, time.Time{})
 	if !strings.HasPrefix(got, "[aims] x: ") || !strings.HasSuffix(got, "…") {

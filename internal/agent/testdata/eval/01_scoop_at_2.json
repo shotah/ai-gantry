@@ -1,6 +1,6 @@
 {
   "name": "scoop_at_2",
-  "why": "A clock time the agent commits to is a cron_schedule with memory_id, or one offer to ping. A calendar event is not the reminder; never the time as chat only.",
+  "why": "A clock time the agent commits to is a cron_schedule pinned by memory_subject, or one offer to ping. A calendar event is not the reminder; never the time as chat only. Two rounds: the store and the cron ride in one batch — memory_id would force a round to wait for the row id.",
   "inbound": "Sprint is at {{+150m}}; take the scoop at {{+120m}}.",
   "memory": [
     { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" },
@@ -30,6 +30,7 @@
     }
   ],
   "expect": {
+    "max_rounds": 2,
     "reply_not_regex": "(?i)^\\s*(got it|yes boss|okay|ok|sure|sounds good|will do)[.!]*\\s*$",
     "any_of": [
       { "tools_called": [{ "name": "cron_schedule" }], "cron_within": { "after_min": 100, "before_min": 140 } },
