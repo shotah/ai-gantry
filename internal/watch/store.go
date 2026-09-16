@@ -264,6 +264,17 @@ func (s *Store) Claim(ctx context.Context, id int64, now time.Time) (bool, error
 // Finish clears running, stores the cursor, and schedules the next tick.
 // Cancel-safe: never re-enables a watch disabled mid-flight.
 func (s *Store) Finish(ctx context.Context, w Watch, seen []string, runErr error) error {
+	interval := time.Duration(w.IntervalSeconds) * time.Second
+	if interval < MinInterval {
+		interval = DefaultInterval
+	}
+	return s.FinishAt(ctx, w, seen, runErr, time.Now().UTC().Add(interval))
+}
+
+// FinishAt is Finish with an explicit next poll — the runner uses it to
+// park a watch until a refused server's budget resets instead of
+// re-polling into the same wall every interval.
+func (s *Store) FinishAt(ctx context.Context, w Watch, seen []string, runErr error, next time.Time) error {
 	now := time.Now().UTC()
 	errText := ""
 	if runErr != nil {
@@ -279,11 +290,10 @@ func (s *Store) Finish(ctx context.Context, w Watch, seen []string, runErr error
 	if err != nil {
 		return err
 	}
-	interval := time.Duration(w.IntervalSeconds) * time.Second
-	if interval < MinInterval {
-		interval = DefaultInterval
+	if next.Before(now) {
+		next = now
 	}
-	next := now.Add(interval)
+	next = next.UTC()
 	_, err = s.db.ExecContext(ctx, `
 		UPDATE watch SET
 			running = 0,

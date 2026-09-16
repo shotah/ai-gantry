@@ -14,6 +14,11 @@
 #   exclude = ["raw_*"]                     # denylist (shell-style * ?)
 #   tools_prefix = "garm"                   # override name used in {prefix}__{tool}
 #
+# Optional call budget — the vendor quota, enforced in the host on every path
+# (turns, spark, watch polls, retries). Over it the tool returns a refusal that
+# names the reset; watch_add on that server is raised to the matching floor.
+#   budget = "1/day"      # or "50/month"; counted in gantry.db, human's midnight
+#
 # Optional auth (gantry auth <name>):
 #   auth_command = "…"   # default: command
 #   auth_args    = ["login"]  # ${ENV} expanded
@@ -80,6 +85,11 @@
 # download_url = "https://github.com/shotah/feeds-mcp/releases/download/{tag}/feeds-mcp_{version}_{os}_{arch}.tar.gz"
 # # tools = ["items_list", "source_resolve"]  # omit = both
 # # Optional process env: FEEDS_USER_AGENT (NWS wants a contact UA)
+#
+# [[server]]
+# name    = "rentals"
+# command = "rentals-search-mcp"
+# budget  = "1/day"   # metered API: one listings search a day, whoever asks
 #
 # [[server]]
 # name    = "twitter"

@@ -36,6 +36,11 @@ type ServerSpec struct {
 	// Force publishes this server's prefix even when dynamic_tools is on
 	// (no idle drop). Small-model furniture; prefer a tight tools allowlist.
 	Force bool `toml:"force"`
+	// Budget caps calls to this server: "1/day", "50/month". The human's
+	// API quota, enforced in the host on every path (turns, spark, watch
+	// polls, retries). Over it, the tool returns a refusal that says when
+	// the budget resets. See ParseBudget.
+	Budget string `toml:"budget"`
 	// AuthCommand / AuthArgs declare how to (re)authorize this server.
 	// Used by `gantry auth <name>`. If AuthArgs is set and AuthCommand is
 	// empty, Command is used. Omit both when the server has no auth flow.
@@ -101,8 +106,22 @@ func LoadManifest(path string) (*Manifest, error) {
 			return nil, fmt.Errorf("mcp: duplicate server name %q", s.Name)
 		}
 		seen[s.Name] = struct{}{}
+		if _, _, err := ParseBudget(s.Budget); err != nil {
+			return nil, fmt.Errorf("mcp: server %q: %w", s.Name, err)
+		}
 	}
 	return &m, nil
+}
+
+// Budgets maps server name → parsed budget for every server that set one.
+func (m *Manifest) Budgets() map[string]Budget {
+	out := map[string]Budget{}
+	for _, s := range m.Servers {
+		if b, ok, err := ParseBudget(s.Budget); err == nil && ok {
+			out[s.Name] = b
+		}
+	}
+	return out
 }
 
 // ForcePrefixes returns tools_prefix-or-name for servers with force = true.

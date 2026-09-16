@@ -17,6 +17,7 @@ type CallStats struct {
 	PrefixAlias      int
 	ConstrainedRetry int
 	UnknownTool      int
+	BudgetRefused    int            // calls turned away by a server `budget`
 	ByTool           []ToolCallStat // sorted by total duration desc
 }
 
@@ -44,6 +45,7 @@ type callStatsState struct {
 	prefixAlias      int
 	constrainedRetry int
 	unknownTool      int
+	budgetRefused    int
 }
 
 type serverLastCall struct {
@@ -63,6 +65,12 @@ func (h *Host) initCallStats() {
 func (h *Host) recordPrefixAlias() {
 	h.stats.mu.Lock()
 	h.stats.prefixAlias++
+	h.stats.mu.Unlock()
+}
+
+func (h *Host) recordBudgetRefused() {
+	h.stats.mu.Lock()
+	h.stats.budgetRefused++
 	h.stats.mu.Unlock()
 }
 
@@ -131,6 +139,7 @@ func (h *Host) CallStats() CallStats {
 		PrefixAlias:      h.stats.prefixAlias,
 		ConstrainedRetry: h.stats.constrainedRetry,
 		UnknownTool:      h.stats.unknownTool,
+		BudgetRefused:    h.stats.budgetRefused,
 		ByTool:           make([]ToolCallStat, 0, len(h.stats.byTool)),
 	}
 	for name, c := range h.stats.byTool {

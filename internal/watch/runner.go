@@ -3,6 +3,7 @@ package watch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -106,9 +107,22 @@ func (r *Runner) poll(ctx context.Context, log *slog.Logger) {
 	}
 }
 
+// retryAfterer is what a budget refusal (mcp.BudgetError) knows that a
+// plain fetch error does not: when trying again could work.
+type retryAfterer interface {
+	RetryAfter() time.Time
+}
+
 func (r *Runner) runOne(ctx context.Context, log *slog.Logger, w Watch) {
 	raw, err := r.Fetcher.Call(ctx, w.Tool, w.Args)
 	if err != nil {
+		var ra retryAfterer
+		if errors.As(err, &ra) && ra.RetryAfter().After(time.Now()) {
+			until := ra.RetryAfter()
+			log.Info("watch deferred", "id", w.ID, "tool", w.Tool, "until", until.UTC().Format(time.RFC3339), "err", err)
+			_ = r.Store.FinishAt(ctx, w, w.SeenIDs, err, until)
+			return
+		}
 		log.Warn("watch fetch failed", "id", w.ID, "tool", w.Tool, "err", err)
 		_ = r.Store.Finish(ctx, w, w.SeenIDs, err)
 		return

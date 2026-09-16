@@ -243,7 +243,7 @@ Shares the cron ticker. Boot fails if watch is on and the channel cannot `Push`.
 
 | Tool | Purpose |
 | --- | --- |
-| `watch_add` | Subscribe: prefixed MCP `tool` + `args` + `interval` (default `15m`, min `1m`) + optional `label` |
+| `watch_add` | Subscribe: prefixed MCP `tool` + `args` + `interval` (default `15m`, min `1m`) + optional `label`. On a server with a `budget` the interval is raised to the budget floor (`1/day` → 24h) and the reply says so |
 | `watch_list` | List active watches |
 | `watch_cancel` | Disable by id |
 
@@ -254,6 +254,7 @@ Siblings return `{items:[{id,…}]}` JSON.
 | --- | --- | --- | --- |
 | `feeds` | [feeds-mcp](https://github.com/shotah/feeds-mcp) | `items_list`, `source_resolve` | `{ url }` |
 | `twitter` | [twitter-mcp](https://github.com/shotah/twitter-mcp) | `posts_list` | `{ handle }` — prefer 30–60m (pay-per-use) |
+| `rentals` / `flights` / `cars` | metered search MCPs | `listings_search`, `offers_search` | Set `budget = "1/day"` (or the plan's `N/month`) on the server — the 15m default is 96 calls a day. [mcp.md](mcp.md#call-budget-budget) |
 | `boards` | [boards-mcp](https://github.com/shotah/boards-mcp) | `challenges_list` | `{}` or `{ "all": true }` — hour interval; do not watch `notices_list` |
 
 Uncomment in [examples/mcp.toml.example](../examples/mcp.toml.example). Put

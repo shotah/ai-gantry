@@ -103,7 +103,11 @@ fetch tool and **never** touch the Completer. New item ids wake the agent;
 `[silent]` skips the push. First poll seeds the cursor (no backlog dump).
 
 Do not fake this with cron + “fetch the feed.” That would bill a model call
-every tick. [cron.md](cron.md#event-watches).
+every tick. A quiet tick is free for the model but not for a metered API —
+the default interval is 15m, so a watch on a rentals/flights server needs a
+`budget` on that server ([mcp.md](mcp.md#call-budget-budget)); `watch_add`
+is raised to its floor and a refused poll parks until the reset.
+[cron.md](cron.md#event-watches).
 
 ### Chat is the console (including login)
 
@@ -208,6 +212,10 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
 
 - Manifest **is** the grant (`mcp.toml`)
 - `{server}__{tool}` names, optional `tools` / `exclude` / `tools_prefix`
+- `budget = "1/day"` / `"50/month"` per server: the vendor quota enforced in
+  the host on every path (turns, spark, watch polls); over it the tool
+  returns a refusal naming the reset, and `watch_add` is raised to the
+  matching floor
 - `--tool-tier` / preset args stay in the child (Garmin `core`, Google
   `everyday`)
 - Fail-soft boot: one dead child logs `mcp server boot skipped`; the rest run

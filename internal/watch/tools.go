@@ -22,6 +22,10 @@ const (
 // Tools adapts Store into agent tool defs / calls.
 type Tools struct {
 	Store *Store
+	// Floor is the slowest-safe interval for a tool (mcp.Host.BudgetFloor):
+	// a server with `budget = "1/day"` must not be polled faster than daily.
+	// watch_add raises a shorter request to it and says so. Nil = no floor.
+	Floor func(tool string) time.Duration
 }
 
 // ToolDefs returns the three builtin watch tool schemas.
@@ -118,6 +122,13 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 		if err != nil {
 			return "", err
 		}
+		raised := ""
+		if t.Floor != nil {
+			if floor := t.Floor(strings.TrimSpace(tool)); floor > interval {
+				interval = min(floor, MaxInterval)
+				raised = fmt.Sprintf(" (interval raised to %s: that server has a call budget)", interval)
+			}
+		}
 		rawArgs := json.RawMessage(`{}`)
 		if v, ok := args["args"]; ok && v != nil {
 			b, err := json.Marshal(v)
@@ -130,9 +141,9 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("watching id=%d tool=%s interval=%s next_poll=%s label=%q",
+		return fmt.Sprintf("watching id=%d tool=%s interval=%s next_poll=%s label=%q%s",
 			w.ID, w.Tool, time.Duration(w.IntervalSeconds)*time.Second,
-			w.NextRunAt.UTC().Format(time.RFC3339), w.Label), nil
+			w.NextRunAt.UTC().Format(time.RFC3339), w.Label, raised), nil
 
 	case ToolList:
 		list, err := t.Store.ListSession(ctx, "", false)

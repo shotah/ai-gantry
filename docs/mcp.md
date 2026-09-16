@@ -254,6 +254,45 @@ Boot logs `tools_listed` vs `tools_published`. Schema cost is estimated as
 `est_tokens` (chars/4); `TOOL_SCHEMA_MAX_TOKENS` can hard-fail an oversized set.
 Prefer MCP-native tiers (`--tool-tier core`) first — [design.md](design.md#decisions).
 
+### Call budget (`budget`)
+
+A metered API — rentals, flights, cars on a 50-requests-a-month plan — gets
+its quota written into the manifest, and the host enforces it:
+
+```toml
+[[server]]
+name = "rentals"
+command = "rentals-search-mcp"
+budget = "1/day"        # or "50/month"
+```
+
+Why the host and not the prompt: the model is not the only caller, and it
+is not a careful one. In the behavioral eval a single "I need to be in
+Denver Friday" produced three to five `flights__search` calls in one turn.
+A `watch_add` that omits `interval` polls every **15 minutes** — 96 calls a
+day, a monthly quota gone before lunch. Spark wakes reach for live tools
+too. Every one of those paths ends in the same `Host.call`, so that is
+where the counter sits, after argument validation (a malformed call spends
+nothing) and before the child is touched (a refused call never reaches the
+vendor).
+
+- Counted per server per period in `gantry.db` (`mcp_budget`), so a
+  monthly cap survives a redeploy. The day rolls at the **human's**
+  midnight (`[timezone]`), the month on their first.
+- Over budget, the tool result is a refusal that names the reset and says
+  not to retry: `mcp: rentals budget 1/day used (1 calls this day); resets
+  2026-09-16 00:00 PDT — do not retry; use what you already have and tell
+  the human`. The model reports instead of burning.
+- `watch_add` on a budgeted server raises a shorter interval to the floor
+  (`1/day` → 24h; `50/month` → 14h24m) and says so in its reply. A watch
+  that still hits the wall — one created before the budget existed — is
+  parked until the reset instead of re-polling every tick; it stays
+  enabled and keeps its cursor.
+- `/tools` shows `budget_refused=N` once anything has been turned away.
+
+The count is of attempts: a call the vendor rejects still spent a slot,
+because it almost certainly spent one of theirs.
+
 ### Prefix enable (`dynamic_tools`)
 
 By default (`dynamic_tools` omitted or `true`) MCP schemas stay **off** until

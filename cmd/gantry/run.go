@@ -120,10 +120,19 @@ func run() int {
 
 	go hb.Start(ctx, heartbeat.DefaultInterval, version, logger)
 
+	// Server `budget` counters share gantry.db so a monthly cap survives a
+	// redeploy; the day rolls at the human's midnight, not UTC's.
+	budgetStore, err := mcp.OpenBudgetDB(sessions.DB())
+	if err != nil {
+		logger.Error("mcp budget store open failed", "err", err)
+		return 1
+	}
 	mcpHost, err := mcp.Start(ctx, mcp.Options{
 		ManifestPath:   cfg.MCPManifest,
 		Logger:         logger,
 		ResultMaxChars: cfg.ToolResultMaxChars,
+		BudgetStore:    budgetStore,
+		Location:       tzLoc,
 		SkipServer: func(spec mcp.ServerSpec) bool {
 			return cfg.WebSearchEnabled && websearch.IsReplacedMCP(spec.Name, spec.Command)
 		},
@@ -222,7 +231,7 @@ func run() int {
 			return 1
 		}
 		tools = watch.Composite{
-			Watch: watch.Tools{Store: watchStore},
+			Watch: watch.Tools{Store: watchStore, Floor: mcpHost.BudgetFloor},
 			Other: tools,
 		}
 		logger.Info("watch ready", "max", cfg.WatchMax)

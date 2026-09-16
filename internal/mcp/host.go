@@ -42,6 +42,13 @@ type Options struct {
 	// SkipServer omits a manifest entry without counting it as a boot failure
 	// (builtin replacements such as google-search → web_search).
 	SkipServer func(spec ServerSpec) bool
+	// BudgetStore counts per-server calls for `budget` entries; nil is an
+	// in-memory counter that forgets on restart. run.go passes the SQLite
+	// one on the shared handle.
+	BudgetStore BudgetStore
+	// Location is the human's zone: a daily budget resets at their
+	// midnight, not UTC's. Nil is UTC.
+	Location *time.Location
 }
 
 // DialFunc connects to one MCP server. Tests inject in-memory dialers.
@@ -68,6 +75,10 @@ type Host struct {
 
 	dynamicTools  bool
 	forcePrefixes []string
+
+	budgets map[string]Budget // server → cap, from mcp.toml
+	budget  BudgetStore
+	loc     *time.Location
 
 	stats callStatsState
 }
@@ -126,8 +137,20 @@ func Start(ctx context.Context, opts Options) (*Host, error) {
 		tools:          make(map[string]*Tool),
 		dynamicTools:   manifest.DynamicToolsOn(),
 		forcePrefixes:  manifest.ForcePrefixes(),
+		budgets:        manifest.Budgets(),
+		budget:         opts.BudgetStore,
+		loc:            opts.Location,
+	}
+	if h.budget == nil {
+		h.budget = newMemBudgetStore()
+	}
+	if h.loc == nil {
+		h.loc = time.UTC
 	}
 	h.initCallStats()
+	for server, b := range h.budgets {
+		h.log.Info("mcp budget", "server", server, "budget", b.String(), "poll_floor", b.Floor().String())
+	}
 
 	var failed int
 	for _, spec := range manifest.Servers {
@@ -237,6 +260,13 @@ func (h *Host) call(ctx context.Context, toolName string, arguments json.RawMess
 			h.recordOutcome(tool.Server, resolved, 0, outErr)
 			return "", outErr
 		}
+	}
+	// The quota gate sits after arg validation (a malformed call must not
+	// spend a slot) and before the child is touched (a refused call must
+	// not reach the vendor). Every entry — Call, CallRaw, watch polls —
+	// passes here.
+	if err := h.takeBudget(ctx, tool.Server); err != nil {
+		return "", err
 	}
 	start := time.Now()
 	if ms := h.managed(tool.Server); ms != nil {

@@ -41,5 +41,8 @@ func (a *Agent) formatToolStats() string {
 	}
 	fmt.Fprintf(&b, "repairs: prefix_alias=%d  constrained_retry=%d  unknown_tool=%d",
 		stats.PrefixAlias, stats.ConstrainedRetry, stats.UnknownTool)
+	if stats.BudgetRefused > 0 {
+		fmt.Fprintf(&b, "  budget_refused=%d", stats.BudgetRefused)
+	}
 	return b.String()
 }
