@@ -263,6 +263,29 @@ not 'flights are available'"), and the fixture then held five for five.
 One sentence, found by a fixture, proven by the same fixture: the loop
 this whole apparatus exists for.
 
+The fixtures then stopped guessing at schemas. The first Denver fixture
+searched `flights__search` with `from/to/date`; the shipped flights MCP
+has `offers_search` with `origin/destination/outbound_date`, an
+`airports_search` it wants called first for cities, and a `dates_search`
+for flexible dates that a fixed Friday must not trigger. A fixture that
+proves the model can drive the harness author's idea of a tool proves
+nothing about the binary. `tools_from` fixes that without copying
+anything: the eval pulls each server's latest release at run time, boots
+it, and takes `tools/list` as the tool defs — the same catalog the
+deployed agent sees, and a renamed tool fails the fixture before a model
+call. The manifest behind it is name, binary, release URL; there is no
+snapshot to go stale, which is the point. With the real `rentals`
+catalog published, the daily-rental fixture answered a live question in
+two runs: the model made exactly one `listings_search` with the
+neighborhoods comma-joined — what the MCP's own description asks for —
+and never touched the per-listing `listings_get` that burns a request
+each. Whatever is draining that account, on this seed and this model it
+is not the daily job. The same session showed two things the regexes had
+been waving through and now gate: a third `offers_search` byte-identical
+to the first, one round later (`max_calls`), and a reply that turned two
+identical search results into "$139 on Alaska" for the second date — a
+fare no tool returned (`prices_from_tools`).
+
 Its limits. One model is one reading — the gate is on whatever is in
 `.env`, and a Gemma-class local model would need its own pass and
 probably its own tolerances. One table row has no fixture (a landed

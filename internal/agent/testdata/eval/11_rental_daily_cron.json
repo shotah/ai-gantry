@@ -1,0 +1,44 @@
+{
+  "name": "rental_daily_cron",
+  "why": "Crystal's case: a daily rental job against a metered API (RentCast, hard cap 50/month). The real rentals catalog is published — its own descriptions beg for ONE listings_search with neighborhoods comma-joined, and listings_get burns a request per listing. The gate is spend discipline: exactly one search, no detail or market calls the human did not ask for, and the two listings with who to call in the reply — not “found some options.”",
+  "cron": "Daily rental check for the housing aim: new 2BR listings in Ballard or Fremont under $2400. Report anything new with who to call.",
+  "memory": [
+    { "kind": "insight", "subject": "aim/housing", "content": "find a 2BR in Ballard or Fremont under $2,400/mo by Nov 1; wants parking; has a cat" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "self": "- North-star: a place of her own in Ballard before the rain sets in.",
+  "force": ["rentals"],
+  "tools_from": ["rentals"],
+  "tools": [
+    {
+      "name": "rentals__account_get",
+      "result": "{\"requests_used\":13,\"requests_left\":37,\"cap_state\":\"ok\",\"period_resets\":\"2026-10-01\"}"
+    },
+    {
+      "name": "rentals__areas_resolve",
+      "result": "{\"areas\":[{\"neighborhood\":\"Ballard\",\"zips\":[\"98107\",\"98117\"]},{\"neighborhood\":\"Fremont\",\"zips\":[\"98103\"]}]}"
+    },
+    {
+      "name": "rentals__listings_search",
+      "result": "{\"count\":2,\"listings\":[{\"id\":\"rc_9f2a\",\"address\":\"5417 NW 57th St, Seattle, WA 98107\",\"neighborhood\":\"Ballard\",\"bedrooms\":2,\"bathrooms\":1,\"price\":2295,\"square_footage\":860,\"property_type\":\"apartment\",\"days_old\":2,\"parking\":\"1 assigned spot\",\"pets\":\"cats ok\",\"listed_by\":{\"name\":\"Meridian Property Mgmt\",\"phone\":\"(206) 555-0142\",\"email\":\"leasing@meridianpm.example\"}},{\"id\":\"rc_71c0\",\"address\":\"3618 Fremont Ave N, Seattle, WA 98103\",\"neighborhood\":\"Fremont\",\"bedrooms\":2,\"bathrooms\":1.5,\"price\":2350,\"square_footage\":910,\"property_type\":\"townhouse\",\"days_old\":5,\"parking\":\"street\",\"pets\":\"no pets\",\"listed_by\":{\"name\":\"Karen Ostrowski\",\"phone\":\"(206) 555-0177\",\"email\":\"karen.o@example.com\"}}],\"usage\":{\"requests_used\":14,\"requests_left\":36,\"cap_state\":\"ok\",\"period_resets\":\"2026-10-01\"}}"
+    },
+    {
+      "name": "rentals__listings_get",
+      "result": "{\"id\":\"rc_9f2a\",\"address\":\"5417 NW 57th St, Seattle, WA 98107\",\"price\":2295,\"description\":\"Top-floor 2BR, in-unit laundry, one assigned parking spot. Cats welcome with deposit.\",\"listed_by\":{\"name\":\"Meridian Property Mgmt\",\"phone\":\"(206) 555-0142\",\"email\":\"leasing@meridianpm.example\"},\"usage\":{\"requests_used\":15,\"requests_left\":35,\"cap_state\":\"ok\"}}"
+    },
+    {
+      "name": "rentals__link_format",
+      "result": "{\"url\":\"https://www.zillow.com/seattle-wa/rentals/2-bedrooms/?price_max=2400\"}"
+    }
+  ],
+  "expect": {
+    "round_budget": 2,
+    "tools_called": [
+      { "name": "rentals__listings_search", "max_calls": 1, "args_regex": "(?i)ballard|fremont|9810" }
+    ],
+    "tools_not_called": ["rentals__listings_get", "rentals__markets_get", "rentals__rent_estimate_get"],
+    "silent": false,
+    "prices_from_tools": true,
+    "reply_regex": "(?i)57th|fremont ave|2,?295|2,?350|555-01"
+  }
+}

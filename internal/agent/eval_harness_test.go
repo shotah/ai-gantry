@@ -60,7 +60,10 @@ type evalFixture struct {
 	Inbound string `json:"inbound"`
 	// Spark selects a line of cron.DefaultSparkPrompt by substring and sends it
 	// as a wake turn (cron.SparkPingPrefix + line). Empty means a human turn.
-	Spark   string `json:"spark,omitempty"`
+	Spark string `json:"spark,omitempty"`
+	// Cron sends the prompt as a scheduled-job wake (cron.JobUserPrefix +
+	// prompt) — the shape of a daily "check X" job the model scheduled.
+	Cron    string `json:"cron,omitempty"`
 	Surface string `json:"surface,omitempty"`
 	Input   string `json:"input,omitempty"`
 	// History is appended to the session before the turn (role user|assistant).
@@ -70,6 +73,13 @@ type evalFixture struct {
 	Self string `json:"self,omitempty"`
 	// Tools are canned MCP tools. Result is returned verbatim on every call.
 	Tools []evalTool `json:"tools,omitempty"`
+	// ToolsFrom names servers in testdata/eval/mcp.toml whose real catalog —
+	// names, descriptions, schemas from the latest release binary's
+	// tools/list — replaces hand-written defs. Every tool the server
+	// publishes is published here; fixture Tools for those servers carry
+	// only name + canned result, and a name the live catalog lacks fails
+	// before any model call. Needs the integration tag (network).
+	ToolsFrom []string `json:"tools_from,omitempty"`
 	// Force lists MCP prefixes published without mcp_enable (like MCP_ENABLE_FORCE).
 	Force  []string   `json:"force,omitempty"`
 	Expect evalExpect `json:"expect"`
@@ -106,10 +116,15 @@ type evalExpect struct {
 	// RoundBudget is the completer rounds the rule needs (tool rounds + the
 	// reply). Going over is reported, never failed: the gate is on missing
 	// work, and a model that does something extra and useful is not wrong.
-	RoundBudget *int               `json:"round_budget,omitempty"`
-	Wait        *bool              `json:"wait,omitempty"`
-	Silent      *bool              `json:"silent,omitempty"`
-	Memory      []evalMemoryExpect `json:"memory,omitempty"`
+	RoundBudget *int  `json:"round_budget,omitempty"`
+	Wait        *bool `json:"wait,omitempty"`
+	Silent      *bool `json:"silent,omitempty"`
+	// PricesFromTools: every "$N" in the reply must appear in some tool
+	// result this turn. The "never invent live facts" gate — a model that
+	// gets the same fares back for two dates and makes up a cheaper pair
+	// to tell them apart fails here, not in the human's inbox.
+	PricesFromTools *bool              `json:"prices_from_tools,omitempty"`
+	Memory          []evalMemoryExpect `json:"memory,omitempty"`
 	// CronWithin: at least one job for this session lands in [after, before]
 	// minutes from the turn.
 	CronWithin *evalWindow  `json:"cron_within,omitempty"`
@@ -119,6 +134,9 @@ type evalExpect struct {
 type evalCallExpect struct {
 	Name      string `json:"name"`
 	ArgsRegex string `json:"args_regex,omitempty"`
+	// MaxCalls caps how often this tool may be called in the turn (matching
+	// ArgsRegex when set). The metered-API gate: one search, not five.
+	MaxCalls *int `json:"max_calls,omitempty"`
 }
 
 type evalMemoryExpect struct {
@@ -134,9 +152,10 @@ type evalWindow struct {
 // evalCall is one recorded tool call, builtin or MCP. Round is the completer
 // round that requested it (1-based), so a batch is the calls sharing a round.
 type evalCall struct {
-	Name  string
-	Args  string
-	Round int
+	Name   string
+	Args   string
+	Round  int
+	Result string // what the tool returned (empty on error)
 }
 
 // evalOutcome is what one turn produced, gathered from the recorder, the wait
@@ -200,6 +219,86 @@ func expandEvalClock(text string, now time.Time) string {
 		}
 		return now.Add(time.Duration(n) * time.Minute).Format("3:04PM")
 	})
+}
+
+// evalInboundText is the turn's text: a spark wake, a scheduled-job wake,
+// or the human's line — the same prefixes cron.Runner puts on the wire.
+func evalInboundText(fx evalFixture, now time.Time) (string, error) {
+	switch {
+	case fx.Spark != "":
+		line, ok := sparkLine(fx.Spark)
+		if !ok {
+			return "", fmt.Errorf("%s: no spark line contains %q", fx.Name, fx.Spark)
+		}
+		return cron.SparkPingPrefix + line, nil
+	case fx.Cron != "":
+		return cron.JobUserPrefix + expandEvalClock(fx.Cron, now), nil
+	default:
+		return expandEvalClock(fx.Inbound, now), nil
+	}
+}
+
+// evalLiveTools returns the real catalogs of testdata/eval/mcp.toml servers.
+// Set by the integration test (network: tools-fetch + boot); nil in plain
+// `go test`, where a tools_from fixture is a hard error rather than a
+// silently faked schema.
+var evalLiveTools func(t *testing.T) []provider.ToolDef
+
+// mergeLiveTools builds the canned set for a tools_from fixture: every tool
+// the live servers publish, with the fixture's canned result where it gave
+// one and "{}" where it did not. A fixture result for a tool the live
+// catalog does not have is the drift signal — a sibling release renamed
+// or dropped it — and fails here, before a single model call. Fixture
+// tools on other servers pass through hand-written.
+func mergeLiveTools(live []provider.ToolDef, servers []string, fixture []evalTool) ([]evalTool, error) {
+	byName := map[string]evalTool{}
+	for _, tl := range fixture {
+		byName[tl.Name] = tl
+	}
+	var out []evalTool
+	covered := map[string]bool{}
+	for _, server := range servers {
+		prefix := server + "__"
+		n := 0
+		for _, def := range live {
+			if !strings.HasPrefix(def.Name, prefix) {
+				continue
+			}
+			n++
+			result := "{}"
+			if tl, ok := byName[def.Name]; ok {
+				result = tl.Result
+			}
+			covered[def.Name] = true
+			out = append(out, evalTool{Name: def.Name, Description: def.Description, Params: def.Parameters, Result: result})
+		}
+		if n == 0 {
+			return nil, fmt.Errorf("tools_from %q: no live tools (server not connected or not in testdata/eval/mcp.toml)", server)
+		}
+		for _, tl := range fixture {
+			if strings.HasPrefix(tl.Name, prefix) && !covered[tl.Name] {
+				return nil, fmt.Errorf("fixture tool %q is not in the live %s catalog (have %s)", tl.Name, server, strings.Join(liveNames(live, prefix), ", "))
+			}
+		}
+	}
+	for _, tl := range fixture {
+		if !covered[tl.Name] {
+			out = append(out, tl)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func liveNames(live []provider.ToolDef, prefix string) []string {
+	var names []string
+	for _, def := range live {
+		if strings.HasPrefix(def.Name, prefix) {
+			names = append(names, def.Name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 // sparkLine picks the cron.DefaultSparkPrompt line containing needle.
@@ -287,8 +386,15 @@ func (r *recordingTools) ToolCount() int { return r.inner.ToolCount() }
 func (r *recordingTools) Call(ctx context.Context, name string, args json.RawMessage) (string, error) {
 	r.mu.Lock()
 	r.calls = append(r.calls, evalCall{Name: name, Args: string(args), Round: r.round()})
+	i := len(r.calls) - 1
 	r.mu.Unlock()
-	return r.inner.Call(ctx, name, args)
+	out, err := r.inner.Call(ctx, name, args)
+	if err == nil {
+		r.mu.Lock()
+		r.calls[i].Result = out
+		r.mu.Unlock()
+	}
+	return out, err
 }
 
 func (r *recordingTools) snapshot() []evalCall {
@@ -416,7 +522,17 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 	// recorder on top. Canned results take the same {{+Nm}} clock as the
 	// inbound text so a "dinner at 7" fixture is still ahead at 9pm.
 	started := time.Now().In(loc)
-	var tools agent.Tools = newCannedTools(fx.Tools, started)
+	canned := fx.Tools
+	if len(fx.ToolsFrom) > 0 {
+		if evalLiveTools == nil {
+			t.Fatalf("%s: tools_from needs the live MCP catalog; run under the integration tag", fx.Name)
+		}
+		canned, err = mergeLiveTools(evalLiveTools(t), fx.ToolsFrom, fx.Tools)
+		if err != nil {
+			t.Fatalf("%s: %v", fx.Name, err)
+		}
+	}
+	var tools agent.Tools = newCannedTools(canned, started)
 	tools = memory.Composite{Memory: memory.Tools{Backend: mem}, Other: tools}
 	tools = cron.Composite{Cron: cron.Tools{Store: jobs, TZ: evalTZ, Memory: mem}, Other: tools}
 	tools = selfnote.Composite{Self: selfnote.Tools{Store: self}, Other: tools}
@@ -448,13 +564,9 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		t.Fatal(err)
 	}
 
-	text := expandEvalClock(fx.Inbound, started)
-	if fx.Spark != "" {
-		line, ok := sparkLine(fx.Spark)
-		if !ok {
-			t.Fatalf("%s: no spark line contains %q", fx.Name, fx.Spark)
-		}
-		text = cron.SparkPingPrefix + line
+	text, err := evalInboundText(fx, started)
+	if err != nil {
+		t.Fatal(err)
 	}
 	msg := channel.Message{
 		SessionID: sessionID,
@@ -503,6 +615,12 @@ func checkEval(ctx context.Context, out evalOutcome, want evalExpect) []string {
 	for _, c := range want.ToolsCalled {
 		if !calledMatching(out.Calls, c) {
 			fails = append(fails, fmt.Sprintf("expected tool %s%s", c.Name, argsNote(c.ArgsRegex)))
+			continue
+		}
+		if c.MaxCalls != nil {
+			if n := countMatching(out.Calls, c); n > *c.MaxCalls {
+				fails = append(fails, fmt.Sprintf("tool %s called %d times, max %d", c.Name, n, *c.MaxCalls))
+			}
 		}
 	}
 	for _, name := range want.ToolsNotCalled {
@@ -541,6 +659,11 @@ func checkEval(ctx context.Context, out evalOutcome, want evalExpect) []string {
 	}
 	if want.Silent != nil && out.Silent != *want.Silent {
 		fails = append(fails, fmt.Sprintf("silent=%v, want %v", out.Silent, *want.Silent))
+	}
+	if want.PricesFromTools != nil && *want.PricesFromTools {
+		for _, p := range inventedPrices(reply, out.Calls) {
+			fails = append(fails, "invented price $"+p+" (in no tool result)")
+		}
 	}
 	for _, m := range want.Memory {
 		if !memoryRowExists(ctx, out.mem, m) {
@@ -583,19 +706,50 @@ func memoryRowExists(ctx context.Context, mem memory.Memory, m evalMemoryExpect)
 }
 
 func calledMatching(calls []evalCall, c evalCallExpect) bool {
+	return countMatching(calls, c) > 0
+}
+
+var evalPriceRe = regexp.MustCompile(`\$\s?(\d[\d,]*(?:\.\d+)?)`)
+
+// inventedPrices returns the "$N" figures in reply whose digits appear in
+// no tool result. Commas are ignored on both sides ($2,295 vs 2295).
+func inventedPrices(reply string, calls []evalCall) []string {
+	var results strings.Builder
+	for _, c := range calls {
+		results.WriteString(strings.ReplaceAll(c.Result, ",", ""))
+		results.WriteByte('\n')
+	}
+	haystack := results.String()
+	var out []string
+	seen := map[string]bool{}
+	for _, m := range evalPriceRe.FindAllStringSubmatch(reply, -1) {
+		raw := m[1]
+		digits := strings.ReplaceAll(raw, ",", "")
+		digits = strings.TrimSuffix(strings.TrimSuffix(digits, ".00"), ".0")
+		if seen[digits] || strings.Contains(haystack, digits) {
+			continue
+		}
+		seen[digits] = true
+		out = append(out, raw)
+	}
+	return out
+}
+
+func countMatching(calls []evalCall, c evalCallExpect) int {
 	var re *regexp.Regexp
 	if c.ArgsRegex != "" {
 		re = regexp.MustCompile(c.ArgsRegex)
 	}
+	n := 0
 	for _, call := range calls {
 		if call.Name != c.Name {
 			continue
 		}
 		if re == nil || re.MatchString(call.Args) {
-			return true
+			n++
 		}
 	}
-	return false
+	return n
 }
 
 func firstCall(calls []evalCall, name string) int {

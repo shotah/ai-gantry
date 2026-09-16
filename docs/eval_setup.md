@@ -14,6 +14,7 @@ is canned.
 | `LLM_BASE_URL` | `.env` | Repository **variable** |
 | `LLM_MODEL` | `.env` | Repository **variable** |
 | `LLM_API_KEY` | `.env` | Repository **secret** |
+| `GITHUB_TOKEN` (optional) | `.env` — lifts the GitHub API rate limit for the real-catalog fetch; any token, no scopes needed | not wired; `github.token` would do |
 
 ## 1. Local
 
@@ -140,6 +141,9 @@ Sprint's at 2:30 and the scoop is at 2 — I'll keep an eye on it.
 | --- | --- |
 | `expected tool X` | The recorder never saw `X`. A call the agent **blocked** (prefix off, never `mcp_enable`d) also never reaches the recorder — that is a real miss, not a harness gap. |
 | `expected tool X with args /re/` | `X` was called, but no call's JSON args matched. |
+| `tool X called N times, max M` | Spend discipline on a metered API. Two `offers_search` for two possible Fridays is fine; a third byte-identical to the first is the model re-asking a question it already had answered. |
+| `invented price $N (in no tool result)` | A figure in the reply that no tool returned. Seen when two searches came back identical and the model made up a cheaper pair to tell the dates apart. |
+| `fixture tool X is not in the live S catalog (have …)` | Drift: the sibling's latest release no longer publishes that name. Fails before any model call. |
 | `order: X before …` | Both called, wrong order (e.g. the tool before `mcp_enable`). |
 | `reply should match /re/` · `should not match` | Shape of the reply — a `?`, a bare “got it”. Never a sentence. |
 | `N questions, max M` | Counted `?` in the reply. |
@@ -231,12 +235,47 @@ list of rows; add the row there when you add the file.
 | `name`, `why` | `name` is what `-eval.only` matches; `why` is the rule in one sentence, printed at the top of the run. |
 | `inbound` | The human's text. `{{+120m}}` becomes the local clock 120 minutes from now (“2:00PM”) — the eval runs on the real clock because `cron_schedule` does. |
 | `spark` | Instead of `inbound`: a substring of one `cron.DefaultSparkPrompt` line (“Gym / fitness aim”). Sends a real wake turn. |
+| `cron` | Instead of `inbound`: the prompt of a scheduled job the model set. Sent as `cron.JobUserPrefix` + prompt — the shape of a daily “check X” wake. |
 | `history` | Prior `user` / `assistant` turns appended to the session first. |
 | `memory` | Seed rows: `kind`, `subject`, `content`. `pref/hours` here gives the model `[hours]`. |
 | `self` | `SELF.md` body (`- ` bullets). Empty file when absent — that is the “empty SELF.md” scenario. |
 | `tools` | Canned MCP tools: `name` (must be `server__name`), `description`, optional `params` schema, `result` returned every call — `{{+90m}}` in a result expands like `inbound`, so a stub dinner is still ahead whenever the eval runs. |
+| `tools_from` | Servers whose **real** catalog replaces hand-written defs — see below. `tools` entries for those servers carry only `name` + `result`. |
 | `force` | MCP prefixes published without `mcp_enable`. Leave empty to test the off → enable → call path. |
-| `expect` | The shape contract — see the failure table above for each key. `round_budget` is the cost note, not a check: the rounds the rule needs (one batch + reply = 2; a prefix that must be `mcp_enable`d first = 3). Over it is printed beside the pass. |
+| `expect` | The shape contract — see the failure table above for each key. `round_budget` is the cost note, not a check: the rounds the rule needs (one batch + reply = 2; a prefix that must be `mcp_enable`d first = 3). Over it is printed beside the pass. `tools_called[].max_calls` caps a metered tool (one search, not five). `prices_from_tools` fails any `$N` in the reply that no tool returned. |
+
+### Real catalogs (`tools_from`)
+
+A hand-written `params` block is the eval's guess at an MCP's interface,
+and the guess drifts: the first Denver fixture searched `flights__search`
+with `from/to/date`; the shipped tool is `flights__offers_search` with
+`origin/destination/outbound_date` and a description that says when to
+call `airports_search` first. A fixture proving the model can drive the
+guess proves nothing about the binary.
+
+`tools_from: ["rentals"]` publishes the server's real catalog instead.
+At run time the harness reads `internal/agent/testdata/eval/mcp.toml`,
+pulls each server's **latest GitHub release** with the same code as
+`gantry tools-fetch`, boots it, and takes `tools/list` — names,
+descriptions, schemas — as the tool defs. Nothing is checked in: the
+manifest is name, binary, release URL, and a placeholder `env` for
+binaries that refuse to start without a key present. Nothing is called:
+results stay canned, so the placeholder never reaches a vendor. The
+catalog is fetched once per run and cached under `EVAL_MCP_BIN` (default
+`$TMPDIR/gantry-eval-mcp`). `GITHUB_TOKEN=` in `.env` (the target sources
+it) lifts the API rate limit for the `latest` lookups — three per run
+unauthenticated against a 60/hour cap is fine until a tuning afternoon.
+
+Two things fail for free, before any model call: a fixture `tools` entry
+whose name the live server does not publish (the release renamed or
+dropped it — the message lists what it does have), and a `tools_from`
+server missing from the manifest. Add a server by adding a `[[server]]`
+to that manifest; Google is there with a two-tool allowlist because it
+publishes about a hundred.
+
+`denver_flight` and `rental_daily_cron` run on real catalogs. The rest are
+hand-written where the binary needs a real account to list tools
+(Garmin) or the schema is trivial; move them as the siblings allow.
 
 Then:
 
@@ -245,15 +284,19 @@ go test ./internal/agent/ -run TestEvalFixtures_WellFormed     # parses, regexes
 make integration-test EVAL_ARGS='-eval.n=1 -eval.only=<name>'   # first live read
 ```
 
-Two kinds of fixture live in the directory. The first seven are single-batch
-rules — one tool round and a reply — and their `round_budget` is 2 or 3.
-The last three (`denver_flight`, `hows_gym_going`, `spark_weight_dinner`)
-are **completion** fixtures: the check is that the legwork happened — the
-search called with real options back, Garmin read before a progress
-answer, the nudge tied to the dinner on the calendar — and the model may
-take the rounds it needs to get there. Write new fixtures in that shape
-when the rule is “finish the task”: assert the tool, the row, the
-question and `[wait]`, forbid “let me know when you want me to look”, and
-leave the round count to the budget note. The one table row still without
+Three kinds of fixture live in the directory. The first seven are
+single-batch rules — one tool round and a reply — and their
+`round_budget` is 2 or 3. `denver_flight`, `hows_gym_going`,
+`spark_weight_dinner` are **completion** fixtures: the check is that the
+legwork happened — the search called with real options back, Garmin read
+before a progress answer, the nudge tied to the dinner on the calendar —
+and the model may take the rounds it needs to get there. Write new
+fixtures in that shape when the rule is “finish the task”: assert the
+tool, the row, the question and `[wait]`, forbid “let me know when you
+want me to look”, and leave the round count to the budget note.
+`rental_daily_cron` (and Denver again) are **spend** fixtures on real
+catalogs: a metered API, `max_calls` on the search, `tools_not_called` on
+the per-item detail calls nobody asked for, `prices_from_tools` on the
+reply. The one table row still without
 a fixture (`self_note` on a landed joke) needs an `expect` that reads
 `SELF.md` — a small addition to `eval_harness_test.go` and one JSON file.

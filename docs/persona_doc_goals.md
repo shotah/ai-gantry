@@ -252,11 +252,13 @@ what the model **sees**, not what it does.)
 | Spark wake; `aim/weight` = lose 20 lbs; dinner out on today's calendar | Calendar **and** aims read; the nudge is tied to the aim (a meal thought), not a generic check-in. | `10_spark_weight_dinner` |
 | “how's the gym goal going?” | Garmin **called** before any progress answer; the honest count; one next step put on the calendar / a cron, or offered with `[wait]`. Never “crushing it” over one workout. | `09_hows_gym_going` |
 | Spark wake, morning; `aim/gym`; Garmin listed and shows no workout today | Garmin **called**, not assumed; nudge tied to the aim; short joke, not a lecture. Calendar alone is not enough here. | `07_spark_gym_no_workout` |
-| “I need to be in Denver next Friday.” | Flight search **called** this turn from their own city, real options back, one question + `[wait]`; the date blocked or offered. Not “let me know when you want me to look.” Rounds are the model's to spend. | `08_denver_flight` |
+| “I need to be in Denver next Friday.” | Flight search **called** this turn from their own city, real options back, one question + `[wait]`; the date blocked or offered. Not “let me know when you want me to look.” Rounds are the model's to spend. On the **real** `flights` catalog: `offers_search` at most twice, no `dates_search` for a fixed date, no `booking_options_get` before they pick, no `$` figure the tool did not return. | `08_denver_flight` |
+| `[cron]` daily rental check; `aim/housing` = 2BR Ballard/Fremont under $2,400 (metered API, 50/month) | On the **real** `rentals` catalog: exactly **one** `listings_search` with the neighborhoods comma-joined, the free `account_get` welcome, **no** `listings_get` / `markets_get` / `rent_estimate_get` nobody asked for; both listings with who to call in the reply, prices only from the tool. | `11_rental_daily_cron` |
 
-The three without a fixture are next: `self_note` on a landed joke needs
-an `expect` that reads `SELF.md`; the weight/dinner spark and the Denver
-flight need canned tools that do not exist yet (a search, a flights MCP).
+The one without a fixture is next: `self_note` on a landed joke needs an
+`expect` that reads `SELF.md`. Two fixtures now run on real MCP catalogs
+(`tools_from`: the latest release binary's `tools/list`, fetched at run
+time, nothing checked in) — see [eval_setup.md](eval_setup.md#real-catalogs-tools_from).
 A fixture is one JSON file; add the row, add the file.
 
 ## Candidates to cut (repetition only)

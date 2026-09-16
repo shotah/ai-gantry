@@ -15,12 +15,18 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/provider"
 )
 
@@ -57,6 +63,7 @@ func TestEval_Live(t *testing.T) {
 	if *evalPersonaFlag != "" {
 		evalPersonaPath = *evalPersonaFlag
 	}
+	evalLiveTools = evalLiveCatalog
 	t.Logf("model %s at %s; %d run(s) per fixture; persona %s", model, baseURL, *evalN, evalPersonaPath)
 
 	selected := evalSelected()
@@ -92,6 +99,68 @@ func TestEval_Live(t *testing.T) {
 		})
 	}
 	t.Logf("all fixtures: %s", total.String())
+}
+
+// evalLiveCatalog fetches the latest release of every server in
+// testdata/eval/mcp.toml, boots them, and returns their published tool
+// defs. Once per process; the first tools_from fixture pays for it. The
+// binaries are closed as soon as tools/list is in hand — the defs are
+// data, and no fixture ever calls the real thing.
+var (
+	liveCatalogOnce sync.Once
+	liveCatalogDefs []provider.ToolDef
+	liveCatalogErr  error
+)
+
+func evalLiveCatalog(t *testing.T) []provider.ToolDef {
+	t.Helper()
+	liveCatalogOnce.Do(func() { liveCatalogDefs, liveCatalogErr = fetchLiveCatalog(t) })
+	if liveCatalogErr != nil {
+		t.Fatalf("live MCP catalog: %v", liveCatalogErr)
+	}
+	return liveCatalogDefs
+}
+
+func fetchLiveCatalog(t *testing.T) ([]provider.ToolDef, error) {
+	manifestPath := filepath.Join(evalFixtureDir, "mcp.toml")
+	m, err := mcp.LoadManifest(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	binDir := os.Getenv("EVAL_MCP_BIN")
+	if binDir == "" {
+		binDir = filepath.Join(os.TempDir(), "gantry-eval-mcp")
+	}
+	res, err := mcp.FetchDownloads(m, mcp.FetchOptions{
+		OutDir: binDir,
+		GOOS:   runtime.GOOS,
+		GOARCH: runtime.GOARCH,
+		Logf:   func(format string, args ...any) { t.Logf("tools-fetch: "+format, args...) },
+	})
+	if err != nil {
+		return nil, fmt.Errorf("tools-fetch: %w", err)
+	}
+	t.Logf("live catalog: binaries in %s (installed %d, cached %d)", binDir, len(res.Installed), len(res.Skipped))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	host, err := mcp.Start(ctx, mcp.Options{
+		ManifestPath: manifestPath,
+		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = host.Close() }()
+	for _, s := range host.ServerHealth() {
+		if s.State == mcp.ServerSkipped {
+			t.Logf("live catalog: %s skipped (%s): %s", s.Name, s.Reason, s.Note)
+		}
+	}
+	defs := host.Tools()
+	t.Logf("live catalog: %d tools from %s", len(defs), manifestPath)
+	return defs, nil
 }
 
 // evalTotals is the cost roll-up the bake-off compares: mean rounds, mean

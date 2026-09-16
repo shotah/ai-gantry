@@ -11,14 +11,37 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/cron"
+	"github.com/shotah/ai-gantry/internal/mcp"
 	"github.com/shotah/ai-gantry/internal/provider"
 )
+
+// evalManifest lists the servers a tools_from fixture may name; the
+// integration run fetches and boots them for their real catalogs.
+var evalManifest = filepath.Join(evalFixtureDir, "mcp.toml")
+
+// evalLiveServers reads the eval manifest's server names (no network).
+func evalLiveServers(t *testing.T) map[string]mcp.ServerSpec {
+	t.Helper()
+	m, err := mcp.LoadManifest(evalManifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]mcp.ServerSpec{}
+	for _, s := range m.Servers {
+		if s.DownloadURL == "" {
+			t.Errorf("%s: server %q needs download_url so the eval can fetch its latest release", evalManifest, s.Name)
+		}
+		out[s.Name] = s
+	}
+	return out
+}
 
 // scriptCompleter answers round i with res[i]; the last result repeats.
 type scriptCompleter struct {
@@ -92,6 +115,7 @@ func TestEvalFixtures_WellFormed(t *testing.T) {
 	if len(fixtures) < 7 {
 		t.Fatalf("scenario table has 7 rows; %d fixtures", len(fixtures))
 	}
+	liveServers := evalLiveServers(t)
 	seen := map[string]bool{}
 	for _, fx := range fixtures {
 		if seen[fx.Name] {
@@ -101,8 +125,8 @@ func TestEvalFixtures_WellFormed(t *testing.T) {
 		if fx.Why == "" {
 			t.Errorf("%s: why is empty", fx.Name)
 		}
-		if fx.Inbound == "" && fx.Spark == "" {
-			t.Errorf("%s: needs inbound or spark", fx.Name)
+		if fx.Inbound == "" && fx.Spark == "" && fx.Cron == "" {
+			t.Errorf("%s: needs inbound, spark, or cron", fx.Name)
 		}
 		if fx.Spark != "" {
 			if _, ok := sparkLine(fx.Spark); !ok {
@@ -114,7 +138,138 @@ func TestEvalFixtures_WellFormed(t *testing.T) {
 				t.Errorf("%s: canned tool %q needs an MCP prefix (server__name)", fx.Name, tl.Name)
 			}
 		}
+		for _, server := range fx.ToolsFrom {
+			if _, ok := liveServers[server]; !ok {
+				t.Errorf("%s: tools_from %q is not a server in %s", fx.Name, server, evalManifest)
+			}
+			for _, tl := range fx.Tools {
+				if strings.HasPrefix(tl.Name, server+"__") && (tl.Description != "" || tl.Params != nil) {
+					t.Errorf("%s: %s comes from the live catalog; drop its description/params", fx.Name, tl.Name)
+				}
+			}
+		}
 		compileEvalRegexes(t, fx.Name, fx.Expect)
+	}
+}
+
+// The live-catalog merge: real defs win, canned results attach by name, a
+// name the live server does not publish is drift and fails before a model
+// call, other servers pass through hand-written.
+func TestMergeLiveTools(t *testing.T) {
+	live := []provider.ToolDef{
+		{Name: "rentals__listings_search", Description: "THRIFTY: one call", Parameters: map[string]any{"type": "object", "properties": map[string]any{"neighborhood": map[string]any{"type": "string"}}}},
+		{Name: "rentals__account_get", Description: "FREE counter"},
+		{Name: "flights__offers_search", Description: "not asked for"},
+	}
+	fixture := []evalTool{
+		{Name: "rentals__listings_search", Result: `{"count":1}`},
+		{Name: "google__calendar_list_events", Description: "hand-written", Result: "[]"},
+	}
+	got, err := mergeLiveTools(live, []string{"rentals"}, fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, 0, len(got))
+	for _, tl := range got {
+		names = append(names, tl.Name)
+	}
+	if want := []string{"google__calendar_list_events", "rentals__account_get", "rentals__listings_search"}; !slices.Equal(names, want) {
+		t.Fatalf("names=%v want %v", names, want)
+	}
+	for _, tl := range got {
+		switch tl.Name {
+		case "rentals__listings_search":
+			if tl.Description != "THRIFTY: one call" || tl.Params == nil || tl.Result != `{"count":1}` {
+				t.Fatalf("live def + canned result not merged: %+v", tl)
+			}
+		case "rentals__account_get":
+			if tl.Result != "{}" {
+				t.Fatalf("uncanned live tool should default to {}: %+v", tl)
+			}
+		case "google__calendar_list_events":
+			if tl.Description != "hand-written" {
+				t.Fatalf("other server should pass through: %+v", tl)
+			}
+		}
+	}
+
+	_, err = mergeLiveTools(live, []string{"rentals"}, []evalTool{{Name: "rentals__search", Result: "[]"}})
+	if err == nil || !strings.Contains(err.Error(), `"rentals__search" is not in the live rentals catalog`) || !strings.Contains(err.Error(), "rentals__listings_search") {
+		t.Fatalf("renamed tool should fail with the live names: %v", err)
+	}
+	if _, err := mergeLiveTools(live, []string{"garmin"}, nil); err == nil || !strings.Contains(err.Error(), "no live tools") {
+		t.Fatalf("unconnected server should fail: %v", err)
+	}
+}
+
+// max_calls: the metered-API gate counts calls matching name (+ args).
+func TestCheckEval_MaxCalls(t *testing.T) {
+	two := 2
+	one := 1
+	out := evalOutcome{Calls: []evalCall{
+		{Name: "rentals__listings_search", Args: `{"neighborhood":"Ballard"}`},
+		{Name: "rentals__listings_search", Args: `{"neighborhood":"Fremont"}`},
+		{Name: "rentals__account_get", Args: `{}`},
+	}}
+	if fails := checkEval(context.Background(), out, evalExpect{ToolsCalled: []evalCallExpect{{Name: "rentals__listings_search", MaxCalls: &two}}}); len(fails) != 0 {
+		t.Fatalf("two calls within max 2: %v", fails)
+	}
+	fails := checkEval(context.Background(), out, evalExpect{ToolsCalled: []evalCallExpect{{Name: "rentals__listings_search", MaxCalls: &one}}})
+	if len(fails) != 1 || fails[0] != "tool rentals__listings_search called 2 times, max 1" {
+		t.Fatalf("fails=%v", fails)
+	}
+	// ArgsRegex narrows the count.
+	if fails := checkEval(context.Background(), out, evalExpect{ToolsCalled: []evalCallExpect{{Name: "rentals__listings_search", ArgsRegex: "Ballard", MaxCalls: &one}}}); len(fails) != 0 {
+		t.Fatalf("one Ballard call within max 1: %v", fails)
+	}
+}
+
+// prices_from_tools: a "$N" the tools never returned is an invented fact.
+func TestCheckEval_PricesFromTools(t *testing.T) {
+	yes := true
+	calls := []evalCall{{Name: "flights__offers_search", Result: `{"offers":[{"price":218},{"price":189}],"usage":{"searches_left":88}}`}}
+	ok := evalOutcome{Reply: "Alaska at $189 or United for $218.00 — both nonstop.", Calls: calls}
+	if fails := checkEval(context.Background(), ok, evalExpect{PricesFromTools: &yes}); len(fails) != 0 {
+		t.Fatalf("real prices flagged: %v", fails)
+	}
+	bad := evalOutcome{Reply: "Sep 25 is cheaper: $139 on Alaska and $ 149 on United; Sep 18 is $189.", Calls: calls}
+	fails := checkEval(context.Background(), bad, evalExpect{PricesFromTools: &yes})
+	if len(fails) != 2 || fails[0] != "invented price $139 (in no tool result)" || fails[1] != "invented price $149 (in no tool result)" {
+		t.Fatalf("fails=%v", fails)
+	}
+	// Commas on either side do not matter.
+	rent := evalOutcome{Reply: "5417 NW 57th St at $2,295/mo", Calls: []evalCall{{Result: `{"price":2295}`}}}
+	if fails := checkEval(context.Background(), rent, evalExpect{PricesFromTools: &yes}); len(fails) != 0 {
+		t.Fatalf("comma price flagged: %v", fails)
+	}
+}
+
+// cron fixtures wake with the same prefix cron.Runner puts on a scheduled job.
+func TestEvalInboundText(t *testing.T) {
+	now := time.Now()
+	text, err := evalInboundText(evalFixture{Cron: "Daily rental check"}, now)
+	if err != nil || !strings.HasPrefix(text, cron.JobUserPrefix) || !strings.HasSuffix(text, "Daily rental check") {
+		t.Fatalf("cron text=%q err=%v", text, err)
+	}
+	text, err = evalInboundText(evalFixture{Inbound: "hi"}, now)
+	if err != nil || text != "hi" {
+		t.Fatalf("inbound text=%q err=%v", text, err)
+	}
+	if _, err := evalInboundText(evalFixture{Spark: "no such line"}, now); err == nil {
+		t.Fatal("unknown spark line should error")
+	}
+}
+
+// A tools_from fixture outside the integration tag is a hard error, never a
+// silently hand-written schema.
+func TestEvalHarness_ToolsFromNeedsLiveCatalog(t *testing.T) {
+	if evalLiveTools != nil {
+		t.Skip("live catalog wired")
+	}
+	fx := evalFixture{Name: "x", Inbound: "hi", ToolsFrom: []string{"rentals"}}
+	_, err := mergeLiveTools(nil, fx.ToolsFrom, nil)
+	if err == nil {
+		t.Fatal("empty live catalog must fail")
 	}
 }
 

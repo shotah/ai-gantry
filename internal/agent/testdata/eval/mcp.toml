@@ -1,0 +1,32 @@
+# Live MCP catalogs for the behavioral eval — docs/eval_setup.md.
+#
+# A fixture with `tools_from = ["rentals"]` gets that server's real tool
+# names, descriptions, and schemas from here at run time: `tools-fetch`
+# pulls the latest release, the host boots it, tools/list is the contract.
+# Nothing is checked in and nothing is called — results stay canned — so the
+# env values below only satisfy each binary's "key is required" startup
+# check. A sibling release that renames a tool fails the fixture before any
+# model call. Binaries cache under EVAL_MCP_BIN (default $TMPDIR/gantry-eval-mcp).
+
+[[server]]
+name    = "rentals"
+command = "rentals-search-mcp"
+env     = ["RENTCAST_API_KEY=eval-placeholder"]
+download_tag = "latest"
+download_url = "https://github.com/shotah/rentals-search-mcp/releases/download/{tag}/rentals-search-mcp_{version}_{os}_{arch}.tar.gz"
+
+[[server]]
+name    = "flights"
+command = "flights-search-mcp"
+env     = ["SERPAPI_API_KEY=eval-placeholder"]
+download_tag = "latest"
+download_url = "https://github.com/shotah/flights-search-mcp/releases/download/{tag}/flights-search-mcp_{version}_{os}_{arch}.tar.gz"
+
+# Google publishes ~100 tools; a real deploy runs a tier or an allowlist.
+# The eval takes the two calendar tools the fixtures use.
+[[server]]
+name    = "google"
+command = "google-mcp"
+tools   = ["calendar_list_events", "calendar_create_event"]
+download_tag = "latest"
+download_url = "https://github.com/shotah/google-mcp/releases/download/{tag}/google-mcp_{version}_{os}_{arch}.tar.gz"

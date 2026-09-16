@@ -1,53 +1,47 @@
 {
   "name": "denver_flight",
-  "why": "A trip with no flight is legwork: the search is called this turn (their search is free when they asked), real options come back with one question, [wait]. Never “let me know when you want me to look.” Rounds are the model's to spend — the check is that the work happened.",
+  "why": "A trip with no flight is legwork: the real flights catalog is published and the search is called this turn (their search is free when they asked), real options come back with one question, [wait]. Never “let me know when you want me to look.” Spend discipline on a metered API: offers_search at most twice (“next Friday” can mean two dates), no dates_search when the date is fixed, no booking_options_get before the human picks. What the tool returned goes in the reply — carriers, times, prices.",
   "inbound": "I need to be in Denver next Friday for a client thing.",
   "memory": [
     { "kind": "insight", "subject": "aim/business", "content": "land two new clients this quarter" },
     { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
   ],
   "force": ["flights", "google"],
+  "tools_from": ["flights", "google"],
   "tools": [
     {
-      "name": "flights__search",
-      "description": "Search flights. Args: from, to (city or IATA), date (YYYY-MM-DD), optional return_date (YYYY-MM-DD).",
-      "params": {
-        "type": "object",
-        "properties": {
-          "from": { "type": "string" },
-          "to": { "type": "string" },
-          "date": { "type": "string", "description": "YYYY-MM-DD" },
-          "return_date": { "type": "string", "description": "YYYY-MM-DD" }
-        },
-        "required": ["from", "to", "date"]
-      },
-      "result": "[{\"carrier\":\"United\",\"flight\":\"UA 1862\",\"depart\":\"06:45\",\"arrive\":\"10:10\",\"stops\":0,\"price_usd\":218},{\"carrier\":\"Alaska\",\"flight\":\"AS 704\",\"depart\":\"13:20\",\"arrive\":\"16:55\",\"stops\":0,\"price_usd\":189}]"
+      "name": "flights__account_get",
+      "result": "{\"plan\":\"free\",\"searches_used\":11,\"searches_left\":89,\"resets\":\"2026-10-01\"}"
+    },
+    {
+      "name": "flights__airports_search",
+      "result": "{\"results\":[{\"query\":\"Seattle\",\"iata\":\"SEA\",\"name\":\"Seattle–Tacoma International\"},{\"query\":\"Denver\",\"iata\":\"DEN\",\"name\":\"Denver International\"}]}"
+    },
+    {
+      "name": "flights__offers_search",
+      "result": "{\"offers\":[{\"rank\":1,\"summary\":\"United UA 1862 · SEA 06:45 → DEN 10:10 · nonstop · 2h25m\",\"airline\":\"United\",\"flight_number\":\"UA 1862\",\"departure\":\"06:45\",\"arrival\":\"10:10\",\"stops\":0,\"duration_min\":145,\"price\":218,\"currency\":\"USD\",\"booking_token\":\"bk_ua1862\"},{\"rank\":2,\"summary\":\"Alaska AS 704 · SEA 13:20 → DEN 16:55 · nonstop · 2h35m\",\"airline\":\"Alaska\",\"flight_number\":\"AS 704\",\"departure\":\"13:20\",\"arrival\":\"16:55\",\"stops\":0,\"duration_min\":155,\"price\":189,\"currency\":\"USD\",\"booking_token\":\"bk_as704\"}],\"price_insights\":{\"lowest_price\":189,\"price_level\":\"typical\",\"typical_price_range\":[170,260]},\"google_flights_url\":\"https://www.google.com/travel/flights?q=SEA%20to%20DEN\",\"usage\":{\"searches_used\":12,\"searches_left\":88}}"
+    },
+    {
+      "name": "flights__booking_options_get",
+      "result": "{\"options\":[{\"book_with\":\"United\",\"fare\":\"Economy\",\"price\":218,\"refundable\":\"no\",\"booking\":{\"url\":\"https://www.united.com/checkout/bk_ua1862\"}}]}"
     },
     {
       "name": "google__calendar_list_events",
-      "description": "List calendar events for a day. Args: date (YYYY-MM-DD, default today).",
-      "params": { "type": "object", "properties": { "date": { "type": "string", "description": "YYYY-MM-DD; default today" } } },
-      "result": "[]"
+      "result": "{\"events\":[]}"
     },
     {
       "name": "google__calendar_create_event",
-      "description": "Create a calendar event.",
-      "params": {
-        "type": "object",
-        "properties": {
-          "summary": { "type": "string" },
-          "start": { "type": "string", "description": "RFC3339 or YYYY-MM-DD for all-day" },
-          "end": { "type": "string", "description": "RFC3339 or YYYY-MM-DD" }
-        },
-        "required": ["summary", "start"]
-      },
       "result": "{\"id\":\"evt_1\",\"status\":\"confirmed\"}"
     }
   ],
   "expect": {
     "round_budget": 3,
-    "tools_called": [{ "name": "flights__search" }],
+    "tools_called": [
+      { "name": "flights__offers_search", "max_calls": 2, "args_regex": "(?i)SEA|seattle" }
+    ],
+    "tools_not_called": ["flights__dates_search", "flights__booking_options_get"],
     "silent": false,
+    "prices_from_tools": true,
     "reply_regex": "(?i)united|alaska|\\$\\s?\\d{3}|189|218",
     "reply_not_regex": "(?i)let me know (when|if|once) you|when you want me to|whenever you('re| are) ready",
     "wait": true,
