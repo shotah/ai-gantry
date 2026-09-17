@@ -199,6 +199,10 @@ func surfaceStamp(surface string) string {
 	}
 }
 
+// inputSpoken is the one [input] value: hold-to-talk, the mouth reads the
+// reply aloud.
+const inputSpoken = "spoken"
+
 // inputStamp is the [input] line: how the human produced the turn. The
 // closed set is "spoken" (hold-to-talk; the mouth reads the reply). A
 // driving surface already carries the hint on [surface], so the line stays

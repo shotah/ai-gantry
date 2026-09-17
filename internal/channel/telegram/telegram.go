@@ -59,7 +59,7 @@ type Channel struct {
 	showThinking  bool
 	botID         int64
 	outbound      *outboundCache
-	reactSettle   *reactionSettler
+	reactSettle   *channel.Settler
 }
 
 // New builds a Telegram channel. Token and a non-empty allowlist are required.
@@ -87,7 +87,7 @@ func New(cfg Config) (*Channel, error) {
 		streamReplies: cfg.StreamReplies,
 		showThinking:  cfg.ShowThinking,
 		outbound:      newOutboundCache(outboundCacheCap),
-		reactSettle:   newReactionSettler(),
+		reactSettle:   channel.NewSettler(),
 	}, nil
 }
 
@@ -189,7 +189,7 @@ func (c *Channel) makeHandler(handle channel.Handler) bot.HandlerFunc {
 			Text:      text,
 			Images:    images,
 			Geo:       geo,
-		}, msg.Chat.ID, msg.MessageThreadID)
+		}, msg.Chat.ID, msg.MessageThreadID, msg.ID)
 	}
 }
 
@@ -210,7 +210,6 @@ func (c *Channel) handleReaction(ctx context.Context, b *bot.Bot, handle channel
 	}
 
 	emojis := currentReactionLabels(r.NewReaction)
-	key := settleKey{userID: user.ID, chatID: r.Chat.ID, msgID: r.MessageID}
 	target := ""
 	threadID := 0
 	if entry, ok := c.outbound.lookup(r.Chat.ID, r.MessageID); ok {
@@ -218,7 +217,7 @@ func (c *Channel) handleReaction(ctx context.Context, b *bot.Bot, handle channel
 		threadID = entry.threadID
 	}
 	// Empty set cancels a pending settle (user cleared the reaction).
-	c.scheduleReaction(ctx, b, handle, key, emojis, target, threadID)
+	c.scheduleReaction(ctx, b, handle, user.ID, r.Chat.ID, r.MessageID, emojis, target, threadID)
 }
 
 // editStream carries thinking and tool-trace lines, not just plain text — the
@@ -229,7 +228,10 @@ var (
 	_ channel.StatusWriter   = (*editStream)(nil)
 )
 
-func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handler, msg channel.Message, chatID int64, threadID int) {
+// deliver runs one turn and lands the reply. replyTo is the human's message
+// id — what a [react …] lands on; 0 when the turn has none (a settled
+// reaction), and then the kernel falls back to text.
+func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handler, msg channel.Message, chatID int64, threadID int, replyTo int) {
 	stopTyping := c.startTyping(ctx, b, chatID, threadID)
 	defer stopTyping()
 
@@ -245,6 +247,10 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 		defer stream.stopFlusher()
 	}
 
+	var react *channel.ReactionSink
+	if replyTo != 0 {
+		handleCtx, react = channel.AttachReactionSink(handleCtx)
+	}
 	handleCtx, sink := channel.AttachPhotoSink(handleCtx)
 	reply, err := handle(handleCtx, msg)
 	if err != nil {
@@ -257,6 +263,11 @@ func (c *Channel) deliver(ctx context.Context, b *bot.Bot, handle channel.Handle
 		return
 	}
 	photos := sink.URLs()
+	if emoji := react.Emoji(); emoji != "" {
+		if !c.setReaction(ctx, b, chatID, replyTo, emoji) && reply == "" && len(photos) == 0 {
+			reply = emoji
+		}
+	}
 	// /cancel and superseded follow-ups return "". A steer follow-up never
 	// Starts this stream — the in-flight Handle owns the bubble. Discard
 	// only if *this* Handle already posted a placeholder.

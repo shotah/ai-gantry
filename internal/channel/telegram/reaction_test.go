@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,11 +32,96 @@ func TestCurrentReactionLabels(t *testing.T) {
 	}
 }
 
-func TestFormatReactionText(t *testing.T) {
-	got := formatReactionText([]string{"👍"}, "hello world")
-	want := "[reaction] 👍 on: hello world"
-	if got != want {
-		t.Fatalf("got %q want %q", got, want)
+// The agent's [react …] lands on the human's message, bare code point, and
+// nothing is sent as text when the reaction was the whole reply.
+func TestMakeHandler_ReactTokenSetsReaction(t *testing.T) {
+	api := newAPIMock(t)
+	ch := testChannel(t)
+	b := testBot(t, api.srv.URL)
+
+	handler := ch.makeHandler(func(ctx context.Context, _ channel.Message) (string, error) {
+		channel.ReactionSinkFrom(ctx).Set("❤️")
+		return "", nil
+	})
+	handler(context.Background(), b, &models.Update{
+		Message: &models.Message{
+			ID:   7,
+			Text: "thanks!",
+			Chat: models.Chat{ID: 99, Type: "private"},
+			From: &models.User{ID: 42, Username: "chris"},
+		},
+	})
+	if api.count("setMessageReaction") != 1 {
+		t.Fatalf("setMessageReaction calls = %d", api.count("setMessageReaction"))
+	}
+	// Multipart form: the reaction list is one JSON part, message_id another.
+	body := api.body("setMessageReaction")
+	if !strings.Contains(body, "\r\n7\r\n") || !strings.Contains(body, `"emoji":"❤"`) || strings.Contains(body, "\ufe0f") {
+		t.Fatalf("reaction body = %s", body)
+	}
+	if api.count("sendMessage") != 0 {
+		t.Fatal("reaction-only reply must not also send text")
+	}
+}
+
+// Telegram refuses the emoji and there is no text: say it in text rather
+// than nothing.
+func TestMakeHandler_ReactRefusedFallsBackToText(t *testing.T) {
+	api := newAPIMock(t)
+	api.refuseReaction = true
+	ch := testChannel(t)
+	b := testBot(t, api.srv.URL)
+
+	handler := ch.makeHandler(func(ctx context.Context, _ channel.Message) (string, error) {
+		channel.ReactionSinkFrom(ctx).Set("👍")
+		return "", nil
+	})
+	handler(context.Background(), b, &models.Update{
+		Message: &models.Message{
+			ID:   7,
+			Text: "thanks!",
+			Chat: models.Chat{ID: 99, Type: "private"},
+			From: &models.User{ID: 42, Username: "chris"},
+		},
+	})
+	waitSendMessage(t, api, 1)
+	if !strings.Contains(api.body("sendMessage"), "\r\n👍\r\n") {
+		t.Fatalf("fallback text = %s", api.body("sendMessage"))
+	}
+}
+
+// A settled reaction turn has no human message to react back on: no sink,
+// so the kernel's text fallback applies and nothing calls setMessageReaction.
+func TestMakeHandler_ReactionTurnHasNoSink(t *testing.T) {
+	prev := reactionSettle
+	reactionSettle = 20 * time.Millisecond
+	t.Cleanup(func() { reactionSettle = prev })
+	api := newAPIMock(t)
+	ch := testChannel(t)
+	ch.botID = 1
+	ch.outbound.remember(99, 7, 0, "prior bot reply")
+	b := testBot(t, api.srv.URL)
+
+	sawSink := make(chan bool, 1)
+	handler := ch.makeHandler(func(ctx context.Context, _ channel.Message) (string, error) {
+		sawSink <- channel.ReactionSinkFrom(ctx) != nil
+		return "noted", nil
+	})
+	handler(context.Background(), b, &models.Update{
+		MessageReaction: &models.MessageReactionUpdated{
+			Chat:        models.Chat{ID: 99, Type: "private"},
+			MessageID:   7,
+			User:        &models.User{ID: 42, Username: "chris"},
+			NewReaction: []models.ReactionType{emojiReaction("👍")},
+		},
+	})
+	select {
+	case has := <-sawSink:
+		if has {
+			t.Fatal("reaction turn must not offer a reaction sink")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("settled reaction never reached the handler")
 	}
 }
 

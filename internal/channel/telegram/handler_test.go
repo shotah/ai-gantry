@@ -22,14 +22,18 @@ type apiMock struct {
 	mu       sync.Mutex
 	calls    map[string]int
 	lastBody string
+	bodies   map[string]string
 	srv      *httptest.Server
+	// refuseReaction makes setMessageReaction answer as Telegram does for an
+	// emoji outside the allowed set.
+	refuseReaction bool
 }
 
 const testBotToken = "1:test-token"
 
 func newAPIMock(t *testing.T) *apiMock {
 	t.Helper()
-	m := &apiMock{token: testBotToken, calls: map[string]int{}}
+	m := &apiMock{token: testBotToken, calls: map[string]int{}, bodies: map[string]string{}}
 	m.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// File downloads use /file/bot<token>/<path>
 		if strings.HasPrefix(r.URL.Path, "/file/bot"+testBotToken+"/") {
@@ -44,11 +48,19 @@ func newAPIMock(t *testing.T) *apiMock {
 		body, _ := io.ReadAll(r.Body)
 		m.mu.Lock()
 		m.calls[method]++
+		m.bodies[method] = string(body)
 		if method == "sendMessage" || method == "editMessageText" || method == "sendPhoto" {
 			m.lastBody = string(body)
 		}
+		refuse := m.refuseReaction
 		m.mu.Unlock()
 		switch method {
+		case "setMessageReaction":
+			if refuse {
+				_, _ = w.Write([]byte(`{"ok":false,"error_code":400,"description":"Bad Request: REACTION_INVALID"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"ok":true,"result":true}`))
 		case "getMe":
 			_, _ = w.Write([]byte(`{"ok":true,"result":{"id":1,"is_bot":true,"first_name":"g","username":"gantry_bot"}}`))
 		case "getUpdates":
@@ -76,6 +88,12 @@ func (m *apiMock) count(method string) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.calls[method]
+}
+
+func (m *apiMock) body(method string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.bodies[method]
 }
 
 func testBot(t *testing.T, serverURL string) *bot.Bot {

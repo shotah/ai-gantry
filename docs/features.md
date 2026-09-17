@@ -164,8 +164,12 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
   first turn after start posts “working” immediately
 - **Multi-bubble steer** (`COALESCE_SETTLE_MS`): follow-ups join the live
   turn; Completer cancelled, in-flight MCP kept; Gemini signatures stay
-- Telegram **reactions** settle into a `[reaction]` line (not a fake user
-  message that steers the live turn)
+- **Reactions**, both ways ([reactions](reactions.md)). Agent → human:
+  `[react 👍]` reply token (palette `👍 👎 ❤️ 🔥 🤣 😢 🤔 🙏 👀 🎉 💯 👏`)
+  lands on their message — Telegram `SetMessageReaction`, pendant `react`
+  frame; text fallback elsewhere. Human → agent: settles 3 s into a
+  `[reaction]` line; an idle 👍 is recorded with **no model call**, a
+  reaction on a question you're waiting on answers it.
 - Photos: inbound → vision; outbound `SendPhoto` for image URLs in the reply
 - Last known GPS is cached in memory (pendant send or Telegram pin; silent
   GPS-only frames update the cache and do not start a turn). `[location]` with

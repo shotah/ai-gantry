@@ -144,6 +144,11 @@ set** — other strings chart as spend unknown; spark / examples are `cron`),
 `model_ms`, `tool_ms`, `total_ms`, `duration_ms` (same wall ms as `total_ms`),
 `hydration_est_tokens`, `model`, `finish_reason`.
 
+A `reaction` turn the kernel settles without a model call (their 👍 on a
+done message) still logs one line: `outcome=silent`, `iterations=0`, all
+token and ms counts 0, no `finish_reason`. Chart it as a free turn, not a
+gap.
+
 When the Completer response had OpenAI-compat `usage` (summed across rounds):
 `prompt_tokens`, `completion_tokens`, `total_tokens`, `usage_rounds`, and when
 the provider sent them: `cached_tokens`, `cache_write_tokens`,

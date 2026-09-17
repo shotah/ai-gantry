@@ -78,15 +78,17 @@ func HasNoWaitToken(s string) bool {
 	return ok
 }
 
-// StripWaitTokens removes [wait] / [nowait] so the human never sees them.
+// StripWaitTokens removes the reply tokens — [wait] / [nowait] / [react …] —
+// so the human never sees them.
 func StripWaitTokens(s string) string {
 	s, _ = stripBareToken(s, WaitToken)
 	s, _ = stripBareToken(s, NoWaitToken)
-	return s
+	return StripReactTokens(s)
 }
 
 // StripWaitTokensLive is for streaming drafts: hide complete tokens and a
-// trailing incomplete [wait]/[nowait] so the marker never paints on the phone.
+// trailing incomplete [wait]/[nowait]/[react so the marker never paints on
+// the phone.
 func StripWaitTokensLive(s string) string {
 	return stripIncompleteWaitLine(StripWaitTokens(s))
 }
@@ -121,11 +123,15 @@ func stripIncompleteWaitLine(s string) string {
 	lines := strings.Split(s, "\n")
 	i := len(lines) - 1
 	t := strings.TrimSpace(lines[i])
-	if incompleteWaitToken(t) {
+	if incompleteWaitToken(t) || incompleteReactToken(t) {
 		return strings.TrimSpace(strings.Join(lines[:i], "\n"))
 	}
 	if trimmed, ok := trimIncompleteWaitSuffix(t); ok {
 		lines[i] = trimmed
+		return strings.TrimSpace(strings.Join(lines, "\n"))
+	}
+	if j := strings.LastIndex(t, " ["); j >= 0 && incompleteReactToken(t[j+1:]) {
+		lines[i] = strings.TrimSpace(t[:j])
 		return strings.TrimSpace(strings.Join(lines, "\n"))
 	}
 	return s

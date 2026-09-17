@@ -467,3 +467,69 @@ func TestEvalHarness_MemoryAnyKind(t *testing.T) {
 		t.Fatalf("%v\n%s", fails, describeEval(out))
 	}
 }
+
+// Reactions through the harness: a [react 👍] alone is a reaction, not
+// silence, and satisfies 05's any_of and 12's react_only; text next to it
+// fails react_only.
+func TestEvalHarness_ReactToken(t *testing.T) {
+	ctx := context.Background()
+	fx := loadEvalFixture(t, filepath.Join(evalFixtureDir, "12_react_to_thanks.json"))
+	sc := &scriptCompleter{res: []*provider.Result{{Content: "[react 👍]"}}}
+
+	out := runEvalFixture(ctx, t, sc, fx)
+	if out.Reaction != "👍" || out.Reply != "" || out.Silent {
+		t.Fatalf("reaction=%q reply=%q silent=%v", out.Reaction, out.Reply, out.Silent)
+	}
+	if fails := checkEval(ctx, out, fx.Expect); len(fails) > 0 {
+		t.Fatalf("%v\n%s", fails, describeEval(out))
+	}
+	five := loadEvalFixture(t, filepath.Join(evalFixtureDir, "05_thanks_sounds_good.json"))
+	if fails := checkEval(ctx, out, five.Expect); len(fails) > 0 {
+		t.Fatalf("05 must accept a reaction alone: %v", fails)
+	}
+
+	chatty := evalOutcome{Reaction: "👍", Reply: "You're welcome!", RawReply: "You're welcome!\n[react 👍]", mem: out.mem}
+	fails := checkEval(ctx, chatty, fx.Expect)
+	if len(fails) != 1 || !strings.Contains(fails[0], "no text") {
+		t.Fatalf("want one react_only failure, got %v", fails)
+	}
+	none := evalOutcome{Reply: "Anytime.", RawReply: "Anytime.", mem: out.mem}
+	fails = checkEval(ctx, none, fx.Expect)
+	if len(fails) != 2 || !strings.Contains(fails[0], "expected a reaction") {
+		t.Fatalf("want reaction + react_only failures, got %v", fails)
+	}
+}
+
+// Their 👍 with nothing pending never reaches the model; waiting, it does.
+func TestEvalHarness_ReactionTriage(t *testing.T) {
+	ctx := context.Background()
+
+	idle := loadEvalFixture(t, filepath.Join(evalFixtureDir, "13_reaction_idle_thumbs_up.json"))
+	sc := &scriptCompleter{res: []*provider.Result{{Content: "should not be asked"}}}
+	out := runEvalFixture(ctx, t, sc, idle)
+	if fails := checkEval(ctx, out, idle.Expect); len(fails) > 0 {
+		t.Fatalf("%v\n%s", fails, describeEval(out))
+	}
+	if len(sc.reqs) != 0 {
+		t.Fatalf("model called %d times on an idle 👍", len(sc.reqs))
+	}
+	billed := evalOutcome{Rounds: 1, RawReply: "[silent]", Silent: true, mem: out.mem}
+	if fails := checkEval(ctx, billed, idle.Expect); len(fails) != 1 || !strings.Contains(fails[0], "model rounds") {
+		t.Fatalf("want a no_model_call failure, got %v", fails)
+	}
+
+	waiting := loadEvalFixture(t, filepath.Join(evalFixtureDir, "14_reaction_waiting_thumbs_up.json"))
+	sc = &scriptCompleter{res: []*provider.Result{
+		{ToolCalls: []provider.ToolCall{toolCall("c1", "google__calendar_create_event", map[string]any{
+			"summary": "Gym", "start": "2026-09-17T07:00:00-07:00", "end": "2026-09-17T08:00:00-07:00",
+		})}},
+		{Content: "Thursday 7–8 blocked for the gym."},
+	}}
+	out = runEvalFixture(ctx, t, sc, waiting)
+	if fails := checkEval(ctx, out, waiting.Expect); len(fails) > 0 {
+		t.Fatalf("%v\n%s", fails, describeEval(out))
+	}
+	if len(sc.reqs) != 2 {
+		t.Fatalf("waiting 👍 must reach the model, got %d rounds", len(sc.reqs))
+	}
+}

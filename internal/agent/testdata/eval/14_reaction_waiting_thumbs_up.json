@@ -1,23 +1,18 @@
 {
-  "name": "thanks_sounds_good",
-  "why": "Consent to an offer is the go-ahead: do the thing (event or cron), ask the next question, or react — a 👍 on their message is the honest 'got it'. Never a bare 'got it' in text.",
+  "name": "reaction_waiting_thumbs_up",
+  "why": "The agent asked and is waiting; their 👍 is yes. Do the thing — create the block — and do not ask again.",
   "history": [
     { "role": "user", "text": "can you look at my week?" },
     { "role": "assistant", "text": "Tuesday and Thursday mornings are open. Want me to block Thursday 7–8 for the gym?" }
   ],
-  "inbound": "thanks, sounds good",
+  "waiting": true,
+  "inbound": "[reaction] 👍 on: Tuesday and Thursday mornings are open. Want me to block Thursday 7–8 for the gym?",
   "memory": [
     { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" },
     { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
   ],
   "force": ["google"],
   "tools": [
-    {
-      "name": "google__calendar_list_events",
-      "description": "List calendar events for a day. Args: date (YYYY-MM-DD, default today).",
-      "params": { "type": "object", "properties": { "date": { "type": "string", "description": "YYYY-MM-DD; default today" } } },
-      "result": "[]"
-    },
     {
       "name": "google__calendar_create_event",
       "description": "Create a calendar event.",
@@ -35,12 +30,8 @@
   ],
   "expect": {
     "round_budget": 2,
-    "reply_not_regex": "(?i)^\\s*(got it|yes boss|okay|ok|sure|sounds good|will do|done)[.!]*\\s*$",
-    "any_of": [
-      { "tools_called": [{ "name": "google__calendar_create_event" }] },
-      { "tools_called": [{ "name": "cron_schedule" }] },
-      { "reply_regex": "\\?" },
-      { "react": "*" }
-    ]
+    "tools_called": [{ "name": "google__calendar_create_event", "args_regex": "(?i)gym" }],
+    "max_questions": 0,
+    "wait": false
   }
 }

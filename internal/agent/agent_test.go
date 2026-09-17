@@ -46,10 +46,28 @@ type memHistory struct {
 	mu      sync.Mutex
 	data    map[string][]session.Message
 	summary map[string]string
+	waiting map[string]bool
 }
 
 func newMemHistory() *memHistory {
-	return &memHistory{data: make(map[string][]session.Message), summary: make(map[string]string)}
+	return &memHistory{
+		data:    make(map[string][]session.Message),
+		summary: make(map[string]string),
+		waiting: make(map[string]bool),
+	}
+}
+
+// TalkState is the wait flag only; tests arm it with setWaiting.
+func (m *memHistory) TalkState(_ context.Context, id string) (session.TalkState, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return session.TalkState{WaitingForReply: m.waiting[id]}, nil
+}
+
+func (m *memHistory) setWaiting(id string, on bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.waiting[id] = on
 }
 
 func (m *memHistory) Messages(_ context.Context, id string) ([]session.Message, error) {

@@ -61,6 +61,9 @@ type Channel struct {
 	writeMu sync.Mutex
 	live    conn
 	room    channel.Room // last face / backdrop / theme notices (room.go)
+
+	reactSettle *channel.Settler // human reactions, quiet-time debounced
+	recent      *channel.Recent  // our reply / push ids → text, for "on: …"
 }
 
 // New requires mailbox URL, bearer, and a non-empty allowlist.
@@ -94,9 +97,15 @@ func New(cfg Config) (*Channel, error) {
 		log:           log,
 		dial:          defaultDial,
 		streamReplies: cfg.StreamReplies,
+		reactSettle:   channel.NewSettler(),
+		recent:        channel.NewRecent(recentReplies),
 	}
 	return ch, nil
 }
+
+// recentReplies is how many of our own frames the channel can still name
+// when a reaction lands on one.
+const recentReplies = 256
 
 // SetOnAdmit runs once per newly seen Google sub (email-only allowlist
 // learns the push target so Push can address that phone).
@@ -316,6 +325,10 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	}
 	sid := channel.AgentSession
 	c.noteUser(ctx, sid, sub)
+	if frame.Kind == "react" {
+		c.scheduleReaction(ctx, cn, handle, sub, frame)
+		return nil
+	}
 	msg, start := turnFromFrame(frame)
 	here.Remember(sid, msg.Geo, time.Now())
 	if !start {
@@ -329,6 +342,15 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	} else {
 		c.log.Info("pendant inbound without geo", "session_id", sid)
 	}
+	return c.runTurn(ctx, cn, handle, msg, strings.TrimSpace(frame.ID))
+}
+
+// runTurn runs one turn for the phone and lands the reply. replyTo is the
+// human's inbound frame id — what a [react …] lands on; empty when the turn
+// has none (a settled reaction, an old app that sends no id), and then the
+// kernel falls back to text.
+func (c *Channel) runTurn(ctx context.Context, cn conn, handle channel.Handler, msg channel.Message, replyTo string) error {
+	sub := msg.UserID
 	stopTyping := c.startTyping(ctx, cn, sub)
 
 	var stream *editStream
@@ -343,6 +365,10 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		handleCtx = channel.WithReplyWriter(ctx, stream)
 	}
 
+	var react *channel.ReactionSink
+	if replyTo != "" {
+		handleCtx, react = channel.AttachReactionSink(handleCtx)
+	}
 	handleCtx, sink := channel.AttachPhotoSink(handleCtx)
 	reply, err := handle(handleCtx, msg)
 	stopTyping()
@@ -354,7 +380,15 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		c.log.Error("pendant handle", "err", err)
 		// Tell the human, like Telegram does. A discarded draft plus nothing
 		// else is indistinguishable from being ignored.
-		return c.writeReply(ctx, cn, replyFrames("reply", sub, "", channel.HandleFailedText))
+		return c.writeReply(ctx, cn, replyFrames("reply", sub, newReplyID(), channel.HandleFailedText))
+	}
+	if emoji := react.Emoji(); emoji != "" {
+		if werr := c.writeReply(ctx, cn, []outboundFrame{{Kind: "react", UserID: sub, ID: replyTo, Text: emoji}}); werr != nil {
+			c.log.Warn("pendant react write failed; saying it in text", "err", werr)
+			if strings.TrimSpace(reply) == "" && len(photos) == 0 {
+				reply = emoji
+			}
+		}
 	}
 	if strings.TrimSpace(reply) == "" && len(photos) == 0 && stream != nil && stream.Started() {
 		if !stream.Replied() {
@@ -369,7 +403,13 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		stream.setPhotos(photos)
 		return stream.Finish(ctx, reply)
 	}
-	return c.writeReply(ctx, cn, replyFrames("reply", sub, "", reply, photos...))
+	return c.writeReply(ctx, cn, replyFrames("reply", sub, newReplyID(), reply, photos...))
+}
+
+// newReplyID stamps a reply frame so a reaction on it can name it (push
+// frames already carry one). The Worker keeps a supplied id.
+func newReplyID() string {
+	return fmt.Sprintf("r%d", time.Now().UnixNano())
 }
 
 // Push sends a cron/spark outbound to every allowlisted (and learned) Google
@@ -435,6 +475,7 @@ func (c *Channel) writePush(ctx context.Context, text, sub, id string, extra ...
 		werr := c.writeFrames(live, frames)
 		if werr == nil {
 			c.log.Info("pendant push", "slug", c.slug, "user_id", sub, "via", via, "frame_id", id, "chars", len(text))
+			c.rememberFrames(frames)
 			return nil
 		}
 		c.log.Warn("pendant push live write failed; dialing", "err", werr, "user_id", sub, "frame_id", id)
@@ -444,7 +485,17 @@ func (c *Channel) writePush(ctx context.Context, text, sub, id string, extra ...
 		return err
 	}
 	c.log.Info("pendant push", "slug", c.slug, "user_id", sub, "via", via, "frame_id", id, "chars", len(text))
+	c.rememberFrames(frames)
 	return nil
+}
+
+// rememberFrames keeps id → text for the frames a human might react to.
+func (c *Channel) rememberFrames(frames []outboundFrame) {
+	for _, f := range frames {
+		if f.ID != "" && strings.TrimSpace(f.Text) != "" {
+			c.recent.Remember(f.ID, f.Text)
+		}
+	}
 }
 
 // writeReply lands human-facing reply frames on the dispatch socket, or on a
@@ -454,11 +505,14 @@ func (c *Channel) writePush(ctx context.Context, text, sub, id string, extra ...
 // are ephemeral, and the serve loop replaces the socket once Handle returns.
 func (c *Channel) writeReply(ctx context.Context, cn conn, frames []outboundFrame) error {
 	err := c.writeFrames(cn, frames)
-	if err == nil {
-		return nil
+	if err != nil {
+		c.log.Warn("pendant reply write failed; dialing", "err", err)
+		err = c.writeDialed(ctx, frames)
 	}
-	c.log.Warn("pendant reply write failed; dialing", "err", err)
-	return c.writeDialed(ctx, frames)
+	if err == nil {
+		c.rememberFrames(frames)
+	}
+	return err
 }
 
 // writeDialed opens a one-shot mailbox socket, writes frames, and closes it.

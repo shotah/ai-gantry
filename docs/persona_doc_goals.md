@@ -104,6 +104,11 @@ A question it asks does not evaporate. A time it commits to has a wake.
   `[wakes]` line means nothing scheduled — not a `cron_list` to check. Done
   / “already did it” / stop → `cron_cancel`. “Not now” → later cron. —
   **persona** says it; **kernel** stamps the line.
+- An acknowledgment — thanks back, noted, nice — is a `[react 👍]` on their
+  message, not a sentence; the palette can say no or cry too. Their 👍 on a
+  done message costs nothing (kernel records it, no model call); their 👍 on
+  a question you're waiting on is yes, 👎 is no. — **kernel**
+  (`ReactSection`, `triageReaction`, [reactions](reactions.md)).
 
 ### Character growth (`SELF.md`)
 
@@ -246,7 +251,11 @@ what the model **sees**, not what it does.)
 | “what's on today?” with an empty calendar | Every listed day-tool + recall in one response, then a question about what goes on the day. Not “nothing today.” | `03_whats_on_today_empty` |
 | Any question the agent asks | `[wait]` on its own line; poke at 2 min and 15 min; nothing after. | `wait: true` in 02, 03, 06 |
 | Ask that needs a prefix listed off | `mcp_enable` then the call, same turn. | `04_off_prefix_enable_then_call` |
-| “thanks, sounds good” | A next question or a tool. Not a bare “got it.” | `05_thanks_sounds_good` |
+| “thanks, sounds good” | A next question, a tool, or `[react 👍]`. Not a bare “got it” in text. | `05_thanks_sounds_good` |
+| “thanks!” after the thing is done | `[react 👍]` alone — no “you're welcome” paragraph. | `12_react_to_thanks` |
+| Their 👍 on a done message | Nothing — no model call; the kernel records the pair. | `13_reaction_idle_thumbs_up` |
+| Their 👍 on “block Thursday 7–8?” while waiting | The event created, no question asked again, wait cleared. | `14_reaction_waiting_thumbs_up` |
+| Their 👎 on “Blocked Thursday 7–8 for the gym.” | Not silence: the block moved or dropped, or one question — which. | `15_reaction_thumbs_down` |
 | A joke lands / they reveal a ritual | `self_note` that turn, exact wording. | — |
 | No `aim/` row, no `[aims]` line | One months-scale question. Not a task menu, not `[silent]`. | `06_no_aims_one_question` |
 | Spark wake; `aim/weight` = lose 20 lbs; dinner out on today's calendar | Calendar **and** aims read; the nudge is tied to the aim (a meal thought), not a generic check-in. | `10_spark_weight_dinner` |

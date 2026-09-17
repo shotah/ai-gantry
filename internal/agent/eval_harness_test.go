@@ -68,7 +68,10 @@ type evalFixture struct {
 	Input   string `json:"input,omitempty"`
 	// History is appended to the session before the turn (role user|assistant).
 	History []evalHistory `json:"history,omitempty"`
-	Memory  []evalMemory  `json:"memory,omitempty"`
+	// Waiting arms waiting_for_reply before the turn — the last assistant
+	// line in History asked and put [wait] on it.
+	Waiting bool         `json:"waiting,omitempty"`
+	Memory  []evalMemory `json:"memory,omitempty"`
 	// Self is SELF.md body bullets ("- ..." lines). Empty file when absent.
 	Self string `json:"self,omitempty"`
 	// Tools are canned MCP tools. Result is returned verbatim on every call.
@@ -119,6 +122,13 @@ type evalExpect struct {
 	RoundBudget *int  `json:"round_budget,omitempty"`
 	Wait        *bool `json:"wait,omitempty"`
 	Silent      *bool `json:"silent,omitempty"`
+	// React is the emoji the agent put on the human's message; "*" is any
+	// palette emoji. ReactOnly adds: and said nothing in text.
+	React     string `json:"react,omitempty"`
+	ReactOnly *bool  `json:"react_only,omitempty"`
+	// NoModelCall: the kernel settled the turn itself (a 👍 with nothing
+	// pending). Rounds must be zero.
+	NoModelCall *bool `json:"no_model_call,omitempty"`
 	// PricesFromTools: every "$N" in the reply must appear in some tool
 	// result this turn. The "never invent live facts" gate — a model that
 	// gets the same fares back for two dates and makes up a cheaper pair
@@ -164,6 +174,7 @@ type evalOutcome struct {
 	Calls    []evalCall
 	Reply    string // what Handle returned (wait tokens stripped)
 	RawReply string // what the wait hook saw
+	Reaction string // the emoji the mouth would put on the human's message
 	Waiting  bool
 	Silent   bool
 	Jobs     []cron.Job
@@ -521,6 +532,11 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 			t.Fatal(err)
 		}
 	}
+	if fx.Waiting {
+		if err := sessions.ArmWait(ctx, sessionID); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	// Same stack as cmd/gantry/run.go, canned MCP host at the bottom,
 	// recorder on top. Canned results take the same {{+Nm}} clock as the
@@ -579,6 +595,9 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		Surface:   fx.Surface,
 		Input:     fx.Input,
 	}
+	// A mouth that can react (Telegram, pendant): the emoji lands on the
+	// human's message, not in the text.
+	ctx, reactions := channel.AttachReactionSink(ctx)
 	reply, err := a.Handle(ctx, msg)
 	if err != nil {
 		t.Fatalf("%s: Handle: %v", fx.Name, err)
@@ -593,12 +612,14 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		t.Fatal(err)
 	}
 	raw := wait.last()
+	reaction := reactions.Emoji()
 	return evalOutcome{
 		Calls:            rec.snapshot(),
 		Reply:            reply,
 		RawReply:         raw,
+		Reaction:         reaction,
 		Waiting:          state.WaitingForReply,
-		Silent:           strings.TrimSpace(reply) == "" || cron.IsSilentReply(raw),
+		Silent:           (strings.TrimSpace(reply) == "" && reaction == "") || cron.IsSilentReply(raw),
 		Jobs:             list,
 		Started:          started,
 		Rounds:           counter.round(),
@@ -682,6 +703,19 @@ func checkEval(ctx context.Context, out evalOutcome, want evalExpect) []string {
 	}
 	if want.Silent != nil && out.Silent != *want.Silent {
 		fails = append(fails, fmt.Sprintf("silent=%v, want %v", out.Silent, *want.Silent))
+	}
+	switch {
+	case want.React == "":
+	case out.Reaction == "":
+		fails = append(fails, "expected a reaction, got none")
+	case want.React != "*" && out.Reaction != want.React:
+		fails = append(fails, fmt.Sprintf("reaction %s, want %s", out.Reaction, want.React))
+	}
+	if want.ReactOnly != nil && *want.ReactOnly && (out.Reaction == "" || strings.TrimSpace(out.Reply) != "") {
+		fails = append(fails, fmt.Sprintf("want a reaction and no text, got reaction=%q text=%q", out.Reaction, out.Reply))
+	}
+	if want.NoModelCall != nil && *want.NoModelCall && out.Rounds > 0 {
+		fails = append(fails, fmt.Sprintf("%d model rounds, want the kernel to settle it without one", out.Rounds))
 	}
 	if want.PricesFromTools != nil && *want.PricesFromTools {
 		for _, p := range inventedPrices(reply, out) {
@@ -867,7 +901,7 @@ func describeEval(out evalOutcome) string {
 		fmt.Fprintf(&b, "r%d %s %s\n", c.Round, c.Name, c.Args)
 	}
 	fmt.Fprintf(&b, "--- %s: %s ---\n", describeCost(out), describeBatches(out))
-	fmt.Fprintf(&b, "--- waiting=%v silent=%v jobs=%s ---\n", out.Waiting, out.Silent, describeJobs(out))
+	fmt.Fprintf(&b, "--- waiting=%v silent=%v reaction=%q jobs=%s ---\n", out.Waiting, out.Silent, out.Reaction, describeJobs(out))
 	b.WriteString("--- reply ---\n")
 	b.WriteString(out.RawReply)
 	if out.RawReply == "" {

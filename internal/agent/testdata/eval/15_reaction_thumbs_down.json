@@ -1,0 +1,53 @@
+{
+  "name": "reaction_thumbs_down",
+  "why": "A 👎 is never nothing. Not waiting, but they disagree with the block that got made — move it, drop it, or ask which, one line, one question at most.",
+  "history": [
+    { "role": "user", "text": "block thursday morning for the gym" },
+    { "role": "assistant", "text": "Blocked Thursday 7–8 for the gym." }
+  ],
+  "inbound": "[reaction] 👎 on: Blocked Thursday 7–8 for the gym.",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "force": ["google"],
+  "tools": [
+    {
+      "name": "google__calendar_list_events",
+      "description": "List calendar events for a day. Args: date (YYYY-MM-DD, default today).",
+      "params": { "type": "object", "properties": { "date": { "type": "string", "description": "YYYY-MM-DD; default today" } } },
+      "result": "[{\"id\":\"evt_1\",\"summary\":\"Gym\",\"start\":\"Thursday 07:00\",\"end\":\"Thursday 08:00\"}]"
+    },
+    {
+      "name": "google__calendar_update_event",
+      "description": "Move or rename a calendar event.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "summary": { "type": "string" },
+          "start": { "type": "string", "description": "RFC3339" },
+          "end": { "type": "string", "description": "RFC3339" }
+        },
+        "required": ["id"]
+      },
+      "result": "{\"id\":\"evt_1\",\"status\":\"confirmed\"}"
+    },
+    {
+      "name": "google__calendar_delete_event",
+      "description": "Delete a calendar event.",
+      "params": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] },
+      "result": "{\"id\":\"evt_1\",\"status\":\"cancelled\"}"
+    }
+  ],
+  "expect": {
+    "round_budget": 3,
+    "silent": false,
+    "max_questions": 1,
+    "any_of": [
+      { "tools_called": [{ "name": "google__calendar_update_event" }] },
+      { "tools_called": [{ "name": "google__calendar_delete_event" }] },
+      { "reply_regex": "\\?" }
+    ]
+  }
+}

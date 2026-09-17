@@ -1,15 +1,8 @@
 package telegram
 
-import (
-	"strings"
-	"sync"
-	"unicode/utf8"
-)
+import "sync"
 
-const (
-	outboundCacheCap = 256
-	reactionClipMax  = 200
-)
+const outboundCacheCap = 256
 
 type outboundKey struct {
 	chatID int64
@@ -69,16 +62,4 @@ func (c *outboundCache) lookup(chatID int64, msgID int) (outboundEntry, bool) {
 	defer c.mu.Unlock()
 	e, ok := c.byKey[outboundKey{chatID: chatID, msgID: msgID}]
 	return e, ok
-}
-
-func clipReactionTarget(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "(unknown message)"
-	}
-	if utf8.RuneCountInString(s) <= reactionClipMax {
-		return s
-	}
-	r := []rune(s)
-	return string(r[:reactionClipMax-1]) + "…"
 }

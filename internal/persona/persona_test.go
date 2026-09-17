@@ -97,6 +97,10 @@ func TestLoad_StampsSelfAndPersona(t *testing.T) {
 	if !strings.Contains(got, "## Follow-up") || !strings.Contains(got, "[wait]") {
 		t.Fatalf("follow-up stamp missing: %q", got)
 	}
+	if !strings.Contains(got, "## Reactions") || !strings.Contains(got, "[react <emoji>]") ||
+		!strings.Contains(got, "👎") || !strings.Contains(got, "[input] spoken") {
+		t.Fatalf("reactions stamp missing: %q", got)
+	}
 	if !strings.Contains(got, "Pendant GPS") || !strings.Contains(got, "maps `near`") ||
 		strings.Contains(got, "A Telegram location or venue updates") {
 		t.Fatalf("location stamp still Telegram-only: %q", got)
@@ -133,6 +137,9 @@ func TestSyncKernel_RewritesPersonaSection(t *testing.T) {
 	}
 	if !strings.Contains(got, "## Follow-up") || !strings.Contains(got, "[wait]") {
 		t.Fatalf("sync missing follow-up section: %q", got)
+	}
+	if !strings.Contains(got, "## Reactions") || !strings.Contains(got, "[react <emoji>]") {
+		t.Fatalf("sync missing reactions section: %q", got)
 	}
 }
 

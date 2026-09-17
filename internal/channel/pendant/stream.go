@@ -177,7 +177,7 @@ func (s *editStream) Finish(_ context.Context, final string) error {
 	extra := append([]string(nil), s.photos...)
 	s.photos = nil
 	s.mu.Unlock()
-	frames := replyFrames("reply", userID, "", body, extra...)
+	frames := replyFrames("reply", userID, newReplyID(), body, extra...)
 	if len(frames) == 0 {
 		return nil
 	}

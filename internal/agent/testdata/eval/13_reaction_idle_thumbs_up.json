@@ -1,0 +1,14 @@
+{
+  "name": "reaction_idle_thumbs_up",
+  "why": "Their 👍 on a done message is not a question. The kernel records it and bills nothing — no model round, no reply.",
+  "history": [
+    { "role": "user", "text": "set a 6pm wake to ask how the gym went" },
+    { "role": "assistant", "text": "Done — 6pm wake set. I'll ask how it went." }
+  ],
+  "inbound": "[reaction] 👍 on: Done — 6pm wake set. I'll ask how it went.",
+  "expect": {
+    "no_model_call": true,
+    "silent": true,
+    "wait": false
+  }
+}

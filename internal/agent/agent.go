@@ -443,6 +443,11 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		text = strings.TrimSpace(msg.Text)
 	}
 
+	// Their 👍 on an agent message, nothing pending: recorded, no model call.
+	if handled, err := a.triageReaction(ctx, msg, text); handled || err != nil {
+		return "", err
+	}
+
 	return a.runTurn(ctx, msg, text)
 }
 
@@ -460,7 +465,9 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 		}
 	}()
 
-	if a.wait != nil && turnSource(text) == sourceUser {
+	// Their text or their reaction is their reply: the wait is answered and
+	// the follow-up pokes are off. (An idle 👍 never gets here — triage.)
+	if src := turnSource(text); a.wait != nil && (src == sourceUser || src == sourceReaction) {
 		if err := a.wait.OnUserTurn(turnCtx, msg.SessionID); err != nil {
 			a.log.Warn("wait clear on user turn failed", "err", err)
 		}
@@ -646,6 +653,9 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 	}
 
 	stripped := cron.StripWaitTokens(reply)
+	if emoji := cron.ReactEmoji(reply); emoji != "" {
+		stripped = placeReaction(turnCtx, msg, emoji, stripped)
+	}
 	a.flushStream(turnCtx, stripped)
 
 	if err := a.sessions.Append(turnCtx, msg.SessionID,

@@ -19,6 +19,7 @@ func stampPersona(raw string) string {
 	raw = upsertSection(raw, "## Self-notes", selfnote.RulesSection)
 	raw = upsertSection(raw, "## Location pins", selfnote.LocationSection)
 	raw = upsertSection(raw, "## Follow-up", WaitSection)
+	raw = upsertSection(raw, "## Reactions", ReactSection)
 	return strings.TrimSpace(raw)
 }
 

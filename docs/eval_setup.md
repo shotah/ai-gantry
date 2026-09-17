@@ -148,7 +148,10 @@ Sprint's at 2:30 and the scoop is at 2 — I'll keep an eye on it.
 | `reply should match /re/` · `should not match` | Shape of the reply — a `?`, a bare “got it”. Never a sentence. |
 | `N questions, max M` | Counted `?` in the reply. |
 | `waiting_for_reply=false, want true` | The model asked but did not put `[wait]` on its own line — the kernel follow-up rule. |
-| `silent=true, want false` | `[silent]` (or an empty reply) where a nudge was owed. |
+| `silent=true, want false` | `[silent]` (or an empty reply with no reaction) where a nudge was owed. |
+| `expected a reaction, got none` · `reaction X, want Y` | No `[react …]` in the reply, or the wrong emoji (`react: "*"` is any). |
+| `want a reaction and no text` | `react_only`: the model reacted and also wrote — a “you're welcome” paragraph beside the 👍. |
+| `N model rounds, want the kernel to settle it` | `no_model_call`: an idle 👍 reached the model — the kernel triage should have recorded it for free. |
 | `expected memory row kind subject` | No live `memory_store` row with that subject after the turn. |
 | `no cron job A–B min out (have …)` | Nothing on the board in the window; `followup`-kind wait pokes do not count, only the reminder. |
 | `none of any_of held — alt 1: … \| alt 2: …` | Every alternative failed; each is listed with its own reason. |
@@ -237,12 +240,13 @@ list of rows; add the row there when you add the file.
 | `spark` | Instead of `inbound`: a substring of one `cron.DefaultSparkPrompt` line (“Gym / fitness aim”). Sends a real wake turn. |
 | `cron` | Instead of `inbound`: the prompt of a scheduled job the model set. Sent as `cron.JobUserPrefix` + prompt — the shape of a daily “check X” wake. |
 | `history` | Prior `user` / `assistant` turns appended to the session first. |
+| `waiting` | Arms `waiting_for_reply` before the turn — the last assistant line asked and put `[wait]` on it. For `[reaction] 👍 on: …` inbound: is the 👍 an answer. |
 | `memory` | Seed rows: `kind`, `subject`, `content`. `pref/hours` here gives the model `[hours]`. |
 | `self` | `SELF.md` body (`- ` bullets). Empty file when absent — that is the “empty SELF.md” scenario. |
 | `tools` | Canned MCP tools: `name` (must be `server__name`), `description`, optional `params` schema, `result` returned every call — `{{+90m}}` in a result expands like `inbound`, so a stub dinner is still ahead whenever the eval runs. |
 | `tools_from` | Servers whose **real** catalog replaces hand-written defs — see below. `tools` entries for those servers carry only `name` + `result`. |
 | `force` | MCP prefixes published without `mcp_enable`. Leave empty to test the off → enable → call path. |
-| `expect` | The shape contract — see the failure table above for each key. `round_budget` is the cost note, not a check: the rounds the rule needs (one batch + reply = 2; a prefix that must be `mcp_enable`d first = 3). Over it is printed beside the pass. `tools_called[].max_calls` caps a metered tool (one search, not five). `prices_from_tools` fails any `$N` in the reply that no tool returned. |
+| `expect` | The shape contract — see the failure table above for each key. `round_budget` is the cost note, not a check: the rounds the rule needs (one batch + reply = 2; a prefix that must be `mcp_enable`d first = 3). Over it is printed beside the pass. `tools_called[].max_calls` caps a metered tool (one search, not five). `prices_from_tools` fails any `$N` in the reply that no tool returned. `react` / `react_only` / `no_model_call` are the reaction gates — see [reactions](reactions.md#eval). |
 
 ### Real catalogs (`tools_from`)
 
@@ -284,7 +288,7 @@ go test ./internal/agent/ -run TestEvalFixtures_WellFormed     # parses, regexes
 make integration-test EVAL_ARGS='-eval.n=1 -eval.only=<name>'   # first live read
 ```
 
-Three kinds of fixture live in the directory. The first seven are
+Four kinds of fixture live in the directory. The first seven are
 single-batch rules — one tool round and a reply — and their
 `round_budget` is 2 or 3. `denver_flight`, `hows_gym_going`,
 `spark_weight_dinner` are **completion** fixtures: the check is that the
@@ -297,6 +301,9 @@ want me to look”, and leave the round count to the budget note.
 `rental_daily_cron` (and Denver again) are **spend** fixtures on real
 catalogs: a metered API, `max_calls` on the search, `tools_not_called` on
 the per-item detail calls nobody asked for, `prices_from_tools` on the
-reply. The one table row still without
+reply. `12`–`15` are **reaction** fixtures: the agent's `[react 👍]` where
+a sentence would be noise, and the human's 👍 / 👎 on the agent's message
+— free when idle, an answer when the agent was waiting, never nothing when
+negative. The one table row still without
 a fixture (`self_note` on a landed joke) needs an `expect` that reads
 `SELF.md` — a small addition to `eval_harness_test.go` and one JSON file.

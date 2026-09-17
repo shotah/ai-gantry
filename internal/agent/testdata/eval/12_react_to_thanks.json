@@ -1,0 +1,18 @@
+{
+  "name": "react_to_thanks",
+  "why": "The thing is done and they said thanks. A 👍 on their message is the whole reply; a paragraph of 'you're welcome' is noise.",
+  "history": [
+    { "role": "user", "text": "set a 6pm wake to ask how the gym went" },
+    { "role": "assistant", "text": "Done — 6pm wake set. I'll ask how it went." }
+  ],
+  "inbound": "thanks!",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" }
+  ],
+  "expect": {
+    "round_budget": 1,
+    "react": "*",
+    "react_only": true,
+    "tools_not_called": ["cron_schedule"]
+  }
+}
