@@ -1291,8 +1291,11 @@ func TestAgent_Handle_ToolsFooterOnlyGetsNudged(t *testing.T) {
 			return &provider.Result{Content: "— tools: web_search"}, nil
 		case 2:
 			last := req.Messages[len(req.Messages)-1]
-			if last.Role != provider.RoleSystem || !strings.Contains(last.Content, "harness audit footer") {
+			if last.Role != provider.RoleUser || !strings.Contains(last.Content, "harness audit footer") {
 				t.Fatalf("missing tools-footer nudge: %+v", last)
+			}
+			if wire := provider.WireMessages("gemini-x", req.Messages); wire[len(wire)-1].Role != provider.RoleUser {
+				t.Fatalf("gemini wire ends on %s, want user", wire[len(wire)-1].Role)
 			}
 			return &provider.Result{Content: "Android looks clean."}, nil
 		default:

@@ -1063,8 +1063,11 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 						Role:    provider.RoleAssistant,
 						Content: res.Content,
 					})
+					// User-role for the same reason as the theater nudge below:
+					// a system block folds to the top on Gemini and the wire
+					// would end on the assistant's own footer.
 					messages = append(messages, provider.Message{
-						Role:    provider.RoleSystem,
+						Role:    provider.RoleUser,
 						Content: toolsFooterNudge,
 					})
 					continue

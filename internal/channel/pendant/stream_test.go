@@ -85,6 +85,71 @@ func TestEditStream_StatusAndProgressThenReply(t *testing.T) {
 	}
 }
 
+// A tool round must not blank the bubble (docs/draft_stream_handloff.md,
+// crane item 1). Round 1 prose stays through the tool call, no draft ever
+// carries empty text, and the first draft of the post-tool round shows
+// everything so far — not only the new tokens.
+func TestEditStream_ToolRoundKeepsDraftWhole(t *testing.T) {
+	prev := streamMinGap
+	streamMinGap = 0
+	t.Cleanup(func() { streamMinGap = prev })
+
+	w := &captureWriter{}
+	s := newEditStream(w.write, "1182")
+	ctx := context.Background()
+
+	if err := s.Update(ctx, "Let me pull your sleep."); err != nil {
+		t.Fatal(err)
+	}
+	// Round 2 opens on the model's tool call: no tokens yet.
+	if err := s.Update(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateProgress(ctx, "Making Calls:"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UpdateProgress(ctx, "✓"); err != nil {
+		t.Fatal(err)
+	}
+	before := len(w.all())
+	// Round 3: a new segment, not a prefix of the old one.
+	if err := s.Update(ctx, "Sleep score 74"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Finish(ctx, "Sleep score 74, 6.9 h."); err != nil {
+		t.Fatal(err)
+	}
+
+	frames := w.all()
+	for _, f := range frames {
+		if f.Kind == "draft" && strings.TrimSpace(f.Text) == "" {
+			t.Fatalf("blank draft on the wire: %+v", frames)
+		}
+	}
+	first := frames[before]
+	if first.Kind != "draft" || !strings.Contains(first.Text, "Let me pull your sleep.") || !strings.Contains(first.Text, "Sleep score 74") {
+		t.Fatalf("post-tool draft lost the earlier text: %+v", first)
+	}
+	reply := frames[len(frames)-1]
+	if reply.Kind != "reply" || !strings.Contains(reply.Text, "Let me pull your sleep.") ||
+		!strings.Contains(reply.Text, "Making Calls: ✓") || !strings.Contains(reply.Text, "Sleep score 74, 6.9 h.") {
+		t.Fatalf("reply %+v", reply)
+	}
+}
+
+// Crane item 3: a turn with no text and no photo closes without a reply
+// frame — the Worker refuses one, and the phone would drop its draft.
+func TestEditStream_FinishEmptyWritesNothing(t *testing.T) {
+	w := &captureWriter{}
+	s := newEditStream(w.write, "1182")
+	if err := s.Finish(context.Background(), "   "); err != nil {
+		t.Fatal(err)
+	}
+	if frames := w.all(); len(frames) != 0 {
+		t.Fatalf("empty reply reached the wire: %+v", frames)
+	}
+}
+
 func TestEditStream_FinishDropsLingeringStatus(t *testing.T) {
 	w := &captureWriter{}
 	s := newEditStream(w.write, "1182")

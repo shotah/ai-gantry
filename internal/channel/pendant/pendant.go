@@ -335,6 +335,9 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 	handleCtx := ctx
 	if c.streamReplies {
 		stream = newEditStream(func(frame outboundFrame) error {
+			if frame.Kind == "reply" {
+				return c.writeReply(ctx, cn, []outboundFrame{frame})
+			}
 			return c.writeOn(cn, frame)
 		}, sub)
 		handleCtx = channel.WithReplyWriter(ctx, stream)
@@ -351,7 +354,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		c.log.Error("pendant handle", "err", err)
 		// Tell the human, like Telegram does. A discarded draft plus nothing
 		// else is indistinguishable from being ignored.
-		return c.writeFrames(cn, replyFrames("reply", sub, "", channel.HandleFailedText))
+		return c.writeReply(ctx, cn, replyFrames("reply", sub, "", channel.HandleFailedText))
 	}
 	if strings.TrimSpace(reply) == "" && len(photos) == 0 && stream != nil && stream.Started() {
 		if !stream.Replied() {
@@ -366,7 +369,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 		stream.setPhotos(photos)
 		return stream.Finish(ctx, reply)
 	}
-	return c.writeFrames(cn, replyFrames("reply", sub, "", reply, photos...))
+	return c.writeReply(ctx, cn, replyFrames("reply", sub, "", reply, photos...))
 }
 
 // Push sends a cron/spark outbound to every allowlisted (and learned) Google
@@ -420,6 +423,11 @@ func (c *Channel) pushTargets() []string {
 func (c *Channel) writePush(ctx context.Context, text, sub, id string, extra ...string) error {
 	frames := replyFrames("push", sub, id, text, extra...)
 	if len(frames) == 0 {
+		// Photos that would not fit still go out as their URLs. Nothing at
+		// all does not go out: an empty push is a blank bubble.
+		if strings.TrimSpace(text) == "" {
+			return nil
+		}
 		frames = []outboundFrame{{Text: text, Kind: "push", UserID: sub, ID: id}}
 	}
 	via := "live"
@@ -432,6 +440,29 @@ func (c *Channel) writePush(ctx context.Context, text, sub, id string, extra ...
 		c.log.Warn("pendant push live write failed; dialing", "err", werr, "user_id", sub, "frame_id", id)
 	}
 	via = "dial"
+	if err := c.writeDialed(ctx, frames); err != nil {
+		return err
+	}
+	c.log.Info("pendant push", "slug", c.slug, "user_id", sub, "via", via, "frame_id", id, "chars", len(text))
+	return nil
+}
+
+// writeReply lands human-facing reply frames on the dispatch socket, or on a
+// fresh dial when that socket died mid-turn (a `close 1006` while the model
+// was working). Without this the reply is simply lost: drafts stop, the chip
+// expires, nothing lands. Drafts and typing do not get the fallback — they
+// are ephemeral, and the serve loop replaces the socket once Handle returns.
+func (c *Channel) writeReply(ctx context.Context, cn conn, frames []outboundFrame) error {
+	err := c.writeFrames(cn, frames)
+	if err == nil {
+		return nil
+	}
+	c.log.Warn("pendant reply write failed; dialing", "err", err)
+	return c.writeDialed(ctx, frames)
+}
+
+// writeDialed opens a one-shot mailbox socket, writes frames, and closes it.
+func (c *Channel) writeDialed(ctx context.Context, frames []outboundFrame) error {
 	header := http.Header{}
 	header.Set("Authorization", "Bearer "+c.bearer)
 	cn, err := c.dial(ctx, c.mailbox, header)
@@ -439,11 +470,7 @@ func (c *Channel) writePush(ctx context.Context, text, sub, id string, extra ...
 		return err
 	}
 	defer func() { _ = cn.Close() }()
-	if err := writeFrames(cn, frames); err != nil {
-		return err
-	}
-	c.log.Info("pendant push", "slug", c.slug, "user_id", sub, "via", via, "frame_id", id, "chars", len(text))
-	return nil
+	return writeFrames(cn, frames)
 }
 
 func (c *Channel) writeFrames(cn conn, frames []outboundFrame) error {

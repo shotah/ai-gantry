@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -233,6 +234,28 @@ func TestPush_AllowlistAndLive(t *testing.T) {
 	}
 }
 
+// Nothing to say means no frame — not a push with blank text.
+func TestPush_EmptyTextWritesNothing(t *testing.T) {
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc := &fakeConn{reads: make(chan []byte), writes: make(chan []byte, 1)}
+	ch.setLive(fc)
+	if err := ch.Push(context.Background(), channel.Outbound{Text: "  \n"}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case raw := <-fc.writes:
+		t.Fatalf("empty push reached the wire: %s", raw)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 func TestPush_BroadcastWhenNoSub(t *testing.T) {
 	ch, err := New(Config{
 		MailboxURL:   "wss://x.workers.dev/ws/kit",
@@ -343,6 +366,48 @@ func TestPush_LiveWriteFallsBackToDial(t *testing.T) {
 	}
 	if out.Kind != "push" || out.UserID != "1182" || out.ID == "" {
 		t.Fatalf("%+v", out)
+	}
+}
+
+// The crane's own mailbox socket died while the model was working. Drafts
+// and typing may fail silently; the reply must land on a fresh dial.
+func TestDispatch_ReplyFallsBackToDialWhenSocketDies(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		t.Run(fmt.Sprintf("stream=%v", streaming), func(t *testing.T) {
+			ch, err := New(Config{
+				MailboxURL:    "wss://x.workers.dev/ws/kit",
+				Bearer:        "tok",
+				AllowedUsers:  []string{"1182"},
+				StreamReplies: streaming,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			dead := &fakeConn{reads: make(chan []byte, 1), writeErr: io.ErrClosedPipe}
+			good := &fakeConn{writes: make(chan []byte, 4)}
+			dials := 0
+			ch.dial = func(context.Context, string, http.Header) (conn, error) {
+				dials++
+				return good, nil
+			}
+			raw, _ := json.Marshal(inboundFrame{Text: "hi", UserID: "1182"})
+			err = ch.dispatch(context.Background(), dead, raw, func(ctx context.Context, _ channel.Message) (string, error) {
+				if w, ok := channel.ReplyWriterFrom(ctx); ok {
+					_ = w.(channel.StatusWriter).UpdateStatus(ctx, "⏳ spinning up")
+				}
+				return "Sleep score 74.", nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			out := recvReply(t, good.writes)
+			if out.Kind != "reply" || out.Text != "Sleep score 74." || out.UserID != "1182" {
+				t.Fatalf("dialed reply = %+v", out)
+			}
+			if dials != 1 {
+				t.Fatalf("dials = %d, want 1 (drafts and typing must not dial)", dials)
+			}
+		})
 	}
 }
 
