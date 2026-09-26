@@ -338,7 +338,7 @@ func run() int {
 		consol.Location = tzLoc
 	}
 	var examplesSvc *examples.Service
-	var sparkSvc *cron.SparkService
+	var plannerSvc *cron.PlannerService
 	if cronStore != nil {
 		catalog := tools
 		examplesSvc = &examples.Service{
@@ -349,9 +349,10 @@ func run() int {
 			TZ:        tzName,
 			Tools:     catalog.Tools,
 		}
-		sparkSvc = &cron.SparkService{
+		plannerSvc = &cron.PlannerService{
 			Store: cronStore,
 			TZ:    tzName,
+			At:    cfg.DailyPlannerAt,
 		}
 	}
 
@@ -378,7 +379,7 @@ func run() int {
 		Consolidator:        consol,
 		MCPManifest:         cfg.MCPManifest,
 		Examples:            examplesSvc,
-		Spark:               sparkSvc,
+		Planner:             plannerSvc,
 		Wait:                waitSvc,
 		HistoryStripFillers: cfg.HistoryStripFillers,
 		Enable:              enableStore,
@@ -448,8 +449,8 @@ func run() int {
 			Memory:             memBackend,
 			Talk:               sessions,
 		}
-		if err := ensureSparkJobs(ctx, sparkSvc, logger); err != nil {
-			logger.Error("spark ensure failed", "err", err)
+		if err := ensurePlannerJobs(ctx, plannerSvc, logger); err != nil {
+			logger.Error("daily planner ensure failed", "err", err)
 			return 1
 		}
 		if err := ensureExamplesJobs(ctx, cfg, examplesSvc, logger); err != nil {
@@ -531,25 +532,25 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 	}
 }
 
-// ensureSparkJobs installs looking-after-you wakes (default 3-5/day).
-// Qty is /engagement, not env. One planner per process; Push uses the mouth allowlist.
-func ensureSparkJobs(ctx context.Context, svc *cron.SparkService, log *slog.Logger) error {
+// ensurePlannerJobs installs the once-a-day planning session (default 07:10).
+// DAILY_PLANNER_AT is the operator clock; /planner can move it. One job per process.
+func ensurePlannerJobs(ctx context.Context, svc *cron.PlannerService, log *slog.Logger) error {
 	if svc == nil || !svc.ProactiveEnabled() {
 		return nil
 	}
-	return bindSpark(ctx, svc, log, cron.Delivery{SessionID: channel.AgentSession})
+	return bindPlanner(ctx, svc, log, cron.Delivery{SessionID: channel.AgentSession})
 }
 
-func bindSpark(ctx context.Context, svc *cron.SparkService, log *slog.Logger, delivery cron.Delivery) error {
+func bindPlanner(ctx context.Context, svc *cron.PlannerService, log *slog.Logger, delivery cron.Delivery) error {
 	job, created, err := svc.EnsureFor(ctx, delivery)
 	if err != nil {
 		return err
 	}
 	if job.ID == 0 {
-		log.Info("spark skipped (session opted out)", "session_id", delivery.SessionID)
+		log.Info("daily planner skipped (session opted out)", "session_id", delivery.SessionID)
 		return nil
 	}
-	log.Info("spark job ready",
+	log.Info("daily planner ready",
 		"created", created,
 		"id", job.ID,
 		"session_id", delivery.SessionID,
@@ -566,7 +567,7 @@ func ensureExamplesJobs(ctx context.Context, cfg *config.Config, svc *examples.S
 		return nil
 	}
 	// Validate qty early so bad EXAMPLES_QTY fails boot clearly.
-	if _, _, err := cron.ParseSparkQty(strings.TrimSpace(cfg.ExamplesQty)); err != nil {
+	if _, _, err := cron.ParseQty(strings.TrimSpace(cfg.ExamplesQty)); err != nil {
 		return fmt.Errorf("EXAMPLES_QTY: %w", err)
 	}
 

@@ -1,7 +1,7 @@
 {
-  "name": "spark_weight_dinner",
-  "why": "Spark wake with aim/weight and dinner out on today's calendar: calendar and aims both read, and the nudge is tied to the aim — a meal thought about that dinner — not a generic check-in and not [silent].",
-  "spark": "If [aims] exist: replan today",
+  "name": "planner_weight_dinner",
+  "why": "Daily planner with aim/weight and dinner out on today's calendar: calendar is read, and the nudge is tied to that dinner — not a generic check-in and not [silent].",
+  "planner": true,
   "memory": [
     { "kind": "insight", "subject": "aim/weight", "content": "lose 20 lbs by December; down 4 so far" },
     { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" },

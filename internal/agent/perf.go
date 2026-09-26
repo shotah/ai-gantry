@@ -80,7 +80,7 @@ func (r *perfRing) turnCount() uint64 {
 }
 
 // Turn source values on `turn perf`. Keep this set stable — Gantree charts
-// anything else as spend "unknown". Spark / examples wake as cron ([cron] prefix).
+// anything else as spend "unknown". Planner / examples wake as cron ([cron] prefix).
 const (
 	sourceUser     = "user"
 	sourceCron     = "cron"

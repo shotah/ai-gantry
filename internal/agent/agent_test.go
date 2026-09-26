@@ -217,7 +217,7 @@ func TestAgent_TurnPerfSources(t *testing.T) {
 	}{
 		{text: "hello", want: "user"},
 		{text: cron.JobUserPrefix + "x", want: "cron"},
-		{text: cron.SparkPingPrefix + "recall aim/", want: "cron"},
+		{text: cron.DailyPlannerPrefix + "plan the day", want: "cron"},
 		{text: cron.ExamplesPingPrefix + "try /tools", want: "cron"},
 		{text: "[watch] New items from a subscription.\n\n- id=nws-1", want: "watch"},
 		{text: "[reaction] 👍 on: earlier reply", want: "reaction"},
@@ -1103,8 +1103,8 @@ func TestAgent_Handle_CronLiveDataReportAfterNudgeRefused(t *testing.T) {
 	}
 }
 
-// Spark-of-life is horizon work: a joke/check-in with zero tools must be nudged.
-func TestAgent_Handle_SparkHorizonWithoutToolsGetsNudged(t *testing.T) {
+// The daily planner is live work: a check-in with zero tools must be nudged.
+func TestAgent_Handle_PlannerWithoutToolsGetsNudged(t *testing.T) {
 	ctx := context.Background()
 	var reqs int
 	var firstReq provider.Request
@@ -1116,8 +1116,8 @@ func TestAgent_Handle_SparkHorizonWithoutToolsGetsNudged(t *testing.T) {
 			return &provider.Result{Content: "Here's a dry observation about modern work."}, nil
 		case 2:
 			last := req.Messages[len(req.Messages)-1]
-			if last.Role != provider.RoleUser || !strings.Contains(last.Content, "spark-of-life turn is for looking after the user") {
-				t.Fatalf("missing spark horizon nudge: %+v", last)
+			if last.Role != provider.RoleUser || !strings.Contains(last.Content, "daily planner turn is the one planning session") {
+				t.Fatalf("missing planner nudge: %+v", last)
 			}
 			return &provider.Result{ToolCalls: []provider.ToolCall{
 				{ID: "c1", Name: "memory_recall", Arguments: `{"subject":"aim/training"}`},
@@ -1140,7 +1140,7 @@ func TestAgent_Handle_SparkHorizonWithoutToolsGetsNudged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := cron.SparkPingPrefix + cron.PickSparkPrompt("")
+	text := cron.DailyPlannerPrefix + cron.DefaultDailyPlannerPrompt
 	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: text})
 	if err != nil {
 		t.Fatal(err)
@@ -1156,18 +1156,18 @@ func TestAgent_Handle_SparkHorizonWithoutToolsGetsNudged(t *testing.T) {
 	}
 	foundNote := false
 	for _, m := range firstReq.Messages {
-		if strings.Contains(m.Content, "Spark-of-life turn: the user is the aim") {
+		if strings.Contains(m.Content, "Daily planner turn:") {
 			foundNote = true
 			break
 		}
 	}
 	if !foundNote {
-		t.Fatal("missing spark tool-first system note on first completion")
+		t.Fatal("missing planner tool-first system note on first completion")
 	}
 }
 
-// After a spark nudge, a second no-tool joke must not be pushed.
-func TestAgent_Handle_SparkHorizonAfterNudgeStaysSilent(t *testing.T) {
+// After a planner nudge, a second no-tool draft must not be pushed.
+func TestAgent_Handle_PlannerAfterNudgeStaysSilent(t *testing.T) {
 	ctx := context.Background()
 	var reqs int
 	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
@@ -1187,7 +1187,7 @@ func TestAgent_Handle_SparkHorizonAfterNudgeStaysSilent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := cron.SparkPingPrefix + "Pick one north-star from SELF.md and recall aim/."
+	text := cron.DailyPlannerPrefix + cron.DefaultDailyPlannerPrompt
 	reply, err := a.Handle(ctx, channel.Message{SessionID: "s", Text: text})
 	if err != nil {
 		t.Fatal(err)
@@ -1196,7 +1196,7 @@ func TestAgent_Handle_SparkHorizonAfterNudgeStaysSilent(t *testing.T) {
 		t.Fatalf("reply = %q, want silent", reply)
 	}
 	if strings.Contains(reply, "dry observation") {
-		t.Fatalf("shipped joke ping: %q", reply)
+		t.Fatalf("shipped no-tool planner draft: %q", reply)
 	}
 	if len(tools.calls) != 0 {
 		t.Fatalf("tools = %v", tools.calls)

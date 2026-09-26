@@ -95,7 +95,8 @@ func (h Hours) Known() bool {
 }
 
 // AsleepAt reports whether now falls in the sleep window. Unknown hours → false
-// (do not skip spark; the agent should ask). Work is not DND.
+// (example pings still run; the agent should ask). Work is not DND.
+// The daily planner does not use this; it fires at its clock time.
 func (h Hours) AsleepAt(now time.Time) bool {
 	if !h.Known() {
 		return false
@@ -138,5 +139,5 @@ func (h Hours) Footer() string {
 	if h.Quiet != "" {
 		quiet = h.Quiet
 	}
-	return "[hours] sleep " + sleep + " · work " + work + " · quiet " + quiet + " — work is not DND; do not spark in sleep"
+	return "[hours] sleep " + sleep + " · work " + work + " · quiet " + quiet + " — work is not DND; check-ins skip sleep"
 }

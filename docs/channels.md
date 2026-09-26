@@ -88,8 +88,8 @@ set 3h ago · face changed 2d ago — yours; redress when the hour or your
 mood moves on` on every turn's `[harness]`. State plus one clause; the
 tool descriptions carry the how. Prefix off for this chat → `— pendant is
 off this chat`. Fresh boot → `theme not seen since boot` (the mailbox
-flushes theme to phones on connect, not to the crane). Spark turns read
-the same line and redress when it is stale.
+flushes theme to phones on connect, not to the crane). The daily planner
+reads the same line and redresses when it is stale.
 
 Recreate the container after env changes (restart keeps a ghost allowlist).
 

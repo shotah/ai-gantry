@@ -60,8 +60,8 @@ func TestStripWaitTokensLive(t *testing.T) {
 	if !cron.IsFollowUpTurn(cron.FollowUpPrefix(0, 2) + "body") {
 		t.Fatal("prefix should be a follow-up turn")
 	}
-	if cron.IsFollowUpTurn(cron.SparkPingPrefix) {
-		t.Fatal("spark is not a follow-up")
+	if cron.IsFollowUpTurn(cron.DailyPlannerPrefix) {
+		t.Fatal("daily planner is not a follow-up")
 	}
 }
 
@@ -276,7 +276,7 @@ func TestRunner_FollowUpSkippedWhenNotWaiting(t *testing.T) {
 	}
 }
 
-func TestRunner_SparkSkippedWhileWaiting(t *testing.T) {
+func TestRunner_ExamplesPingSkippedWhileWaiting(t *testing.T) {
 	ctx := context.Background()
 	sess, err := session.Open(t.TempDir(), 20, 8000)
 	if err != nil {
@@ -292,7 +292,7 @@ func TestRunner_SparkSkippedWhileWaiting(t *testing.T) {
 		t.Fatal(err)
 	}
 	past := time.Now().UTC().Add(-time.Second)
-	if _, err := store.Schedule(ctx, "spark body", cron.SparkPingParsed(past, "UTC"), delivery); err != nil {
+	if _, err := store.Schedule(ctx, "example body", cron.OnceParsed(cron.KindExamplesPing, past, "UTC"), delivery); err != nil {
 		t.Fatal(err)
 	}
 	called := 0
@@ -300,14 +300,14 @@ func TestRunner_SparkSkippedWhileWaiting(t *testing.T) {
 		Store: store,
 		Handle: func(context.Context, channel.Message) (string, error) {
 			called++
-			return "spark", nil
+			return "example", nil
 		},
 		Pusher: &memPusher{},
 		Talk:   sess,
 	}
 	runner.FireDueForTest(ctx)
 	if called != 0 {
-		t.Fatalf("spark must skip during wait campaign, called=%d", called)
+		t.Fatalf("examples ping must skip during wait campaign, called=%d", called)
 	}
 }
 

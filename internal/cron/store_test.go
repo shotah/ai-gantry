@@ -124,43 +124,26 @@ func TestFinish_KeepsDisabledWhenEnabledClearedMidFlight(t *testing.T) {
 	}
 }
 
-func TestCancel_SparkPlannerCascadesPings(t *testing.T) {
+func TestCancel_DailyPlanner(t *testing.T) {
 	ctx := context.Background()
 	f := openCronFixture(t)
-	delivery := cron.Delivery{SessionID: "spark-s", UserID: "u", ChatID: "1"}
-	// Full-day window so EnsureSpark still seeds when CI runs after 21:00 UTC.
-	parsed, err := cron.ParseSchedule("4-6@00-24", "spark", time.UTC, time.Now().UTC())
+	delivery := cron.Delivery{SessionID: "s", UserID: "u", ChatID: "1"}
+	parsed, err := cron.ParsePlannerSchedule("07:10", time.UTC, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}
-	planner, _, err := f.store.EnsureSpark(ctx, "check in", parsed, delivery)
+	planner, _, err := f.store.EnsureDailyPlanner(ctx, cron.DefaultDailyPlannerPrompt, parsed, delivery)
 	if err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := f.store.List(ctx, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pings := 0
-	for _, j := range jobs {
-		if j.Kind == cron.KindSparkPing {
-			pings++
-		}
-	}
-	if pings == 0 {
-		t.Fatal("expected spark_ping jobs after EnsureSpark")
+	if planner.Kind != cron.KindDailyPlanner || planner.Expr != "07:10" {
+		t.Fatalf("planner kind=%s expr=%s", planner.Kind, planner.Expr)
 	}
 	if err := f.store.Cancel(ctx, planner.ID); err != nil {
 		t.Fatal(err)
 	}
-	jobs, err = f.store.List(ctx, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, j := range jobs {
-		if j.Kind == cron.KindSpark || j.Kind == cron.KindSparkPing {
-			t.Fatalf("cascade cancel left enabled %s id=%d", j.Kind, j.ID)
-		}
+	if _, ok, err := f.store.FindDailyPlanner(ctx, delivery.SessionID); err != nil || ok {
+		t.Fatalf("planner still enabled ok=%v err=%v", ok, err)
 	}
 }
 
@@ -212,4 +195,19 @@ func TestCollapseAgentScope_RewritesMouthSessions(t *testing.T) {
 	if got.UserID != "" || got.ChatID != "" || got.ThreadID != 0 {
 		t.Fatalf("collapsed dest user=%q chat=%q thread=%d", got.UserID, got.ChatID, got.ThreadID)
 	}
+}
+
+func countKind(t *testing.T, store *cron.Store, kind string) int {
+	t.Helper()
+	jobs, err := store.List(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, j := range jobs {
+		if j.Kind == kind {
+			n++
+		}
+	}
+	return n
 }

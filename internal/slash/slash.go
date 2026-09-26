@@ -34,8 +34,7 @@ func Catalog() []Command {
 		{Name: "brief", Hint: "hold a prefix ~6h", Args: true},
 		{Name: "short", Hint: "hold a prefix ~27h", Args: true},
 		{Name: "off", Hint: "drop a prefix hold", Args: true},
-		{Name: "spark", Hint: "looking-after-you wakes (on|off|qty)", Args: true},
-		{Name: "engagement", Hint: "same as /spark", Args: true},
+		{Name: "planner", Hint: "daily planning session (on|off|HH:MM)", Args: true},
 	}
 }
 

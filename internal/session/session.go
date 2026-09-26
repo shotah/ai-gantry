@@ -314,7 +314,7 @@ func (s *Store) Stats(ctx context.Context, sessionID string) (messages int, estT
 }
 
 // UserActiveSince reports whether a human user message exists at or after since.
-// Cron-injected turns ("[cron]…") are ignored so spark jobs do not suppress themselves.
+// Cron-injected turns ("[cron]…") are ignored so scheduled jobs do not suppress themselves.
 func (s *Store) UserActiveSince(ctx context.Context, sessionID string, since time.Time) (bool, error) {
 	t, ok, err := s.LastUserAt(ctx, sessionID)
 	if err != nil || !ok {

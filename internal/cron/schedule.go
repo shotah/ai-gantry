@@ -60,10 +60,9 @@ func ParseSchedule(when, repeat string, loc *time.Location, now time.Time) (Pars
 		return Parsed{Kind: KindEvery, Expr: d.String(), NextRun: next.UTC(), Timezone: loc.String()}, nil
 	}
 
-	// spark: qty@HH-HH (or bare qty with default 6–21 window via ParseSparkSchedule hours)
-	if repeat == KindSpark || strings.HasPrefix(when, "spark:") || strings.HasPrefix(repeat, "spark") {
-		start, end := 6, 21
-		return ParseSparkSchedule(when, start, end, loc, now)
+	// planner: one daily clock time (HH:MM). Not a count, not a window.
+	if repeat == KindDailyPlanner || repeat == "planner" || strings.HasPrefix(when, "planner:") {
+		return ParsePlannerSchedule(when, loc, now)
 	}
 
 	if strings.HasPrefix(when, "in ") {
@@ -142,7 +141,7 @@ func AdvanceNext(kind, expr, tz string, from time.Time) (next time.Time, newExpr
 	switch kind {
 	case KindOnce:
 		return time.Time{}, "", false, nil
-	case KindDaily:
+	case KindDaily, KindDailyPlanner:
 		parts := strings.Split(expr, ":")
 		if len(parts) != 2 {
 			return time.Time{}, "", false, fmt.Errorf("cron: bad daily expr %q", expr)
@@ -160,14 +159,13 @@ func AdvanceNext(kind, expr, tz string, from time.Time) (next time.Time, newExpr
 			return time.Time{}, "", false, err
 		}
 		return from.Add(d).UTC(), "", true, nil
-	case KindSpark, KindExamples:
-		// Daily planner: wake again at the next window start.
-		spec, err := ParseSparkExpr(expr)
+	case KindExamples:
+		spec, err := ParseSpread(expr)
 		if err != nil {
 			return time.Time{}, "", false, err
 		}
-		return PlanSparkPlannerNext(spec, loc, from), "", true, nil
-	case KindSparkPing, KindExamplesPing, KindFollowUp:
+		return PlanSpreadNext(spec, loc, from), "", true, nil
+	case KindExamplesPing, KindFollowUp:
 		return time.Time{}, "", false, nil
 	default:
 		return time.Time{}, "", false, fmt.Errorf("cron: unknown kind %q", kind)

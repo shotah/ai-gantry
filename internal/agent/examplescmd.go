@@ -68,7 +68,7 @@ func (a *Agent) handleExamples(ctx context.Context, msg channelDelivery, arg str
 	}
 }
 
-// channelDelivery is the conversation id needed for examples/spark ensure.
+// channelDelivery is the conversation id needed for examples/planner ensure.
 type channelDelivery struct {
 	SessionID string
 }

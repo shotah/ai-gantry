@@ -304,7 +304,7 @@ sequenceDiagram
   C->>A: Handle(synthetic prompt)
   A->>A: tools / MCP as usual
   A->>T: push SendMessage (no inbound update)
-  T-->>U: reminder / digest / spark progress (or skip on [silent])
+  T-->>U: reminder / digest / daily planner (or skip on [silent])
 ```
 
 Outbound push needs a channel API beyond “reply to the update that invoked

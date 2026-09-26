@@ -12,22 +12,10 @@ import (
 	"github.com/shotah/ai-gantry/internal/session"
 )
 
-// JobUserPrefix wraps user-scheduled job prompts (not spark/examples pings).
+// JobUserPrefix wraps user-scheduled job prompts (not the daily planner or example pings).
 // It must stay a single paragraph plus a trailing blank line so the agent can
 // split wrapper from job body when deciding whether live tools were skipped.
 const JobUserPrefix = "[cron] Scheduled job — you scheduled this continuation. If [job memory] is present, that is why. Recall/tools as needed. Decide what is useful now: message, act, postpone, cancel, or [silent]. Do not nag. The original chat may be gone. If this job needs live data, call those tools first — do not write the report, tables, or numbers until tool results are in context. Never guess metrics; if a tool fails, say so. If the human does not need a message (all-clear or work-only), reply with exactly [silent] and nothing else. If you asked a question they should answer, [wait] on its own line.\n\n"
-
-// SparkTurnMarker is the start of SparkPingPrefix. Agent and tests use it to
-// recognize a spark horizon turn (tools required, not a chat ping).
-const SparkTurnMarker = "[cron] Spark of life"
-
-// SparkPingPrefix wraps spark-of-life horizon wakes.
-const SparkPingPrefix = SparkTurnMarker + " — the user is the aim. [hours], [aims], [loops], and [wakes] are already in this turn's [harness] — do not memory_recall or cron_list for those. In one response: recall pref/calendar or aim/<area> detail only if needed, mcp_enable then call live tools that match (Garmin, calendar, search). Shape the human-facing move by [current time]: a gym aim with no workout yet in the morning is a short grounded joke or nudge; evening with still nothing can be disappointed-uncle about the miss. A joke or ritual is allowed when it is about this turn's tool results — never a joke with zero tools. Hours unknown → ask sleep/work/quiet once (work is not DND) and memory_store preference subject pref/hours. Else at most one user-model question (food, activity, team). A real empty calendar (tools returned none) is a hole, not an all-clear: ask ONE what they want on it today (lunch/dinner or a training plan); try to get something scheduled (ask first before writing events). Never agree-and-stop. A clock time you commit (scoop, leave, refuel) is cron_schedule with memory_id or one offer to ping — a calendar event is not the Telegram reminder. [silent] if nothing useful. No [aims] line: ask ONE months-scale question (do not invent). Question they should answer → [wait] on its own line. Ask-first: no email, spend, or posts:\n\n"
-
-// IsSparkTurn reports whether this user text is a spark-of-life horizon wake.
-func IsSparkTurn(userText string) bool {
-	return strings.HasPrefix(strings.TrimSpace(userText), SparkTurnMarker)
-}
 
 // ExamplesPingPrefix wraps capability-example pings.
 const ExamplesPingPrefix = "[cron] Capability example — inspire the human with one concrete idea (propose only). If a ping would be noise, reply with exactly [silent] and nothing else:\n\n"
@@ -35,10 +23,10 @@ const ExamplesPingPrefix = "[cron] Capability example — inspire the human with
 // DefaultTick is how often the runner polls for due jobs.
 const DefaultTick = 15 * time.Second
 
-// DefaultSparkSkipRecent is how long a recent user message suppresses a spark ping.
-const DefaultSparkSkipRecent = 30 * time.Minute
+// DefaultExamplesSkipRecent is how long a recent user message suppresses an examples ping.
+const DefaultExamplesSkipRecent = 30 * time.Minute
 
-// RecentUserActivity reports whether the human messaged recently (spark barge-in guard).
+// RecentUserActivity reports whether the human messaged recently (examples barge-in guard).
 type RecentUserActivity interface {
 	UserActiveSince(ctx context.Context, sessionID string, since time.Time) (bool, error)
 }
@@ -55,17 +43,15 @@ type Runner struct {
 	Pusher   channel.Pusher
 	Interval time.Duration
 	Logger   *slog.Logger
-	// Recent is optional; when set, spark_ping / examples_ping defer if the user chatted recently.
+	// Recent is optional; when set, examples_ping defers if the user chatted recently.
 	Recent RecentUserActivity
-	// SparkSkipRecent defaults to DefaultSparkSkipRecent when <= 0.
-	SparkSkipRecent time.Duration
-	// ExamplesSkipRecent defaults to SparkSkipRecent / DefaultSparkSkipRecent when <= 0.
+	// ExamplesSkipRecent defaults to DefaultExamplesSkipRecent when <= 0.
 	ExamplesSkipRecent time.Duration
 	// Examples is optional; when set, examples_ping prompts are built at fire time.
 	Examples ExamplePromptBuilder
-	// Memory is optional; used to inject [job memory] and skip spark during sleep.
+	// Memory is optional; used to inject [job memory] and skip example pings during sleep.
 	Memory memory.Memory
-	// Talk is optional; follow-up jobs and spark-vs-wait use conversation state.
+	// Talk is optional; follow-up jobs use conversation state.
 	Talk *session.Store
 }
 
@@ -130,16 +116,12 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 	log.Info("cron job firing",
 		append(jobDest(job), "memory_id", job.MemoryID, "prompt", truncate(job.Prompt, 80))...)
 
-	if job.Kind == KindSpark {
-		r.runSparkPlanner(ctx, log, job)
-		return
-	}
 	if job.Kind == KindExamples {
 		r.runExamplesPlanner(ctx, log, job)
 		return
 	}
 
-	if (job.Kind == KindSparkPing || job.Kind == KindExamplesPing || job.Kind == KindFollowUp) && r.asleep(ctx, job) {
+	if (job.Kind == KindExamplesPing || job.Kind == KindFollowUp) && r.asleep(ctx, job) {
 		until := time.Now().UTC().Add(time.Hour)
 		log.Info("cron ping deferred (sleep hours)",
 			"id", job.ID, "kind", job.Kind, "session_id", job.SessionID, "until", until.Format(time.RFC3339))
@@ -147,7 +129,7 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 		return
 	}
 
-	if (job.Kind == KindSparkPing || job.Kind == KindExamplesPing) && r.Recent != nil {
+	if job.Kind == KindExamplesPing && r.Recent != nil {
 		skipFor := r.skipRecentFor(job.Kind)
 		since := time.Now().UTC().Add(-skipFor)
 		active, err := r.Recent.UserActiveSince(ctx, job.SessionID, since)
@@ -169,7 +151,7 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 		}
 	}
 
-	if (job.Kind == KindSparkPing || job.Kind == KindExamplesPing) && r.waitingActive(ctx, job.SessionID) {
+	if job.Kind == KindExamplesPing && r.waitingActive(ctx, job.SessionID) {
 		log.Info("cron ping skipped (waiting for reply)",
 			"id", job.ID, "kind", job.Kind, "session_id", job.SessionID)
 		_ = r.Store.Finish(ctx, job, nil)
@@ -187,9 +169,11 @@ func (r *Runner) runOne(ctx context.Context, log *slog.Logger, job Job) {
 	prompt := job.Prompt
 	handleCtx := ctx
 	switch job.Kind {
-	case KindSparkPing:
-		prefix = SparkPingPrefix
-		prompt = PickSparkPrompt(job.Prompt)
+	case KindDailyPlanner:
+		prefix = DailyPlannerPrefix
+		if strings.TrimSpace(prompt) == "" {
+			prompt = DefaultDailyPlannerPrompt
+		}
 	case KindExamplesPing:
 		prefix = ExamplesPingPrefix
 		if r.Examples != nil {
@@ -365,62 +349,15 @@ func (r *Runner) asleep(ctx context.Context, job Job) bool {
 }
 
 func (r *Runner) skipRecentFor(kind string) time.Duration {
-	switch kind {
-	case KindExamplesPing:
-		if r.ExamplesSkipRecent > 0 {
-			return r.ExamplesSkipRecent
-		}
+	if kind == KindExamplesPing && r.ExamplesSkipRecent > 0 {
+		return r.ExamplesSkipRecent
 	}
-	if r.SparkSkipRecent > 0 {
-		return r.SparkSkipRecent
-	}
-	return DefaultSparkSkipRecent
-}
-
-// runSparkPlanner rolls today's qty, inserts spaced spark_ping jobs, advances planner.
-func (r *Runner) runSparkPlanner(ctx context.Context, log *slog.Logger, job Job) {
-	spec, err := ParseSparkExpr(job.Expr)
-	if err != nil {
-		log.Warn("spark planner bad expr", "id", job.ID, "err", err)
-		_ = r.Store.Finish(ctx, job, err)
-		return
-	}
-	loc, err := loadTZ(job.Timezone)
-	if err != nil {
-		log.Warn("spark planner tz", "id", job.ID, "err", err)
-		_ = r.Store.Finish(ctx, job, err)
-		return
-	}
-	delivery := Delivery{
-		SessionID: job.SessionID,
-	}
-	_, _ = r.Store.CancelSparkPings(ctx, job.SessionID)
-	n, times, err := PlanSparkDayTimes(spec, loc, time.Now())
-	if err != nil {
-		log.Warn("spark planner plan failed", "id", job.ID, "err", err)
-		_ = r.Store.Finish(ctx, job, err)
-		return
-	}
-	created, err := r.Store.ScheduleSparkPings(ctx, job.Prompt, delivery, loc.String(), times)
-	if err != nil {
-		log.Warn("spark planner schedule pings failed", "id", job.ID, "err", err)
-		_ = r.Store.Finish(ctx, job, err)
-		return
-	}
-	log.Info("spark planner seeded day",
-		"id", job.ID,
-		"qty", n,
-		"pings", created,
-		"session_id", job.SessionID,
-	)
-	if err := r.Store.Finish(ctx, job, nil); err != nil {
-		log.Warn("spark planner finish failed", "id", job.ID, "err", err)
-	}
+	return DefaultExamplesSkipRecent
 }
 
 // runExamplesPlanner rolls today's qty, inserts spaced examples_ping jobs, advances planner.
 func (r *Runner) runExamplesPlanner(ctx context.Context, log *slog.Logger, job Job) {
-	spec, err := ParseSparkExpr(job.Expr)
+	spec, err := ParseSpread(job.Expr)
 	if err != nil {
 		log.Warn("examples planner bad expr", "id", job.ID, "err", err)
 		_ = r.Store.Finish(ctx, job, err)
@@ -436,7 +373,7 @@ func (r *Runner) runExamplesPlanner(ctx context.Context, log *slog.Logger, job J
 		SessionID: job.SessionID,
 	}
 	_, _ = r.Store.CancelExamplesPings(ctx, job.SessionID)
-	n, times, err := PlanSparkDayTimes(spec, loc, time.Now())
+	n, times, err := PlanSpreadTimes(spec, loc, time.Now())
 	if err != nil {
 		log.Warn("examples planner plan failed", "id", job.ID, "err", err)
 		_ = r.Store.Finish(ctx, job, err)

@@ -83,6 +83,9 @@ func TestLoad_StdioDefaults(t *testing.T) {
 	if cfg.CronMaxJobs != 50 {
 		t.Errorf("CronMaxJobs = %d, want 50", cfg.CronMaxJobs)
 	}
+	if cfg.DailyPlannerAt != "07:10" {
+		t.Errorf("DailyPlannerAt = %q, want 07:10", cfg.DailyPlannerAt)
+	}
 	if cfg.LogLevel != "info" {
 		t.Errorf("LogLevel = %q, want info", cfg.LogLevel)
 	}
@@ -361,6 +364,7 @@ func TestLoad_MoreValidation(t *testing.T) {
 		{"LLM_SYSTEM_FOLD", "sideways", "LLM_SYSTEM_FOLD"},
 		{"MEMORY_CONSOLIDATE_MINUTES", "-1", "MEMORY_CONSOLIDATE_MINUTES"},
 		{"WATCH_MAX", "0", "WATCH_MAX"},
+		{"DAILY_PLANNER_AT", "morning", "DAILY_PLANNER_AT"},
 		{"MEMORY_BACKEND", "mcp:", "MEMORY_BACKEND"},
 		{"PERSONA_DIR", "   ", "PERSONA_DIR"},
 		{"DATA_DIR", "   ", "DATA_DIR"},

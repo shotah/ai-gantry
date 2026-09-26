@@ -270,7 +270,7 @@ func TestHours_ParseAndAsleep(t *testing.T) {
 	}
 	unknown := memory.ParseHours("")
 	if unknown.Known() || unknown.AsleepAt(asleep) {
-		t.Fatal("unknown hours must not skip spark")
+		t.Fatal("unknown hours must not count as asleep")
 	}
 	if !strings.Contains(unknown.Footer(), "unknown") {
 		t.Fatalf("footer=%q", unknown.Footer())

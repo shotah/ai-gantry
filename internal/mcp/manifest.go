@@ -37,7 +37,7 @@ type ServerSpec struct {
 	// (no idle drop). Small-model furniture; prefer a tight tools allowlist.
 	Force bool `toml:"force"`
 	// Budget caps calls to this server: "1/day", "50/month". The human's
-	// API quota, enforced in the host on every path (turns, spark, watch
+	// API quota, enforced in the host on every path (turns, cron, watch
 	// polls, retries). Over it, the tool returns a refusal that says when
 	// the budget resets. See ParseBudget.
 	Budget string `toml:"budget"`

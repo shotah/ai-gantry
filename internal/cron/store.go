@@ -80,7 +80,7 @@ func (s *Store) migrate() error {
 		`CREATE TABLE IF NOT EXISTS session_pref (
 			session_id       TEXT PRIMARY KEY,
 			examples_enabled INTEGER NOT NULL DEFAULT 1,
-			spark_qty        TEXT NOT NULL DEFAULT '',
+			planner_at       TEXT NOT NULL DEFAULT '',
 			updated_at       TEXT NOT NULL
 		)`,
 	}
@@ -91,7 +91,7 @@ func (s *Store) migrate() error {
 	}
 	_, _ = s.db.Exec(`ALTER TABLE cron_job ADD COLUMN memory_id INTEGER`)
 	_, _ = s.db.Exec(`ALTER TABLE cron_job ADD COLUMN memory_subject TEXT NOT NULL DEFAULT ''`)
-	_, _ = s.db.Exec(`ALTER TABLE session_pref ADD COLUMN spark_qty TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`ALTER TABLE session_pref ADD COLUMN planner_at TEXT NOT NULL DEFAULT ''`)
 	return s.collapseAgentScope()
 }
 
@@ -107,10 +107,10 @@ func (s *Store) collapseAgentScope() error {
 		return fmt.Errorf("cron: collapse jobs: %w", err)
 	}
 	ctx := context.Background()
-	if job, ok, err := s.FindSpark(ctx, sid); err != nil {
+	if job, ok, err := s.FindDailyPlanner(ctx, sid); err != nil {
 		return err
 	} else if ok {
-		_ = s.disableExtraSparkPlanners(ctx, sid, job.ID)
+		_ = s.disableExtraPlanners(ctx, sid, job.ID)
 	}
 	if job, ok, err := s.FindExamples(ctx, sid); err != nil {
 		return err
@@ -250,8 +250,8 @@ func (s *Store) ClearStaleRunning(ctx context.Context) (int64, error) {
 	return n, nil
 }
 
-// Cancel disables a job by id. If the job is a spark or examples planner,
-// pending ping rows for that session are cancelled too.
+// Cancel disables a job by id. Cancelling an examples planner also disables
+// its pending pings.
 func (s *Store) Cancel(ctx context.Context, id int64) error {
 	job, err := s.Get(ctx, id)
 	if err != nil {
@@ -270,10 +270,7 @@ func (s *Store) Cancel(ctx context.Context, id int64) error {
 	if n == 0 {
 		return fmt.Errorf("cron: job %d not found", id)
 	}
-	switch job.Kind {
-	case KindSpark:
-		_, _ = s.CancelSparkPings(ctx, job.SessionID)
-	case KindExamples:
+	if job.Kind == KindExamples {
 		_, _ = s.CancelExamplesPings(ctx, job.SessionID)
 	}
 	return nil
@@ -284,13 +281,13 @@ func (s *Store) Due(ctx context.Context, now time.Time, limit int) ([]Job, error
 	if limit < 1 {
 		limit = 10
 	}
-	// Daily planners first so they cancel pending pings before overdue leftovers Claim.
+	// Example planners first so they cancel pending pings before overdue leftovers Claim.
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+jobColumns+`
 		FROM cron_job
 		WHERE enabled = 1 AND running = 0 AND next_run_at <= ?
-		ORDER BY CASE WHEN kind IN (?, ?) THEN 0 ELSE 1 END, next_run_at ASC
-		LIMIT ?`, formatCronTime(now.UTC()), KindSpark, KindExamples, limit)
+		ORDER BY CASE WHEN kind = ? THEN 0 ELSE 1 END, next_run_at ASC
+		LIMIT ?`, formatCronTime(now.UTC()), KindExamples, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -321,6 +318,22 @@ func (s *Store) Finish(ctx context.Context, job Job, runErr error) error {
 		errText = runErr.Error()
 		if len(errText) > 500 {
 			errText = errText[:500]
+		}
+	}
+	if job.Kind == KindDailyPlanner {
+		fresh, ferr := s.Get(ctx, job.ID)
+		if ferr == nil && fresh.Expr != job.Expr {
+			// The session moved the clock during this turn. Keep the stored
+			// expr and next_run; only clear the claim.
+			_, err := s.db.ExecContext(ctx, `
+				UPDATE cron_job SET
+					running = 0,
+					last_run_at = ?,
+					last_error = ?,
+					updated_at = ?
+				WHERE id = ? AND running = 1`,
+				formatCronTime(now), errText, formatCronTime(now), job.ID)
+			return err
 		}
 	}
 	next, newExpr, again, err := AdvanceNext(job.Kind, job.Expr, job.Timezone, now)
@@ -367,173 +380,6 @@ func (s *Store) Defer(ctx context.Context, id int64, until time.Time, reason str
 			updated_at = ?
 		WHERE id = ? AND running = 1`,
 		formatCronTime(until.UTC()), reason, formatCronTime(now), id)
-	return err
-}
-
-// FindSpark returns the enabled spark *planner* job for a session, if any.
-func (s *Store) FindSpark(ctx context.Context, sessionID string) (Job, bool, error) {
-	row := s.db.QueryRowContext(ctx, `
-		SELECT `+jobColumns+`
-		FROM cron_job
-		WHERE enabled = 1 AND kind = ? AND session_id = ?
-		ORDER BY id DESC LIMIT 1`, KindSpark, sessionID)
-	j, err := scanJob(row)
-	if err == sql.ErrNoRows {
-		return Job{}, false, nil
-	}
-	if err != nil {
-		return Job{}, false, err
-	}
-	return j, true, nil
-}
-
-// CancelSparkPlannerAndPings disables the spark planner and pending pings.
-func (s *Store) CancelSparkPlannerAndPings(ctx context.Context, sessionID string) (int64, error) {
-	now := formatCronTime(time.Now().UTC())
-	res, err := s.db.ExecContext(ctx, `
-		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ?
-		WHERE enabled = 1 AND kind IN (?, ?) AND session_id = ?`,
-		now, KindSpark, KindSparkPing, sessionID)
-	if err != nil {
-		return 0, err
-	}
-	n, _ := res.RowsAffected()
-	return n, nil
-}
-
-// CancelSparkPings disables pending spark_ping jobs for a session.
-func (s *Store) CancelSparkPings(ctx context.Context, sessionID string) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `
-		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ?
-		WHERE enabled = 1 AND kind = ? AND session_id = ?`,
-		formatCronTime(time.Now().UTC()), KindSparkPing, sessionID)
-	if err != nil {
-		return 0, err
-	}
-	n, _ := res.RowsAffected()
-	return n, nil
-}
-
-// ScheduleSparkPings inserts one-shot spark_ping jobs at the given times.
-func (s *Store) ScheduleSparkPings(ctx context.Context, prompt string, delivery Delivery, tz string, times []time.Time) (int, error) {
-	n := 0
-	for _, t := range times {
-		if !t.After(time.Now().UTC().Add(-time.Second)) {
-			continue
-		}
-		if _, err := s.Schedule(ctx, prompt, SparkPingParsed(t, tz), delivery); err != nil {
-			return n, err
-		}
-		n++
-	}
-	return n, nil
-}
-
-// EnsureSpark creates/refreshes the daily planner and seeds today's ping jobs
-// at most once per local day. Reboots do not compound: once the planner already
-// points at tomorrow (today was seeded), we only prune stale leftovers from
-// prior days. The daily planner also CancelSparkPings before each new seed.
-func (s *Store) EnsureSpark(ctx context.Context, prompt string, template Parsed, delivery Delivery) (Job, bool, error) {
-	loc, err := loadTZ(template.Timezone)
-	if err != nil {
-		loc, err = loadTZ("UTC")
-		if err != nil {
-			return Job{}, false, err
-		}
-	}
-	spec, err := ParseSparkExpr(template.Expr)
-	if err != nil {
-		return Job{}, false, err
-	}
-	now := time.Now().In(loc)
-	startToday := windowStart(now, spec.StartHour, loc)
-	tomorrowStart := addOneCalendarDay(startToday).UTC()
-	// Seed remaining day now; planner wakes tomorrow (not today's start).
-	template.Kind = KindSpark
-	template.Expr = FormatSparkExpr(spec)
-	template.NextRun = tomorrowStart
-	template.Timezone = loc.String()
-
-	existing, ok, err := s.FindSpark(ctx, delivery.SessionID)
-	if err != nil {
-		return Job{}, false, err
-	}
-	if ok && (existing.Prompt != prompt || existing.Expr != template.Expr) {
-		if err := s.Cancel(ctx, existing.ID); err != nil {
-			return Job{}, false, err
-		}
-		_, _ = s.CancelSparkPings(ctx, delivery.SessionID)
-		ok = false
-	}
-
-	if !ok {
-		job, err := s.Schedule(ctx, prompt, template, delivery)
-		if err != nil {
-			return Job{}, false, err
-		}
-		_ = s.disableExtraSparkPlanners(ctx, delivery.SessionID, job.ID)
-		if err := s.seedSparkDay(ctx, prompt, spec, delivery, loc); err != nil {
-			return job, true, err
-		}
-		return job, true, nil
-	}
-
-	job := existing
-	_ = s.disableExtraSparkPlanners(ctx, delivery.SessionID, job.ID)
-
-	// Drop leftovers from previous days so they cannot fire alongside today's plan.
-	if _, err := s.CancelStaleSparkPings(ctx, delivery.SessionID, startToday); err != nil {
-		return Job{}, false, err
-	}
-
-	// Already planned today (next wake is tomorrow or later): do not reseed.
-	// This is what prevented "pending==0 on restart → another full roll".
-	if !job.NextRunAt.Before(tomorrowStart) {
-		return job, false, nil
-	}
-
-	// Planner still due for today (e.g. process was down at window start):
-	// seed remaining day once and advance planner to tomorrow.
-	if err := s.setNextRun(ctx, job.ID, template.NextRun); err != nil {
-		return Job{}, false, err
-	}
-	job.NextRunAt = template.NextRun
-	if err := s.seedSparkDay(ctx, prompt, spec, delivery, loc); err != nil {
-		return job, false, err
-	}
-	return job, false, nil
-}
-
-func (s *Store) seedSparkDay(ctx context.Context, prompt string, spec SparkSpec, delivery Delivery, loc *time.Location) error {
-	_, _ = s.CancelSparkPings(ctx, delivery.SessionID)
-	_, times, err := PlanSparkDayTimes(spec, loc, time.Now())
-	if err != nil {
-		return err
-	}
-	_, err = s.ScheduleSparkPings(ctx, prompt, delivery, loc.String(), times)
-	return err
-}
-
-// CancelStaleSparkPings disables pending spark_ping jobs scheduled before `before`
-// (typically today's local window start), so prior-day leftovers cannot compound.
-func (s *Store) CancelStaleSparkPings(ctx context.Context, sessionID string, before time.Time) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `
-		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ?
-		WHERE enabled = 1 AND kind = ? AND session_id = ? AND next_run_at < ?`,
-		formatCronTime(time.Now().UTC()), KindSparkPing, sessionID, formatCronTime(before.UTC()))
-	if err != nil {
-		return 0, err
-	}
-	n, _ := res.RowsAffected()
-	return n, nil
-}
-
-// disableExtraSparkPlanners keeps a single enabled spark planner per session.
-func (s *Store) disableExtraSparkPlanners(ctx context.Context, sessionID string, keepID int64) error {
-	_, err := s.db.ExecContext(ctx, `
-		UPDATE cron_job SET enabled = 0, running = 0, updated_at = ?
-		WHERE enabled = 1 AND kind = ? AND session_id = ? AND id != ?`,
-		formatCronTime(time.Now().UTC()), KindSpark, sessionID, keepID)
 	return err
 }
 

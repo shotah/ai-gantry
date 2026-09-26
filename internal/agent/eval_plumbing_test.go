@@ -3,7 +3,7 @@ package agent_test
 // Plumbing for the behavioral eval, run in `go test ./...` with a scripted
 // Completer. Pins that the fixtures are well-formed and that the harness
 // records what it should: tool calls through the recorder, cron jobs in the
-// store, [wait] via the wait service, mcp_enable filtering, spark wake text.
+// store, [wait] via the wait service, mcp_enable filtering, planner wake text.
 // The live model is eval_integration_test.go.
 
 import (
@@ -125,13 +125,8 @@ func TestEvalFixtures_WellFormed(t *testing.T) {
 		if fx.Why == "" {
 			t.Errorf("%s: why is empty", fx.Name)
 		}
-		if fx.Inbound == "" && fx.Spark == "" && fx.Cron == "" {
-			t.Errorf("%s: needs inbound, spark, or cron", fx.Name)
-		}
-		if fx.Spark != "" {
-			if _, ok := sparkLine(fx.Spark); !ok {
-				t.Errorf("%s: no DefaultSparkPrompt line contains %q", fx.Name, fx.Spark)
-			}
+		if fx.Inbound == "" && !fx.Planner && fx.Cron == "" {
+			t.Errorf("%s: needs inbound, planner, or cron", fx.Name)
 		}
 		for _, tl := range fx.Tools {
 			if !strings.Contains(tl.Name, "__") {
@@ -252,16 +247,17 @@ func TestCheckEval_PricesFromTools(t *testing.T) {
 // cron fixtures wake with the same prefix cron.Runner puts on a scheduled job.
 func TestEvalInboundText(t *testing.T) {
 	now := time.Now()
-	text, err := evalInboundText(evalFixture{Cron: "Daily rental check"}, now)
-	if err != nil || !strings.HasPrefix(text, cron.JobUserPrefix) || !strings.HasSuffix(text, "Daily rental check") {
-		t.Fatalf("cron text=%q err=%v", text, err)
+	text := evalInboundText(evalFixture{Cron: "Daily rental check"}, now)
+	if !strings.HasPrefix(text, cron.JobUserPrefix) || !strings.HasSuffix(text, "Daily rental check") {
+		t.Fatalf("cron text=%q", text)
 	}
-	text, err = evalInboundText(evalFixture{Inbound: "hi"}, now)
-	if err != nil || text != "hi" {
-		t.Fatalf("inbound text=%q err=%v", text, err)
+	text = evalInboundText(evalFixture{Inbound: "hi"}, now)
+	if text != "hi" {
+		t.Fatalf("inbound text=%q", text)
 	}
-	if _, err := evalInboundText(evalFixture{Spark: "no such line"}, now); err == nil {
-		t.Fatal("unknown spark line should error")
+	text = evalInboundText(evalFixture{Planner: true}, now)
+	if !strings.HasPrefix(text, cron.DailyPlannerMarker) {
+		t.Fatalf("planner text=%q", text)
 	}
 }
 
@@ -411,11 +407,11 @@ func TestEvalHarness_OffPrefixEnableThenCall(t *testing.T) {
 	}
 }
 
-// Spark wake: the turn is SparkPingPrefix + the gym line, Garmin is published
+// Planner wake: the turn is the daily planner prompt, Garmin is published
 // (forced) and recorded, SELF.md seeded, not silent.
-func TestEvalHarness_SparkWake(t *testing.T) {
+func TestEvalHarness_PlannerWake(t *testing.T) {
 	ctx := context.Background()
-	fx := loadEvalFixture(t, filepath.Join(evalFixtureDir, "07_spark_gym_no_workout.json"))
+	fx := loadEvalFixture(t, filepath.Join(evalFixtureDir, "07_planner_gym_no_workout.json"))
 	sc := &scriptCompleter{res: []*provider.Result{
 		{ToolCalls: []provider.ToolCall{toolCall("c1", "garmin__activities_list", map[string]any{})}},
 		{Content: "Garmin is blank and the shoes are still by the door. Gym before lunch?"},
@@ -427,8 +423,8 @@ func TestEvalHarness_SparkWake(t *testing.T) {
 		t.Fatalf("%v\n%s", fails, describeEval(out))
 	}
 	u := lastUserText(sc.reqs[0])
-	if !strings.Contains(u, cron.SparkTurnMarker) || !strings.Contains(u, "Gym / fitness aim") {
-		t.Errorf("spark turn text wrong: %q", u)
+	if !strings.Contains(u, cron.DailyPlannerMarker) || !strings.Contains(u, "Garmin") {
+		t.Errorf("planner turn text wrong: %q", u)
 	}
 	var persona string
 	for _, m := range sc.reqs[0].Messages {
@@ -440,12 +436,12 @@ func TestEvalHarness_SparkWake(t *testing.T) {
 		t.Error("SELF.md seed not in the persona")
 	}
 
-	// A [silent] spark is caught.
+	// A [silent] planner reply is caught.
 	quiet := &scriptCompleter{res: []*provider.Result{{Content: "[silent]"}}}
 	out = runEvalFixture(ctx, t, quiet, fx)
 	fails := checkEval(ctx, out, fx.Expect)
 	if len(fails) == 0 || !out.Silent {
-		t.Fatalf("silent spark should fail: %v\n%s", fails, describeEval(out))
+		t.Fatalf("silent planner should fail: %v\n%s", fails, describeEval(out))
 	}
 }
 

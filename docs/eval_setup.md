@@ -57,7 +57,7 @@ is canned.
    ```sh
    make integration-test EVAL_ARGS='-eval.only=scoop_at_2'          # one fixture
    make integration-test EVAL_ARGS='-eval.n=10'                     # nervous
-   make integration-test EVAL_ARGS='-eval.n=3 -eval.only=no_aims_one_question,spark_gym_no_workout'
+   make integration-test EVAL_ARGS='-eval.n=3 -eval.only=no_aims_one_question,planner_gym_no_workout'
    ```
 
    `-eval.only` takes fixture `name`s (the JSON field, not the file name),
@@ -223,7 +223,7 @@ What a bake-off is not for: cutting the work. A round worth removing is
 one in which the model did nothing new. A candidate that
 passes with fewer rounds because it searches less, stores less, or stops
 at “let me know when” is a loss, and the completion fixtures (the flight,
-the gym check-in, the dinner spark) are there to fail it. Likewise
+the gym check-in, the dinner planner) are there to fail it. Likewise
 `LLM_REASONING_EFFORT`: lower is cheaper because the model plans less;
 that is the trade this product does not make.
 
@@ -237,7 +237,7 @@ list of rows; add the row there when you add the file.
 | --- | --- |
 | `name`, `why` | `name` is what `-eval.only` matches; `why` is the rule in one sentence, printed at the top of the run. |
 | `inbound` | The human's text. `{{+120m}}` becomes the local clock 120 minutes from now (“2:00PM”) — the eval runs on the real clock because `cron_schedule` does. |
-| `spark` | Instead of `inbound`: a substring of one `cron.DefaultSparkPrompt` line (“Gym / fitness aim”). Sends a real wake turn. |
+| `planner` | Instead of `inbound`: send the daily planner wake (`DailyPlannerPrefix` + `DefaultDailyPlannerPrompt`). |
 | `cron` | Instead of `inbound`: the prompt of a scheduled job the model set. Sent as `cron.JobUserPrefix` + prompt — the shape of a daily “check X” wake. |
 | `history` | Prior `user` / `assistant` turns appended to the session first. |
 | `waiting` | Arms `waiting_for_reply` before the turn — the last assistant line asked and put `[wait]` on it. For `[reaction] 👍 on: …` inbound: is the 👍 an answer. |
@@ -291,7 +291,7 @@ make integration-test EVAL_ARGS='-eval.n=1 -eval.only=<name>'   # first live rea
 Four kinds of fixture live in the directory. The first seven are
 single-batch rules — one tool round and a reply — and their
 `round_budget` is 2 or 3. `denver_flight`, `hows_gym_going`,
-`spark_weight_dinner` are **completion** fixtures: the check is that the
+`planner_weight_dinner` are **completion** fixtures: the check is that the
 legwork happened — the search called with real options back, Garmin read
 before a progress answer, the nudge tied to the dinner on the calendar —
 and the model may take the rounds it needs to get there. Write new

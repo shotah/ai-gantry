@@ -91,7 +91,7 @@ func TestStore_LastUserAt_SkipsCronRows(t *testing.T) {
 		t.Fatalf("at=%v not around now", at)
 	}
 	if err := store.Append(ctx, id,
-		session.Message{Role: session.RoleUser, Content: "[cron] Spark of life — the user is the aim"},
+		session.Message{Role: session.RoleUser, Content: "[cron] Daily planner — one planning session"},
 		session.Message{Role: session.RoleAssistant, Content: "[silent]"},
 	); err != nil {
 		t.Fatal(err)

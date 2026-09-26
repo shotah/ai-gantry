@@ -226,7 +226,11 @@ func TestPendantInbound_CompleterPayloadFullBoard(t *testing.T) {
 	}, delivery); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := jobs.Schedule(ctx, cron.SparkPingPrefix, cron.SparkPingParsed(now.Add(time.Hour), "America/Los_Angeles"), delivery); err != nil {
+	parsed, err := cron.ParsePlannerSchedule("07:10", loc, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := jobs.Schedule(ctx, cron.DefaultDailyPlannerPrompt, parsed, delivery); err != nil {
 		t.Fatal(err)
 	}
 

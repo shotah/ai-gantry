@@ -16,7 +16,7 @@ func TestFormatWakes_NextThreeHumanJobsSoonestFirst(t *testing.T) {
 	jobs := []cron.Job{
 		{Kind: cron.KindDaily, Enabled: true, NextRunAt: now.Add(44 * time.Hour), Prompt: "Morning digest"},
 		{Kind: cron.KindOnce, Enabled: true, NextRunAt: now.Add(5 * time.Hour), Prompt: "  Remind them to   leave for the gym  "},
-		{Kind: cron.KindSparkPing, Enabled: true, NextRunAt: now.Add(time.Hour), Prompt: "[cron] Spark of life"},
+		{Kind: cron.KindDailyPlanner, Enabled: true, NextRunAt: now.Add(time.Hour), Prompt: "[cron] Daily planner"},
 		{Kind: cron.KindOnce, Enabled: false, NextRunAt: now.Add(2 * time.Hour), Prompt: "cancelled"},
 		{Kind: cron.KindEvery, Enabled: true, NextRunAt: now.Add(9 * 24 * time.Hour), Prompt: "Water the plants and check the balcony tomatoes"},
 		{Kind: cron.KindOnce, Enabled: true, NextRunAt: now.Add(10 * 24 * time.Hour), Prompt: "fourth"},

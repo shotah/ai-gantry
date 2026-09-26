@@ -76,22 +76,20 @@ func TestStripHarnessContext_NewStamps(t *testing.T) {
 	}
 }
 
-func TestSparkNotes_ReadHarnessNotRecall(t *testing.T) {
-	if !strings.Contains(sparkToolFirstNote, "[hours], [aims], [loops], and [wakes] are already in [harness]") {
-		t.Fatalf("sparkToolFirstNote must point at the stamps: %q", sparkToolFirstNote)
+func TestPlannerNotes_ReadHarnessNotRecall(t *testing.T) {
+	if !strings.Contains(plannerToolFirstNote, "[hours], [aims], [loops], and [wakes] are already in [harness]") {
+		t.Fatalf("plannerToolFirstNote must point at the stamps: %q", plannerToolFirstNote)
 	}
 	for _, s := range []string{"memory_recall for aim/, pref/hours", "cron_list, then live", "Empty aim board"} {
-		if strings.Contains(sparkToolFirstNote, s) {
-			t.Fatalf("sparkToolFirstNote still says %q", s)
+		if strings.Contains(plannerToolFirstNote, s) {
+			t.Fatalf("plannerToolFirstNote still says %q", s)
 		}
 	}
-	// The room nudge is one clause, conditional on the stamp, so a Telegram
-	// spark does not chase a phone it cannot dress and nobody is handed a recipe.
-	if !strings.Contains(sparkToolFirstNote, "If [room] is stamped and stale, redress it") {
-		t.Fatalf("sparkToolFirstNote must redress [room] only when stamped: %q", sparkToolFirstNote)
+	if !strings.Contains(plannerToolFirstNote, "If [room] is stamped and stale, redress it") {
+		t.Fatalf("plannerToolFirstNote must redress [room] only when stamped: %q", plannerToolFirstNote)
 	}
-	if strings.Contains(sparkToolFirstNote, "theme_list") || strings.Contains(sparkToolFirstNote, "theme_update") {
-		t.Fatalf("sparkToolFirstNote must not carry room tool recipes: %q", sparkToolFirstNote)
+	if strings.Contains(plannerToolFirstNote, "theme_list") || strings.Contains(plannerToolFirstNote, "theme_update") {
+		t.Fatalf("plannerToolFirstNote must not carry room tool recipes: %q", plannerToolFirstNote)
 	}
 }
 

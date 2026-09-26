@@ -90,7 +90,7 @@ func (s *Service) EnsureFor(ctx context.Context, delivery cron.Delivery) (cron.J
 		loc = time.UTC
 	}
 	when := fmt.Sprintf("%s@%02d-%02d", strings.TrimSpace(s.Qty), s.StartHour, s.EndHour)
-	parsed, err := cron.ParseExamplesSchedule(when, s.StartHour, s.EndHour, loc, time.Now())
+	parsed, err := cron.ParseSpreadSchedule(cron.KindExamples, when, s.StartHour, s.EndHour, loc, time.Now())
 	if err != nil {
 		return cron.Job{}, false, err
 	}

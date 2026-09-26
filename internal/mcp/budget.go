@@ -12,7 +12,7 @@ import (
 // Budget caps how many times one server may be called per period. It is the
 // human's quota written down — "one rental search a day", "50 flight
 // lookups a month" — and it is enforced in the host so every path to the
-// server pays it: an agent turn, a spark wake, a watch poll, a retry.
+// server pays it: an agent turn, a cron wake, a watch poll, a retry.
 // A model that searches three times for one question, or a watch left on
 // the 15-minute default, cannot spend past it.
 type Budget struct {

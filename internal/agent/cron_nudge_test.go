@@ -80,7 +80,7 @@ func TestTurnSource(t *testing.T) {
 	}{
 		{in: "[watch] New items", want: sourceWatch},
 		{in: "[cron] Scheduled job", want: sourceCron},
-		{in: cron.SparkPingPrefix + "recall aim/", want: sourceCron},
+		{in: cron.DailyPlannerPrefix + "plan the day", want: sourceCron},
 		{in: cron.ExamplesPingPrefix + "try /tools", want: sourceCron},
 		{in: "[reaction] 👍 on: earlier reply", want: sourceReaction},
 		{in: "hey", want: sourceUser},
@@ -97,8 +97,8 @@ func TestTurnSource(t *testing.T) {
 			t.Fatalf("unknown-creep source %q from %q", turnSource(tc.in), tc.in)
 		}
 	}
-	if !cron.IsSparkTurn(cron.SparkPingPrefix + "recall aim/") {
-		t.Fatal("spark prefix should be a spark turn")
+	if !cron.IsDailyPlannerTurn(cron.DailyPlannerPrefix + "plan the day") {
+		t.Fatal("planner prefix should be a planner turn")
 	}
 }
 

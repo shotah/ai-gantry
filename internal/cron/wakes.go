@@ -16,8 +16,8 @@ const (
 
 // FormatWakes is the per-turn [wakes] line: the next few human-facing jobs
 // (once/daily/every) for this session, soonest first, so the model does not
-// cron_list just to avoid double-scheduling. Spark, examples, and wait pokes
-// are harness-internal and skipped. Empty if none.
+// cron_list just to avoid double-scheduling. The daily planner, examples, and
+// wait pokes are harness-internal and skipped. Empty if none.
 func FormatWakes(jobs []Job, now time.Time) string {
 	due := make([]Job, 0, len(jobs))
 	for _, j := range jobs {

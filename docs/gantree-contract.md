@@ -61,7 +61,7 @@ Required for a talking crane (fail-fast at `gantry run`):
 | `CHANNEL` | `telegram` (default) · `discord` · `slack` · `pendant` · `stdio` |
 | Channel token + allowlist | See `.env.example` — empty allowlist fails boot. Console may write emails into `PENDANT_ALLOWED_USERS`. |
 
-Optional knobs (history, tools, memory, cron, watch, spark, stream) live
+Optional knobs (history, tools, memory, cron, watch, daily planner, stream) live
 in `.env.example`. Do not add a settings API. MCP API keys (`GOOGLE_*`,
 `X_BEARER_TOKEN`, …) are process env the child inherits — not gantry knobs.
 
@@ -137,7 +137,7 @@ MCP `isError` results that classify as key/oauth/binary use the same
 JSON on stderr. Turns:
 
 `msg=turn perf` → `source` (`user` · `cron` · `watch` · `reaction`; **always
-set** — other strings chart as spend unknown; spark / examples are `cron`),
+set** — other strings chart as spend unknown; daily planner / examples are `cron`),
 `user_id` (required on `user` / `reaction`; cron/watch omit when empty),
 `session_id`, `outcome`, `iterations`, `tool_calls`, `max_batch`, `recoveries`,
 `tools_per_inv`, `prompt_est_tokens`, `gen_est_tokens` (chars/4 fallback),

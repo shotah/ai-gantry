@@ -1,4 +1,4 @@
-# Cron, spark, and watches
+# Cron, daily planner, and watches
 
 Proactive jobs are **long-horizon harness work**: they live in SQLite and
 fire inside gantry — run the normal agent loop (MCP tools allowed), then
@@ -18,11 +18,11 @@ digest cannot few-shot the next one. Plain reminders ("submit my timecard")
 are unchanged.
 
 A months-scale **aim** is not a cron by itself. North-star sentences live in
-`SELF.md`; progress in memory (`aim/<area>`); cron is the wake. Spark looks
-after the user — aims, live tools, filling useful personal knowledge, and a
-joke when the data earns it. Empty zero-tool pings still stay `[silent]`.
-Learned `pref/hours` sleep skips spark/examples; explicit "remind me at 9pm"
-still fires. Pin follow-through with `memory_subject` (or `memory_id`) so the
+`SELF.md`; progress in memory (`aim/<area>`); cron is the wake. The daily
+planner is one session at one clock time: pull calendar, mail, and fitness,
+then set that day's crons. Sick, vacation, or a day off stays `[silent]`.
+Learned `pref/hours` sleep skips example pings; the daily planner and an
+explicit "remind me at 9pm" still fire. Pin follow-through with `memory_subject` (or `memory_id`) so the
 wake is not a hydrate lottery — the subject is known before `memory_store`
 returns, so the store and the `cron_schedule` go out in one batch. A goal with no wake is a dusty row — [persona.md](persona.md#where-the-horizon-lives).
 
@@ -32,8 +32,8 @@ pull is visible in chat. Server logs still show `tool call` / `model call`.
 
 The model can skip the push by replying with `[silent]` (first line). The job
 still runs and the turn is stored; nothing is sent to chat. Use that for
-all-clear / work-only jobs (dead-man, health checks) and for spark when the
-work does not need a human-facing message.
+all-clear / work-only jobs (dead-man, health checks) and for the daily
+planner when the day needs no human-facing message.
 
 ## Config
 
@@ -43,6 +43,7 @@ work does not need a human-facing message.
 | `CRON_TZ` | `America/Los_Angeles` | IANA timezone for clock times (Pacific — SJ / SF / SEA / LA) |
 | `CRON_MAX_JOBS` | `50` | Cap on enabled jobs |
 | `CRON_TICK_SECONDS` | `15` | Due-job poll interval |
+| `DAILY_PLANNER_AT` | `07:10` | One planning session a day, local clock (`CRON_TZ`). `/planner 09:30` overrides it for this agent. `0` or `/planner off` disables it |
 | `EXAMPLES_QTY` | `1-2` | **On by default** capability-example pings. Empty or `0` = no proactive pings. `/examples` on-demand still works |
 | `EXAMPLES_START_HOUR` | `6` | Local window start for examples pings |
 | `EXAMPLES_END_HOUR` | `21` | Local window end (exclusive) |
@@ -54,7 +55,7 @@ work does not need a human-facing message.
 | --- | --- |
 | `cron_schedule` | Create a job for this agent. Optional `memory_id` / `memory_subject` pins a memory row; the wake injects `[job memory]`. Push uses the CHANNEL allowlist. |
 | `cron_list` | List active jobs |
-| `cron_cancel` | Disable by id (spark planner also cancels pending `spark_ping` rows) |
+| `cron_cancel` | Disable by id |
 
 ### `when` / `repeat`
 
@@ -65,8 +66,8 @@ work does not need a human-facing message.
 | `17:00` | `daily` | Every day at 5pm |
 | `every:1h` | — | Interval from now |
 | RFC3339 | `once` | Absolute UTC/offset time |
-| `2-3@06-21` | `spark` | Random 2–3 horizon-planning wakes/day between 6am and 9pm |
-| `1-2@06-21` | _(boot)_ | Examples planner uses the same qty@HH-HH shape (`examples` / `examples_ping` kinds) |
+| `07:10` | `planner` | Move the daily planner to that clock (persists; one job, not a second session) |
+| `1-2@06-21` | _(boot)_ | Examples planner only: qty spread across a local hour window (`examples` / `examples_ping`) |
 
 Example prompts the model can schedule:
 
@@ -76,46 +77,45 @@ At 5pm daily: summarize calendar + work email for the past 8 hours.
 At midnight daily: check last 48h of chat + Garmin. If all-clear, reply [silent].
 ```
 
-## Spark of life (on by default)
+## Daily planner (on by default)
 
-Random **horizon wakes** — replan today against `SELF.md` north-stars and memory
-`aim/`, call tools, and `cron_schedule` the next wake. Empty board: ask **one**
-months-scale question (do not invent an aim), then `self_note` + `memory_store`
-`aim/<area>` when they answer. **Off with `/engagement off`** (same as `/spark off`).
+One planning session a day at one clock time (`DAILY_PLANNER_AT`, default
+`07:10` in `CRON_TZ`). It pulls calendar, mail, and fitness, then sets that
+day's crons and (ask-first) events. There is no quantity and no hour window.
+Sick, vacation, holiday, or a quiet day: reply `[silent]` and do not schedule
+nag crons. The session still runs so the model can look and decide.
 
-On boot, one spark **planner** is bound to the agent conversation (`gantry`).
+On boot, one `daily_planner` job is bound to the agent conversation (`gantry`).
 `CHANNEL` is the mouth; jobs do not store a chat or user id. Push delivers to
 every allowlisted destination on that mouth. Switching Telegram → pendant
-keeps the same cron, spark pings, watches, memory, and history. Other
-channels: same auto-bind (`/spark off` still opts out).
+keeps the same cron, watches, memory, and history. `/planner off` opts out.
+
+Pendant and gantree follow-ups: [planner-siblings.md](planner-siblings.md).
 
 Chat controls (persist on the agent, like `/examples`):
 
 | Command | Effect |
 | --- | --- |
-| `/engagement` / `/spark` | Same command. Status (default qty, this agent, window) |
-| `/engagement on` | Inherit operator default |
-| `/engagement off` | Opt out (dated user crons still fire) |
-| `/engagement 2` / `/spark 4-6` | Override count/day (1–24) |
+| `/planner` | Status (operator default, this agent's clock) |
+| `/planner on` | Inherit `DAILY_PLANNER_AT` |
+| `/planner off` | Opt out (dated user crons still fire) |
+| `/planner 09:30` | Move the clock (`9:30am` and `9am` work too) |
+
+The agent moves it the same way: `cron_schedule` `when=HH:MM` `repeat=planner`.
+That writes the session clock and keeps the one job. A move during today's
+session, or after today's session already ran, schedules tomorrow so there is
+not a second burn today.
 
 How it works:
 
-1. A daily `spark` planner is seeded on boot for the remaining day, then wakes again at
-   **tomorrow's** window start (not a second roll for today once `next_run` is tomorrow).
-2. It rolls qty in `[min, max]` and inserts that many one-shot `spark_ping` jobs,
-   spaced across the remaining window so the day stays balanced and the minimum is hit.
-3. Before each seed (planner wake or boot catch-up), pending `spark_ping` rows for the
-   agent are cancelled — prior-day leftovers and restarts do **not** compound.
-   Once today is planned (planner `next_run` is tomorrow), reboot does not roll a second set.
-4. Each wake picks one line from the built-in pool and runs the **full
-   agent loop** (memory, cron, MCP tools). A zero-tool joke is nudged once; a second
-   skip stays `[silent]` so it is not pushed. If the human messaged within
-   skip-recent (30m), that wake is deferred once, then dropped if still chatting.
-   Learned `pref/hours` sleep also defers spark/examples (work is not DND).
-5. Work-only is the default: reply `[silent]` unless a hole needs the human (or the
-   board is empty and it is time to ask once). Ask-first still applies (no email,
-   spend, or public posts from a spark).
-6. Cancelling the spark planner (`cron_cancel`) also disables pending pings.
+1. Boot ensures one enabled `daily_planner` row. Same clock and prompt leave
+   `next_run` alone. A clock change recomputes the next future slot.
+2. The wake runs the full agent loop (memory, cron, MCP tools) with the
+   kernel planning prompt. A zero-tool draft is nudged once; a second skip
+   stays `[silent]`. Learned sleep and recent chat do not defer this job.
+3. `[silent]` unless one decision or nudge needs the human. Ask-first still
+   applies (no email, spend, or public posts).
+4. `/planner off` disables the row. Dated reminders are separate jobs.
 
 ## Capability examples / training wheels (on by default)
 
@@ -131,7 +131,7 @@ Chat controls:
 | `/examples off` / `false` | Opt out (persists across restarts) |
 
 Boot auto-binds one examples **planner** for the agent (same conversation as
-spark), skipping if opted out. Pings pick a curated seed whose required server
+the daily planner), skipping if opted out. Pings pick a curated seed whose required server
 prefixes are all present in the live `/tools` catalog, then ask the model to
 localize it. Turn off anytime with `/examples off`.
 

@@ -412,7 +412,7 @@ func newReplyID() string {
 	return fmt.Sprintf("r%d", time.Now().UnixNano())
 }
 
-// Push sends a cron/spark outbound to every allowlisted (and learned) Google
+// Push sends a cron outbound to every allowlisted (and learned) Google
 // sub. The job does not store a destination — this mailbox is the destination.
 func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 	targets := c.pushTargets()

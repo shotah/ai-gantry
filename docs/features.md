@@ -176,7 +176,7 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
   when it was from goes on this turn’s **`[harness]`** system message after
   their words (not stored in history)
 
-### Time, cron, spark, examples
+### Time, cron, daily planner, examples
 
 - Per-turn **`[harness]`** clock after the user message (not stored in
   history): NOW, day-part, last known `[location]` when we have one, yesterday/today/tomorrow, week grid
@@ -202,11 +202,11 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
 - Live-data cron: tool-first wrapper; zero-tool draft gets one nudge, then
   refuse invented metrics; prior `[cron]` turns omitted so yesterday’s
   digest cannot few-shot the next one
-- **Spark of life** (default `3-5`/day): random horizon wakes in a local
-  hour window — replan against `SELF.md` / `aim/`, tool-call, `cron_schedule`;
-  empty board asks once for a north-star; `[silent]` unless the human needs a
-  message; skip if they messaged recently or are in learned sleep hours.
-  `/engagement off` (same as `/spark off`) turns it off.
+- **Daily planner** (default `07:10` local, `DAILY_PLANNER_AT`): one planning
+  session a day. Pull calendar, mail, and fitness, then set that day's crons
+  and (ask-first) events. Sick, vacation, or a day off → `[silent]` and no
+  nag crons. `/planner 09:30` or `cron_schedule` `repeat=planner` moves the
+  clock; `/planner off` turns it off. Dated reminders still fire.
 - **Examples** (`EXAMPLES_QTY`, default `1-2`): capability pings from the
   live catalog (plus harness recipes: first aim, cron, memory) so you learn
   what the agent can do; `/examples on|off`; `/examples` on-demand still
@@ -219,7 +219,7 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
 - Manifest **is** the grant (`mcp.toml`)
 - `{server}__{tool}` names, optional `tools` / `exclude` / `tools_prefix`
 - `budget = "1/day"` / `"50/month"` per server: the vendor quota enforced in
-  the host on every path (turns, spark, watch polls); over it the tool
+  the host on every path (turns, cron, watch polls); over it the tool
   returns a refusal naming the reset, and `watch_add` is raised to the
   matching floor
 - `--tool-tier` / preset args stay in the child (Garmin `core`, Google
@@ -264,7 +264,7 @@ Works. Has seams. Don’t be surprised.
 | --- | --- |
 | **Token counts** | Chars/4 **estimates**, labeled as such. `/tokens` is a standing-prompt breakdown, not a tokenizer. Good enough to catch a fat schema; not a billing meter. |
 | **Discord / Slack** | Shipped, outbound-only, allowlist. Telegram is the path that got the menu, photos, reactions, pin, error-tee, and production scars. |
-| **Spark auto-bind** | Telegram DMs, and pendant rows that already have a Google `sub`, at boot. Email-only pendant entries are inbound-only until the list has a `sub`. Other channels: `/engagement on` or `repeat=spark`. Default `3-5`/day; `/engagement 2` or `/engagement off`. Work-only `[silent]` means most wakes never show up in chat — look at logs / `cron_list`. Empty board asks once. |
+| **Daily planner** | One job at boot (`DAILY_PLANNER_AT`, default 07:10). `/planner 09:30` or `repeat=planner` moves it; `/planner off` stops it. `[silent]` on a sick day or vacation means that session never shows up in chat — look at logs / `cron_list`. |
 | **Examples pings** | On by default (`1-2`/day). Useful as training wheels; can feel like a nag. `/examples off` or `EXAMPLES_QTY=0`. |
 | **`mcp_enable` holds** | Magic durations (27h / 6h). Wrong prefix → still a fat schema until idle expiry. |
 | **Location pin** | In-memory. Restart = amnesia. Not a Completer wake. |
@@ -355,7 +355,7 @@ house keys out of *this* git.
 | Tool loop | Parallel batch, alias, closest-name, grammar retry, salvage, CoT promote, landing call, signatures; `/perf` trajectory | [mcp](mcp.md) · [design](design.md#progress-per-invocation) |
 | Memory | store / recall / forget, FTS5, consolidator, persona precedence, no auto-save | [troubleshooting](troubleshooting.md#inspect-memory-sqlite3) |
 | Web search | builtin `web_search` (Brave Search HTTP) | [design](design.md#environment-variables) |
-| Time | Temporal footer, cron, spark, examples, `[silent]`, live-data nudge | [cron](cron.md) |
+| Time | Temporal footer, cron, daily planner, examples, `[silent]`, live-data nudge | [cron](cron.md) |
 | Events | Watch cursor + poll, Completer only on new ids | [cron](cron.md#event-watches) |
 | MCP | Manifest grant, fetch/plan, filters, `mcp_enable`, fail-soft, Distroless children | [mcp](mcp.md) |
 | Chat ops | Slash cmds, `/auth`, stream, thinking, tool trace, steer, spin-up, photos, reactions, pin | [auth](auth.md) · [deploy-native](deploy-native.md#host-signals) |

@@ -28,7 +28,7 @@ Tags say where a rule is enforced:
 
 | Tag | Meaning | In `PERSONA.md`? |
 | --- | --- | --- |
-| **kernel** | Go stamps or drives it (`[wait]` pokes, Self-notes / Location pins / Follow-up sections, `[hours]` `[aims]` `[loops]`, `[surface]` `[input]`, the spark wake prompt). Cannot be edited away. | **No** — once verified. |
+| **kernel** | Go stamps or drives it (`[wait]` pokes, Self-notes / Location pins / Follow-up sections, `[hours]` `[aims]` `[loops]`, `[surface]` `[input]`, the daily planner prompt). Cannot be edited away. | **No** — once verified. |
 | **persona** | Needs the model's cooperation; only the operator text can say it. | Yes — once, in one place. |
 | **per-human** | True for one person only (canonical email, house notes). | Their **Directives** or a `pref/` row. |
 
@@ -56,7 +56,7 @@ goal, nudges toward it, does the legwork, and does not report nothing.
 - **Nudge toward it.** Where what the tools show today and the aim disagree
   is the nudge. Garmin shows no workout and the aim is the gym → that. Lose
   20 lbs and dinner out on the calendar → a meal thought. A trip on the board
-  and no flight → go find one. — **persona**, and what spark is for.
+  and no flight → go find one. — **persona**, and what the daily planner is for.
 - **Do the legwork.** When the nudge needs a thing done — a flight found, an
   event on the calendar, a reminder set — do it or offer it this turn.
   Mentioning it is not doing it. And what a tool returned goes in the
@@ -72,15 +72,12 @@ goal, nudges toward it, does the legwork, and does not report nothing.
   turn**. — **persona**.
 - The turn ends with the next question or the tool. Never a bare “got it” /
   “yes boss.” — **persona**, and it is the closer.
-- Spark — the `[cron] Spark of life` wake: a turn the kernel starts on its
-  own, no human message, so the agent can look after them unprompted. It
-  recalls `aim/` + `pref/hours` + `cron_list`, `mcp_enable`s and reads every
-  listed tool that bears on an aim (calendar, Garmin, Strava, Health —
-  whatever is mounted), finds where today and the aim disagree, nudges toward
-  the goal, shapes by the clock, asks one question at most, and is `[silent]`
-  only if nothing useful. — **kernel wake prompt** (`DefaultSparkPrompt`,
-  `internal/cron/spark.go`). Verified to carry every clause above; the
-  persona copy is gone.
+- Daily planner — the `[cron] Daily planner` wake: one turn the kernel starts
+  at one clock time, no human message, so the agent can plan the day. It
+  pulls calendar, mail, and Garmin, sets that day's crons, and is `[silent]`
+  on a sick day, vacation, or when nothing needs a message. The agent moves
+  the clock with `repeat=planner`. — **kernel wake prompt**
+  (`DefaultDailyPlannerPrompt`, `internal/cron/planner.go`).
 
 ### Follow-through
 
@@ -116,7 +113,7 @@ The whole point of the file: memory with more persistence and more
 character. We want **more** notes, not fewer.
 
 - A vibe, joke, ritual, or north-star lands → `self_note` **the same turn**.
-  Don't wait for spark, `/new`, or them to ask. — **persona**. This is the
+  Don't wait for the daily planner, `/new`, or them to ask. — **persona**. This is the
   push; the kernel Self-notes section only sets what qualifies.
 - Empty `SELF.md` (no `-` bullets) → note a vibe this turn, not facts about
   them. — **persona**.
@@ -190,7 +187,7 @@ How it shows up. Steers tone. Lives in **Identity** + **Voice**, grows in
   corporate chatbot. Picks a name and keeps it.
 - Tasks: 2–4 sentences, answer first. Plans: holes first, then one fix.
 - No “Great question!”, “happy to help”, empty hype.
-- Spark tone. When the wake fires and the tools show a gap against an aim
+- Planner tone. When the session fires and the tools show a gap against an aim
   (they want to work out more; Garmin shows nothing today), the **time of
   day** sets the voice. Morning, still time → a short joke that points at it.
   Evening, day's gone → the uncle: warm, direct, names the miss, no lecture.
@@ -204,12 +201,11 @@ How it shows up. Steers tone. Lives in **Identity** + **Voice**, grows in
 - **Empty calendar → get something on it: template.** It is engagement, not a
   preference. Stays as example #1.
 - **Languages: fact only.** No reply-language rule.
-- **Spark recipe: kernel wake prompt owns it.** Verified: `DefaultSparkPrompt`
-  in `internal/cron/spark.go` carries every clause — aims bootstrap (one
-  months-scale question), replan with live tools, empty calendar → one
-  question and get something scheduled, gym aim + Garmin with morning joke /
-  evening disappointed-uncle, prep cue → `cron_schedule`, hours bootstrap,
-  cron-board audit. The persona copy was a duplicate and is gone.
+- **Daily planner recipe: kernel wake prompt owns it.** `DefaultDailyPlannerPrompt`
+  in `internal/cron/planner.go` carries the clauses — one session, calendar /
+  mail / Garmin, today's crons, sick or vacation → `[silent]`, empty calendar
+  → one question, clock move with `repeat=planner`. The persona copy points
+  at the same wake and does not restate the kernel prompt.
 - **`SELF.md` nudge: keep**, and look for ways to get more notes, not fewer.
 - **Sources: the tools you have.** Mail vs calendar is not a question. The
   information to act comes from whatever is listed this turn — Garmin,
@@ -219,7 +215,7 @@ How it shows up. Steers tone. Lives in **Identity** + **Voice**, grows in
 ## Proposed: three examples
 
 One task-with-engagement, one horizon, one follow-through. Voice is a
-bullet (quote the joke), not an example. Spark is kernel.
+bullet (quote the joke), not an example. The daily planner is kernel.
 
 1. **“what's on today?”** → `mcp_enable` what's off; every listed tool that
    knows their day (calendar, mail, Garmin…) + `memory_recall` in **one**
@@ -258,9 +254,9 @@ what the model **sees**, not what it does.)
 | Their 👎 on “Blocked Thursday 7–8 for the gym.” | Not silence: the block moved or dropped, or one question — which. | `15_reaction_thumbs_down` |
 | A joke lands / they reveal a ritual | `self_note` that turn, exact wording. | — |
 | No `aim/` row, no `[aims]` line | One months-scale question. Not a task menu, not `[silent]`. | `06_no_aims_one_question` |
-| Spark wake; `aim/weight` = lose 20 lbs; dinner out on today's calendar | Calendar **and** aims read; the nudge is tied to the aim (a meal thought), not a generic check-in. | `10_spark_weight_dinner` |
+| Daily planner; `aim/weight` = lose 20 lbs; dinner out on today's calendar | Calendar **and** aims read; the nudge is tied to the aim (a meal thought), not a generic check-in. | `10_planner_weight_dinner` |
 | “how's the gym goal going?” | Garmin **called** before any progress answer; the honest count; one next step put on the calendar / a cron, or offered with `[wait]`. Never “crushing it” over one workout. | `09_hows_gym_going` |
-| Spark wake, morning; `aim/gym`; Garmin listed and shows no workout today | Garmin **called**, not assumed; nudge tied to the aim; short joke, not a lecture. Calendar alone is not enough here. | `07_spark_gym_no_workout` |
+| Daily planner, morning; `aim/gym`; Garmin listed and shows no workout today | Garmin **called**, not assumed; nudge tied to the aim; short joke, not a lecture. Calendar alone is not enough here. | `07_planner_gym_no_workout` |
 | “I need to be in Denver next Friday.” | Flight search **called** this turn from their own city, real options back, one question + `[wait]`; the date blocked or offered. Not “let me know when you want me to look.” Rounds are the model's to spend. On the **real** `flights` catalog: `offers_search` at most twice, no `dates_search` for a fixed date, no `booking_options_get` before they pick, no `$` figure the tool did not return. | `08_denver_flight` |
 | `[cron]` daily rental check; `aim/housing` = 2BR Ballard/Fremont under $2,400 (metered API, 50/month) | On the **real** `rentals` catalog: exactly **one** `listings_search` with the neighborhoods comma-joined, the free `account_get` welcome, **no** `listings_get` / `markets_get` / `rent_estimate_get` nobody asked for; both listings with who to call in the reply, prices only from the tool. | `11_rental_daily_cron` |
 
@@ -275,7 +271,7 @@ A fixture is one JSON file; add the row, add the file.
 | Line in the seed today | Why | Where to |
 | --- | --- | --- |
 | Follow-up wording repeated in Voice, Do, Directives, Harness tools | Same rule four times | Once under Follow-through; closer keeps its one line |
-| Spark recipe bullet in Voice | Kernel wake prompt owns it (after port/verify) | Cut from persona |
+| Daily planner recipe bullet in Voice | Kernel wake prompt owns it | Cut from persona |
 | `pref/food` `pref/activity` `pref/sports` `pref/hours` `pref/calendar` catalog | List, not behavior | One line of subjects |
 | Five quoted “…” shots under Memory hygiene | Restate Do and the examples | Keep two: preference-replace, and `follow/` + cron pin |
 | **Harness tools** paragraph duplicating Do | Two closers | One closer; Do keeps the rule bodies |
@@ -289,8 +285,8 @@ Target after distill: **2–4k characters**, three examples, one closer.
 
 - [ ] More `self_note`s: persona push only, or add the kernel `[self]`
       drought stamp?
-- [x] Spark wake prompt carries the full recipe — `internal/cron/spark.go`,
-      not `sparkcmd.go` (that file is only the `/spark` on/off command).
+- [x] Daily planner prompt carries the recipe — `internal/cron/planner.go`.
+      `/planner` is `internal/agent/plannercmd.go`.
 
 ## Order of work
 
@@ -300,7 +296,7 @@ Target after distill: **2–4k characters**, three examples, one closer.
 2. [x] Distill `examples/persona/PERSONA.example.md`; copy to
    `examples/native/persona/` and the Gantree template in the same change.
    Landed at ~5.6k characters (from 5.7k): the **Goals** section is new, and
-   what came out was only verified duplicates — spark recipe (kernel), the
+   what came out was only verified duplicates — daily planner recipe (kernel), the
    follow-up rule said four times (now example + closer), the `pref/*`
    catalog. The Gantree seed tests pin the load-bearing phrases
    (`pref/hours`, `pref/calendar`, `yes boss`, `Prefer parallel tool calls`)

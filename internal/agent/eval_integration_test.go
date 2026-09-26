@@ -5,7 +5,7 @@ package agent_test
 // Live behavioral eval — docs/evaluation.md gap 1. Never in `go test ./...`:
 //
 //	make integration-test              # sources .env, 3 runs per fixture
-//	make integration-test EVAL_ARGS='-eval.n=10 -eval.only=scoop_at_2,spark_gym_no_workout'
+//	make integration-test EVAL_ARGS='-eval.n=10 -eval.only=scoop_at_2,planner_gym_no_workout'
 //
 // Each fixture under testdata/eval runs N times against the configured model
 // with the shipped persona seed and canned tools; every run must pass. A rule

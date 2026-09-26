@@ -73,10 +73,9 @@ const enableReviewNote = "[system] Review [mcp prefixes] on vs off this turn. If
 // finished-report spec and small models draft numbers instead of calling.
 const cronToolFirstNote = "[system] Scheduled turn: if this job needs live data, review [mcp prefixes] and mcp_enable any off prefix this job needs, then emit independent tool calls now in one response and wait for results. Do not invent metrics, events, or search results. Write the user-facing report only after tool results are in context. If no tools are needed, reply now."
 
-// sparkToolFirstNote sits after the clock on spark-of-life turns. Spark looks
-// after the user (aims, live tools, useful knowledge). Empty zero-tool jokes
-// are still nudged off; grounded jokes after tools are allowed.
-const sparkToolFirstNote = "[system] Spark-of-life turn: the user is the aim. Review [mcp prefixes] on vs off. [hours], [aims], [loops], and [wakes] are already in [harness] — do not memory_recall or cron_list for those. Emit independent tool calls now — memory_recall only for detail (aim/<area>, pref/calendar), then live tools (Garmin, calendar, search) or cron_schedule. mcp_enable a prefix if it is off and needed. Shape the message by [current time]. If [room] is stamped and stale, redress it in the same batch. A joke is allowed when it is grounded in this turn's tool results and an aim — never a joke with zero tools. [hours] unknown → ask sleep/work once. Else at most one user-model question. A real empty calendar is a hole: ask ONE what they want on it today (lunch/dinner or training) — not [silent], never agree-and-stop; try to get something scheduled (ask first before writing events). A clock time you commit is cron_schedule with memory_id or one offer to ping — a calendar event is not the reminder. No [aims] line: ask ONE months-scale question — do not invent an aim. If you asked a question they should answer, put [wait] on its own line. After the work, [silent] unless the human needs a specific hole, nudge, or next step."
+// plannerToolFirstNote sits after the clock on the daily planning session.
+// One burn: pull live context, set today's crons, or [silent] when the day is off.
+const plannerToolFirstNote = "[system] Daily planner turn: one session for the day, one clock time. Review [mcp prefixes] on vs off. [hours], [aims], [loops], and [wakes] are already in [harness] — do not memory_recall or cron_list for those. Emit independent tool calls now — calendar, mail, Garmin (mcp_enable a prefix if it is off). Do not invent numbers or events. Then cron_schedule today's cues. Ask first before creating calendar events, sending mail, spending, or posting. Sick, vacation, holiday, or a quiet day they asked for: [silent], no nag crons. If this clock does not match their life, cron_schedule when=HH:MM repeat=planner (that persists; do not add a second planner). No [aims] line: ask ONE months-scale question — do not invent. A real empty calendar: ask ONE what they want on it today — not [silent], never agree-and-stop. If [room] is stamped and stale, redress it in the same batch. If you asked a question they should answer, put [wait] on its own line. After the work, [silent] unless they need one hole or nudge."
 
 // waitReplyNote sits after the clock when follow-up is wired. [wait] is a
 // reply token like [silent], not a tool — models otherwise invent wait_for_reply.
@@ -127,8 +126,8 @@ type Options struct {
 	MCPManifest string
 	// Examples is optional; enables /examples (instant + on/off for proactive pings).
 	Examples ExamplesControl
-	// Spark is optional; enables /spark (on|off|qty for looking-after-you wakes).
-	Spark SparkControl
+	// Planner is optional; enables /planner (on|off|HH:MM for the daily planning session).
+	Planner PlannerControl
 	// Wait is optional; arms follow-up pokes when the model replies with [wait].
 	Wait WaitControl
 	// Wakes is optional (*cron.Store); stamps this session's next jobs as [wakes].
@@ -183,7 +182,7 @@ type Agent struct {
 
 	mcpManifest string
 	examples    ExamplesControl
-	spark       SparkControl
+	planner     PlannerControl
 	wait        WaitControl
 	wakes       WakeLister
 	roomMu      sync.RWMutex
@@ -249,7 +248,7 @@ func New(opts Options) (*Agent, error) {
 		consolidator:   opts.Consolidator,
 		mcpManifest:    strings.TrimSpace(opts.MCPManifest),
 		examples:       opts.Examples,
-		spark:          opts.Spark,
+		planner:        opts.Planner,
 		wait:           opts.Wait,
 		wakes:          opts.Wakes,
 		room:           opts.Room,
@@ -361,11 +360,11 @@ func (a *Agent) Handle(ctx context.Context, msg channel.Message) (string, error)
 		return a.handleExamples(ctx, channelDelivery{SessionID: msg.SessionID}, arg)
 	}
 
-	// /spark and /engagement accept on|off|true|false|{qty} (same command).
-	if arg, ok := parseSparkCommand(text); ok {
+	// /planner accepts on|off|true|false|HH:MM.
+	if arg, ok := parsePlannerCommand(text); ok {
 		unlock := a.lockSession(msg.SessionID)
 		defer unlock()
-		return a.handleSpark(ctx, channelDelivery{SessionID: msg.SessionID}, arg)
+		return a.handlePlanner(ctx, channelDelivery{SessionID: msg.SessionID}, arg)
 	}
 
 	if cmd, ok := parseCommand(text); ok {
@@ -623,8 +622,8 @@ func (a *Agent) runTurn(ctx context.Context, msg channel.Message, text string) (
 
 	if turnSource(text) == "cron" && len(toolDefs) > 0 && !cron.IsFollowUpTurn(text) {
 		note := cronToolFirstNote
-		if cron.IsSparkTurn(text) {
-			note = sparkToolFirstNote
+		if cron.IsDailyPlannerTurn(text) {
+			note = plannerToolFirstNote
 		}
 		messages = append(messages, provider.Message{
 			Role:    provider.RoleSystem,
@@ -1113,9 +1112,9 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 				preToolTheater = false
 			}
 			userContent := lastUserContent(messages)
-			sparkHorizon := cron.IsSparkTurn(userContent)
+			plannerTurn := cron.IsDailyPlannerTurn(userContent)
 			cronSkippedLive := !sawTools && source == "cron" && len(toolDefs) > 0 &&
-				(sparkHorizon || cronJobImpliesLiveTools(userContent))
+				(plannerTurn || cronJobImpliesLiveTools(userContent))
 			deferral := sawTools && defersPendingWork(res.Content)
 			if (preToolTheater || deferral || cronSkippedLive) && !nudged {
 				a.log.Warn("model narrated tool action in prose without calling",
@@ -1124,7 +1123,7 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 					"saw_tools", sawTools,
 					"deferral", deferral,
 					"cron_skipped_live", cronSkippedLive,
-					"spark_horizon", sparkHorizon,
+					"planner", plannerTurn,
 				)
 				nudged = true
 				recoveries++
@@ -1140,12 +1139,12 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 						"Act now: emit the real tool call(s) using exact names from the tools list, " +
 						"OR give a final answer that reports the tool error and stops. Giving up is fine. " +
 						"Do not ask for a moment or promise another attempt without calling a tool."
-				} else if sparkHorizon {
-					nudge = "[system] This spark-of-life turn is for looking after the user (aims, live tools, useful knowledge), not an empty check-in. " +
-						"[hours], [aims], [loops], and [wakes] are already in [harness] — do not recall them. Call tools now in one response: live tools or cron_schedule that would move an aim; memory_recall only for detail. " +
+				} else if plannerTurn {
+					nudge = "[system] This daily planner turn is the one planning session for the day, not an empty check-in. " +
+						"[hours], [aims], [loops], and [wakes] are already in [harness] — do not recall them. Call tools now in one response: calendar, mail, Garmin, or cron_schedule. " +
+						"mcp_enable a prefix if it is off and needed. Do not invent events or numbers. " +
+						"If they are sick, on vacation, or off today, reply with exactly [silent] after you have seen the tools. " +
 						"If there is no [aims] line, ask ONE months-scale question — do not invent an aim. " +
-						"mcp_enable a prefix if it is off and needed. Do not invent progress. " +
-						"A joke is fine after tools return, not instead of tools. " +
 						"If the human does not need a message after the work, reply with exactly [silent]."
 				} else if cronSkippedLive {
 					nudge = "[system] This scheduled job needs live data, but you wrote the user-facing result without calling any tools. " +
@@ -1187,15 +1186,15 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 			if cronSkippedLive && nudged {
 				// Second draft after nudge is still a no-tool report — do not
 				// ship invented metrics (Flash will happily rewrite the table).
-				// Spark stays silent so a failed joke ping is not pushed.
+				// The daily planner stays silent so a no-tool draft is not pushed.
 				a.log.Warn("cron live-data job skipped tools after nudge; refusing invented report",
 					"chars", len(res.Content),
 					"iteration", iter+1,
-					"spark_horizon", sparkHorizon,
+					"planner", plannerTurn,
 				)
 				var steered bool
 				reply := cronSkippedLiveReply
-				if sparkHorizon {
+				if plannerTurn {
 					reply = cron.SilentToken
 				}
 				outcomeHint = "refuse"
@@ -1656,7 +1655,7 @@ func dropCronHistory(history []session.Message) []session.Message {
 }
 
 // harnessNudgePrefix opens every in-turn nudge the kernel injects as a user
-// turn. lastUserContent skips them so the spark / cron heuristics keep
+// turn. lastUserContent skips them so the planner / cron heuristics keep
 // reading the human's (or the runner's) line, not the kernel's.
 const harnessNudgePrefix = "[system] "
 

@@ -233,13 +233,13 @@ persona — nothing is missing. `go test ./internal/agent/ -run Payload
       `MCPAdapter.ActiveByKindSubject` returns `memory.ErrNotSupported`;
       `hoursStamp` skips the line. Gate:
       `TestHandle_HarnessSkipsHoursOnMCPBackend`.
-- [x] Spark prompts read the stamps. `sparkToolFirstNote`, the spark
-      nudge, `cron.SparkPingPrefix`, `cron/spark.go` pool,
+- [x] Daily planner prompt reads the stamps. `plannerToolFirstNote`, the
+      planner nudge, `cron.DailyPlannerPrefix`, `cron/planner.go`,
       `selfnote/stamp.go` "Empty board" all say `[hours]` / `[aims]` /
       `[loops]` / `[wakes]` are in `[harness]`; `memory_recall` only for
       detail; `cron_list` only for the full audit. Gates:
-      `TestSparkPrompts_ReadHarnessNotRecall`,
-      `TestSparkNotes_ReadHarnessNotRecall`.
+      `TestDailyPlannerPrompt_OneSession`,
+      `TestPlannerNotes_ReadHarnessNotRecall`.
 - [x] Hydration double-stamps. `horizon.dropStamped` removes rows already
       on `[aims]` / `[loops]` from `[memory]`. Gate: full-board test
       (`pref/food` hydrates, `aim/training` does not repeat).
@@ -256,7 +256,7 @@ persona — nothing is missing. `go test ./internal/agent/ -run Payload
 ### Additions (same pattern, data already in SQLite)
 
 - [x] `[wakes]` next ≤3 enabled once/daily/every jobs for this session
-      (`cron.FormatWakes`; spark, examples, wait pokes skipped). Wired via
+      (`cron.FormatWakes`; daily planner, examples, wait pokes skipped). Wired via
       `agent.Options.Wakes = cronStore`. `(+N more — cron_list)`.
 - [x] `[surface]` from phone `context.surface` (closed set: browser,
       android, android_auto, ios, carplay). `android_auto` / `carplay`
@@ -278,7 +278,7 @@ persona — nothing is missing. `go test ./internal/agent/ -run Payload
       `ignoredKind` used to drop them). Stamped only when `pendant__*` is
       in the catalog; prefix off this chat → `pendant is off this chat`
       instead of the nudge. State plus one clause — no tool recipes on
-      the stamp, the spark note, or the `Room:` pool line; the tool
+      the stamp, the planner note, or the `Room:` pool line; the tool
       descriptions carry the how. Wired via `ag.SetRoom(ch)` when the
       channel implements `agent.RoomSource`. Gates: `TestRoomStamp_*`
       (including a no-recipe check), `TestNoteRoom_*`, full-board golden.

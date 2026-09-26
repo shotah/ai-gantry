@@ -92,12 +92,12 @@ of it on purpose.
 | Tool catalog cost | **Strong** | `[mcp prefixes]` is byte-stable (cacheable); `mcp_enable` TTL holds (27h / 6h); `tools` / `exclude` / `tools_prefix` filters; payloads from rounds older than the last 2 tool rounds collapse, so a parallel batch is always read back whole. |
 | Procedural memory | **Good, different shape** | Manifest + descriptions are the recipe; `skill/<area>` rows for exceptions; examples seed teaches the pattern. Depends on the model choosing to store — consistent with auto-save off. |
 | Personality persistence | **Strong** | `SELF.md` + Voice fold + distill; operator prune; `:ro` kill switch. |
-| Proactivity | **Good** | Spark (3–5/day, sleep-aware, `[silent]`), examples, cron, quiet watches. Spark reads `[aims]` / `[wakes]` instead of re-fetching. |
+| Proactivity | **Good** | Daily planner (one clock time, `[silent]` on a day off), examples, cron, quiet watches. The planner reads `[aims]` / `[wakes]` instead of re-fetching. |
 | Long-term memory (facts) | **Good** | Typed SQLite + FTS5, inspectable with `sqlite3`, persona precedence, consolidator. No embeddings by choice. |
 | User model | **Deliberate** | Captured at fold (`Facts:`), not re-derived per turn. Per-turn cost is ≤30 FTS rows keyed on the user's words, no model call. |
 | Memory capture | **Deliberate** | Explicit `memory_store` only; the fold is the one compaction call. No flush turn, no auto-save. See [How memory gets written](#how-memory-gets-written). |
 | Channels | **Different model** | One hardened host per mouth, not one gateway holding every messenger credential. Telegram (production), Discord, Slack, pendant, stdio. |
-| Model-controlled client | **Unique** | Face, wallpaper, and theme on the pendant / cab are the agent's to set (`pendant-mcp`, 7 tools). Picture handoff by `source_path`; theme from a closed catalog with mood lines; humans can unfollow. `[room]` on `[harness]` shows the current look with ages so the model — and spark — redress it without being asked. |
+| Model-controlled client | **Unique** | Face, wallpaper, and theme on the pendant / cab are the agent's to set (`pendant-mcp`, 7 tools). Picture handoff by `source_path`; theme from a closed catalog with mood lines; humans can unfollow. `[room]` on `[harness]` shows the current look with ages so the model — and the daily planner — redress it without being asked. |
 | Security / authorization | **Thin** | Allowlist + manifest-is-grant. No per-tool approval; ask-first is prompt text. |
 | Ops surface | **Strong for one box** | No inbound port, Distroless, `gantry status` heartbeat, chat is the console, `/auth` headless OAuth. Fleet ops is gantree, not here. |
 | Multi-model / multi-agent | **Absent by design** | No router, no fallback, no subagents inside the unit. One process = one brain; the fleet is Gantree's. |
@@ -164,7 +164,7 @@ The goldens are the best prompt-bytes contract in the category, and they
 say nothing about what the model *does*. The eval is the second, paid
 contract beside the free one. Each row of the scenario table in
 [persona_doc_goals.md](persona_doc_goals.md#scenario-checks) is a fixture:
-one turn — a human message, a real spark wake, or a scheduled-job wake —
+one turn — a human message, a daily planner wake, or a scheduled-job wake —
 against the **shipped seed**, with the production store stack in a temp
 dir, canned tool results, and the live model the only thing on the
 network. Setup and how to read a failure are in
@@ -186,7 +186,7 @@ reply — the scoop reminder, the empty-day nudge, the off-prefix enable,
 the "thanks, sounds good" that must not end in a bare acknowledgement.
 **Completion**: the legwork happened — the flight search *called* this
 turn from the human's own city with the options in the reply, Garmin
-*read* before any progress answer, the spark nudge tied to the dinner
+*read* before any progress answer, the planner nudge tied to the dinner
 actually on the calendar — and the model may take the rounds it needs.
 **Spend**: a metered API driven the way its own description asks — one
 `listings_search` with the neighborhoods comma-joined, no per-listing
@@ -312,7 +312,7 @@ An `ask_first` list in `mcp.toml` — flagged tools return a harness-side
 Declined. It costs a turn on exactly the calls a personal assistant makes
 most — write the event, send the invite — and the point of this harness
 is fast and cheap. "Ask first" stays prompt text, in the persona and the
-spark wake. This is a POC; an operator who points it at a board-level
+daily planner. This is a POC; an operator who points it at a board-level
 inbox has made that call themselves.
 
 ### Skills files

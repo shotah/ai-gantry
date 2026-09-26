@@ -69,7 +69,7 @@ expensive. That is why these pieces live in the harness, not in an MCP:
 
 | Horizon work | What the harness does |
 | --- | --- |
-| Standing goals | Cron + watches fire the same loop later; spark randomly wakes to progress aims |
+| Standing goals | Cron + watches fire the same loop later; the daily planner wakes once to plan the day |
 | Personality | `SELF.md` / `self_note` / Voice distill outlive `/new` |
 | Facts | SQLite memory + consolidator; persona files outrank recall |
 | Context that does not rot | History caps, `Facts:`/`Voice:` fold, tool collapse |
@@ -126,7 +126,7 @@ console for several agents is [gantree](https://github.com/shotah/gantree).
 - In-process sandboxing / risk profiles (the container is the sandbox;
   channel allowlist is the gate)
 
-Cron, watches, spark: [cron.md](cron.md). Streaming: `STREAM_REPLIES=true`.
+Cron, watches, daily planner: [cron.md](cron.md). Streaming: `STREAM_REPLIES=true`.
 
 ## Local-model hardening
 
@@ -407,7 +407,7 @@ residency) stay one `ssh` away ([deploy-native.md](deploy-native.md#host-signals
 | `gantry version` | Build ldflags |
 | SIGTERM / Interrupt | Stop channel → drain in-flight turn → close MCP → close DB |
 | Logs | JSON `slog` on stderr (`journalctl` / `docker logs`) |
-| Chat cmds | `/new` `/cancel` `/status` `/tools` `/examples` `/engagement` `/spark` `/perf` `/memstats` `/toolstats` `/tokens` `/auth` `/help` |
+| Chat cmds | `/new` `/cancel` `/status` `/tools` `/examples` `/planner` `/perf` `/memstats` `/toolstats` `/tokens` `/auth` `/help` |
 | SIGHUP | Reloads persona (unix) |
 | Multi-bubble | Steer + settle (`COALESCE_SETTLE_MS`, default 2s): Completer cancelled, MCP kept |
 | Spin-up notice | `SPINUP_NOTICE_MS` (default 4s) posts a working line before the first token |
@@ -457,8 +457,8 @@ Why these stuck (the alternatives are in the same rows):
 8. **Runtime image: distroless/static-debian12:nonroot** — MCP children static too.
 9. **Logs on stderr** — stdout stays clean for the stdio REPL.
 10. **Health is `gantry status`** (SQLite heartbeat, exit code). No listen port.
-11. **Spark is horizon work** — full tool loop; `[silent]` unless the human
-    needs a ping. Do not invent a first aim.
+11. **The daily planner is horizon work** — one clock time, full tool loop;
+    `[silent]` on a sick day or vacation. Do not invent a first aim.
 12. **Watches are a cursor + poll** — quiet ticks never call the Completer.
 
 **Rejected:** pairing codes; `parallel_tool_calls` on every Completer request
@@ -503,5 +503,5 @@ Channels: [channels.md](channels.md). MCP grant: [mcp.md](mcp.md).
 - [architecture.md](architecture.md) — diagrams and sequences
 - [mcp.md](mcp.md) — tool naming and local REPL
 - [channels.md](channels.md) — Telegram / Discord / Slack / pendant
-- [cron.md](cron.md) — scheduled turns, spark, watches
+- [cron.md](cron.md) — scheduled turns, daily planner, watches
 - [gantree-contract.md](gantree-contract.md) — what a yard console may read/write

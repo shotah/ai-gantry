@@ -1,7 +1,7 @@
 {
-  "name": "spark_gym_no_workout",
-  "why": "Spark wake with a gym aim and Garmin listed: Garmin is called, not assumed; the nudge is tied to the aim; not [silent].",
-  "spark": "Gym / fitness aim",
+  "name": "planner_gym_no_workout",
+  "why": "Daily planner with a gym aim and Garmin listed: Garmin is called, not assumed; the nudge is tied to the aim; not [silent].",
+  "planner": true,
   "memory": [
     { "kind": "insight", "subject": "aim/training", "content": "3x gym this month; none yet this week" },
     { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }

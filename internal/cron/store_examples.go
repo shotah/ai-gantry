@@ -23,38 +23,6 @@ func (s *Store) ExamplesEnabled(ctx context.Context, sessionID string) (bool, er
 	return v != 0, nil
 }
 
-// SparkQty returns the session override. Empty means inherit DefaultSparkQty.
-func (s *Store) SparkQty(ctx context.Context, sessionID string) (string, error) {
-	var v string
-	err := s.db.QueryRowContext(ctx, `
-		SELECT spark_qty FROM session_pref WHERE session_id = ?`, sessionID).Scan(&v)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(v), nil
-}
-
-// SetSparkQty persists /engagement qty for a session. Empty inherits default; "0" is off.
-func (s *Store) SetSparkQty(ctx context.Context, sessionID, qty string) error {
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" {
-		return fmt.Errorf("cron: empty session_id")
-	}
-	qty = strings.TrimSpace(qty)
-	now := formatCronTime(time.Now().UTC())
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO session_pref (session_id, examples_enabled, spark_qty, updated_at)
-		VALUES (?, 1, ?, ?)
-		ON CONFLICT(session_id) DO UPDATE SET
-			spark_qty = excluded.spark_qty,
-			updated_at = excluded.updated_at`,
-		sessionID, qty, now)
-	return err
-}
-
 // SetExamplesEnabled persists /examples on|off for a session.
 func (s *Store) SetExamplesEnabled(ctx context.Context, sessionID string, on bool) error {
 	sessionID = strings.TrimSpace(sessionID)
@@ -127,7 +95,7 @@ func (s *Store) ScheduleExamplesPings(ctx context.Context, prompt string, delive
 		if !t.After(time.Now().UTC().Add(-time.Second)) {
 			continue
 		}
-		if _, err := s.Schedule(ctx, prompt, ExamplesPingParsed(t, tz), delivery); err != nil {
+		if _, err := s.Schedule(ctx, prompt, OnceParsed(KindExamplesPing, t, tz), delivery); err != nil {
 			return n, err
 		}
 		n++
@@ -135,8 +103,8 @@ func (s *Store) ScheduleExamplesPings(ctx context.Context, prompt string, delive
 	return n, nil
 }
 
-// EnsureExamples creates/refreshes the daily examples planner and seeds today's
-// ping jobs at most once per local day (same non-compounding rules as EnsureSpark).
+// EnsureExamples creates/refreshes the examples planner and seeds today's
+// ping jobs at most once per local day.
 func (s *Store) EnsureExamples(ctx context.Context, prompt string, template Parsed, delivery Delivery) (Job, bool, error) {
 	loc, err := loadTZ(template.Timezone)
 	if err != nil {
@@ -145,7 +113,7 @@ func (s *Store) EnsureExamples(ctx context.Context, prompt string, template Pars
 			return Job{}, false, err
 		}
 	}
-	spec, err := ParseSparkExpr(template.Expr)
+	spec, err := ParseSpread(template.Expr)
 	if err != nil {
 		return Job{}, false, err
 	}
@@ -153,7 +121,7 @@ func (s *Store) EnsureExamples(ctx context.Context, prompt string, template Pars
 	startToday := windowStart(now, spec.StartHour, loc)
 	tomorrowStart := addOneCalendarDay(startToday).UTC()
 	template.Kind = KindExamples
-	template.Expr = FormatSparkExpr(spec)
+	template.Expr = FormatSpread(spec)
 	template.NextRun = tomorrowStart
 	template.Timezone = loc.String()
 
@@ -202,9 +170,9 @@ func (s *Store) EnsureExamples(ctx context.Context, prompt string, template Pars
 	return job, false, nil
 }
 
-func (s *Store) seedExamplesDay(ctx context.Context, prompt string, spec SparkSpec, delivery Delivery, loc *time.Location) error {
+func (s *Store) seedExamplesDay(ctx context.Context, prompt string, spec Spread, delivery Delivery, loc *time.Location) error {
 	_, _ = s.CancelExamplesPings(ctx, delivery.SessionID)
-	_, times, err := PlanSparkDayTimes(spec, loc, time.Now())
+	_, times, err := PlanSpreadTimes(spec, loc, time.Now())
 	if err != nil {
 		return err
 	}

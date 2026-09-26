@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -97,6 +98,9 @@ type Config struct {
 	CronTZ          string `env:"CRON_TZ" envDefault:"America/Los_Angeles"`
 	CronMaxJobs     int    `env:"CRON_MAX_JOBS" envDefault:"50"`
 	CronTickSeconds int    `env:"CRON_TICK_SECONDS" envDefault:"15"`
+	// DailyPlannerAt is the local clock of the once-a-day planning session.
+	// The agent can move it per session with /planner or cron_schedule repeat=planner.
+	DailyPlannerAt string `env:"DAILY_PLANNER_AT" envDefault:"07:10"`
 
 	// Watch polls MCP fetch tools and wakes the agent only on new item ids.
 	WatchEnabled bool `env:"WATCH_ENABLED" envDefault:"true"`
@@ -307,6 +311,11 @@ func (c *Config) Validate() error {
 	if c.CronTickSeconds < 1 {
 		return fmt.Errorf("CRON_TICK_SECONDS: must be >= 1, got %d", c.CronTickSeconds)
 	}
+	at, err := normalizePlannerAt(c.DailyPlannerAt)
+	if err != nil {
+		return fmt.Errorf("DAILY_PLANNER_AT: %w", err)
+	}
+	c.DailyPlannerAt = at
 	if c.WatchMax < 1 {
 		return fmt.Errorf("WATCH_MAX: must be >= 1, got %d", c.WatchMax)
 	}
@@ -351,6 +360,21 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// normalizePlannerAt accepts 24-hour HH:MM (or H:MM) and returns HH:MM.
+func normalizePlannerAt(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("must be HH:MM, got %q", s)
+	}
+	hour, errH := strconv.Atoi(parts[0])
+	minute, errM := strconv.Atoi(parts[1])
+	if errH != nil || errM != nil || hour < 0 || hour > 23 || minute < 0 || minute > 59 {
+		return "", fmt.Errorf("must be HH:MM, got %q", s)
+	}
+	return fmt.Sprintf("%02d:%02d", hour, minute), nil
 }
 
 func timeLoadLocation(name string) (*time.Location, error) {

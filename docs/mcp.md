@@ -270,7 +270,7 @@ Why the host and not the prompt: the model is not the only caller, and it
 is not a careful one. In the behavioral eval a single "I need to be in
 Denver Friday" produced three to five `flights__search` calls in one turn.
 A `watch_add` that omits `interval` polls every **15 minutes** — 96 calls a
-day, a monthly quota gone before lunch. Spark wakes reach for live tools
+day, a monthly quota gone before lunch. The daily planner reaches for live tools
 too. Every one of those paths ends in the same `Host.call`, so that is
 where the counter sits, after argument validation (a malformed call spends
 nothing) and before the child is touched (a refused call never reaches the

@@ -99,3 +99,5 @@ Do not copy `.env` or `data/` from a private checkout.
 
 What the yard may write against this binary:
 [gantree-contract.md](gantree-contract.md).
+What pendant and gantree still need after the daily planner:
+[planner-siblings.md](planner-siblings.md).

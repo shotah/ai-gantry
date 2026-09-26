@@ -31,11 +31,12 @@ func ToolDefs() []provider.ToolDef {
 	return []provider.ToolDef{
 		{
 			Name: ToolSchedule,
-			Description: "Schedule a proactive agent turn (reminder, digest, or spark-of-life horizon wake). " +
+			Description: "Schedule a proactive agent turn (reminder or digest). " +
 				"Fires later, runs tools, and pushes the reply on this channel. " +
 				"Work-only jobs can reply [silent] to skip the push (all-clear / no need to ping). " +
-				`when: RFC3339, "15:04", "in 30m", or for spark "4-6@06-21". ` +
-				`repeat: once|daily|every:1h|spark. ` +
+				`when: RFC3339, "15:04", or "in 30m". ` +
+				`repeat: once|daily|every:1h|planner. ` +
+				"repeat=planner moves the once-a-day planning session to when (a clock time like 09:30) and persists it. The planner body is fixed; prompt is ignored for that repeat. " +
 				"Pin follow-through with memory_id from memory_store (and/or memory_subject) so the wake loads that row.",
 			Parameters: map[string]any{
 				"type": "object",
@@ -48,11 +49,11 @@ func ToolDefs() []provider.ToolDef {
 					},
 					"when": map[string]any{
 						"type":        "string",
-						"description": `e.g. "17:00", "in 2h", RFC3339, or spark "4-6@06-21"`,
+						"description": `e.g. "17:00", "in 2h", RFC3339, or "09:30" with repeat=planner`,
 					},
 					"repeat": map[string]any{
 						"type":        "string",
-						"description": "once (default), daily, every:30m, or spark",
+						"description": "once (default), daily, every:30m, or planner (move the daily planning session)",
 					},
 					"memory_id": map[string]any{
 						"type":        "integer",
@@ -151,11 +152,14 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 				return "", fmt.Errorf("cron: memory_id %d not found", memoryID)
 			}
 		}
-		// Spark planners must go through EnsureSpark so reboots / re-schedules
-		// cannot stack a second daily planner or compound ping jobs.
+		// One daily planner per session. The kernel owns the prompt; this call
+		// only moves the clock and persists it.
 		var job Job
-		if parsed.Kind == KindSpark {
-			job, _, err = t.Store.EnsureSpark(ctx, prompt, parsed, delivery)
+		if parsed.Kind == KindDailyPlanner {
+			if err = t.Store.SetPlannerAt(ctx, delivery.SessionID, parsed.Expr); err != nil {
+				return "", err
+			}
+			job, _, err = t.Store.EnsureDailyPlanner(ctx, DefaultDailyPlannerPrompt, parsed, delivery)
 		} else if memoryID > 0 || memorySubject != "" {
 			job, err = t.Store.ScheduleWithPin(ctx, prompt, parsed, delivery, memoryID, memorySubject)
 		} else {

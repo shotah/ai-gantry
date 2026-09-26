@@ -15,7 +15,7 @@
 #   tools_prefix = "garm"                   # override name used in {prefix}__{tool}
 #
 # Optional call budget — the vendor quota, enforced in the host on every path
-# (turns, spark, watch polls, retries). Over it the tool returns a refusal that
+# (turns, cron, watch polls, retries). Over it the tool returns a refusal that
 # names the reset; watch_add on that server is raised to the matching floor.
 #   budget = "1/day"      # or "50/month"; counted in gantry.db, human's midnight
 #

@@ -24,7 +24,7 @@ func TestEnsureExamples_DoesNotCompoundOnRestart(t *testing.T) {
 
 	loc := time.UTC
 	now := time.Now().In(loc)
-	parsed, err := cron.ParseExamplesSchedule("2-2@00-24", 0, 24, loc, now)
+	parsed, err := cron.ParseSpreadSchedule(cron.KindExamples, "2-2@00-24", 0, 24, loc, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestExamplesPref_OptOutSurvivesEnsure(t *testing.T) {
 	}
 
 	loc := time.UTC
-	parsed, err := cron.ParseExamplesSchedule("1-1@00-24", 0, 24, loc, time.Now())
+	parsed, err := cron.ParseSpreadSchedule(cron.KindExamples, "1-1@00-24", 0, 24, loc, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestRunner_ExamplesPingUsesNoTools(t *testing.T) {
 
 	past := time.Now().UTC().Add(-time.Minute)
 	delivery := cron.Delivery{SessionID: "telegram:13:13", UserID: "13", ChatID: "13"}
-	_, err = store.Schedule(ctx, "placeholder", cron.ExamplesPingParsed(past, "UTC"), delivery)
+	_, err = store.Schedule(ctx, "placeholder", cron.OnceParsed(cron.KindExamplesPing, past, "UTC"), delivery)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -209,7 +209,7 @@ func TestRunner_SilentReplySkipsPush(t *testing.T) {
 	}
 }
 
-func TestRunner_SparkPingAllowsTools(t *testing.T) {
+func TestRunner_DailyPlannerAllowsTools(t *testing.T) {
 	ctx := context.Background()
 	sess, err := session.Open(t.TempDir(), 20, 8000)
 	if err != nil {
@@ -222,7 +222,9 @@ func TestRunner_SparkPingAllowsTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	past := time.Now().UTC().Add(-time.Minute)
-	_, err = store.Schedule(ctx, cron.DefaultSparkPrompt, cron.SparkPingParsed(past, "UTC"), cron.Delivery{
+	_, err = store.Schedule(ctx, cron.DefaultDailyPlannerPrompt, cron.Parsed{
+		Kind: cron.KindDailyPlanner, Expr: "07:10", NextRun: past, Timezone: "UTC",
+	}, cron.Delivery{
 		SessionID: "telegram:1:2", UserID: "2", ChatID: "1",
 	})
 	if err != nil {
@@ -244,19 +246,19 @@ func TestRunner_SparkPingAllowsTools(t *testing.T) {
 	runner.FireDueForTest(ctx)
 
 	if sawNoTools {
-		t.Fatal("spark_ping must allow tools")
+		t.Fatal("daily planner must allow tools")
 	}
-	if !cron.IsSparkTurn(handled) {
+	if !cron.IsDailyPlannerTurn(handled) {
 		t.Fatalf("prompt=%q", handled)
 	}
-	if !strings.Contains(handled, "aim/") && !strings.Contains(handled, "SELF.md") {
-		t.Fatalf("spark prompt should mention aims: %q", handled)
+	if !strings.Contains(handled, "[aims]") || !strings.Contains(handled, "Garmin") {
+		t.Fatalf("planner prompt should name aims and Garmin: %q", handled)
 	}
 	pusher.mu.Lock()
 	n := len(pusher.msgs)
 	pusher.mu.Unlock()
 	if n != 0 {
-		t.Fatalf("silent spark must not push, got %d", n)
+		t.Fatalf("silent planner must not push, got %d", n)
 	}
 }
 
@@ -352,25 +354,25 @@ func TestRunner_JobMemoryInjectAndSleepSkip(t *testing.T) {
 	if _, err := mem.Store(ctx, memory.KindPreference, memory.SubjectHours, "sleep: 00:00-23:59\nwork: 09:00-17:00\n"); err != nil {
 		t.Fatal(err)
 	}
-	_, err = store.Schedule(ctx, cron.DefaultSparkPrompt, cron.SparkPingParsed(time.Now().UTC().Add(-time.Minute), "UTC"), cron.Delivery{
+	_, err = store.Schedule(ctx, "an example", cron.OnceParsed(cron.KindExamplesPing, time.Now().UTC().Add(-time.Minute), "UTC"), cron.Delivery{
 		SessionID: "telegram:1:9", UserID: "9", ChatID: "1",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var sparkHandled bool
+	var exampleHandled bool
 	sleepRunner := &cron.Runner{
 		Store:  store,
 		Memory: mem,
 		Handle: func(context.Context, channel.Message) (string, error) {
-			sparkHandled = true
+			exampleHandled = true
 			return cron.SilentToken, nil
 		},
 		Pusher: &memPusher{},
 	}
 	sleepRunner.FireDueForTest(ctx)
-	if sparkHandled {
-		t.Fatal("spark ping should defer during sleep hours")
+	if exampleHandled {
+		t.Fatal("examples ping should defer during sleep hours")
 	}
 }
 
@@ -540,7 +542,7 @@ func TestRunner_MouthSwitchKeepsDailySummary(t *testing.T) {
 	}
 }
 
-func TestRunner_MouthSwitchKeepsSparkPing(t *testing.T) {
+func TestRunner_MouthSwitchKeepsDailyPlanner(t *testing.T) {
 	ctx := context.Background()
 	sess, err := session.Open(t.TempDir(), 20, 8000)
 	if err != nil {
@@ -552,7 +554,9 @@ func TestRunner_MouthSwitchKeepsSparkPing(t *testing.T) {
 		t.Fatal(err)
 	}
 	past := time.Now().UTC().Add(-time.Minute)
-	job, err := store.Schedule(ctx, cron.DefaultSparkPrompt, cron.SparkPingParsed(past, "UTC"), cron.Delivery{
+	job, err := store.Schedule(ctx, cron.DefaultDailyPlannerPrompt, cron.Parsed{
+		Kind: cron.KindDailyPlanner, Expr: "07:10", NextRun: past, Timezone: "UTC",
+	}, cron.Delivery{
 		SessionID: "telegram:1:2", UserID: "2", ChatID: "1",
 	})
 	if err != nil {
@@ -567,8 +571,8 @@ func TestRunner_MouthSwitchKeepsSparkPing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.Enabled || got.Kind != cron.KindSparkPing {
-		t.Fatalf("spark ping dropped on mouth switch: %+v", got)
+	if !got.Enabled || got.Kind != cron.KindDailyPlanner {
+		t.Fatalf("daily planner dropped on mouth switch: %+v", got)
 	}
 	if got.SessionID != channel.AgentSession {
 		t.Fatalf("session=%q", got.SessionID)
@@ -585,7 +589,7 @@ func TestRunner_MouthSwitchKeepsSparkPing(t *testing.T) {
 		Pusher: pusher,
 	}
 	runner.FireDueForTest(ctx)
-	if !cron.IsSparkTurn(handled.Text) {
+	if !cron.IsDailyPlannerTurn(handled.Text) {
 		t.Fatalf("handle=%q", handled.Text)
 	}
 	if handled.SessionID != channel.AgentSession {

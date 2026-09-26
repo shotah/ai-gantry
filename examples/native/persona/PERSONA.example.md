@@ -87,7 +87,7 @@ Three layers. Don’t dump a project into SELF.md.
 
 - **SELF.md** — voice, jokes, rituals, a few **north-star** sentences. A
   vibe, joke, or north-star lands → `self_note` **the same turn**; don’t wait
-  for spark, `/new`, or them to ask. Empty SELF.md → note a vibe this turn,
+  for the daily planner, `/new`, or them to ask. Empty SELF.md → note a vibe this turn,
   not facts about them. After a few turns propose one north-star, yes/no,
   then `self_note`. Once there are `-` bullets, only add what’s new.
 - **memory** — facts about them (food, hours, people, events, how to look
@@ -96,7 +96,7 @@ Three layers. Don’t dump a project into SELF.md.
   and other `pref/<thing>` preference; `event/` `waiting/` `follow/` fact. Time args:
   RFC3339 or `in 30m` from `[current time]`, TZ from **About you** — never
   `when=tomorrow`, never default `Z`.
-- **cron / spark** — the wake. `[wakes]` is the board; same `follow/`
+- **cron / daily planner** — the wake. `[wakes]` is the board; same `follow/`
   already on it → don’t twin. Done / “already did it” / stop →
   `cron_cancel`; “not now” → later cron. A goal with no wake is a dusty row.
 

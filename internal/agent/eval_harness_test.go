@@ -56,11 +56,10 @@ const evalTZ = "America/Los_Angeles"
 type evalFixture struct {
 	Name string `json:"name"`
 	Why  string `json:"why"`
-	// Inbound is the human's text. Ignored when Spark is set.
+	// Inbound is the human's text. Ignored when Planner is set.
 	Inbound string `json:"inbound"`
-	// Spark selects a line of cron.DefaultSparkPrompt by substring and sends it
-	// as a wake turn (cron.SparkPingPrefix + line). Empty means a human turn.
-	Spark string `json:"spark,omitempty"`
+	// Planner sends the once-a-day planning session (prefix + kernel prompt).
+	Planner bool `json:"planner,omitempty"`
 	// Cron sends the prompt as a scheduled-job wake (cron.JobUserPrefix +
 	// prompt) — the shape of a daily "check X" job the model scheduled.
 	Cron    string `json:"cron,omitempty"`
@@ -236,20 +235,16 @@ func expandEvalClock(text string, now time.Time) string {
 	})
 }
 
-// evalInboundText is the turn's text: a spark wake, a scheduled-job wake,
+// evalInboundText is the turn's text: the daily planner, a scheduled-job wake,
 // or the human's line — the same prefixes cron.Runner puts on the wire.
-func evalInboundText(fx evalFixture, now time.Time) (string, error) {
+func evalInboundText(fx evalFixture, now time.Time) string {
 	switch {
-	case fx.Spark != "":
-		line, ok := sparkLine(fx.Spark)
-		if !ok {
-			return "", fmt.Errorf("%s: no spark line contains %q", fx.Name, fx.Spark)
-		}
-		return cron.SparkPingPrefix + line, nil
+	case fx.Planner:
+		return cron.DailyPlannerPrefix + cron.DefaultDailyPlannerPrompt
 	case fx.Cron != "":
-		return cron.JobUserPrefix + expandEvalClock(fx.Cron, now), nil
+		return cron.JobUserPrefix + expandEvalClock(fx.Cron, now)
 	default:
-		return expandEvalClock(fx.Inbound, now), nil
+		return expandEvalClock(fx.Inbound, now)
 	}
 }
 
@@ -314,16 +309,6 @@ func liveNames(live []provider.ToolDef, prefix string) []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-// sparkLine picks the cron.DefaultSparkPrompt line containing needle.
-func sparkLine(needle string) (string, bool) {
-	for _, line := range cron.ParseSparkPrompts(cron.DefaultSparkPrompt) {
-		if strings.Contains(line, needle) {
-			return line, true
-		}
-	}
-	return "", false
 }
 
 // cannedTools is the innermost Tools: MCP stand-ins that answer verbatim.
@@ -584,10 +569,7 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		t.Fatal(err)
 	}
 
-	text, err := evalInboundText(fx, started)
-	if err != nil {
-		t.Fatal(err)
-	}
+	text := evalInboundText(fx, started)
 	msg := channel.Message{
 		SessionID: sessionID,
 		UserID:    "eval",
