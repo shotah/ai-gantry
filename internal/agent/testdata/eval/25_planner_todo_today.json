@@ -1,0 +1,45 @@
+{
+  "name": "planner_todo_today",
+  "why": "A task whose words name today gets its cue: Wednesday's planner reads 'Wed 11am' against the week grid and cron_schedule's it pinned to todo/passport. The task whose words say Friday gets nothing today.",
+  "planner": true,
+  "now": "2026-10-07T08:00:00-07:00",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" },
+    { "kind": "fact", "subject": "todo/passport", "content": "renew at the post office, Wed 11am", "age_days": 2 },
+    { "kind": "fact", "subject": "todo/amazon", "content": "return the box by Friday", "age_days": 2 }
+  ],
+  "self": "- North-star: gym three mornings a week.",
+  "force": ["garmin", "google"],
+  "tools": [
+    {
+      "name": "garmin__activities_list",
+      "description": "Recorded workouts for a date range.",
+      "params": { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" } } },
+      "result": "No activities today. Yesterday's gym is already on the ledger."
+    },
+    {
+      "name": "google__calendar_list_events",
+      "description": "Events on the calendar.",
+      "params": { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" } } },
+      "result": "Work block 9-5. No meals out."
+    }
+  ],
+  "ledger": [
+    { "day": "2026-10-04", "what": "planned rest", "aims": { "training": 0 } },
+    { "day": "2026-10-06", "what": "gym session", "aims": { "training": 2 } }
+  ],
+  "expect": {
+    "round_budget": 3,
+    "tools_called": [
+      { "name": "garmin__activities_list" },
+      { "name": "google__calendar_list_events" },
+      {
+        "name": "cron_schedule",
+        "args_regex": "\"memory_subject\"\\s*:\\s*\"todo/passport\""
+      }
+    ],
+    "tools_not_called": ["memory_forget"],
+    "cron_within": { "after_min": 120, "before_min": 200 }
+  }
+}

@@ -34,7 +34,9 @@ func ToolDefs() []provider.ToolDef {
 				"Same kind+subject replaces the live row (old row kept, superseded). " +
 				"Facts about the human (food, hours, people, events) go here — not self_note. " +
 				"Months-scale plans: kind=insight, subject=aim/<area> (the sentence stays here; what happened goes to aim_log). Events: fact subject=event/<slug>. " +
-				"Waiting: fact subject=waiting/<slug>. Follow-up note: fact subject=follow/<slug>. " +
+				"Waiting on someone else: fact subject=waiting/<slug>. A note for you to follow up: fact subject=follow/<slug>. " +
+				"A thing THEY have to do (call, return, renew): fact subject=todo/<slug> (the noun), their words as content — not follow/, and no cron_schedule for it; the day's planner sets the cue, so do not offer a reminder or ask when. " +
+				"[todo] on [harness] is that whole list with #ids, so never memory_recall for it: same subject rewrites; done is memory_forget by the #id on [todo], only when they say so. Either way one short line back, no question. " +
 				"Hours: preference subject=pref/hours as sleep:/work:/quiet: HH:MM-HH:MM lines. " +
 				"Never auto-save guesses. Jokes go in self_note.",
 			Parameters: map[string]any{
@@ -61,7 +63,7 @@ func ToolDefs() []provider.ToolDef {
 		},
 		{
 			Name:        ToolForget,
-			Description: "Delete memory by id or by query match. Prefer id when known.",
+			Description: "Delete memory by id or by query match. Prefer id when known. A [todo] item is its #id on [harness]: forget that id, never a query (a query takes other rows with it), no memory_recall first.",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

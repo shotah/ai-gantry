@@ -22,6 +22,7 @@ import (
 	"github.com/shotah/ai-gantry/internal/aims"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/here"
+	"github.com/shotah/ai-gantry/internal/memory"
 )
 
 const typingInterval = 4 * time.Second
@@ -39,6 +40,9 @@ type Config struct {
 	// Board renders the aims snapshot. Nil means this mouth never
 	// sends an aims frame (Telegram-only installs, tests).
 	Board func(ctx context.Context) ([]aims.Row, []aims.Link, error)
+	// Todo renders the pocket list (docs/tasks.md). Nil means no todo
+	// frame ever.
+	Todo func(ctx context.Context) ([]memory.TodoItem, error)
 }
 
 type conn interface {
@@ -60,8 +64,10 @@ type Channel struct {
 	dial          dialFunc
 	streamReplies bool
 	board         func(ctx context.Context) ([]aims.Row, []aims.Link, error)
+	todo          func(ctx context.Context) ([]memory.TodoItem, error)
 	onAdmit       func(ctx context.Context, sessionID, userID string)
 	aimsSent      string // last aims frame JSON on the live conn; cleared on dial
+	todoSent      string // last todo frame JSON on the live conn; cleared on dial
 
 	mu      sync.Mutex
 	writeMu sync.Mutex
@@ -104,6 +110,7 @@ func New(cfg Config) (*Channel, error) {
 		dial:          defaultDial,
 		streamReplies: cfg.StreamReplies,
 		board:         cfg.Board,
+		todo:          cfg.Todo,
 		reactSettle:   channel.NewSettler(),
 		recent:        channel.NewRecent(recentReplies),
 	}
@@ -283,6 +290,7 @@ func (c *Channel) serve(ctx context.Context, handle channel.Handler) error {
 	}()
 	c.mu.Lock()
 	c.aimsSent = ""
+	c.todoSent = ""
 	c.mu.Unlock()
 	if err := c.writeOn(cn, cmdsFrame()); err != nil {
 		return err
@@ -449,27 +457,43 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 	return first
 }
 
-// sendAims writes the board when it differs from the last one on this
-// connection. force is a fresh dial (the live socket was down): that
-// conn has not seen the board, so it always goes out. A nil Board
-// sends nothing.
+// sendAims writes the aims board, then the todo board, each only when it
+// differs from the last one on this connection. force is a fresh dial
+// (the live socket was down): that conn has not seen the boards, so they
+// always go out. A nil render function sends nothing for that board.
 func (c *Channel) sendAims(ctx context.Context, cn conn, force bool) error {
-	if c == nil || c.board == nil || cn == nil {
+	if c == nil || cn == nil {
 		return nil
 	}
-	rows, links, err := c.board(ctx)
-	if err != nil {
-		c.log.Warn("pendant aims", "err", err)
-		return nil
+	if c.board != nil {
+		rows, links, err := c.board(ctx)
+		if err != nil {
+			c.log.Warn("pendant aims", "err", err)
+		} else if err := c.sendChanged(cn, aimsFrame(rows, links), &c.aimsSent, force); err != nil {
+			return err
+		}
 	}
-	frame := aimsFrame(rows, links)
+	if c.todo != nil {
+		items, err := c.todo(ctx)
+		if err != nil {
+			c.log.Warn("pendant todo", "err", err)
+		} else if err := c.sendChanged(cn, todoFrame(items), &c.todoSent, force); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// sendChanged writes frame unless its JSON equals *sent (the last body on
+// this conn). sent is guarded by c.mu; the write is not under it.
+func (c *Channel) sendChanged(cn conn, frame outboundFrame, sent *string, force bool) error {
 	raw, err := json.Marshal(frame)
 	if err != nil {
 		return err
 	}
 	body := string(raw)
 	c.mu.Lock()
-	same := !force && c.aimsSent == body
+	same := !force && *sent == body
 	c.mu.Unlock()
 	if same {
 		return nil
@@ -478,7 +502,7 @@ func (c *Channel) sendAims(ctx context.Context, cn conn, force bool) error {
 		return err
 	}
 	c.mu.Lock()
-	c.aimsSent = body
+	*sent = body
 	c.mu.Unlock()
 	return nil
 }

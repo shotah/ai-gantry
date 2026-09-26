@@ -21,7 +21,7 @@ const PlannerOff = "0"
 const DailyPlannerMarker = "[cron] Daily planner"
 
 // DailyPlannerPrefix wraps the once-a-day planning session.
-const DailyPlannerPrefix = DailyPlannerMarker + " — one planning session for the day. [hours], [aims], [loops], and [wakes] are already in this turn's [harness]; do not memory_recall or cron_list for those. In one response: review [mcp prefixes], mcp_enable what is off, then pull calendar, mail, and Garmin (or the fitness server that is on). Do not invent numbers or events.\n\n"
+const DailyPlannerPrefix = DailyPlannerMarker + " — one planning session for the day. [hours], [aims], [todo], [loops], and [wakes] are already in this turn's [harness]; do not memory_recall or cron_list for those. In one response: review [mcp prefixes], mcp_enable what is off, then pull calendar, mail, and Garmin (or the fitness server that is on). Do not invent numbers or events.\n\n"
 
 // DefaultDailyPlannerPrompt is the kernel-owned body of the daily session.
 // The model does not replace it; cron_schedule repeat=planner only moves the clock.
@@ -49,7 +49,8 @@ const DefaultDailyPlannerPrompt = "" +
 	"A tool is on and the aim has no event in 3 days → aim_log from the tool; do not ask for the number.\n" +
 	"When the plan has to change, aim_history first and talk from those rows.\n" +
 	"[silent] only when the rung above says so. A credit, an ask, or a meal thought is the reply. A question they should answer → [wait] on its own line.\n" +
-	"When weeks: is in [progress], those lines come first: one line per aim (direction, slope, block, effect if present), and that reply is not [silent]. No weeks: line: do not summarize the week. A missing r= is not a correlation."
+	"When weeks: is in [progress], those lines come first: one line per aim (direction, slope, block, effect if present), and that reply is not [silent]. No weeks: line: do not summarize the week. A missing r= is not a correlation.\n" +
+	"[todo] is their pocket list and you keep it. An item whose words name today: cron_schedule its cue now with memory_subject todo/<slug>. Each one overdue by its own words, and the oldest past a week, gets one line — a different line from yesterday, not the list, not [silent], never an offer to drop it; only they close a task (memory_forget by its #id). No [todo] line: say nothing about tasks."
 
 // IsDailyPlannerTurn reports whether this user text is the daily planning session.
 func IsDailyPlannerTurn(userText string) bool {

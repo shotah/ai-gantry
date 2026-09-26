@@ -197,6 +197,7 @@ func TestPendantInbound_CompleterPayloadFullBoard(t *testing.T) {
 		{memory.KindInsight, "aim/training", "3x gym this month"},
 		{memory.KindFact, "waiting/dentist", "book cleaning"},
 		{memory.KindFact, "follow/visa", "packet in"},
+		{memory.KindFact, "todo/passport", "renew, Wed 11am"},
 	} {
 		if _, err := mem.Store(ctx, row.kind, row.subject, row.content); err != nil {
 			t.Fatal(err)
@@ -281,9 +282,9 @@ func TestPendantInbound_CompleterPayloadFullBoard(t *testing.T) {
 	if hydration == "" || !strings.Contains(hydration, "pref/food") {
 		t.Fatalf("durable preference should hydrate:\n%s", formatCompleterRequest(captured))
 	}
-	for _, stamped := range []string{"aim/training", "waiting/dentist", "follow/visa"} {
+	for _, stamped := range []string{"aim/training", "waiting/dentist", "follow/visa", "todo/passport"} {
 		if strings.Contains(hydration, stamped) {
-			t.Errorf("%s is on [aims]/[loops] and must not repeat in [memory]:\n%s", stamped, hydration)
+			t.Errorf("%s is on [aims]/[todo]/[loops] and must not repeat in [memory]:\n%s", stamped, hydration)
 		}
 	}
 

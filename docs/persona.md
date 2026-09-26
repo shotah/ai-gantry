@@ -51,13 +51,14 @@ is the same overspill as putting MCP recipes in `PERSONA.md`.
 | Layer | Always in the prompt? | Holds |
 | --- | --- | --- |
 | `SELF.md` | Yes (cap ~4KB) | Who you became: voice, jokes, rituals, **3–5 north-star sentences** that change how you show up for months. Not mileage, due dates, or this week’s open loops. |
-| SQLite memory | Hydrate ≤ ~30 rows (FTS + recency; `insight` sorts last). **`[hours]`**, **`[aims]`**, and **`[loops]`** are also stamped on every turn from `pref/hours`, live `aim/<area>` insight, and `waiting/` `follow/` facts — they do not depend on the hydrate query, and stamped rows are not repeated in `[memory]`. Loops untouched for three weeks carry `— resolve or memory_forget`. | The tracker. `aim/<area>` insight; `pref/food` `pref/hours` preference (same subject replaces the live row); `event/` `waiting/` `follow/` fact. |
+| SQLite memory | Hydrate ≤ ~30 rows (FTS + recency; `insight` sorts last). **`[hours]`**, **`[aims]`**, **`[todo]`**, and **`[loops]`** are also stamped on every turn from `pref/hours`, live `aim/<area>` insight, `todo/` facts, and `waiting/` `follow/` facts — they do not depend on the hydrate query, and stamped rows are not repeated in `[memory]`. Loops untouched for three weeks carry `— resolve or memory_forget`. Tasks never do: the agent keeps the list, only the human closes one (`memory_forget` by the `#id` on `[todo]`). | The tracker. `aim/<area>` insight; `pref/food` `pref/hours` preference (same subject replaces the live row); `event/` `todo/` `waiting/` `follow/` fact. |
 | cron / watch / daily planner | No — wakes a later turn | The loop. One clock time plans the day (aims, live tools, one question). Pin a wake with `cron_schedule` `memory_subject` (or `memory_id` when the row already exists). User crons still fire at the time they picked; example pings skip learned sleep. |
 | Calendar / Tasks (MCP) | No | Dated to-dos with a real due date. |
 
-**Not all SQL.** Hydration is still lossy for arbitrary facts. Live `aim/`
-and `waiting/` / `follow/` rows are also stamped on `[harness]` every turn
-(cap 5 each), so the tracker does not depend on this week's chat query.
+**Not all SQL.** Hydration is still lossy for arbitrary facts. Live `aim/`,
+`todo/`, and `waiting/` / `follow/` rows are also stamped on `[harness]`
+every turn (cap 5 each), so the tracker does not depend on this week's
+chat query.
 A north-star sentence in `SELF.md` is the always-on personality layer.
 
 **Not all `SELF.md`.** Distill treats notes like personality. Progress needs

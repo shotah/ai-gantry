@@ -102,6 +102,9 @@ func TestDailyPlannerPrompt_OneSession(t *testing.T) {
 		"weeks:",
 		"slope",
 		"r=",
+		"[todo]",
+		"memory_subject todo/<slug>",
+		"never an offer to drop it",
 	} {
 		if !strings.Contains(body, needle) {
 			t.Fatalf("planner text missing %q", needle)

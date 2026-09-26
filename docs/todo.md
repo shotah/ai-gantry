@@ -17,6 +17,13 @@ Sunday planner, and a goals board on the phone. Phase 1 and the
 pendant frame are shipped.
 [aims-progress.md](aims-progress.md#10-todo).
 
+## Tasks
+
+The human's pocket list: `todo/<slug>` memory rows the agent keeps,
+stamped `[todo]` every turn with ids, `/todo` and `/todo done <id>`,
+a `todo` frame on the pendant mailbox. Nothing on it ages out. Shipped;
+eval rows in [tasks.md](tasks.md#7-tests-and-evals).
+
 ---
 
 ## Pendant draft stutter (`bo` … 10 s … full reply)

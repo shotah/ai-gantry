@@ -1,0 +1,43 @@
+{
+  "name": "planner_todo_stale",
+  "why": "One task has sat nine days. The planner names it in one line and does not offer to drop it: a task the human has not done is still a task. The fresh task stays out of the reply, and no aim ladder fires (yesterday +2).",
+  "planner": true,
+  "now": "2026-10-07T08:00:00-07:00",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" },
+    { "kind": "fact", "subject": "todo/amazon", "content": "return the Amazon box", "age_days": 9 },
+    { "kind": "fact", "subject": "todo/passport", "content": "renew, by Oct 15", "age_days": 1 }
+  ],
+  "self": "- North-star: gym three mornings a week.",
+  "force": ["garmin", "google"],
+  "tools": [
+    {
+      "name": "garmin__activities_list",
+      "description": "Recorded workouts for a date range.",
+      "params": { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" } } },
+      "result": "No activities today. Yesterday's gym is already on the ledger."
+    },
+    {
+      "name": "google__calendar_list_events",
+      "description": "Events on the calendar.",
+      "params": { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" } } },
+      "result": "Work block 9-5. No meals out."
+    }
+  ],
+  "ledger": [
+    { "day": "2026-10-04", "what": "planned rest", "aims": { "training": 0 } },
+    { "day": "2026-10-06", "what": "gym session", "aims": { "training": 2 } }
+  ],
+  "expect": {
+    "round_budget": 3,
+    "tools_called": [
+      { "name": "garmin__activities_list" },
+      { "name": "google__calendar_list_events" }
+    ],
+    "tools_not_called": ["memory_forget"],
+    "silent": false,
+    "reply_regex": "(?i)amazon",
+    "reply_not_regex": "(?i)passport|drop it|remove it|take it off|forget it|still (want|need|on)|should I (drop|remove|clear)"
+  }
+}

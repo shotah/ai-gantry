@@ -1,0 +1,21 @@
+{
+  "name": "chat_todo_update",
+  "why": "They change the words on a task. Same subject, new content — a rewrite on todo/dentist, not a second row and not a forget.",
+  "inbound": "make the dentist thing thursday instead",
+  "memory": [
+    { "kind": "fact", "subject": "todo/dentist", "content": "call to book a cleaning, Tuesday", "age_days": 2 },
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" }
+  ],
+  "expect": {
+    "round_budget": 2,
+    "tools_called": [
+      {
+        "name": "memory_store",
+        "args_regex": "(?i)\"subject\"\\s*:\\s*\"todo/dentist\"[^}]*\"content\"\\s*:\\s*\"[^\"]*thursday|\"content\"\\s*:\\s*\"[^\"]*thursday[^}]*\"subject\"\\s*:\\s*\"todo/dentist\"",
+        "max_calls": 1
+      }
+    ],
+    "tools_not_called": ["memory_forget", "memory_recall"],
+    "reply_not_regex": "(?i)\\?|todo/|memory_store"
+  }
+}

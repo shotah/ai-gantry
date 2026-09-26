@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/memory"
@@ -74,6 +75,36 @@ func TestTools_CancelAndList(t *testing.T) {
 	}
 	if err := store.Cancel(ctx, 99999); err == nil {
 		t.Fatal("expected missing cancel error")
+	}
+}
+
+// A frozen Now resolves "11:00" against the fixture's day, not the wall clock.
+func TestTools_ScheduleHonorsNow(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 10, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	store, err := cron.OpenDB(sess.DB(), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frozen := time.Date(2026, 10, 7, 8, 0, 0, 0, time.UTC)
+	tools := cron.Tools{Store: store, TZ: "UTC", Now: func() time.Time { return frozen }}
+	ctx = cron.WithDelivery(ctx, cron.Delivery{SessionID: "stdio", UserID: "local", ChatID: "1"})
+	if _, err := tools.Call(ctx, cron.ToolSchedule, json.RawMessage(`{"prompt":"passport","when":"11:00","memory_subject":"todo/passport"}`)); err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := store.ListSession(ctx, "stdio", false)
+	if err != nil || len(jobs) != 1 {
+		t.Fatalf("jobs=%d err=%v", len(jobs), err)
+	}
+	if want := frozen.Add(3 * time.Hour); !jobs[0].NextRunAt.Equal(want) {
+		t.Fatalf("next run %s, want %s", jobs[0].NextRunAt, want)
+	}
+	if jobs[0].MemorySubject != "todo/passport" {
+		t.Fatalf("pin %q", jobs[0].MemorySubject)
 	}
 }
 

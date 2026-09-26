@@ -9,6 +9,7 @@ package agent_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -474,6 +475,42 @@ func TestEvalHarness_MemoryAnyKind(t *testing.T) {
 
 	if fails := checkEval(ctx, out, fx.Expect); len(fails) > 0 {
 		t.Fatalf("%v\n%s", fails, describeEval(out))
+	}
+}
+
+// Seeded memory rows are addressable as {{memory:N}} and age_days backdates
+// them, so 23's forget-by-id and 24's "(9d ago)" stamp are pinned to the
+// fixture, not to whatever id SQLite handed out.
+func TestEvalHarness_MemoryIDsAndAge(t *testing.T) {
+	ctx := context.Background()
+	fx := loadEvalFixture(t, filepath.Join(evalFixtureDir, "23_chat_todo_done.json"))
+	sc := &scriptCompleter{res: []*provider.Result{
+		{ToolCalls: []provider.ToolCall{toolCall("c1", "memory_forget", map[string]any{"id": 0})}},
+		{Content: "Done — dentist is off the list."},
+	}}
+	out := runEvalFixture(ctx, t, sc, fx)
+	if len(out.MemoryIDs) != 4 {
+		t.Fatalf("memory ids %v", out.MemoryIDs)
+	}
+	var seen string
+	for _, req := range sc.reqs {
+		for _, m := range req.Messages {
+			if strings.Contains(m.Content, "[todo]") {
+				seen = m.Content
+			}
+		}
+	}
+	want := fmt.Sprintf("[todo] #%d dentist: call to book a cleaning (3d ago) · #%d passport: renew, by Oct 15 (1d ago)", out.MemoryIDs[0], out.MemoryIDs[1])
+	if !strings.Contains(seen, want) {
+		t.Fatalf("stamp:\n%s\nwant %q", seen, want)
+	}
+	got := expandEvalIDs(`"id"\s*:\s*{{memory:0}} or {{ledger:0}} or {{memory:9}}`, evalIDs{memory: out.MemoryIDs})
+	if got != fmt.Sprintf(`"id"\s*:\s*%d or 0 or 0`, out.MemoryIDs[0]) {
+		t.Fatalf("expand %q", got)
+	}
+	// The scripted forget used id 0, so the fixture's by-id gate must fail.
+	if fails := checkEval(ctx, out, fx.Expect); len(fails) == 0 {
+		t.Fatal("forget by the wrong id must fail the fixture")
 	}
 }
 

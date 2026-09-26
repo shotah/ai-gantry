@@ -1060,6 +1060,145 @@ func TestRunTurn_AimsOnlyWhenBoardChanges(t *testing.T) {
 	}
 }
 
+func TestTodoFrame_GoldenRoundTrip(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "todo_frame.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var frame outboundFrame
+	if err := json.Unmarshal(raw, &frame); err != nil {
+		t.Fatal(err)
+	}
+	if frame.Kind != "todo" || frame.UserID != "" || frame.Todo == nil || len(*frame.Todo) != 2 {
+		t.Fatalf("frame %+v", frame)
+	}
+	items := *frame.Todo
+	if items[0].ID != 412 || items[0].Slug != "dentist" || items[0].Text != "call to book a cleaning" || items[0].At != "2026-09-23" {
+		t.Fatalf("item %+v", items[0])
+	}
+	again, err := json.Marshal(frame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back outboundFrame
+	if err := json.Unmarshal(again, &back); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(frame, back) {
+		t.Fatalf("round trip\n%+v\n%+v", frame, back)
+	}
+	if strings.Contains(string(again), `"user_id"`) || strings.Contains(string(again), `"aims"`) {
+		t.Fatalf("todo frame is room-wide and carries no aims: %s", again)
+	}
+	empty, err := json.Marshal(todoFrame(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(empty), `"todo":[]`) {
+		t.Fatalf("empty list must still send []: %s", empty)
+	}
+	// A reply frame carries neither board key.
+	reply, _ := json.Marshal(outboundFrame{Kind: "reply", Text: "ok"})
+	if strings.Contains(string(reply), `"todo"`) || strings.Contains(string(reply), `"aims"`) {
+		t.Fatalf("reply leaked a board key: %s", reply)
+	}
+}
+
+func TestServe_DialOrderCmdsAimsTodoAllow(t *testing.T) {
+	ch := testPendant(t)
+	ch.board = func(context.Context) ([]aims.Row, []aims.Link, error) { return nil, nil, nil }
+	ch.todo = func(context.Context) ([]memory.TodoItem, error) {
+		return []memory.TodoItem{{ID: 412, Slug: "dentist", Text: "call", At: "2026-09-23"}}, nil
+	}
+	frames := serveOpening(t, ch, 4)
+	got := kinds(frames)
+	if !reflect.DeepEqual(got, []string{"cmds", "aims", "todo", "allow"}) {
+		t.Fatalf("order %v", got)
+	}
+	if frames[2].UserID != "" || frames[2].Todo == nil || len(*frames[2].Todo) != 1 {
+		t.Fatalf("todo %+v", frames[2])
+	}
+}
+
+func TestServe_NilTodoWritesNoTodoFrame(t *testing.T) {
+	ch := testPendant(t)
+	frames := serveOpening(t, ch, 2)
+	if got := kinds(frames); !reflect.DeepEqual(got, []string{"cmds", "allow"}) {
+		t.Fatalf("nil boards must write only cmds and allow: %v", got)
+	}
+}
+
+func TestRunTurn_TodoOnlyWhenListChanges(t *testing.T) {
+	ctx := context.Background()
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	mem, err := memory.OpenDB(sess.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := testPendant(t)
+	ch.todo = func(ctx context.Context) ([]memory.TodoItem, error) {
+		rows, err := mem.ListBySubjectPrefix(ctx, memory.KindFact, memory.SubjectTodoPrefix, 0)
+		if err != nil {
+			return nil, err
+		}
+		return memory.TodoBoard(rows, time.UTC), nil
+	}
+	fc := &fakeConn{writes: make(chan []byte, 16)}
+	msg := channel.Message{UserID: "1182", Text: "hi"}
+	var dentist memory.Entry
+	if err := ch.runTurn(ctx, fc, func(context.Context, channel.Message) (string, error) {
+		var err error
+		dentist, err = mem.Store(ctx, memory.KindFact, "todo/dentist", "call to book a cleaning")
+		return "noted", err
+	}, msg, ""); err != nil {
+		t.Fatal(err)
+	}
+	got := drainFrames(fc.writes)
+	if countKind(got, "todo") != 1 || !frameHasTodo(got, "dentist") {
+		t.Fatalf("after store: %+v", kinds(got))
+	}
+	if err := ch.runTurn(ctx, fc, func(context.Context, channel.Message) (string, error) {
+		return "same", nil
+	}, msg, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got = drainFrames(fc.writes); countKind(got, "todo") != 0 {
+		t.Fatalf("unchanged turn wrote todo: %+v", kinds(got))
+	}
+	if err := ch.runTurn(ctx, fc, func(context.Context, channel.Message) (string, error) {
+		return "done", mem.Forget(ctx, dentist.ID)
+	}, msg, ""); err != nil {
+		t.Fatal(err)
+	}
+	got = drainFrames(fc.writes)
+	if countKind(got, "todo") != 1 || frameHasTodo(got, "dentist") {
+		t.Fatalf("after forget: %+v", kinds(got))
+	}
+	for _, f := range got {
+		if f.Kind == "todo" && (f.Todo == nil || len(*f.Todo) != 0) {
+			t.Fatalf("emptied list must send []: %+v", f)
+		}
+	}
+}
+
+func frameHasTodo(frames []outboundFrame, slug string) bool {
+	for _, f := range frames {
+		if f.Todo == nil {
+			continue
+		}
+		for _, item := range *f.Todo {
+			if item.Slug == slug {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func testPendant(t *testing.T) *Channel {
 	t.Helper()
 	ch, err := New(Config{

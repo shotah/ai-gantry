@@ -62,6 +62,7 @@ func TestHarnessNote_NamesOnlyPresentTags(t *testing.T) {
 		"[location] x\n[current time] y\n[hours] z\n[aims] a\n[loops] l":        "location, clock, hours, and horizon",
 		"[current time] y\n[wakes] w\n[surface] android_auto\n[last contact] c": "clock, wakes, surface, and last contact",
 		"[aims] a\n[loops] l\n[progress]\np":                                    "horizon and progress",
+		"[aims] a\n[todo] #1 t: x\n[loops] l":                                   "horizon",
 	}
 	for clock, want := range cases {
 		if got := harnessNote(clock); got != harnessNotePrefix+want+" for this turn." {
@@ -71,14 +72,14 @@ func TestHarnessNote_NamesOnlyPresentTags(t *testing.T) {
 }
 
 func TestStripHarnessContext_NewStamps(t *testing.T) {
-	in := "hi\n[wakes] 5:00 PM gym\n[surface] android_auto\n[last contact] 3h ago"
+	in := "hi\n[wakes] 5:00 PM gym\n[todo] #6 passport: renew\n[surface] android_auto\n[last contact] 3h ago"
 	if got := stripHarnessContext(in); got != "hi" {
 		t.Fatalf("got %q", got)
 	}
 }
 
 func TestPlannerNotes_ReadHarnessNotRecall(t *testing.T) {
-	if !strings.Contains(plannerToolFirstNote, "[hours], [aims], [loops], and [wakes] are already in [harness]") {
+	if !strings.Contains(plannerToolFirstNote, "[hours], [aims], [todo], [loops], and [wakes] are already in [harness]") {
 		t.Fatalf("plannerToolFirstNote must point at the stamps: %q", plannerToolFirstNote)
 	}
 	for _, s := range []string{"memory_recall for aim/, pref/hours", "cron_list, then live", "Empty aim board"} {
@@ -86,7 +87,7 @@ func TestPlannerNotes_ReadHarnessNotRecall(t *testing.T) {
 			t.Fatalf("plannerToolFirstNote still says %q", s)
 		}
 	}
-	for _, s := range []string{"aim_log", "aim_history", "[progress]", "praised", "never repeat the last note"} {
+	for _, s := range []string{"aim_log", "aim_history", "[progress]", "praised", "never repeat the last note", "memory_subject=todo/<slug>", "never \"shall I drop it\""} {
 		if !strings.Contains(plannerToolFirstNote, s) {
 			t.Fatalf("plannerToolFirstNote missing %q", s)
 		}

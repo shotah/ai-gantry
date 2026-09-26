@@ -26,6 +26,7 @@ var harnessTags = []struct{ tag, word string }{
 	{"[current time]", "clock"},
 	{"[hours]", "hours"},
 	{"[aims]", "horizon"},
+	{"[todo]", "horizon"},
 	{"[loops]", "horizon"},
 	{"[progress]", "progress"},
 	{"[wakes]", "wakes"},
@@ -97,10 +98,11 @@ func (a *Agent) hoursStamp(ctx context.Context) string {
 	return stampLine(memory.ParseHours(raw).Footer())
 }
 
-// horizon is this turn's aim/ and waiting/ follow/ rows: stamped on
-// [harness] and dropped from [memory] hydration so they are not paid twice.
+// horizon is this turn's aim/, todo/, and waiting/ follow/ rows: stamped
+// on [harness] and dropped from [memory] hydration so they are not paid
+// twice.
 type horizon struct {
-	aims, waiting, follow []memory.Entry
+	aims, todo, waiting, follow []memory.Entry
 	// asked is the aim/bootstrap marker when the board is empty and the
 	// months-scale question has already gone out; nil otherwise.
 	asked *memory.Entry
@@ -117,6 +119,7 @@ func (a *Agent) loadHorizon(ctx context.Context) horizon {
 		return rows
 	}
 	h.aims = list(memory.KindInsight, memory.SubjectAimPrefix, "aims")
+	h.todo = list(memory.KindFact, memory.SubjectTodoPrefix, "todo")
 	h.waiting = list(memory.KindFact, memory.SubjectWaitingPrefix, "waiting")
 	h.follow = list(memory.KindFact, memory.SubjectFollowPrefix, "follow")
 	if len(h.aims) == 0 {
@@ -132,7 +135,7 @@ func (h horizon) stamp(now time.Time, notes map[string]string, progress string) 
 	if aimsLine == "" {
 		aimsLine = memory.FormatAimsEmpty(h.asked, now)
 	}
-	return stampLine(aimsLine) + stampLine(progress) + stampLine(memory.FormatLoops(h.waiting, h.follow, now))
+	return stampLine(aimsLine) + stampLine(memory.FormatTodo(h.todo, now)) + stampLine(progress) + stampLine(memory.FormatLoops(h.waiting, h.follow, now))
 }
 
 // aimNotes is the rating suffix per live aim. Nil when the ledger is off,
@@ -182,13 +185,13 @@ func (a *Agent) progressStamp(ctx context.Context, h horizon, now time.Time) str
 	return a.aims.ProgressText(ctx, areas, now)
 }
 
-// dropStamped filters hydration rows already on [aims] / [loops].
+// dropStamped filters hydration rows already on [aims] / [todo] / [loops].
 func (h horizon) dropStamped(entries []memory.Entry) []memory.Entry {
-	stamped := make(map[int64]struct{}, len(h.aims)+len(h.waiting)+len(h.follow)+1)
+	stamped := make(map[int64]struct{}, len(h.aims)+len(h.todo)+len(h.waiting)+len(h.follow)+1)
 	if h.asked != nil {
 		stamped[h.asked.ID] = struct{}{}
 	}
-	for _, set := range [][]memory.Entry{h.aims, h.waiting, h.follow} {
+	for _, set := range [][]memory.Entry{h.aims, h.todo, h.waiting, h.follow} {
 		for _, e := range set {
 			if e.ID > 0 {
 				stamped[e.ID] = struct{}{}

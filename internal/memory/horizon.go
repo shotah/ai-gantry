@@ -3,6 +3,7 @@ package memory
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -14,6 +15,9 @@ const (
 	SubjectAimPrefix     = "aim/"
 	SubjectWaitingPrefix = "waiting/"
 	SubjectFollowPrefix  = "follow/"
+	// SubjectTodoPrefix is the human's pocket list (docs/tasks.md). The
+	// agent keeps the rows; nothing on it ages out.
+	SubjectTodoPrefix = "todo/"
 	// SubjectAimBootstrap is the fact row the model writes after asking the
 	// months-scale question on an empty board. Stamped on [aims] so the
 	// "did I already ask" check costs no memory_recall round.
@@ -101,6 +105,36 @@ func FormatLoops(waiting, follow []Entry, now time.Time) string {
 	return "[loops] " + strings.Join(parts, " · ") + horizonMore(more, "memory_recall waiting/ follow/")
 }
 
+// FormatTodo is the per-turn [todo] line: the human's open tasks, oldest
+// first, each with its row id so "done" is a memory_forget by id and not
+// a query. No stale cue — a task the human has not done is still a task.
+func FormatTodo(entries []Entry, now time.Time) string {
+	parts, more := horizonParts(SortOldestFirst(entries), SubjectTodoPrefix, now, 0)
+	if len(parts) == 0 {
+		return ""
+	}
+	return "[todo] " + strings.Join(parts, " · ") + horizonMore(more, "/todo")
+}
+
+// SortOldestFirst orders rows by updated_at (created_at fallback), oldest
+// first, without touching the input. The one that has sat longest is the
+// one to say out loud.
+func SortOldestFirst(entries []Entry) []Entry {
+	out := make([]Entry, len(entries))
+	copy(out, entries)
+	sort.SliceStable(out, func(i, j int) bool {
+		return entryAt(out[i]).Before(entryAt(out[j]))
+	})
+	return out
+}
+
+func entryAt(e Entry) time.Time {
+	if e.UpdatedAt.IsZero() {
+		return e.CreatedAt
+	}
+	return e.UpdatedAt
+}
+
 func horizonMore(n int, hint string) string {
 	if n <= 0 {
 		return ""
@@ -142,6 +176,9 @@ func horizonParts(entries []Entry, stripPrefix string, now time.Time, staleAfter
 			continue
 		}
 		part := label
+		if stripPrefix == SubjectTodoPrefix && e.ID > 0 {
+			part = fmt.Sprintf("#%d %s", e.ID, label)
+		}
 		if body := clipHorizon(e.Content); body != "" {
 			part += ": " + body
 		}
@@ -150,14 +187,18 @@ func horizonParts(entries []Entry, stripPrefix string, now time.Time, staleAfter
 	return parts, more
 }
 
+// HorizonAge is "(12d ago)" from updated_at (created_at fallback), the
+// same age the stamps print, for a text view that lists the same rows.
+// Empty inside the first day.
+func HorizonAge(e Entry, now time.Time) string {
+	return strings.TrimSpace(horizonAge(e, now, 0))
+}
+
 // horizonAge is " (12d ago)" from updated_at (created_at fallback). Nothing
 // inside the first day — a fresh row needs no age. Past staleAfter (>0) it
 // adds the resolve-or-forget cue.
 func horizonAge(e Entry, now time.Time, staleAfter time.Duration) string {
-	at := e.UpdatedAt
-	if at.IsZero() {
-		at = e.CreatedAt
-	}
+	at := entryAt(e)
 	if at.IsZero() || now.IsZero() {
 		return ""
 	}

@@ -24,6 +24,16 @@ type Tools struct {
 	Store  *Store
 	TZ     string // IANA name from CRON_TZ
 	Memory memory.Memory
+	// Now is the clock "in 2h" and "11:00" resolve against. Nil is
+	// time.Now; the eval harness freezes it to the fixture's day.
+	Now func() time.Time
+}
+
+func (t Tools) now() time.Time {
+	if t.Now != nil {
+		return t.Now()
+	}
+	return time.Now()
 }
 
 // ToolDefs returns the three builtin cron tool schemas.
@@ -138,7 +148,7 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 		if err != nil {
 			return "", err
 		}
-		parsed, err := ParseSchedule(when, repeat, loc, time.Now())
+		parsed, err := ParseSchedule(when, repeat, loc, t.now())
 		if err != nil {
 			return "", err
 		}

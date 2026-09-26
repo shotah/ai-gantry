@@ -137,6 +137,11 @@ Do not chart superseded rows, `aim/bootstrap`, or a correlation the
 crane did not stamp. Weeks, slope, and Pearson are derived. Recompute
 them if a chart needs them. Do not add a fourth table.
 
+The human's tasks are not a table either: they are `memory` rows with
+`kind = 'fact' AND subject LIKE 'todo/%' AND superseded_by IS NULL`
+([tasks.md](tasks.md)). Done rows are deleted, so there is no done
+history to chart.
+
 ## Tool errors (model + UI)
 
 Boot-skipped servers stay out of the prompt catalog (do not invite

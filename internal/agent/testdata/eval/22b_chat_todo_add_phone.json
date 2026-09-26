@@ -1,0 +1,27 @@
+{
+  "name": "chat_todo_add_phone",
+  "why": "The pendant's add field sends its own wording as a plain turn from the phone. The crane assumes no prefix: the agent reads the words, stores one todo/<slug> row, and says one short line.",
+  "inbound": "add to my list: return the Amazon box",
+  "surface": "android",
+  "input": "typed",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" }
+  ],
+  "expect": {
+    "round_budget": 2,
+    "tools_called": [
+      {
+        "name": "memory_store",
+        "args_regex": "\"subject\"\\s*:\\s*\"todo/[a-z0-9][a-z0-9_-]*\"",
+        "max_calls": 1
+      },
+      {
+        "name": "memory_store",
+        "args_regex": "(?i)\"content\"\\s*:\\s*\"[^\"]*amazon"
+      }
+    ],
+    "tools_not_called": ["memory_recall", "aim_log", "cron_schedule"],
+    "wait": false,
+    "reply_not_regex": "(?i)\\?|todo/|memory_store"
+  }
+}

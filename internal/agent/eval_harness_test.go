@@ -103,6 +103,9 @@ type evalMemory struct {
 	Kind    string `json:"kind"`
 	Subject string `json:"subject"`
 	Content string `json:"content"`
+	// AgeDays backdates the row's created_at / updated_at by this many
+	// days from the turn clock, so a stamp can say "(9d ago)".
+	AgeDays int `json:"age_days,omitempty"`
 }
 
 type evalLedger struct {
@@ -211,6 +214,9 @@ type evalOutcome struct {
 	// LedgerIDs are the seeded event ids, in fixture order. Expect regexes
 	// may say {{ledger:0}} for the first.
 	LedgerIDs []int64
+	// MemoryIDs are the seeded memory row ids, in fixture order:
+	// {{memory:0}} in an expect regex.
+	MemoryIDs []int64
 	mem       memory.Memory
 }
 
@@ -514,10 +520,13 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 	if err != nil {
 		t.Fatal(err)
 	}
+	var memoryIDs []int64
 	for _, row := range fx.Memory {
-		if _, err := mem.Store(ctx, row.Kind, row.Subject, row.Content); err != nil {
+		e, err := mem.Store(ctx, row.Kind, row.Subject, row.Content)
+		if err != nil {
 			t.Fatalf("seed memory %s/%s: %v", row.Kind, row.Subject, err)
 		}
+		memoryIDs = append(memoryIDs, e.ID)
 	}
 	jobs, err := cron.OpenDB(sessions.DB(), 50)
 	if err != nil {
@@ -559,6 +568,15 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		}
 		started = parsed.In(loc)
 	}
+	for i, row := range fx.Memory {
+		if row.AgeDays <= 0 {
+			continue
+		}
+		at := started.AddDate(0, 0, -row.AgeDays).UTC().Format(time.RFC3339Nano)
+		if _, err := sessions.DB().ExecContext(ctx, `UPDATE memory SET created_at = ?, updated_at = ? WHERE id = ?`, at, at, memoryIDs[i]); err != nil {
+			t.Fatalf("%s: age memory %s: %v", fx.Name, row.Subject, err)
+		}
+	}
 	canned := fx.Tools
 	if len(fx.ToolsFrom) > 0 {
 		if evalLiveTools == nil {
@@ -591,7 +609,7 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 	var tools agent.Tools = newCannedTools(canned, started)
 	tools = memory.Composite{Memory: memory.Tools{Backend: mem, ForgetAim: aimStore.Forget}, Other: tools}
 	tools = aims.Composite{Aims: aims.Tools{Store: aimStore}, Other: tools}
-	tools = cron.Composite{Cron: cron.Tools{Store: jobs, TZ: evalTZ, Memory: mem}, Other: tools}
+	tools = cron.Composite{Cron: cron.Tools{Store: jobs, TZ: evalTZ, Memory: mem, Now: func() time.Time { return started }}, Other: tools}
 	tools = selfnote.Composite{Self: selfnote.Tools{Store: self}, Other: tools}
 	base := tools
 	tools = mcpenable.Composite{
@@ -663,6 +681,7 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		CompletionTokens: counter.usage.CompletionTokens,
 		Given:            evalGiven(fx, text),
 		LedgerIDs:        ledgerIDs,
+		MemoryIDs:        memoryIDs,
 		mem:              mem,
 	}
 }
@@ -685,40 +704,51 @@ func evalGiven(fx evalFixture, text string) string {
 	return b.String()
 }
 
-var evalLedgerRef = regexp.MustCompile(`\{\{ledger:(\d+)\}\}`)
+var evalIDRef = regexp.MustCompile(`\{\{(ledger|memory):(\d+)\}\}`)
 
 var evalTokenRe = regexp.MustCompile(`[a-z0-9]{4,}`)
 
-func expandEvalExpect(want evalExpect, ids []int64) evalExpect {
+// evalIDs are the seeded row ids an expect regex can name by fixture index.
+type evalIDs struct {
+	ledger, memory []int64
+}
+
+func expandEvalExpect(want evalExpect, ids evalIDs) evalExpect {
 	for i := range want.ToolsCalled {
-		want.ToolsCalled[i].ArgsRegex = expandLedgerIDs(want.ToolsCalled[i].ArgsRegex, ids)
+		want.ToolsCalled[i].ArgsRegex = expandEvalIDs(want.ToolsCalled[i].ArgsRegex, ids)
 	}
 	for i := range want.AnyOf {
 		want.AnyOf[i] = expandEvalExpect(want.AnyOf[i], ids)
 	}
 	if want.ReplyRegex != "" {
-		want.ReplyRegex = expandLedgerIDs(want.ReplyRegex, ids)
+		want.ReplyRegex = expandEvalIDs(want.ReplyRegex, ids)
 	}
 	if want.ReplyNot != "" {
-		want.ReplyNot = expandLedgerIDs(want.ReplyNot, ids)
+		want.ReplyNot = expandEvalIDs(want.ReplyNot, ids)
 	}
 	return want
 }
 
-func expandLedgerIDs(s string, ids []int64) string {
-	return evalLedgerRef.ReplaceAllStringFunc(s, func(m string) string {
-		sub := evalLedgerRef.FindStringSubmatch(m)
-		if len(sub) != 2 {
+// expandEvalIDs replaces {{ledger:N}} and {{memory:N}} with the seeded
+// row ids. An index off the end is "0", which matches nothing real.
+func expandEvalIDs(s string, ids evalIDs) string {
+	return evalIDRef.ReplaceAllStringFunc(s, func(m string) string {
+		sub := evalIDRef.FindStringSubmatch(m)
+		if len(sub) != 3 {
 			return "0"
 		}
 		n := 0
-		for _, c := range sub[1] {
+		for _, c := range sub[2] {
 			n = n*10 + int(c-'0')
 		}
-		if n < 0 || n >= len(ids) {
+		list := ids.ledger
+		if sub[1] == "memory" {
+			list = ids.memory
+		}
+		if n < 0 || n >= len(list) {
 			return "0"
 		}
-		return fmt.Sprintf("%d", ids[n])
+		return fmt.Sprintf("%d", list[n])
 	})
 }
 
@@ -779,7 +809,7 @@ func sharesEvidence(what, hay string) bool {
 
 // checkEval returns one line per failed expectation. Empty means pass.
 func checkEval(ctx context.Context, out evalOutcome, want evalExpect) []string {
-	want = expandEvalExpect(want, out.LedgerIDs)
+	want = expandEvalExpect(want, evalIDs{ledger: out.LedgerIDs, memory: out.MemoryIDs})
 	var fails []string
 	reply := out.RawReply
 	if reply == "" {

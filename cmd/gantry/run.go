@@ -433,7 +433,7 @@ func run() int {
 	}
 	go watchPersonaReload(ctx, cfg.PersonaDir, ag, logger)
 
-	ch, err := newChannel(cfg, logger, aimBoard(aimStore))
+	ch, err := newChannel(cfg, logger, aimBoard(aimStore), todoBoard(memBuiltin, tzLoc))
 	if err != nil {
 		logger.Error("channel init failed", "err", err)
 		return 1
@@ -525,7 +525,22 @@ func aimBoard(store *aims.Store) func(context.Context) ([]aims.Row, []aims.Link,
 	}
 }
 
-func newChannel(cfg *config.Config, logger *slog.Logger, board func(context.Context) ([]aims.Row, []aims.Link, error)) (channel.Channel, error) {
+// todoBoard renders the phone's pocket list from the builtin memory. MCP
+// memory has no live-row-by-prefix, so that install sends no todo frame.
+func todoBoard(mem *memory.Builtin, loc *time.Location) func(context.Context) ([]memory.TodoItem, error) {
+	if mem == nil {
+		return nil
+	}
+	return func(ctx context.Context) ([]memory.TodoItem, error) {
+		rows, err := mem.ListBySubjectPrefix(ctx, memory.KindFact, memory.SubjectTodoPrefix, 0)
+		if err != nil {
+			return nil, err
+		}
+		return memory.TodoBoard(rows, loc), nil
+	}
+}
+
+func newChannel(cfg *config.Config, logger *slog.Logger, board func(context.Context) ([]aims.Row, []aims.Link, error), todo func(context.Context) ([]memory.TodoItem, error)) (channel.Channel, error) {
 	switch cfg.Channel {
 	case config.ChannelStdio:
 		ch := stdio.New()
@@ -562,6 +577,7 @@ func newChannel(cfg *config.Config, logger *slog.Logger, board func(context.Cont
 			Logger:        logger,
 			StreamReplies: cfg.StreamReplies,
 			Board:         board,
+			Todo:          todo,
 		})
 	default:
 		return nil, fmt.Errorf("unknown channel %q", cfg.Channel)

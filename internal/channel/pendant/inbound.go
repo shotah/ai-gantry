@@ -7,6 +7,7 @@ import (
 
 	"github.com/shotah/ai-gantry/internal/aims"
 	"github.com/shotah/ai-gantry/internal/channel"
+	"github.com/shotah/ai-gantry/internal/memory"
 	"github.com/shotah/ai-gantry/internal/slash"
 )
 
@@ -54,6 +55,8 @@ type outboundFrame struct {
 	// would also drop an empty slice.
 	Aims  *[]aims.Row `json:"aims,omitempty"`
 	Links []aims.Link `json:"links,omitempty"`
+	// Todo is the pocket list; a pointer for the same reason as Aims.
+	Todo *[]memory.TodoItem `json:"todo,omitempty"`
 }
 
 // Entry is one PENDANT_ALLOWED_USERS row: Google sub, verified email, or both.
@@ -77,6 +80,15 @@ func aimsFrame(rows []aims.Row, links []aims.Link) outboundFrame {
 		rows = []aims.Row{}
 	}
 	return outboundFrame{Kind: "aims", Aims: &rows, Links: links}
+}
+
+// todoFrame is the room-wide pocket list. No user_id. Empty items still
+// send "todo":[] so the drawer can clear.
+func todoFrame(items []memory.TodoItem) outboundFrame {
+	if items == nil {
+		items = []memory.TodoItem{}
+	}
+	return outboundFrame{Kind: "todo", Todo: &items}
 }
 
 // ParseEntry reads one allowlist token. Email is lowercased. Neither digits

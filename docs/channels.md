@@ -64,9 +64,10 @@ required (`xapp-` is not the bot token).
 ## Pendant (gantry-pendant Worker)
 
 Outbound WSS to the [gantry-pendant](https://github.com/shotah/gantry-pendant)
-mailbox. The crane dials; nothing listens. On dial it sends `aims` after
-`cmds`, and sends that frame again when a turn or a cron push changed
-the board. No new socket, no `gantry status` field, no HTTP route.
+mailbox. The crane dials; nothing listens. On dial it sends `aims` then
+`todo` after `cmds`, and sends either frame again when a turn or a cron
+push changed that board. No new socket, no `gantry status` field, no
+HTTP route.
 Setup in that repo’s `docs/setup.md`.
 [Cab](https://github.com/shotah/gantry-cab) is another client on this mailbox
 (Android Auto). The crane still uses `CHANNEL=pendant`.
@@ -104,7 +105,7 @@ Recreate the container after env changes (restart keeps a ghost allowlist).
 
 The crane admits a frame when `user_id` **or** `email` is on the list. The
 agent conversation is always `gantry` — email matches for admit, it never
-keys memory, cron, or history. On dial the crane writes `cmds`, then `aims`, then `allow`.
+keys memory, cron, or history. On dial the crane writes `cmds`, `aims`, `todo`, then `allow`.
 Email-only rows learn the Google `sub` on first inbound (or silent pin) so
 Push can target that phone; until then Push broadcasts to `role:phone`.
 Console may write emails into `PENDANT_ALLOWED_USERS`

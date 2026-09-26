@@ -1,0 +1,23 @@
+{
+  "name": "chat_todo_done",
+  "why": "They say a task is done. [todo] carries its #id, so the close is memory_forget by that id — never a query, which would also delete the dentist's phone number.",
+  "inbound": "booked the dentist, Thursday at 2",
+  "memory": [
+    { "kind": "fact", "subject": "todo/dentist", "content": "call to book a cleaning", "age_days": 3 },
+    { "kind": "fact", "subject": "todo/passport", "content": "renew, by Oct 15", "age_days": 1 },
+    { "kind": "person", "subject": "dentist", "content": "Dr. Patel, 206-555-0142, Pine St" },
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" }
+  ],
+  "expect": {
+    "round_budget": 2,
+    "tools_called": [
+      {
+        "name": "memory_forget",
+        "args_regex": "\"id\"\\s*:\\s*{{memory:0}}",
+        "max_calls": 1
+      }
+    ],
+    "tools_not_called": ["memory_recall"],
+    "reply_not_regex": "(?i)memory_forget|todo/"
+  }
+}
