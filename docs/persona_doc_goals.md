@@ -261,6 +261,8 @@ what the model **sees**, not what it does.)
 | Daily planner; weight trending down; Garmin has today's pounds | `aim_log` weigh-in at 0 with the tool's number, then `[silent]`. | `17_planner_weight_on_pace` |
 | “went out with the team, 3 beers and a burger, skipped the morning climb” | One `aim_log` scores drinking, weight, and climbing down. `what` quotes them. No lecture. | `18_chat_night_out` |
 | “that dinner was planned, team thing” | `aim_log` rewrites that event id and sets weight to 0. | `19_chat_rescore` |
+| Sunday planner; nine weeks of gym and a falling weight | One line each for training and weight, with a direction. Not a made-up correlation. | `20_planner_week_start` |
+| Wednesday planner; same ledger; yesterday already +2 | `[silent]`. No week summary. | `21_planner_midweek_quiet` |
 | “I need to be in Denver next Friday.” | Flight search **called** this turn from their own city, real options back, one question + `[wait]`; the date blocked or offered. Not “let me know when you want me to look.” Rounds are the model's to spend. On the **real** `flights` catalog: `offers_search` at most twice, no `dates_search` for a fixed date, no `booking_options_get` before they pick, no `$` figure the tool did not return. | `08_denver_flight` |
 | `[cron]` daily rental check; `aim/housing` = 2BR Ballard/Fremont under $2,400 (metered API, 50/month) | On the **real** `rentals` catalog: exactly **one** `listings_search` with the neighborhoods comma-joined, the free `account_get` welcome, **no** `listings_get` / `markets_get` / `rent_estimate_get` nobody asked for; both listings with who to call in the reply, prices only from the tool. | `11_rental_daily_cron` |
 

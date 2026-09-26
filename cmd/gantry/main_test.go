@@ -154,7 +154,7 @@ func TestNewLogger_Levels(t *testing.T) {
 func TestNewChannel(t *testing.T) {
 	logger := slog.Default()
 
-	ch, err := newChannel(&config.Config{Channel: config.ChannelStdio}, logger)
+	ch, err := newChannel(&config.Config{Channel: config.ChannelStdio}, logger, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestNewChannel(t *testing.T) {
 		Channel:              config.ChannelTelegram,
 		TelegramBotToken:     "1:tok",
 		TelegramAllowedUsers: []int64{1},
-	}, logger)
+	}, logger, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestNewChannel(t *testing.T) {
 		PendantMailboxURL:   "wss://x.workers.dev/ws/kit",
 		PendantBearer:       "tok",
 		PendantAllowedUsers: []string{"1182"},
-	}, logger)
+	}, logger, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestNewChannel(t *testing.T) {
 		t.Fatal("nil pendant channel")
 	}
 
-	_, err = newChannel(&config.Config{Channel: "nope"}, logger)
+	_, err = newChannel(&config.Config{Channel: "nope"}, logger, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}

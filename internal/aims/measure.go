@@ -83,33 +83,50 @@ func (s *Store) SeriesAt(ctx context.Context, area, metric, fromDay, toDay strin
 	return ser, nil
 }
 
-type samplePoint struct {
-	day string
-	v   float64
-}
-
-// slopePerDay is ordinary least squares of value against days since the first point.
-func slopePerDay(pts []samplePoint) float64 {
-	t0, err := time.Parse(dayLayout, pts[0].day)
-	if err != nil {
+// ols is ordinary least squares of y on x. A zero denominator (one
+// point, or every x equal) is slope 0.
+func ols(xs, ys []float64) float64 {
+	n := float64(len(xs))
+	if n == 0 || len(ys) != len(xs) {
 		return 0
 	}
-	var n, sumX, sumY, sumXY, sumXX float64
-	for _, p := range pts {
-		t, err := time.Parse(dayLayout, p.day)
-		if err != nil {
-			continue
-		}
-		x := t.Sub(t0).Hours() / 24
-		n++
-		sumX += x
-		sumY += p.v
-		sumXY += x * p.v
-		sumXX += x * x
+	var sumX, sumY, sumXY, sumXX float64
+	for i := range xs {
+		sumX += xs[i]
+		sumY += ys[i]
+		sumXY += xs[i] * ys[i]
+		sumXX += xs[i] * xs[i]
 	}
 	den := n*sumXX - sumX*sumX
 	if den == 0 {
 		return 0
 	}
 	return (n*sumXY - sumX*sumY) / den
+}
+
+type samplePoint struct {
+	day string
+	v   float64
+}
+
+// slopePerDay is ols of value against days since the first point.
+func slopePerDay(pts []samplePoint) float64 {
+	if len(pts) == 0 {
+		return 0
+	}
+	t0, err := time.Parse(dayLayout, pts[0].day)
+	if err != nil {
+		return 0
+	}
+	xs := make([]float64, 0, len(pts))
+	ys := make([]float64, 0, len(pts))
+	for _, p := range pts {
+		t, err := time.Parse(dayLayout, p.day)
+		if err != nil {
+			continue
+		}
+		xs = append(xs, t.Sub(t0).Hours()/24)
+		ys = append(ys, p.v)
+	}
+	return ols(xs, ys)
 }

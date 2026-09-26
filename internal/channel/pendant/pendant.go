@@ -19,6 +19,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/shotah/ai-gantry/internal/aims"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/here"
 )
@@ -35,6 +36,9 @@ type Config struct {
 	AllowedUsers  []string
 	Logger        *slog.Logger
 	StreamReplies bool // draft bubble: spinup, tool trace, then reply
+	// Board renders the aims snapshot. Nil means this mouth never
+	// sends an aims frame (Telegram-only installs, tests).
+	Board func(ctx context.Context) ([]aims.Row, []aims.Link, error)
 }
 
 type conn interface {
@@ -55,7 +59,9 @@ type Channel struct {
 	log           *slog.Logger
 	dial          dialFunc
 	streamReplies bool
+	board         func(ctx context.Context) ([]aims.Row, []aims.Link, error)
 	onAdmit       func(ctx context.Context, sessionID, userID string)
+	aimsSent      string // last aims frame JSON on the live conn; cleared on dial
 
 	mu      sync.Mutex
 	writeMu sync.Mutex
@@ -97,6 +103,7 @@ func New(cfg Config) (*Channel, error) {
 		log:           log,
 		dial:          defaultDial,
 		streamReplies: cfg.StreamReplies,
+		board:         cfg.Board,
 		reactSettle:   channel.NewSettler(),
 		recent:        channel.NewRecent(recentReplies),
 	}
@@ -274,7 +281,13 @@ func (c *Channel) serve(ctx context.Context, handle channel.Handler) error {
 		c.setLive(nil)
 		_ = cn.Close()
 	}()
+	c.mu.Lock()
+	c.aimsSent = ""
+	c.mu.Unlock()
 	if err := c.writeOn(cn, cmdsFrame()); err != nil {
+		return err
+	}
+	if err := c.sendAims(ctx, cn, false); err != nil {
 		return err
 	}
 	if err := c.writeOn(cn, allowFrame(c.entries)); err != nil {
@@ -350,6 +363,7 @@ func (c *Channel) dispatch(ctx context.Context, cn conn, raw []byte, handle chan
 // has none (a settled reaction, an old app that sends no id), and then the
 // kernel falls back to text.
 func (c *Channel) runTurn(ctx context.Context, cn conn, handle channel.Handler, msg channel.Message, replyTo string) error {
+	defer func() { _ = c.sendAims(ctx, cn, false) }()
 	sub := msg.UserID
 	stopTyping := c.startTyping(ctx, cn, sub)
 
@@ -435,6 +449,40 @@ func (c *Channel) Push(ctx context.Context, msg channel.Outbound) error {
 	return first
 }
 
+// sendAims writes the board when it differs from the last one on this
+// connection. force is a fresh dial (the live socket was down): that
+// conn has not seen the board, so it always goes out. A nil Board
+// sends nothing.
+func (c *Channel) sendAims(ctx context.Context, cn conn, force bool) error {
+	if c == nil || c.board == nil || cn == nil {
+		return nil
+	}
+	rows, links, err := c.board(ctx)
+	if err != nil {
+		c.log.Warn("pendant aims", "err", err)
+		return nil
+	}
+	frame := aimsFrame(rows, links)
+	raw, err := json.Marshal(frame)
+	if err != nil {
+		return err
+	}
+	body := string(raw)
+	c.mu.Lock()
+	same := !force && c.aimsSent == body
+	c.mu.Unlock()
+	if same {
+		return nil
+	}
+	if err := c.writeOn(cn, frame); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	c.aimsSent = body
+	c.mu.Unlock()
+	return nil
+}
+
 func (c *Channel) pushTargets() []string {
 	var out []string
 	seen := map[string]struct{}{}
@@ -476,6 +524,9 @@ func (c *Channel) writePush(ctx context.Context, text, sub, id string, extra ...
 		if werr == nil {
 			c.log.Info("pendant push", "slug", c.slug, "user_id", sub, "via", via, "frame_id", id, "chars", len(text))
 			c.rememberFrames(frames)
+			if aerr := c.sendAims(ctx, live, false); aerr != nil {
+				c.log.Warn("pendant aims", "err", aerr)
+			}
 			return nil
 		}
 		c.log.Warn("pendant push live write failed; dialing", "err", werr, "user_id", sub, "frame_id", id)
@@ -524,7 +575,10 @@ func (c *Channel) writeDialed(ctx context.Context, frames []outboundFrame) error
 		return err
 	}
 	defer func() { _ = cn.Close() }()
-	return writeFrames(cn, frames)
+	if err := writeFrames(cn, frames); err != nil {
+		return err
+	}
+	return c.sendAims(ctx, cn, true)
 }
 
 func (c *Channel) writeFrames(cn conn, frames []outboundFrame) error {

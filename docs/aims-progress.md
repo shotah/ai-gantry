@@ -186,27 +186,107 @@ Kernel, SQL and Go. Day is the unit; missing days are `0`.
 | --- | --- | --- |
 | 7d / 14d | sum of day scores, up-days (> 0), against-days (< 0) | acute consistency |
 | streak | consecutive days with day score > 0. An empty today stays out of the run (the morning is not scored yet). A day scored ≤ 0 ends it | credit |
-| 30d / 90d | mean day score (the rating), slope; per (area, metric): latest, mean, slope, weekly buckets | trend |
-| correlation | weekly mean score vs weekly mean measurement under one aim; and day score of aim A vs next-day score of aim B; Pearson at ≥ 8 buckets, "too early" before | effort vs outcome; aim vs aim |
-| block | over `[from, to]`: up-days / days, mean score, planned cues fired vs up-days | 6-month adherence |
+| 30d | mean day score (the rating); per (area, metric): latest, mean, slope | rating |
+| weeks | Sunday-start buckets from the aim's first event, up to 13: mean score, up / against, mean of each metric; one slope over the week means | trend, read once a week |
+| correlation | weekly mean score vs weekly mean measurement under one aim; and day score of aim A vs next-day score of aim B on days A was scored; Pearson at ≥ 8 buckets and `|r| ≥ 0.3`, absent before | effort vs outcome; aim vs aim |
+| block | over `[from, to]`: up-days / days, mean score | 6-month adherence |
 | last note | days since `nudged` / `asked` / `offered` / `praised` per aim | the groundhog guard |
 
-Block bounds: the aim sentence's date when it has one ("by spring") or
-`/aims block <area> <from> <to>`. **Planned** counts the planner's
-cron cues pinned with `memory_subject aim/<area>`; calendar events are
-not in our DB.
+Block bounds: `/aims block <area> <from> <to>`, or the agent sets it
+when the sentence has a date ("by spring"). The kernel does not parse
+the sentence. Planned-vs-done is not computed: a fired once-cue is
+disabled and a repeating cue keeps one `last_run_at`, so `cron_job`
+cannot say how many cues fired in a span, and a fire log is more
+table than the number is worth.
 
 ### 4.4 Where it shows
 
 | Surface | Content | Cost |
 | --- | --- | --- |
 | `[aims]` every turn | Suffix per aim: `training: gym 3 mornings/wk — 30d +1.4 · 7d +6 · streak 2 · asked 1d ago` | ~25 chars per aim. Cap stays at 5. Stamp, no tool call. |
-| `[progress]` on the planner turn only | Per aim: rating, a **5-day grid by date** (day score and that day's events with ids; an empty day shows `·`), 14d / 30d, measurement trend, block %, last note | Planner is the one burn; pay it there. |
+| `[progress]` on the planner turn only | Per aim: rating, a **5-day grid by date** (day score and that day's events with ids; an empty day shows `·`), 14d / 30d, measurement trend, block %, last note. On the week's first planner (Sunday in `CRON_TZ`) the week lines and any correlation join it; the other six mornings do not carry them | Planner is the one burn; pay it there. The weekly review is the same turn, once a week. |
 | `/aims` | Same block; `/aims <area>` full ledger with ids; `/aims rubric` the anchor table | Phase 0 |
+| Pendant board | Same numbers as `/aims`, as a mailbox snapshot, optional screen | Push on dial and after a ledger write. Not a query. |
 | Gantree | Reads `aim_event` / `aim_score` in `gantry.db` | Contract row once the schema settles |
 
 The grid is by date, not by row count. Five days with nothing on
 Wednesday shows Wednesday as `·`, which is the fact.
+
+### 4.4.1 Pendant board
+
+The phone does not open `gantry.db`. Pendant and Cab only see the
+mailbox. Gantree is the process that can read the file, and it is the
+operator's yard, not the human's pocket. So the board is a frame the
+crane pushes, the same way `cmds` arrives on dial
+(`internal/channel/pendant/inbound.go`). No new socket, no status
+field, no HTTP route.
+
+**The pendant side is built and waiting on this frame** (gantry-pendant
+`docs/frontends.md` → Aims board: Worker stores the latest and
+replays it on phone connect right after `cmds`; the PWA paints a Goals
+drawer; every button there is a `/aims …` turn). Its parser,
+`lib/mailbox/aims.ts`, is the contract. **These are the json tags.**
+Anything else is dropped on the phone; a half-formed optional object
+is dropped whole; a missing optional line is painted as nothing.
+
+```json
+{
+  "kind": "aims",
+  "aims": [
+    {
+      "area": "training",
+      "sentence": "gym 3 mornings/wk",
+      "rating30": 1.4,
+      "sum7": 6,
+      "streak": 2,
+      "note": "asked",
+      "note_at": "2026-09-25",
+      "days": [
+        { "day": "2026-09-22", "score": 2, "events": [411] },
+        { "day": "2026-09-23", "score": -1, "events": [413] },
+        { "day": "2026-09-24", "score": 0, "events": [] },
+        { "day": "2026-09-25", "score": 3, "events": [415] },
+        { "day": "2026-09-26", "score": 0, "events": [416] }
+      ],
+      "weeks": [
+        { "start": "2026-09-13", "mean": 0.9, "up": 3, "against": 1, "metrics": [] },
+        { "start": "2026-09-20", "mean": 1.4, "up": 4, "against": 1,
+          "metrics": [{ "metric": "weight", "mean": 191.4, "unit": "lb", "n": 3 }] }
+      ],
+      "slope": 0.3,
+      "block": { "days": 10, "up": 4, "against": 2, "mean": 0.4, "pct": 0.4 },
+      "effect": { "a": "training", "b": "", "metric": "weight", "r": -0.42, "n": 9 }
+    }
+  ],
+  "links": [
+    { "a": "training", "b": "weight", "r": 0.38, "n": 12 }
+  ]
+}
+```
+
+| Field | From | Rule |
+| --- | --- | --- |
+| `aims[]` | `capAreas` order | Live `aim/<area>` rows, `bootstrap` skipped, **cap 5**. `[]` is a real frame: the screen clears. |
+| `area` | the `<area>` key | `[a-z0-9][a-z0-9_-]*`, lowercase. |
+| `sentence` | the memory row | ≤ 240 chars. Required; a row without one is dropped. |
+| `rating30`, `sum7`, `streak` | `Stats.Rating30`, `Stats.Sum7`, `Stats.Streak` | Always present. `0` when `!HasEvents`. |
+| `note`, `note_at` | `Stats.LastNote`, `Stats.LastNoteAt` | `note` always present (`""` when none). `note_at` local `YYYY-MM-DD`, `omitempty`. The phone shows the word, not the age. |
+| `days[]` | `DayScores(today-4, today)` | Oldest first, **always five**; an empty day is `{ "score": 0, "events": [] }`. `events` are `Event.ID`s — the same ids `/aims <area>` prints, so the human can quote one. Phone accepts up to 14. |
+| `weeks[]` | `Weeks(ctx, area, now)` | Oldest first, **cap 13**, `omitempty` when none. `start` is the Sunday; `mean`, `up`, `against` as computed; `metrics[]` is the `Metrics` map flattened, one entry per (metric, unit): `{ metric, mean, unit, n }`, `[]` when none. |
+| `slope` | `WeekSlope(weeks)` | Per week. Omit when `!ok`. |
+| `block` | `BlockStatsAt` | `{ days, up, against, mean, pct }`. Omit when `!ok` or `Days == 0`. |
+| `effect` | `Effect(area, weeks)` | The `Corr` as is. Omit unless `StampCorr(ok, r)`. |
+| `links[]` | `NextDay` over `capAreas` pairs | Same set `crossLines` prints: strongest `\|r\|` first, **cap 3**, only `StampCorr` hits. `{ a, b, r, n }` (`Corr.Metric` is empty here; the phone ignores it). `omitempty`. |
+| `user_id` | — | Omit. Room-wide, like `cmds`. (The Worker also accepts a per-human board under `user_id`; not needed for one human.) |
+
+Send it on dial, after `cmds`, and again after any `runTurn` or cron
+`Push` where the rendered JSON differs from the last one sent on this
+connection — that covers `aim_log`, an aim `memory_store`, a forget
+cascade, and `/aims block`. Not on an ordinary chat turn that changed
+nothing. A reconnect resets the memory, so every dial gets a board.
+The phone never asks for it; the way back in is `/aims`, `/aims
+<area>`, `/aims rubric` as ordinary inbound turns from the drawer's
+buttons. Telegram has no board; `/aims` remains its text view.
 
 ### 4.5 The groundhog rule
 
@@ -295,11 +375,12 @@ sentence stays in memory.
 | Phase | Ships | Kills |
 | --- | --- | --- |
 | **0. Ledger** | `aim_event`, `aim_score`, `aim_log`, `aim_history`, ref dedupe, re-score by id, area check; day scores, 7d / 14d, up / against, streak, rating, last note; `[aims]` suffix; `[progress]` 5-day grid on the planner turn; `/aims`, `/aims <area>`, `/aims rubric`; prompt: rubric, anchors, log after pulls, ladder | Groundhog day |
-| **1. Horizon** | 30d / 90d slope; measurement series per (area, metric); weekly buckets | "how am I doing" without a tool pull |
-| **2. Blocks + correlation** | `aim_block`, planned (pinned cues) vs up-days, block %; score-vs-measurement and aim-vs-next-day-aim Pearson at ≥ 8 buckets | The correlation ask |
-| **3. Yard** | Contract rows for the two tables; gantree reads them | Board view |
+| **1. Read it back** | week buckets and one slope; block %; Pearson or nothing; the week's first planner reads them back; gantree contract rows for the three tables | "how am I doing" and the correlation ask |
+| **2. Board** | the `kind: "aims"` frame in §4.4.1 from the numbers Phase 1 already computes; sent on dial and when it changes. No new tool, no model call, no HTTP | the phone opening `/aims` as text to see a number |
 
-Phase 0 changes daily life. Run the planner evals before Phase 1.
+Phase 0 is shipped (live eval 2026-09-25, 18/18). Phase 1 is shipped.
+Phase 2 is the [Pendant frame](#pendant-frame) list in §10; the
+receiving side (Worker + PWA) is already live in gantry-pendant.
 
 ---
 
@@ -358,6 +439,10 @@ Eval fixtures (live model):
 - New `chat_rescore`: inbound "that dinner was planned, team thing".
   Expect: `aim_log event=<id>` with weight re-scored to `0`.
 - `planner_weight_dinner` unchanged plus `aim_log` in the expectation.
+- `planner_week_start`: Sunday, nine weeks, weight falling. The reply
+  names training and weight and a direction. Not a made-up correlation.
+- `planner_midweek_quiet`: the same ledger on Wednesday, yesterday
+  `+2`, calendar already a work day. `[silent]`. No week summary.
 
 Gate `evidence_from_turn`: every `what` shares a token run with a tool
 result or the inbound text.
@@ -534,6 +619,22 @@ over the fixture budget is reported, not failed.
 | `chat_rescore` | 3.00 | 17.4k | 101 | 3/3 |
 | all six | 3.06 | 23.2k | 182 | 10/18 |
 
+Live eval 2026-09-26, `gemini-3.6-flash`, n=1, 8/8 passed. Same
+six, plus the week-start and midweek fixtures. A round over budget
+is reported, not failed.
+
+| Fixture | Rounds | Prompt | Completion | Over budget |
+| --- | --- | --- | --- | --- |
+| `planner_gym_no_workout` | 3 | 24.1k | 178 | 0 |
+| `planner_weight_dinner` | 3 | 24.4k | 222 | 1 |
+| `planner_streak_credit` | 3 | 24.1k | 148 | 0 |
+| `planner_weight_on_pace` | 3 | 23.2k | 134 | 0 |
+| `chat_night_out` | 2 | 11.7k | 114 | 0 |
+| `chat_rescore` | 3 | 18.0k | 111 | 1 |
+| `planner_week_start` | 4 | 34.9k | 399 | 1 |
+| `planner_midweek_quiet` | 2 | 14.8k | 126 | 0 |
+| all eight | 2.88 | 21.9k | 179 | 3/8 |
+
 ### Docs
 
 - [x] `docs/cron.md`: a short "Aims ledger" section pointing here;
@@ -543,14 +644,230 @@ over the fixture budget is reported, not failed.
 - [x] `docs/persona_doc_goals.md`: scenario rows for the new fixtures.
 - [x] `docs/architecture.md`: `[progress]` in the prompt assembly
   order.
-- [x] `docs/gantree-contract.md`: **Phase 3**, not now. Leave a line
-  that the tables exist and the schema is not yet stable.
+- [x] `docs/gantree-contract.md`: leave a line that the tables exist
+  and the schema is not yet stable. The real column list is Phase 1.
 - [x] `readme.md` and `docs/dockerhub.md`: `/aims` in the command row.
 
-### Phase 1 – 3 (not yet)
+### Phase 1
 
-- [ ] 30d / 90d slope and weekly buckets.
-- [ ] Block %: planned = pinned cues fired, done = up-days.
-- [ ] Pearson: score vs measurement; aim A day vs aim B next day; ≥ 8
-  buckets or "too early".
-- [ ] Gantree contract rows.
+One phase. Week buckets, block %, correlation, the weekly read-back,
+and the yard contract ship together. No new tool, no second model
+call, no second cron job, no chart in chat, no mailbox frame.
+`[aims]` on ordinary turns stays the Phase 0 suffix.
+
+The weekly review is the daily planner. The harness adds the week
+lines to `[progress]` only on the week's first planner run (Sunday in
+`CRON_TZ`, the same `sundayStart` the `[time]` week grid uses). The
+other six mornings carry the Phase 0 grid and nothing more, so a
+smaller model pays for the long view once a week. `/aims` shows all
+of it any day; that is the human's pull, not a model turn.
+
+Every window starts at the aim's first event. Days before the aim
+existed are not zeros; they are not in the fit.
+
+A line is done when `go test ./...` and `golangci-lint run ./...`
+pass. The prompt lines also pass the live eval (§7) at `-eval.n=1`.
+
+#### Weeks (`internal/aims`)
+
+`SeriesAt` already returns latest / mean / slope for one metric.
+This adds the week buckets and one slope over them. No `Slope30`,
+`Slope90`, or `Rating90`: the week means are the trend.
+
+- [x] `weeks.go`: `Week{Start string; Mean float64; Up, Against int;
+  Metrics map[string]Measure}` where `Measure{Mean float64; Unit
+  string; N int}`. `Weeks(ctx, area, now) []Week`: Sunday-start local
+  weeks from the week of the first live event through the week that
+  contains `now`, cap 13 (oldest dropped). Mean includes zero days
+  inside the aim's life. Metric mean is over that week's rows with
+  the unit as logged; mixed units stay as logged, no conversion.
+- [x] `WeekSlope(weeks []Week) (float64, bool)`: OLS of `Mean` per
+  week index, `ok` false under 2 weeks. Reuse the fit in
+  `slopePerDay`; do not write a second one.
+- [x] Tests in `math_test.go`: the aim's first event on a Wednesday
+  gives a first bucket of 4 days, not 7 zeros. A flat +1 gives slope
+  `0`. Four weeks of `0` then four of `+2` give a positive slope. A
+  week that crosses a month boundary in `America/Los_Angeles` is one
+  bucket. An empty week inside the aim's life is `Mean 0`, not
+  omitted. Weights in `lb` and `kg` in one week are two entries in
+  `Metrics` by unit, not one number.
+
+#### Block (`internal/aims`)
+
+`aim_block` and `/aims block` already store `[from, to]`. This
+computes the line. No block row means no line. Planned-vs-done is
+not computed (§4.3); `cron_job` does not keep the fires.
+
+- [x] `block.go`: `BlockStats{Days, Up, Against int; Mean, Pct
+  float64}`. `Days` is inclusive of both ends, clipped to today.
+  `Up` is days with score `> 0`. `Mean` includes zeros. `Pct` is
+  `Up / Days`, `0` when `Days == 0`. `BlockStatsAt(ctx, area, now)
+  (BlockStats, bool)`; `false` when no row.
+- [x] Tests: no block row is `false`. Four up-days of ten is `0.4`. A
+  span that ends next month is clipped to today. Month boundary in
+  `America/Los_Angeles`.
+
+#### Correlation (`internal/aims`)
+
+Pearson on the week buckets and on the next-day join. Under the gate
+the result is absent: no number, no "too early" text in the stamp.
+The prompt tells the model a missing line means nothing is known.
+
+- [x] `corr.go`: `Pearson(xs, ys []float64) (r float64, ok bool)`.
+  `ok` is false when `len(xs) < 8`, lengths differ, or either side
+  has zero variance.
+- [x] `Effect(area string, weeks []Week) (Corr, bool)`: the aim's
+  latest metric (same pick as `[progress]`), weekly `Mean` score
+  against weekly metric mean, one unit. `n` is weeks where both
+  exist. `Corr{A, B, Metric string; R float64; N int}`.
+- [x] `NextDay(ctx, a, b string, now) (Corr, bool)`: day score of
+  `a` on days `a` has a live event, against day score of `b` on
+  `day + 1` (missing `b` day is `0`). 90 days ending today. `n` is
+  the count of those `a` days. Zeros-only `a` days do not count.
+- [x] Both are stamped only when `ok` and `|r| ≥ 0.3`. Twenty ordered
+  pairs among five aims will produce a small `r` by chance; the floor
+  is the guard, not a p-value.
+- [x] Tests: the §4.2 week is `ok == false` on both. Eight weeks
+  where the metric falls as the score rises gives `r < 0`. A next-day
+  join with 89 days of zeros and 3 scored days is `n = 3`, not 89.
+  Identical inputs give `r = 1`. A 7-week pair is `ok == false`.
+  `|r| = 0.2` with `n = 12` is not stamped.
+
+#### Stamps and `/aims`
+
+- [x] `Store.ProgressText(ctx, areas, now)` grows a week-start flag:
+  `now` is the first day of its Sunday week → each aim adds, under
+  its five-day grid, `weeks: +0.3 +0.5 +0.1 …` (oldest first, cap 8
+  in the stamp), `slope ±x/wk`, the block `up/days (pct)` when set,
+  and one `effect r=±x.xx (n)` when it passes. Cross-aim
+  `drinking → next-day climbing r=+0.42 (12)` lines sit once under
+  all aims, strongest `|r|` first, at most 3.
+- [x] Any other day: the Phase 0 stamp exactly. The block line is the
+  one exception; it is short and it is daily adherence.
+- [x] `[aims]` on ordinary turns does not change.
+- [x] `/aims` shows the block line and the cross-aim lines every day.
+  `/aims <area>` shows the last 8 weeks, the slope, and the effect
+  line, every day.
+- [x] Tests: `prompt_payload_test.go` chat turn still has no
+  `[progress]`. A planner turn on Sunday `2026-10-04` with 9 weeks of
+  fixture data contains `weeks:`, `slope`, and one `r=`. The same
+  fixture on Wednesday `2026-10-07` contains the five-day grid and
+  the block line and none of `weeks:`, `slope`, `r=`. A 7-week
+  fixture on a Sunday contains `weeks:` and no `r=` and not the words
+  "too early". `/aims <area>` on a Wednesday contains `weeks:`.
+
+#### Prompt
+
+The planner already has the ladder. This adds how to read the week
+lines and forbids inventing a trend when they are absent.
+
+- [x] `DefaultDailyPlannerPrompt`, one paragraph before the ladder:
+  when `[progress]` carries `weeks:` it is the week's first session.
+  One line per aim from those numbers (the run of week means, the
+  slope, the block fraction, the effect line if present) before the
+  ladder, then the ladder as usual; that reply is not `[silent]`. No
+  `weeks:` line means an ordinary morning; do not summarize the week.
+  A missing `r=` is not "no correlation" and not a guess; say nothing
+  about it. On-pace measurement stays `[silent]`.
+- [x] `plannerToolFirstNote`, one sentence: `weeks:` in `[progress]`
+  means read the week back first, one line per aim, then the ladder.
+- [x] `cron/planner_test.go` needles: `weeks:`, `slope`, `r=`.
+  Existing needles stay.
+- [x] Fixture `20_planner_week_start.json`: Sunday, 9 weeks of ledger
+  on training and weight with the weight metric falling, expect a
+  reply that names both aims and a direction word (`up|down|flat|
+  steady|slope|trend`), `silent: false`, `reply_not` "too early" and
+  `correlat`, `round_budget 3`. Fixture `21_planner_midweek_quiet.json`:
+  same ledger on the Wednesday, yesterday `+2`, expect `silent: true`
+  and `reply_not` `week`.
+- [x] Live eval at `-eval.n=1` over all eight fixtures. Record rounds
+  in §7. A ladder or week-start miss is a prompt fix, not a looser
+  expect. 2026-09-26: 8/8. The week read-back sits at the end of
+  `plannerToolFirstNote`; the midweek fixture's calendar is a work
+  day, so the empty-calendar ask does not fire.
+
+#### Pendant frame
+
+Phase 2. The wire is fixed in §4.4.1 — the phone already parses it.
+This repo renders and sends; the receiving Worker and PWA are shipped
+in gantry-pendant (`docs/frontends.md` → Aims board). Cab may ignore
+the kind. Telegram has no board.
+
+There is no hook from `aim_log` or `memory_store` to the mouth, and
+none is added. The channel renders the board itself and sends it when
+the JSON changed. That covers `aim_log`, an aim `memory_store`, a
+forget cascade, and `/aims block` with one comparison.
+
+- [x] `board.go` in `internal/aims`: `Row` and `Board(ctx, areas,
+  now) ([]Row, []Link, error)`. `Row{Area, Sentence string; Rating30
+  float64; Sum7, Streak int; Note string; NoteAt string; Days
+  []DayCell; Weeks []WeekCell; Slope *float64; Block *BlockStats;
+  Effect *Corr}`, `DayCell{Day string; Score int; Events []int64}`,
+  `WeekCell{Start string; Mean float64; Up, Against int; Metrics
+  []Measure}`, `Link{A, B string; R float64; N int}`. json tags
+  **exactly** the §4.4.1 names, lowercase, `omitempty` on `note_at`,
+  `weeks`, `slope`, `block`, `effect`; `days` and `metrics` never
+  omitted (`[]`). `Measure` gains tags `metric`, `mean`, `unit`, `n`.
+  `BlockStats` gains `days`, `up`, `against`, `mean`, `pct`; `Corr`
+  gains `a`, `b`, `metric`, `r`, `n`. Same gates as the stamps:
+  `Slope` nil when `WeekSlope` is `!ok`; `Block` nil when `!ok` or
+  `Days == 0`; `Effect` nil unless `StampCorr`; `Links` is what
+  `crossLines` prints, cap 3, strongest first. Reuse `capAreas`,
+  `StatsAt`, `DayScores`, `Weeks`, `Effect`, `NextDay`,
+  `BlockStatsAt`. Do not write a second computation of any of them.
+- [x] `Channel` option `Board func(ctx) ([]aims.Row, []aims.Link,
+  error)`. Nil means no `aims` frame ever (Telegram-only installs,
+  tests that do not care). `cmd/gantry/run.go` wires it from the
+  store with the live `Areas`.
+- [x] `outboundFrame` gains `Aims []aims.Row` tagged `aims` and
+  `Links []aims.Link` tagged `links,omitempty`. `aimsFrame(rows,
+  links)` builds `{"kind":"aims","aims":[…],"links":[…]}`. Empty
+  rows is `"aims":[]`, still sent, so a screen can clear. No
+  `user_id`.
+- [x] Send on dial after `cmdsFrame()` and before `allowFrame`. After
+  every `runTurn` and every cron `Push`, render again and `writeOn`
+  only when the marshalled JSON differs from the last one sent on this
+  `conn`. A reconnect resets that memory.
+- [x] Tests in `pendant_test.go`: dial writes `cmds`, `aims`, `allow`
+  in that order. The `aims` body round-trips through the §4.4.1
+  example (golden file). A turn that does not change the board writes
+  no `aims` frame. A turn whose handler logs an event writes one. A
+  handler that forgets `aim/training` writes a board without that
+  row. Nil `Board` writes no `aims` frame and no error. One week
+  still sends `weeks` (the table omits that key only when there are
+  none) and omits `slope` and `links`; nine correlated weeks send
+  both `weeks` and `links`.
+- [x] `docs/channels.md`: one line that dial sends `aims` after `cmds`
+  and a changed board resends it. No new socket, no `gantry status`
+  field, no HTTP.
+- [x] `docs/features.md`: the Time bullet gains "and a goals board on
+  the phone".
+
+#### Yard contract (`docs/gantree-contract.md`)
+
+Read-only. `gantry status` JSON stays as it is. Gantree opens
+`gantry.db`; it does not get a hook inside the process. Do not edit
+the gantree checkout; the contract page is the handoff.
+
+- [x] Replace the "schema is not stable" stub with the three tables:
+  `aim_event`, `aim_score`, `aim_block`. Columns as in §4.7. Say
+  `day` is a local `YYYY-MM-DD` in `CRON_TZ`, live rows are
+  `superseded_by IS NULL`, `score` is the agent's opinion `-3…+3`
+  and not a grade, and the day score is `SUM(score)` over live rows
+  per (area, day) clamped to `[-3, 3]`.
+- [x] Say what not to chart: superseded rows, `aim/bootstrap`, and a
+  correlation the crane did not stamp. Weeks, slope, and Pearson are
+  derived; the yard may recompute them, it should not add a table.
+- [x] `docs/todo.md` "Aims ledger" paragraph: Phase 1 shipped, link
+  stays.
+
+#### Docs
+
+- [x] `docs/cron.md` planner section: the week's first session reads
+  the week back; no second job.
+- [x] `docs/features.md`: the Time bullet gains "weekly read-back on
+  the planner turn"; The Okay row stays.
+- [x] `docs/architecture.md`: `[progress]` note says week lines on
+  the week-start planner only.
+- [x] This doc: §7 eval table rows for fixtures 20 and 21; §5 stays
+  one row.

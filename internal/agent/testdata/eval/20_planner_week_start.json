@@ -1,0 +1,49 @@
+{
+  "name": "planner_week_start",
+  "why": "Sunday planner with nine weeks on the ledger: read the week back for training and weight, including a direction, and do not invent a correlation.",
+  "planner": true,
+  "now": "2026-10-04T08:00:00-07:00",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" },
+    { "kind": "insight", "subject": "aim/weight", "content": "lose weight, on the scale each week" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "self": "- North-star: gym three mornings, and lighter by Christmas.",
+  "force": ["garmin", "google"],
+  "tools": [
+    {
+      "name": "garmin__activities_list",
+      "description": "Recorded workouts for a date range.",
+      "params": { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" } } },
+      "result": "No activities today. The gym is already on the ledger. Body weight is down from 200 lb to 184 lb."
+    },
+    {
+      "name": "google__calendar_list_events",
+      "description": "Events on the calendar.",
+      "params": { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" } } },
+      "result": "Work block 9-5. No meals out."
+    }
+  ],
+  "ledger": [
+    { "day": "2026-08-02", "what": "weight 200 lb gym", "aims": { "training": 0, "weight": 0 }, "metric": "weight", "value": 200, "unit": "lb" },
+    { "day": "2026-08-09", "what": "weight 198 lb gym", "aims": { "training": 0, "weight": 0 }, "metric": "weight", "value": 198, "unit": "lb" },
+    { "day": "2026-08-16", "what": "weight 196 lb gym", "aims": { "training": 1, "weight": 1 }, "metric": "weight", "value": 196, "unit": "lb" },
+    { "day": "2026-08-23", "what": "weight 194 lb gym", "aims": { "training": 1, "weight": 1 }, "metric": "weight", "value": 194, "unit": "lb" },
+    { "day": "2026-08-30", "what": "weight 192 lb gym", "aims": { "training": 2, "weight": 2 }, "metric": "weight", "value": 192, "unit": "lb" },
+    { "day": "2026-09-06", "what": "weight 190 lb gym", "aims": { "training": 2, "weight": 2 }, "metric": "weight", "value": 190, "unit": "lb" },
+    { "day": "2026-09-13", "what": "weight 188 lb gym", "aims": { "training": 3, "weight": 3 }, "metric": "weight", "value": 188, "unit": "lb" },
+    { "day": "2026-09-20", "what": "weight 186 lb gym", "aims": { "training": 3, "weight": 3 }, "metric": "weight", "value": 186, "unit": "lb" },
+    { "day": "2026-09-27", "what": "weight 184 lb gym", "aims": { "training": 3, "weight": 3 }, "metric": "weight", "value": 184, "unit": "lb" }
+  ],
+  "expect": {
+    "round_budget": 3,
+    "tools_called": [
+      { "name": "garmin__activities_list" },
+      { "name": "google__calendar_list_events" }
+    ],
+    "silent": false,
+    "evidence_from_turn": true,
+    "reply_not_regex": "(?i)too early|correlat",
+    "reply_regex": "(?i)(weight[\\s\\S]*(gym|training)|(gym|training)[\\s\\S]*weight)[\\s\\S]*(up|down|flat|steady|slope|trend)|(up|down|flat|steady|slope|trend)[\\s\\S]*(weight[\\s\\S]*(gym|training)|(gym|training)[\\s\\S]*weight)"
+  }
+}

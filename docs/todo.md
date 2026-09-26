@@ -12,7 +12,9 @@ lists: pendant [todo.md](https://github.com/shotah/gantry-pendant/blob/main/docs
 ## Aims ledger
 
 Progress tracking for `aim/<area>`: events scored per aim, a five-day
-grid on the planner turn, `/aims`. Design and the Phase 0 work list:
+grid on the planner turn, `/aims`, a weekly read-back on the
+Sunday planner, and a goals board on the phone. Phase 1 and the
+pendant frame are shipped.
 [aims-progress.md](aims-progress.md#10-todo).
 
 ---

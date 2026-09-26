@@ -133,6 +133,11 @@ func TestEvalFixtures_WellFormed(t *testing.T) {
 				t.Errorf("%s: canned tool %q needs an MCP prefix (server__name)", fx.Name, tl.Name)
 			}
 		}
+		if fx.Now != "" {
+			if _, err := time.Parse(time.RFC3339, fx.Now); err != nil {
+				t.Errorf("%s: now %q: %v", fx.Name, fx.Now, err)
+			}
+		}
 		for i, row := range fx.Ledger {
 			if row.What == "" || len(row.Aims) == 0 {
 				t.Errorf("%s: ledger[%d] needs what and aims", fx.Name, i)

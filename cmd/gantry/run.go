@@ -433,7 +433,7 @@ func run() int {
 	}
 	go watchPersonaReload(ctx, cfg.PersonaDir, ag, logger)
 
-	ch, err := newChannel(cfg, logger)
+	ch, err := newChannel(cfg, logger, aimBoard(aimStore))
 	if err != nil {
 		logger.Error("channel init failed", "err", err)
 		return 1
@@ -512,7 +512,20 @@ func run() int {
 	return 0
 }
 
-func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error) {
+func aimBoard(store *aims.Store) func(context.Context) ([]aims.Row, []aims.Link, error) {
+	if store == nil {
+		return nil
+	}
+	return func(ctx context.Context) ([]aims.Row, []aims.Link, error) {
+		areas, err := store.Areas(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		return store.Board(ctx, areas, time.Now())
+	}
+}
+
+func newChannel(cfg *config.Config, logger *slog.Logger, board func(context.Context) ([]aims.Row, []aims.Link, error)) (channel.Channel, error) {
 	switch cfg.Channel {
 	case config.ChannelStdio:
 		ch := stdio.New()
@@ -548,6 +561,7 @@ func newChannel(cfg *config.Config, logger *slog.Logger) (channel.Channel, error
 			AllowedUsers:  cfg.PendantAllowedUsers,
 			Logger:        logger,
 			StreamReplies: cfg.StreamReplies,
+			Board:         board,
 		})
 	default:
 		return nil, fmt.Errorf("unknown channel %q", cfg.Channel)

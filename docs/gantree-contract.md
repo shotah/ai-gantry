@@ -120,8 +120,22 @@ contains the letters `ok`.
 
 ## Ledger tables
 
-`aim_event`, `aim_score`, and `aim_block` are in `gantry.db`. The schema
-is not stable. Do not chart them yet. See [aims-progress.md](aims-progress.md).
+Read-only. Open `gantry.db`. There is no hook inside the process, and
+`gantry status` JSON does not grow a field for this. `day` is a local
+`YYYY-MM-DD` in `CRON_TZ`. Live rows are `superseded_by IS NULL`.
+`score` is the agent's opinion `-3…+3`, not a grade. The day score is
+`SUM(score)` over live rows for one (area, day), clamped to `[-3, 3]`.
+Design: [aims-progress.md](aims-progress.md).
+
+| Table | Columns |
+| --- | --- |
+| `aim_event` | `id`, `day`, `what`, `ref`, `metric`, `value`, `unit`, `source`, `created_at`, `superseded_by` |
+| `aim_score` | `event_id`, `area`, `score`, `note` |
+| `aim_block` | `area`, `from_day`, `to_day` |
+
+Do not chart superseded rows, `aim/bootstrap`, or a correlation the
+crane did not stamp. Weeks, slope, and Pearson are derived. Recompute
+them if a chart needs them. Do not add a fourth table.
 
 ## Tool errors (model + UI)
 

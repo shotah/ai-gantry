@@ -186,7 +186,8 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
   has gone out, so "once a day" needs no recall). When the ledger has rows,
   each aim carries a rating suffix (`30d` mean, `7d` sum, streak, last note)
   with no extra tool call. The daily planner also gets `[progress]`: a
-  five-day grid. `[loops]` from
+  five-day grid, a weekly read-back on the week's first planner
+  turn (Sunday), and a goals board on the phone. `[loops]` from
   `waiting/` and `follow/` facts (interleaved, with
   age and a stale cue, `+N more` instead of silent truncation). With cron:
   `[wakes]` — the next three human jobs, so no `cron_list` just to avoid a

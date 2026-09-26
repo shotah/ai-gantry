@@ -3,6 +3,8 @@ package aims
 import (
 	"context"
 	"fmt"
+	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -98,8 +100,180 @@ func (s *Store) ProgressText(ctx context.Context, areas []string, now time.Time)
 		}
 		b.WriteByte('\n')
 		b.WriteString(Progress(area, days, st, ser))
+		if line := s.blockLine(ctx, area, now); line != "" {
+			b.WriteString("\n  " + line)
+		}
+		if isWeekStart(now, s.loc) {
+			if extra := s.weekLines(ctx, area, now); extra != "" {
+				b.WriteByte('\n')
+				b.WriteString(extra)
+			}
+		}
+	}
+	if isWeekStart(now, s.loc) {
+		for _, line := range s.crossLines(ctx, areas, now) {
+			b.WriteString("\n" + line)
+		}
 	}
 	return b.String()
+}
+
+// AreaTrend is the /aims <area> header under the rating: block, the
+// last eight week means, the slope, and the effect line when it passes.
+func (s *Store) AreaTrend(ctx context.Context, area string, now time.Time) string {
+	if s == nil {
+		return ""
+	}
+	var lines []string
+	if line := s.blockLine(ctx, area, now); line != "" {
+		lines = append(lines, line)
+	}
+	if extra := s.weekLines(ctx, area, now); extra != "" {
+		lines = append(lines, extra)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// BoardTrend is the /aims footer: one block line per area, then up to
+// three cross-aim correlations.
+func (s *Store) BoardTrend(ctx context.Context, areas []string, now time.Time) string {
+	if s == nil {
+		return ""
+	}
+	var lines []string
+	for _, area := range areas {
+		area = strings.TrimSpace(area)
+		if area == "" || area == "bootstrap" {
+			continue
+		}
+		if line := s.blockLine(ctx, area, now); line != "" {
+			lines = append(lines, area+" "+line)
+		}
+	}
+	lines = append(lines, s.crossLines(ctx, areas, now)...)
+	return strings.Join(lines, "\n")
+}
+
+func (s *Store) blockLine(ctx context.Context, area string, now time.Time) string {
+	st, ok, err := s.BlockStatsAt(ctx, area, now)
+	if err != nil || !ok || st.Days == 0 {
+		return ""
+	}
+	return fmt.Sprintf("block %d/%d (%.0f%%)", st.Up, st.Days, st.Pct*100)
+}
+
+func (s *Store) weekLines(ctx context.Context, area string, now time.Time) string {
+	weeks, err := s.Weeks(ctx, area, now)
+	if err != nil || len(weeks) == 0 {
+		return ""
+	}
+	var lines []string
+	if line := formatWeeks(weeks); line != "" {
+		lines = append(lines, "  "+line)
+	}
+	if line := formatWeekSlope(weeks); line != "" {
+		lines = append(lines, "  "+line)
+	}
+	c, ok := Effect(area, weeks)
+	if line := formatEffect(c, ok); line != "" {
+		lines = append(lines, "  "+line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (s *Store) crossLines(ctx context.Context, areas []string, now time.Time) []string {
+	hits := s.crossHits(ctx, areas, now)
+	out := make([]string, len(hits))
+	for i, h := range hits {
+		out[i] = h.line
+	}
+	return out
+}
+
+type crossHit struct {
+	c    Corr
+	abs  float64
+	line string
+}
+
+func (s *Store) crossHits(ctx context.Context, areas []string, now time.Time) []crossHit {
+	capped := capAreas(areas)
+	var hits []crossHit
+	for _, a := range capped {
+		for _, b := range capped {
+			if a == b {
+				continue
+			}
+			c, ok, err := s.NextDay(ctx, a, b, now)
+			if err != nil {
+				continue
+			}
+			line := formatCross(c, ok)
+			if line == "" {
+				continue
+			}
+			hits = append(hits, crossHit{c: c, abs: math.Abs(c.R), line: line})
+		}
+	}
+	sort.Slice(hits, func(i, j int) bool {
+		if hits[i].abs != hits[j].abs {
+			return hits[i].abs > hits[j].abs
+		}
+		return hits[i].line < hits[j].line
+	})
+	if len(hits) > 3 {
+		hits = hits[:3]
+	}
+	return hits
+}
+
+func capAreas(areas []string) []string {
+	var out []string
+	for _, a := range areas {
+		a = strings.TrimSpace(a)
+		if a == "" || a == "bootstrap" {
+			continue
+		}
+		out = append(out, a)
+		if len(out) == 5 {
+			break
+		}
+	}
+	return out
+}
+
+func formatWeeks(weeks []Week) string {
+	shown := weeks
+	if len(shown) > 8 {
+		shown = shown[len(shown)-8:]
+	}
+	parts := make([]string, len(shown))
+	for i, w := range shown {
+		parts[i] = formatMean(w.Mean)
+	}
+	return "weeks: " + strings.Join(parts, " ")
+}
+
+func formatWeekSlope(weeks []Week) string {
+	slope, ok := WeekSlope(weeks)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("slope %+.2f/wk", slope)
+}
+
+func formatEffect(c Corr, ok bool) string {
+	if !StampCorr(ok, c.R) {
+		return ""
+	}
+	return fmt.Sprintf("effect r=%+.2f (%d)", c.R, c.N)
+}
+
+func formatCross(c Corr, ok bool) string {
+	if !StampCorr(ok, c.R) {
+		return ""
+	}
+	return fmt.Sprintf("%s → next-day %s r=%+.2f (%d)", c.A, c.B, c.R, c.N)
 }
 
 func latestMetric(days []DayScore) string {

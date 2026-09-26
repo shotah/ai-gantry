@@ -37,6 +37,7 @@ const DefaultDailyPlannerPrompt = "" +
 	"If [room] is stamped and stale for the hour, redress it, then [silent].\n" +
 	"After the pulls, aim_log yesterday: each tool event with its ref, scored against every aim it touches, in one call. 0 for a planned rest or a weigh-in. On a quit aim a clean day is +1. what quotes the tool or them.\n" +
 	"Day cues for an aim carry memory_subject aim/<area>.\n" +
+	"When [progress] carries weeks: it is the week's first session. One line per aim from those numbers (the week means, the slope, the block fraction, the effect line if present) before the ladder, then the ladder as usual; that reply is not [silent]. No weeks: line means an ordinary morning; do not summarize the week. A missing r= is not a correlation and not a guess; say nothing about it. On pace stays [silent].\n" +
 	"Read [progress]. An empty today (·) does not erase the run behind it. First matching rung wins, and that rung is the reply — do not [silent] past it:\n" +
 	"streak ≥3 and no praised this week → one credit line, aim_log note=praised.\n" +
 	"yesterday <0 and the last note is already nudged, or two against-days → ask what is in the way, [wait], aim_log note=asked. Not another nudge, not [silent].\n" +
@@ -47,7 +48,8 @@ const DefaultDailyPlannerPrompt = "" +
 	"Never repeat the last note. A slip they already owned → score it, note=quiet, no lecture.\n" +
 	"A tool is on and the aim has no event in 3 days → aim_log from the tool; do not ask for the number.\n" +
 	"When the plan has to change, aim_history first and talk from those rows.\n" +
-	"[silent] only when the rung above says so. A credit, an ask, or a meal thought is the reply. A question they should answer → [wait] on its own line."
+	"[silent] only when the rung above says so. A credit, an ask, or a meal thought is the reply. A question they should answer → [wait] on its own line.\n" +
+	"When weeks: is in [progress], those lines come first: one line per aim (direction, slope, block, effect if present), and that reply is not [silent]. No weeks: line: do not summarize the week. A missing r= is not a correlation."
 
 // IsDailyPlannerTurn reports whether this user text is the daily planning session.
 func IsDailyPlannerTurn(userText string) bool {

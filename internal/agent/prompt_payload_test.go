@@ -366,6 +366,110 @@ func TestAimsProgress_OnlyOnPlannerTurn(t *testing.T) {
 	}
 }
 
+func TestAimsProgress_WeekStartOnly(t *testing.T) {
+	ctx := context.Background()
+	loc, _ := payloadClock()
+	rows := []struct {
+		day   string
+		score int
+		lb    float64
+	}{
+		{"2026-08-02", 0, 200},
+		{"2026-08-09", 0, 198},
+		{"2026-08-16", 1, 196},
+		{"2026-08-23", 1, 194},
+		{"2026-08-30", 2, 192},
+		{"2026-09-06", 2, 190},
+		{"2026-09-13", 3, 188},
+		{"2026-09-20", 3, 186},
+		{"2026-09-27", 3, 184},
+	}
+	open := func(now time.Time) (*agent.Agent, *provider.Request) {
+		t.Helper()
+		sessions, err := session.Open(t.TempDir(), 20, 8000)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = sessions.Close() })
+		mem, err := memory.OpenDB(sessions.DB())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, area := range []string{"training", "weight"} {
+			if _, err := mem.Store(ctx, memory.KindInsight, "aim/"+area, area); err != nil {
+				t.Fatal(err)
+			}
+		}
+		store, err := aims.OpenDB(sessions.DB(), loc, mem)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range rows {
+			v := row.lb
+			ev := aims.Event{What: "week", Day: row.day, Metric: "weight", Value: &v, Unit: "lb"}
+			if _, err := store.Log(ctx, ev, map[string]int{"training": row.score, "weight": row.score}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := store.SetBlock(ctx, "training", "2026-08-02", "2026-12-01"); err != nil {
+			t.Fatal(err)
+		}
+		var captured provider.Request
+		a, err := agent.New(agent.Options{
+			Persona: "You are Kit.",
+			Completer: &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+				captured = req
+				return &provider.Result{Content: "ok"}, nil
+			}},
+			Sessions: sessions,
+			Memory:   mem,
+			Model:    "m",
+			Location: loc,
+			TZName:   "America/Los_Angeles",
+			Now:      func() time.Time { return now },
+			Aims:     store,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a, &captured
+	}
+
+	sunday := time.Date(2026, 10, 4, 8, 0, 0, 0, loc)
+	sun, captured := open(sunday)
+	msg := channel.Message{SessionID: "wk", UserID: "1", Text: cron.DailyPlannerPrefix + cron.DefaultDailyPlannerPrompt}
+	if _, err := sun.Handle(ctx, msg); err != nil {
+		t.Fatal(err)
+	}
+	clock := promptHarnessClock(captured.Messages)
+	for _, part := range []string{"weeks:", "slope", "r=", "block "} {
+		if !strings.Contains(clock, part) {
+			t.Fatalf("sunday missing %q:\n%s", part, clock)
+		}
+	}
+
+	wednesday := time.Date(2026, 10, 7, 8, 0, 0, 0, loc)
+	wed, captured := open(wednesday)
+	msg.SessionID = "wk2"
+	if _, err := wed.Handle(ctx, msg); err != nil {
+		t.Fatal(err)
+	}
+	clock = promptHarnessClock(captured.Messages)
+	if !strings.Contains(clock, "[progress]") || !strings.Contains(clock, "block ") {
+		t.Fatalf("wednesday grid:\n%s", clock)
+	}
+	for _, part := range []string{"weeks:", "slope", "r=", "too early"} {
+		if strings.Contains(clock, part) {
+			t.Fatalf("wednesday has %q:\n%s", part, clock)
+		}
+	}
+	msg.Text = "/aims weight"
+	got, err := wed.Handle(ctx, msg)
+	if err != nil || !strings.Contains(got, "weeks:") {
+		t.Fatalf("area %q %v", got, err)
+	}
+}
+
 func promptBlock(msgs []provider.Message, prefix string) string {
 	for _, m := range msgs {
 		if m.Role == provider.RoleSystem && strings.HasPrefix(m.Content, prefix) {

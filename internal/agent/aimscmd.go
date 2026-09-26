@@ -75,6 +75,10 @@ func (a *Agent) aimsBoard(ctx context.Context) (string, error) {
 		b.WriteString(line)
 		b.WriteByte('\n')
 	}
+	if extra := a.aims.BoardTrend(ctx, areas, now); extra != "" {
+		b.WriteString(extra)
+		b.WriteByte('\n')
+	}
 	return strings.TrimRight(b.String(), "\n"), nil
 }
 
@@ -111,6 +115,10 @@ func (a *Agent) aimsArea(ctx context.Context, area string) (string, error) {
 	fmt.Fprintf(&b, "%s", area)
 	if s := aims.Suffix(st); s != "" {
 		fmt.Fprintf(&b, " — %s", s)
+	}
+	if trend := a.aims.AreaTrend(ctx, area, now); trend != "" {
+		b.WriteByte('\n')
+		b.WriteString(trend)
 	}
 	if len(rows) == 0 {
 		b.WriteString("\nno ledger rows")

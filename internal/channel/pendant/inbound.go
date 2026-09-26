@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/shotah/ai-gantry/internal/aims"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/slash"
 )
@@ -48,6 +49,11 @@ type outboundFrame struct {
 	ID       string          `json:"id,omitempty"`
 	Commands []slash.Command `json:"commands,omitempty"`
 	Users    []Entry         `json:"users,omitempty"`
+	// Aims is a pointer so a reply frame omits it and an empty board
+	// still marshals as "aims":[]. omitempty drops a nil pointer and
+	// would also drop an empty slice.
+	Aims  *[]aims.Row `json:"aims,omitempty"`
+	Links []aims.Link `json:"links,omitempty"`
 }
 
 // Entry is one PENDANT_ALLOWED_USERS row: Google sub, verified email, or both.
@@ -62,6 +68,15 @@ func cmdsFrame() outboundFrame {
 
 func allowFrame(users []Entry) outboundFrame {
 	return outboundFrame{Kind: "allow", Users: users}
+}
+
+// aimsFrame is the room-wide board. No user_id. Empty rows still send
+// "aims":[] so a screen can clear. Links omit when there are none.
+func aimsFrame(rows []aims.Row, links []aims.Link) outboundFrame {
+	if rows == nil {
+		rows = []aims.Row{}
+	}
+	return outboundFrame{Kind: "aims", Aims: &rows, Links: links}
 }
 
 // ParseEntry reads one allowlist token. Email is lowercased. Neither digits

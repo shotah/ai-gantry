@@ -8,13 +8,19 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/shotah/ai-gantry/internal/aims"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/here"
+	"github.com/shotah/ai-gantry/internal/memory"
+	"github.com/shotah/ai-gantry/internal/session"
 )
 
 func TestNew_RequiresURLBearerAllowlist(t *testing.T) {
@@ -882,4 +888,263 @@ func TestDispatch_IgnoresTypingFrame(t *testing.T) {
 		t.Fatal("no write on inbound typing")
 	default:
 	}
+}
+
+func TestAimsFrame_GoldenRoundTrip(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "aims_frame.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var frame outboundFrame
+	if err := json.Unmarshal(raw, &frame); err != nil {
+		t.Fatal(err)
+	}
+	if frame.Kind != "aims" || frame.UserID != "" || frame.Aims == nil || len(*frame.Aims) != 1 {
+		t.Fatalf("frame %+v", frame)
+	}
+	row := (*frame.Aims)[0]
+	if row.Area != "training" || row.Sentence != "gym 3 mornings/wk" || row.Note != "asked" || row.NoteAt != "2026-09-25" {
+		t.Fatalf("row %+v", row)
+	}
+	if len(row.Days) != 5 || row.Days[2].Score != 0 || len(row.Days[2].Events) != 0 || row.Days[0].Events[0] != 411 {
+		t.Fatalf("days %+v", row.Days)
+	}
+	if row.Slope == nil || *row.Slope != 0.3 || row.Block == nil || row.Block.Up != 4 || row.Block.Pct != 0.4 {
+		t.Fatalf("slope=%v block=%+v", row.Slope, row.Block)
+	}
+	if row.Effect == nil || row.Effect.R != -0.42 || row.Effect.Metric != "weight" || len(row.Weeks) != 2 || len(row.Weeks[0].Metrics) != 0 {
+		t.Fatalf("effect=%+v weeks=%+v", row.Effect, row.Weeks)
+	}
+	if len(frame.Links) != 1 || frame.Links[0].A != "training" || frame.Links[0].N != 12 {
+		t.Fatalf("links %+v", frame.Links)
+	}
+	again, err := json.Marshal(frame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back outboundFrame
+	if err := json.Unmarshal(again, &back); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(frame, back) {
+		t.Fatalf("round trip\n%+v\n%+v", frame, back)
+	}
+	if strings.Contains(string(again), `"user_id"`) {
+		t.Fatalf("board is room-wide: %s", again)
+	}
+}
+
+func TestAimsFrame_EmptyRowsStillSent(t *testing.T) {
+	raw, err := json.Marshal(aimsFrame(nil, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	if !strings.Contains(body, `"aims":[]`) || strings.Contains(body, `"links"`) || strings.Contains(body, `"user_id"`) {
+		t.Fatalf("empty board: %s", body)
+	}
+}
+
+func TestPush_AimsOnlyWhenBoardChanges(t *testing.T) {
+	ch := testPendant(t)
+	ch.board = func(context.Context) ([]aims.Row, []aims.Link, error) {
+		return []aims.Row{{
+			Area: "training", Sentence: "gym",
+			Days: []aims.DayCell{{Day: "2026-09-26", Events: []int64{}}},
+		}}, nil, nil
+	}
+	fc := &fakeConn{writes: make(chan []byte, 8)}
+	ch.setLive(fc)
+	msg := channel.Outbound{Text: "wake"}
+	if err := ch.Push(context.Background(), msg); err != nil {
+		t.Fatal(err)
+	}
+	got := drainFrames(fc.writes)
+	if len(got) != 2 || got[0].Kind != "push" || got[1].Kind != "aims" {
+		t.Fatalf("first push %+v", kinds(got))
+	}
+	if err := ch.Push(context.Background(), msg); err != nil {
+		t.Fatal(err)
+	}
+	got = drainFrames(fc.writes)
+	if len(got) != 1 || got[0].Kind != "push" {
+		t.Fatalf("unchanged push %+v", kinds(got))
+	}
+}
+
+func TestServe_AimsBetweenCmdsAndAllow(t *testing.T) {
+	ch := testPendant(t)
+	ch.board = func(context.Context) ([]aims.Row, []aims.Link, error) {
+		return []aims.Row{{Area: "training", Sentence: "gym", Days: []aims.DayCell{{Day: "2026-09-27", Events: []int64{}}}}}, nil, nil
+	}
+	frames := serveOpening(t, ch, 3)
+	if frames[0].Kind != "cmds" || frames[1].Kind != "aims" || frames[2].Kind != "allow" {
+		t.Fatalf("order %s %s %s", frames[0].Kind, frames[1].Kind, frames[2].Kind)
+	}
+	if frames[1].UserID != "" || frames[1].Aims == nil || len(*frames[1].Aims) != 1 {
+		t.Fatalf("aims %+v", frames[1])
+	}
+}
+
+func TestRunTurn_AimsOnlyWhenBoardChanges(t *testing.T) {
+	ctx := context.Background()
+	loc, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
+	mem, err := memory.OpenDB(sess.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mem.Store(ctx, memory.KindInsight, "aim/training", "gym 3 mornings"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mem.Store(ctx, memory.KindInsight, "aim/weight", "lose weight"); err != nil {
+		t.Fatal(err)
+	}
+	store, err := aims.OpenDB(sess.DB(), loc, mem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := testPendant(t)
+	now := time.Date(2026, 9, 27, 8, 0, 0, 0, loc)
+	ch.board = func(ctx context.Context) ([]aims.Row, []aims.Link, error) {
+		areas, err := store.Areas(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		return store.Board(ctx, areas, now)
+	}
+	fc := &fakeConn{writes: make(chan []byte, 16)}
+	msg := channel.Message{UserID: "1182", Text: "hi"}
+	if err := ch.runTurn(ctx, fc, func(context.Context, channel.Message) (string, error) {
+		_, err := store.Log(ctx, aims.Event{What: "gym", Day: "2026-09-26"}, map[string]int{"training": 2})
+		return "logged", err
+	}, msg, ""); err != nil {
+		t.Fatal(err)
+	}
+	got := drainFrames(fc.writes)
+	aimsN := countKind(got, "aims")
+	if aimsN != 1 || !frameHasArea(got, "training") {
+		t.Fatalf("after log: %+v", kinds(got))
+	}
+	if err := ch.runTurn(ctx, fc, func(context.Context, channel.Message) (string, error) {
+		return "same", nil
+	}, msg, ""); err != nil {
+		t.Fatal(err)
+	}
+	got = drainFrames(fc.writes)
+	if countKind(got, "aims") != 0 {
+		t.Fatalf("unchanged turn wrote aims: %+v", kinds(got))
+	}
+	if err := ch.runTurn(ctx, fc, func(context.Context, channel.Message) (string, error) {
+		row, ok, err := mem.ActiveByKindSubject(ctx, memory.KindInsight, "aim/training")
+		if err != nil || !ok {
+			return "", err
+		}
+		if err := mem.Forget(ctx, row.ID); err != nil {
+			return "", err
+		}
+		return "forgot", store.Forget(ctx, "training")
+	}, msg, ""); err != nil {
+		t.Fatal(err)
+	}
+	got = drainFrames(fc.writes)
+	if countKind(got, "aims") != 1 || frameHasArea(got, "training") {
+		t.Fatalf("after forget: %+v", kinds(got))
+	}
+}
+
+func testPendant(t *testing.T) *Channel {
+	t.Helper()
+	ch, err := New(Config{
+		MailboxURL:   "wss://x.workers.dev/ws/kit",
+		Bearer:       "tok",
+		AllowedUsers: []string{"1182"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ch
+}
+
+func serveOpening(t *testing.T, ch *Channel, n int) []outboundFrame {
+	t.Helper()
+	fc := &fakeConn{reads: make(chan []byte), writes: make(chan []byte, n)}
+	ch.dial = func(context.Context, string, http.Header) (conn, error) { return fc, nil }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- ch.serve(ctx, func(context.Context, channel.Message) (string, error) { return "", nil })
+	}()
+	var frames []outboundFrame
+	for i := 0; i < n; i++ {
+		select {
+		case raw := <-fc.writes:
+			var out outboundFrame
+			if err := json.Unmarshal(raw, &out); err != nil {
+				t.Fatal(err)
+			}
+			frames = append(frames, out)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("missing frame %d", i)
+		}
+	}
+	cancel()
+	_ = fc.Close()
+	<-done
+	return frames
+}
+
+func drainFrames(writes <-chan []byte) []outboundFrame {
+	var out []outboundFrame
+	for {
+		select {
+		case raw := <-writes:
+			var frame outboundFrame
+			if json.Unmarshal(raw, &frame) == nil {
+				out = append(out, frame)
+			}
+		default:
+			return out
+		}
+	}
+}
+
+func countKind(frames []outboundFrame, kind string) int {
+	n := 0
+	for _, f := range frames {
+		if f.Kind == kind {
+			n++
+		}
+	}
+	return n
+}
+
+func frameHasArea(frames []outboundFrame, area string) bool {
+	for _, f := range frames {
+		if f.Aims == nil {
+			continue
+		}
+		for _, row := range *f.Aims {
+			if row.Area == area {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func kinds(frames []outboundFrame) []string {
+	out := make([]string, len(frames))
+	for i, f := range frames {
+		out[i] = f.Kind
+	}
+	return out
 }

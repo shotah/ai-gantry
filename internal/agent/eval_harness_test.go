@@ -87,7 +87,10 @@ type evalFixture struct {
 	// before any model call. Needs the integration tag (network).
 	ToolsFrom []string `json:"tools_from,omitempty"`
 	// Force lists MCP prefixes published without mcp_enable (like MCP_ENABLE_FORCE).
-	Force  []string   `json:"force,omitempty"`
+	Force []string `json:"force,omitempty"`
+	// Now freezes the turn clock (RFC3339) so a Sunday or Wednesday
+	// fixture does not depend on the day the eval runs. Empty uses time.Now.
+	Now    string     `json:"now,omitempty"`
 	Expect evalExpect `json:"expect"`
 }
 
@@ -549,6 +552,13 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 	// recorder on top. Canned results take the same {{+Nm}} clock as the
 	// inbound text so a "dinner at 7" fixture is still ahead at 9pm.
 	started := time.Now().In(loc)
+	if fx.Now != "" {
+		parsed, perr := time.Parse(time.RFC3339, fx.Now)
+		if perr != nil {
+			t.Fatalf("%s: now: %v", fx.Name, perr)
+		}
+		started = parsed.In(loc)
+	}
 	canned := fx.Tools
 	if len(fx.ToolsFrom) > 0 {
 		if evalLiveTools == nil {
@@ -607,6 +617,7 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		Model:       "eval",
 		Location:    loc,
 		TZName:      evalTZ,
+		Now:         func() time.Time { return started },
 	})
 	if err != nil {
 		t.Fatal(err)

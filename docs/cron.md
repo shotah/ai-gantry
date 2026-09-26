@@ -123,7 +123,10 @@ What happened toward an aim is not another memory sentence. `aim_log`
 writes one event scored `-3…+3` against each live `aim/<area>` it touches.
 `aim_history` lists those rows with ids. The rating on `[aims]` is a
 stamp (30-day mean, 7-day sum, streak, last note). The planner turn also
-gets `[progress]`: five local days, `·` when nothing was logged. `/aims`
+gets `[progress]`: five local days, `·` when nothing was logged. The
+week's first session (Sunday in `CRON_TZ`) adds the week means, the
+slope, and any correlation on that same turn. There is no second job.
+`/aims`
 prints the same block; `/aims <area>` is the last two weeks with ids;
 `/aims rubric` is the scale. Design: [aims-progress.md](aims-progress.md).
 
