@@ -57,6 +57,28 @@ func TestAimHistory_LineFormat(t *testing.T) {
 	}
 }
 
+func TestAimTools_RejectOverflowingInts(t *testing.T) {
+	ctx := context.Background()
+	f := openFixture(t, time.UTC)
+	seedAims(t, f.mem, "climbing")
+	tools := aims.Tools{Store: f.store}
+
+	// 2^32+2 truncates to +2 if converted through a 32-bit int first.
+	_, err := tools.Call(ctx, aims.ToolLog, json.RawMessage(`{"what":"pizza","aims":{"climbing":4294967298}}`))
+	if err == nil || !strings.Contains(err.Error(), "must be -3..3") {
+		t.Fatalf("score err=%v", err)
+	}
+	hist, err := f.store.History(ctx, "", "", "", 10)
+	if err != nil || len(hist) != 0 {
+		t.Fatalf("wrote on error: %v %v", hist, err)
+	}
+
+	_, err = tools.Call(ctx, aims.ToolHistory, json.RawMessage(`{"limit":3000000000}`))
+	if err == nil || !strings.Contains(err.Error(), "bad limit") {
+		t.Fatalf("limit err=%v", err)
+	}
+}
+
 func TestAimLog_RewriteByEvent(t *testing.T) {
 	ctx := context.Background()
 	loc, _ := time.LoadLocation("America/Los_Angeles")

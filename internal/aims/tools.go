@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -133,6 +134,9 @@ func (t Tools) history(ctx context.Context, args map[string]any) (string, error)
 	if n, ok, err := intArg(args, "limit"); err != nil {
 		return "", err
 	} else if ok {
+		if n > math.MaxInt32 || n < math.MinInt32 {
+			return "", fmt.Errorf("aims: bad limit: %d", n)
+		}
 		limit = int(n)
 	}
 	if from == "" && to == "" {
@@ -189,6 +193,9 @@ func parseScores(raw any) (map[string]int, error) {
 		n, err := asInt(v)
 		if err != nil {
 			return nil, fmt.Errorf("aims: score for %s: %w", area, err)
+		}
+		if n < ScoreMin || n > ScoreMax {
+			return nil, fmt.Errorf("aims: score for %s must be %d..%d, got %d", area, ScoreMin, ScoreMax, n)
 		}
 		out[area] = int(n)
 	}
