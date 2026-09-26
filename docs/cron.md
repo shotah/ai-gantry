@@ -117,6 +117,16 @@ How it works:
    applies (no email, spend, or public posts).
 4. `/planner off` disables the row. Dated reminders are separate jobs.
 
+## Aims ledger
+
+What happened toward an aim is not another memory sentence. `aim_log`
+writes one event scored `-3…+3` against each live `aim/<area>` it touches.
+`aim_history` lists those rows with ids. The rating on `[aims]` is a
+stamp (30-day mean, 7-day sum, streak, last note). The planner turn also
+gets `[progress]`: five local days, `·` when nothing was logged. `/aims`
+prints the same block; `/aims <area>` is the last two weeks with ids;
+`/aims rubric` is the scale. Design: [aims-progress.md](aims-progress.md).
+
 ## Capability examples / training wheels (on by default)
 
 Inventory-aware multi-step ideas (propose only — no tools on the ping).

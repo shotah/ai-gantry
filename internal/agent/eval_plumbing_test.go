@@ -133,6 +133,11 @@ func TestEvalFixtures_WellFormed(t *testing.T) {
 				t.Errorf("%s: canned tool %q needs an MCP prefix (server__name)", fx.Name, tl.Name)
 			}
 		}
+		for i, row := range fx.Ledger {
+			if row.What == "" || len(row.Aims) == 0 {
+				t.Errorf("%s: ledger[%d] needs what and aims", fx.Name, i)
+			}
+		}
 		for _, server := range fx.ToolsFrom {
 			if _, ok := liveServers[server]; !ok {
 				t.Errorf("%s: tools_from %q is not a server in %s", fx.Name, server, evalManifest)
@@ -414,7 +419,10 @@ func TestEvalHarness_PlannerWake(t *testing.T) {
 	fx := loadEvalFixture(t, filepath.Join(evalFixtureDir, "07_planner_gym_no_workout.json"))
 	sc := &scriptCompleter{res: []*provider.Result{
 		{ToolCalls: []provider.ToolCall{toolCall("c1", "garmin__activities_list", map[string]any{})}},
-		{Content: "Garmin is blank and the shoes are still by the door. Gym before lunch?"},
+		{ToolCalls: []provider.ToolCall{toolCall("c2", "aim_log", map[string]any{
+			"what": "Garmin: no activities", "aims": map[string]any{"training": 0}, "note": "asked",
+		})}},
+		{Content: "Nothing on Garmin. What's in the way of the gym this week?\n[wait]"},
 	}}
 
 	out := runEvalFixture(ctx, t, sc, fx)

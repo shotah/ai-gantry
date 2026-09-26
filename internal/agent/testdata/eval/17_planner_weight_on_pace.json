@@ -1,0 +1,33 @@
+{
+  "name": "planner_weight_on_pace",
+  "why": "Weight trending down and Garmin has today's number: log it as a weigh-in (0) with that number, then [silent].",
+  "planner": true,
+  "memory": [
+    { "kind": "insight", "subject": "aim/weight", "content": "lose 20 lbs by December; down 4 so far" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "self": "- North-star: lighter by Christmas without being miserable about it.",
+  "force": ["garmin"],
+  "tools": [
+    {
+      "name": "garmin__weight_list",
+      "description": "Body-weight samples. Args: start, end (YYYY-MM-DD).",
+      "params": { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" } } },
+      "result": "Body weight today is 191.4 lb, down from 193.2 lb."
+    }
+  ],
+  "ledger": [
+    { "day_offset": -6, "what": "weighed in", "aims": { "weight": 0 }, "metric": "weight", "value": 193.2, "unit": "lb" },
+    { "day_offset": -1, "what": "weighed in", "aims": { "weight": 0 }, "metric": "weight", "value": 192.1, "unit": "lb" }
+  ],
+  "expect": {
+    "round_budget": 3,
+    "tools_called": [
+      { "name": "garmin__weight_list" },
+      { "name": "aim_log", "args_regex": "191\\.4" },
+      { "name": "aim_log", "args_regex": "\"weight\"\\s*:\\s*0" }
+    ],
+    "silent": true,
+    "evidence_from_turn": true
+  }
+}

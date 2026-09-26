@@ -1,6 +1,6 @@
 {
   "name": "planner_gym_no_workout",
-  "why": "Daily planner with a gym aim and Garmin listed: Garmin is called, not assumed; the nudge is tied to the aim; not [silent].",
+  "why": "Daily planner, gym aim, Garmin empty, yesterday already nudged at -1. Garmin is called, yesterday is logged from the tool, and the reply is the ask rung with [wait] — not the nudge again.",
   "planner": true,
   "memory": [
     { "kind": "insight", "subject": "aim/training", "content": "3x gym this month; none yet this week" },
@@ -19,7 +19,7 @@
           "end": { "type": "string", "description": "YYYY-MM-DD" }
         }
       },
-      "result": "[]"
+      "result": "no activities"
     },
     {
       "name": "google__calendar_list_events",
@@ -28,10 +28,20 @@
       "result": "[]"
     }
   ],
+  "ledger": [
+    { "day_offset": -1, "what": "skipped the gym", "aims": { "training": -1 }, "note": "nudged" }
+  ],
   "expect": {
-    "round_budget": 2,
-    "tools_called": [{ "name": "garmin__activities_list" }],
+    "round_budget": 3,
+    "tools_called": [
+      { "name": "garmin__activities_list" },
+      { "name": "aim_log", "args_regex": "training" },
+      { "name": "aim_log", "args_regex": "\"note\"\\s*:\\s*\"asked\"" }
+    ],
     "silent": false,
+    "wait": true,
+    "evidence_from_turn": true,
+    "reply_not_regex": "(?i)skipped the gym",
     "reply_regex": "(?i)gym|workout|train|lift|shoes|move|session"
   }
 }

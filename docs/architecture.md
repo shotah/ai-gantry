@@ -226,7 +226,7 @@ One WAL SQLite file: `$DATA_DIR/gantry.db`.
 5. System: `[memory]` hydration block (optional, ≤ ~30 rows; after history so the prefix stays cacheable)
 6. System: MCP server health (when tools are wired)
 7. User: current message (typed words / `[photo]` / steers only)
-8. System: `[harness]` location + `[current time]` + `[hours]` + `[aims]` / `[loops]` (prompt-only; not session history)
+8. System: `[harness]` location + `[current time]` + `[hours]` + `[aims]` (rating suffix when the ledger has rows) + `[progress]` on the daily planner turn only + `[loops]` (prompt-only; not session history)
 9. System: follow-up / conversation / `mcp_enable` review / cron tool-first notes as applicable
 
 Tool schemas are attached on the completion request, not as chat messages.
@@ -256,7 +256,8 @@ goldens; read the diff before trusting it.
 The `[harness]` header names only the tags present (`location and clock`
 on a memory-off turn; `location, clock, hours, horizon, wakes, surface,
 input, room, and last contact` on the full board, where the Cab Auto
-fixture carries `input: spoken`). `[aims]` / `[loops]` carry `(12d
+fixture carries `input: spoken`). A planner turn adds `progress`.
+`[aims]` / `[loops]` carry `(12d
 ago)` from `updated_at` after the first day, `[loops]` past three weeks add
 `— resolve or memory_forget`, and both say `(+N more — memory_recall …)`
 instead of truncating silently. Rows already on `[aims]` / `[loops]` are

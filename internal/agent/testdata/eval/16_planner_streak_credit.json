@@ -1,0 +1,35 @@
+{
+  "name": "planner_streak_credit",
+  "why": "Three up-days and no praised this week: one credit line, aim_log note=praised, no nudge.",
+  "planner": true,
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" },
+    { "kind": "preference", "subject": "pref/hours", "content": "sleep: 23:00-06:00\nwork: 07:00-15:00" }
+  ],
+  "self": "- North-star: show up for the gym three mornings a week.",
+  "force": ["garmin"],
+  "tools": [
+    {
+      "name": "garmin__activities_list",
+      "description": "Recorded workouts for a date range.",
+      "params": { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" } } },
+      "result": "no activities today; the last three mornings are already on the ledger"
+    }
+  ],
+  "ledger": [
+    { "day_offset": -3, "what": "gym session", "aims": { "training": 2 } },
+    { "day_offset": -2, "what": "gym session", "aims": { "training": 2 } },
+    { "day_offset": -1, "what": "gym session", "aims": { "training": 2 } }
+  ],
+  "expect": {
+    "round_budget": 3,
+    "tools_called": [
+      { "name": "aim_log", "args_regex": "(?i)\"note\"\\s*:\\s*\"praised\"" }
+    ],
+    "tools_not_called": [],
+    "silent": false,
+    "evidence_from_turn": true,
+    "reply_not_regex": "(?i)you should|don't forget|nudge",
+    "reply_regex": "(?i)gym|streak|three|credit|nice|solid|showed"
+  }
+}

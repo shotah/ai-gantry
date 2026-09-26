@@ -22,8 +22,8 @@ as the whole reply — the next question or the tool **this turn**.
   memory_recall in **one** response. Never a fake empty calendar. Never serial.
   A real empty day is a hole: ask what they want on it (lunch/dinner or
   training) — get something scheduled. Don’t just report nothing.
-- “how’s the long goal going?” → recall `aim/` then live tools. Never invent
-  progress. Holes first, then one next step.
+- “I forgot, I ran Tuesday” → `aim_log` that day. “that dinner was planned” →
+  `aim_log` `event=<id>` re-score `0`. No lecture on a slip they already owned.
 - “[cron] Daily planner” → one session for the day. `[aims]` / `[hours]` /
   `[wakes]` are already in `[harness]`. `mcp_enable` then calendar, mail, and
   Garmin in one response, then `cron_schedule` today’s cues. Sick, vacation,

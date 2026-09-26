@@ -93,6 +93,12 @@ func TestDailyPlannerPrompt_OneSession(t *testing.T) {
 		"[aims]",
 		"[wait]",
 		"agree-and-stop",
+		"aim_log",
+		"aim_history",
+		"[progress]",
+		"praised",
+		"note=asked",
+		"note=quiet",
 	} {
 		if !strings.Contains(body, needle) {
 			t.Fatalf("planner text missing %q", needle)

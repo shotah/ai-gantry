@@ -19,7 +19,11 @@
   ],
   "expect": {
     "round_budget": 2,
-    "tools_called": [{ "name": "google__calendar_list_events" }],
+    "tools_called": [
+      { "name": "google__calendar_list_events" },
+      { "name": "aim_log", "args_regex": "(?i)weight" }
+    ],
+    "evidence_from_turn": true,
     "silent": false,
     "reply_regex": "(?i)dinner|marco|priya|meal|menu|order|eat|protein|portion|light|dessert|bread",
     "max_questions": 1

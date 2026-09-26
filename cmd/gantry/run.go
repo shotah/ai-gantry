@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/agent"
+	"github.com/shotah/ai-gantry/internal/aims"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/channel/discord"
 	"github.com/shotah/ai-gantry/internal/channel/pendant"
@@ -192,8 +193,9 @@ func run() int {
 			}
 		}()
 
+		memTools := memory.Tools{Backend: memBackend}
 		tools = memory.Composite{
-			Memory:        memory.Tools{Backend: memBackend},
+			Memory:        memTools,
 			Other:         mcpHost,
 			HideMCPServer: hideServer,
 		}
@@ -207,6 +209,25 @@ func run() int {
 			}
 			go consol.Start(ctx)
 		}
+	}
+
+	var aimStore *aims.Store
+	if memBackend != nil {
+		aimStore, err = aims.OpenDB(sessions.DB(), tzLoc, memBackend)
+		if err != nil {
+			logger.Error("aims store open failed", "err", err)
+			return 1
+		}
+		if c, ok := tools.(memory.Composite); ok {
+			c.Memory.ForgetAim = aimStore.Forget
+			tools = c
+		}
+		tools = aims.Composite{Aims: aims.Tools{Store: aimStore}, Other: tools}
+		n := 0
+		if areas, aerr := aimStore.Areas(ctx); aerr == nil {
+			n = len(areas)
+		}
+		logger.Info("aims ready", "areas", n)
 	}
 
 	var cronStore *cron.Store
@@ -384,6 +405,7 @@ func run() int {
 		HistoryStripFillers: cfg.HistoryStripFillers,
 		Enable:              enableStore,
 		EnableForce:         enableForce,
+		Aims:                aimStore,
 	}
 	if selfStore != nil {
 		agentOpts.SelfNotes = selfStore

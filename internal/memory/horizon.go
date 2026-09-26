@@ -37,9 +37,34 @@ var ErrNotSupported = errors.New("memory: not supported on this backend")
 // North-star sentences stay in SELF.md; this is the tracker (insight + aim/<area>).
 // now stamps "(12d ago)" from updated_at; zero now omits ages.
 func FormatAims(entries []Entry, now time.Time) string {
+	return FormatAimsNoted(entries, now, nil)
+}
+
+// FormatAimsNoted is FormatAims with an optional rating suffix per area.
+// notes[area] empty leaves that aim unchanged. The five-aim cap still holds.
+func FormatAimsNoted(entries []Entry, now time.Time, notes map[string]string) string {
 	parts, more := horizonParts(entries, SubjectAimPrefix, now, 0)
 	if len(parts) == 0 {
 		return ""
+	}
+	if len(notes) > 0 {
+		capped := entries
+		if len(capped) > harnessHorizonMax {
+			capped = capped[:harnessHorizonMax]
+		}
+		i := 0
+		for _, e := range capped {
+			label := strings.TrimPrefix(strings.TrimSpace(e.Subject), SubjectAimPrefix)
+			if label == "" {
+				continue
+			}
+			if i < len(parts) {
+				if s := strings.TrimSpace(notes[label]); s != "" {
+					parts[i] += " — " + s
+				}
+			}
+			i++
+		}
 	}
 	return "[aims] " + strings.Join(parts, " · ") + horizonMore(more, "memory_recall aim/")
 }

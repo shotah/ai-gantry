@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/agent"
+	"github.com/shotah/ai-gantry/internal/aims"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/mcpenable"
@@ -75,6 +76,9 @@ type evalFixture struct {
 	Self string `json:"self,omitempty"`
 	// Tools are canned MCP tools. Result is returned verbatim on every call.
 	Tools []evalTool `json:"tools,omitempty"`
+	// Ledger is scored events seeded before the turn. day_offset is calendar
+	// days from the turn (yesterday is -1) in America/Los_Angeles.
+	Ledger []evalLedger `json:"ledger,omitempty"`
 	// ToolsFrom names servers in testdata/eval/mcp.toml whose real catalog —
 	// names, descriptions, schemas from the latest release binary's
 	// tools/list — replaces hand-written defs. Every tool the server
@@ -96,6 +100,18 @@ type evalMemory struct {
 	Kind    string `json:"kind"`
 	Subject string `json:"subject"`
 	Content string `json:"content"`
+}
+
+type evalLedger struct {
+	DayOffset int            `json:"day_offset,omitempty"`
+	Day       string         `json:"day,omitempty"`
+	What      string         `json:"what"`
+	Aims      map[string]int `json:"aims"`
+	Note      string         `json:"note,omitempty"`
+	Ref       string         `json:"ref,omitempty"`
+	Metric    string         `json:"metric,omitempty"`
+	Value     *float64       `json:"value,omitempty"`
+	Unit      string         `json:"unit,omitempty"`
 }
 
 type evalTool struct {
@@ -132,8 +148,11 @@ type evalExpect struct {
 	// result this turn. The "never invent live facts" gate — a model that
 	// gets the same fares back for two dates and makes up a cheaper pair
 	// to tell them apart fails here, not in the human's inbox.
-	PricesFromTools *bool              `json:"prices_from_tools,omitempty"`
-	Memory          []evalMemoryExpect `json:"memory,omitempty"`
+	PricesFromTools *bool `json:"prices_from_tools,omitempty"`
+	// EvidenceFromTurn: every aim_log what shares a 4+ character token with
+	// a tool result or the turn's own text (the human, the planner prompt, memory).
+	EvidenceFromTurn *bool              `json:"evidence_from_turn,omitempty"`
+	Memory           []evalMemoryExpect `json:"memory,omitempty"`
 	// CronWithin: at least one job for this session lands in [after, before]
 	// minutes from the turn.
 	CronWithin *evalWindow  `json:"cron_within,omitempty"`
@@ -186,7 +205,10 @@ type evalOutcome struct {
 	// turn text, seeded memory, history, SELF.md. A "$2,400" that restates
 	// the human's own budget is not invented.
 	Given string
-	mem   memory.Memory
+	// LedgerIDs are the seeded event ids, in fixture order. Expect regexes
+	// may say {{ledger:0}} for the first.
+	LedgerIDs []int64
+	mem       memory.Memory
 }
 
 func loadEvalFixtures(t *testing.T, dir string) []evalFixture {
@@ -537,8 +559,28 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 			t.Fatalf("%s: %v", fx.Name, err)
 		}
 	}
+	aimStore, err := aims.OpenDB(sessions.DB(), loc, mem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ledgerIDs []int64
+	for _, row := range fx.Ledger {
+		day := row.Day
+		if day == "" {
+			day = started.AddDate(0, 0, row.DayOffset).Format("2006-01-02")
+		}
+		ev, err := aimStore.Log(ctx, aims.Event{
+			Day: day, What: row.What, Note: row.Note, Ref: row.Ref,
+			Metric: row.Metric, Value: row.Value, Unit: row.Unit, Source: "model",
+		}, row.Aims)
+		if err != nil {
+			t.Fatalf("%s: seed ledger %q: %v", fx.Name, row.What, err)
+		}
+		ledgerIDs = append(ledgerIDs, ev.ID)
+	}
 	var tools agent.Tools = newCannedTools(canned, started)
-	tools = memory.Composite{Memory: memory.Tools{Backend: mem}, Other: tools}
+	tools = memory.Composite{Memory: memory.Tools{Backend: mem, ForgetAim: aimStore.Forget}, Other: tools}
+	tools = aims.Composite{Aims: aims.Tools{Store: aimStore}, Other: tools}
 	tools = cron.Composite{Cron: cron.Tools{Store: jobs, TZ: evalTZ, Memory: mem}, Other: tools}
 	tools = selfnote.Composite{Self: selfnote.Tools{Store: self}, Other: tools}
 	base := tools
@@ -561,6 +603,7 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		SelfNotes:   self,
 		Enable:      enable,
 		EnableForce: mcpenable.Force{Prefixes: fx.Force},
+		Aims:        aimStore,
 		Model:       "eval",
 		Location:    loc,
 		TZName:      evalTZ,
@@ -608,6 +651,7 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		PromptTokens:     counter.usage.PromptTokens,
 		CompletionTokens: counter.usage.CompletionTokens,
 		Given:            evalGiven(fx, text),
+		LedgerIDs:        ledgerIDs,
 		mem:              mem,
 	}
 }
@@ -630,8 +674,101 @@ func evalGiven(fx evalFixture, text string) string {
 	return b.String()
 }
 
+var evalLedgerRef = regexp.MustCompile(`\{\{ledger:(\d+)\}\}`)
+
+var evalTokenRe = regexp.MustCompile(`[a-z0-9]{4,}`)
+
+func expandEvalExpect(want evalExpect, ids []int64) evalExpect {
+	for i := range want.ToolsCalled {
+		want.ToolsCalled[i].ArgsRegex = expandLedgerIDs(want.ToolsCalled[i].ArgsRegex, ids)
+	}
+	for i := range want.AnyOf {
+		want.AnyOf[i] = expandEvalExpect(want.AnyOf[i], ids)
+	}
+	if want.ReplyRegex != "" {
+		want.ReplyRegex = expandLedgerIDs(want.ReplyRegex, ids)
+	}
+	if want.ReplyNot != "" {
+		want.ReplyNot = expandLedgerIDs(want.ReplyNot, ids)
+	}
+	return want
+}
+
+func expandLedgerIDs(s string, ids []int64) string {
+	return evalLedgerRef.ReplaceAllStringFunc(s, func(m string) string {
+		sub := evalLedgerRef.FindStringSubmatch(m)
+		if len(sub) != 2 {
+			return "0"
+		}
+		n := 0
+		for _, c := range sub[1] {
+			n = n*10 + int(c-'0')
+		}
+		if n < 0 || n >= len(ids) {
+			return "0"
+		}
+		return fmt.Sprintf("%d", ids[n])
+	})
+}
+
+func ungroundedAimLogs(out evalOutcome) []string {
+	hay := strings.ToLower(out.Given)
+	for _, c := range out.Calls {
+		hay += "\n" + strings.ToLower(c.Result)
+	}
+	var fails []string
+	saw := false
+	for _, c := range out.Calls {
+		if c.Name != aims.ToolLog {
+			continue
+		}
+		saw = true
+		what := aimLogWhat(c.Args)
+		if !sharesEvidence(what, hay) {
+			fails = append(fails, "aim_log what not grounded in this turn: "+what)
+		}
+	}
+	if !saw {
+		fails = append(fails, "evidence_from_turn: no aim_log")
+	}
+	return fails
+}
+
+func aimLogWhat(args string) string {
+	var body struct {
+		What string `json:"what"`
+	}
+	if err := json.Unmarshal([]byte(args), &body); err != nil {
+		return strings.TrimSpace(args)
+	}
+	return strings.TrimSpace(body.What)
+}
+
+func sharesEvidence(what, hay string) bool {
+	what = strings.ToLower(strings.TrimSpace(what))
+	if what == "" {
+		return false
+	}
+	toks := evalTokenRe.FindAllString(what, -1)
+	long := false
+	for _, tok := range toks {
+		if len(tok) < 4 {
+			continue
+		}
+		long = true
+		if strings.Contains(hay, tok) {
+			return true
+		}
+	}
+	if !long {
+		return strings.Contains(hay, what)
+	}
+	return false
+}
+
 // checkEval returns one line per failed expectation. Empty means pass.
 func checkEval(ctx context.Context, out evalOutcome, want evalExpect) []string {
+	want = expandEvalExpect(want, out.LedgerIDs)
 	var fails []string
 	reply := out.RawReply
 	if reply == "" {
@@ -703,6 +840,9 @@ func checkEval(ctx context.Context, out evalOutcome, want evalExpect) []string {
 		for _, p := range inventedPrices(reply, out) {
 			fails = append(fails, "invented price $"+p+" (in no tool result or input)")
 		}
+	}
+	if want.EvidenceFromTurn != nil && *want.EvidenceFromTurn {
+		fails = append(fails, ungroundedAimLogs(out)...)
 	}
 	for _, m := range want.Memory {
 		if !memoryRowExists(ctx, out.mem, m) {

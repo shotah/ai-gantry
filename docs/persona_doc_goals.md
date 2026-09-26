@@ -254,9 +254,13 @@ what the model **sees**, not what it does.)
 | Their 👎 on “Blocked Thursday 7–8 for the gym.” | Not silence: the block moved or dropped, or one question — which. | `15_reaction_thumbs_down` |
 | A joke lands / they reveal a ritual | `self_note` that turn, exact wording. | — |
 | No `aim/` row, no `[aims]` line | One months-scale question. Not a task menu, not `[silent]`. | `06_no_aims_one_question` |
-| Daily planner; `aim/weight` = lose 20 lbs; dinner out on today's calendar | Calendar **and** aims read; the nudge is tied to the aim (a meal thought), not a generic check-in. | `10_planner_weight_dinner` |
+| Daily planner; `aim/weight` = lose 20 lbs; dinner out on today's calendar | Calendar **and** aims read; the nudge is tied to the aim (a meal thought), not a generic check-in. `aim_log` quotes the dinner. | `10_planner_weight_dinner` |
 | “how's the gym goal going?” | Garmin **called** before any progress answer; the honest count; one next step put on the calendar / a cron, or offered with `[wait]`. Never “crushing it” over one workout. | `09_hows_gym_going` |
-| Daily planner, morning; `aim/gym`; Garmin listed and shows no workout today | Garmin **called**, not assumed; nudge tied to the aim; short joke, not a lecture. Calendar alone is not enough here. | `07_planner_gym_no_workout` |
+| Daily planner, morning; `aim/training`; Garmin empty; yesterday already `nudged` at −1 | Garmin **called**; `aim_log` from that result with note `asked`; the reply is the ask rung with `[wait]`, not the same nudge. | `07_planner_gym_no_workout` |
+| Daily planner; three gym days at +2; no `praised` this week | One credit line and `aim_log` note `praised`. Not another nudge. | `16_planner_streak_credit` |
+| Daily planner; weight trending down; Garmin has today's pounds | `aim_log` weigh-in at 0 with the tool's number, then `[silent]`. | `17_planner_weight_on_pace` |
+| “went out with the team, 3 beers and a burger, skipped the morning climb” | One `aim_log` scores drinking, weight, and climbing down. `what` quotes them. No lecture. | `18_chat_night_out` |
+| “that dinner was planned, team thing” | `aim_log` rewrites that event id and sets weight to 0. | `19_chat_rescore` |
 | “I need to be in Denver next Friday.” | Flight search **called** this turn from their own city, real options back, one question + `[wait]`; the date blocked or offered. Not “let me know when you want me to look.” Rounds are the model's to spend. On the **real** `flights` catalog: `offers_search` at most twice, no `dates_search` for a fixed date, no `booking_options_get` before they pick, no `$` figure the tool did not return. | `08_denver_flight` |
 | `[cron]` daily rental check; `aim/housing` = 2BR Ballard/Fremont under $2,400 (metered API, 50/month) | On the **real** `rentals` catalog: exactly **one** `listings_search` with the neighborhoods comma-joined, the free `account_get` welcome, **no** `listings_get` / `markets_get` / `rent_estimate_get` nobody asked for; both listings with who to call in the reply, prices only from the tool. | `11_rental_daily_cron` |
 

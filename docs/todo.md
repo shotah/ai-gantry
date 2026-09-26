@@ -9,6 +9,14 @@ lists: pendant [todo.md](https://github.com/shotah/gantry-pendant/blob/main/docs
 
 ---
 
+## Aims ledger
+
+Progress tracking for `aim/<area>`: events scored per aim, a five-day
+grid on the planner turn, `/aims`. Design and the Phase 0 work list:
+[aims-progress.md](aims-progress.md#10-todo).
+
+---
+
 ## Pendant draft stutter (`bo` … 10 s … full reply)
 
 Seen on the PWA and Cab: the Kit bubble paints the first delta

@@ -183,7 +183,10 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
   with ISO dates so “Monday” cannot reuse after the week rolls. When memory
   is on: `[hours]` from `pref/hours`, `[aims]` from live `aim/<area>`
   insight (or `[aims] none (asked <date>)` once the months-scale question
-  has gone out, so "once a day" needs no recall), `[loops]` from
+  has gone out, so "once a day" needs no recall). When the ledger has rows,
+  each aim carries a rating suffix (`30d` mean, `7d` sum, streak, last note)
+  with no extra tool call. The daily planner also gets `[progress]`: a
+  five-day grid. `[loops]` from
   `waiting/` and `follow/` facts (interleaved, with
   age and a stale cue, `+N more` instead of silent truncation). With cron:
   `[wakes]` — the next three human jobs, so no `cron_list` just to avoid a
@@ -207,6 +210,8 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
   and (ask-first) events. Sick, vacation, or a day off → `[silent]` and no
   nag crons. `/planner 09:30` or `cron_schedule` `repeat=planner` moves the
   clock; `/planner off` turns it off. Dated reminders still fire.
+  After the pulls it `aim_log`s what the tools (or the human) showed.
+  `/aims` reads the ledger; `/aims rubric` is the score scale.
 - **Examples** (`EXAMPLES_QTY`, default `1-2`): capability pings from the
   live catalog (plus harness recipes: first aim, cron, memory) so you learn
   what the agent can do; `/examples on|off`; `/examples` on-demand still
@@ -265,6 +270,7 @@ Works. Has seams. Don’t be surprised.
 | **Token counts** | Chars/4 **estimates**, labeled as such. `/tokens` is a standing-prompt breakdown, not a tokenizer. Good enough to catch a fat schema; not a billing meter. |
 | **Discord / Slack** | Shipped, outbound-only, allowlist. Telegram is the path that got the menu, photos, reactions, pin, error-tee, and production scars. |
 | **Daily planner** | One job at boot (`DAILY_PLANNER_AT`, default 07:10). `/planner 09:30` or `repeat=planner` moves it; `/planner off` stops it. `[silent]` on a sick day or vacation means that session never shows up in chat — look at logs / `cron_list`. |
+| **Aim scores** | The number on an event is the agent's opinion (`-3…+3`), labeled as such. Grades stay in the human's words. `/aims` shows the same rows the model sees. |
 | **Examples pings** | On by default (`1-2`/day). Useful as training wheels; can feel like a nag. `/examples off` or `EXAMPLES_QTY=0`. |
 | **`mcp_enable` holds** | Magic durations (27h / 6h). Wrong prefix → still a fat schema until idle expiry. |
 | **Location pin** | In-memory. Restart = amnesia. Not a Completer wake. |

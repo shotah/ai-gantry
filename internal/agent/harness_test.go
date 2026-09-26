@@ -61,6 +61,7 @@ func TestHarnessNote_NamesOnlyPresentTags(t *testing.T) {
 		"[location ±8m] x\n[current time] y":                                    "location and clock",
 		"[location] x\n[current time] y\n[hours] z\n[aims] a\n[loops] l":        "location, clock, hours, and horizon",
 		"[current time] y\n[wakes] w\n[surface] android_auto\n[last contact] c": "clock, wakes, surface, and last contact",
+		"[aims] a\n[loops] l\n[progress]\np":                                    "horizon and progress",
 	}
 	for clock, want := range cases {
 		if got := harnessNote(clock); got != harnessNotePrefix+want+" for this turn." {
@@ -83,6 +84,11 @@ func TestPlannerNotes_ReadHarnessNotRecall(t *testing.T) {
 	for _, s := range []string{"memory_recall for aim/, pref/hours", "cron_list, then live", "Empty aim board"} {
 		if strings.Contains(plannerToolFirstNote, s) {
 			t.Fatalf("plannerToolFirstNote still says %q", s)
+		}
+	}
+	for _, s := range []string{"aim_log", "aim_history", "[progress]", "praised", "never repeat the last note"} {
+		if !strings.Contains(plannerToolFirstNote, s) {
+			t.Fatalf("plannerToolFirstNote missing %q", s)
 		}
 	}
 	if !strings.Contains(plannerToolFirstNote, "If [room] is stamped and stale, redress it") {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shotah/ai-gantry/internal/aims"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/cron"
 	"github.com/shotah/ai-gantry/internal/memory"
@@ -26,6 +27,7 @@ var harnessTags = []struct{ tag, word string }{
 	{"[hours]", "hours"},
 	{"[aims]", "horizon"},
 	{"[loops]", "horizon"},
+	{"[progress]", "progress"},
 	{"[wakes]", "wakes"},
 	{"[surface]", "surface"},
 	{"[input]", "input"},
@@ -125,12 +127,59 @@ func (a *Agent) loadHorizon(ctx context.Context) horizon {
 	return h
 }
 
-func (h horizon) stamp(now time.Time) string {
-	aims := memory.FormatAims(h.aims, now)
-	if aims == "" {
-		aims = memory.FormatAimsEmpty(h.asked, now)
+func (h horizon) stamp(now time.Time, notes map[string]string, progress string) string {
+	aimsLine := memory.FormatAimsNoted(h.aims, now, notes)
+	if aimsLine == "" {
+		aimsLine = memory.FormatAimsEmpty(h.asked, now)
 	}
-	return stampLine(aims) + stampLine(memory.FormatLoops(h.waiting, h.follow, now))
+	return stampLine(aimsLine) + stampLine(progress) + stampLine(memory.FormatLoops(h.waiting, h.follow, now))
+}
+
+// aimNotes is the rating suffix per live aim. Nil when the ledger is off,
+// so a turn with no store keeps the old [aims] line.
+func (a *Agent) aimNotes(ctx context.Context, h horizon, now time.Time) map[string]string {
+	if a.aims == nil {
+		return nil
+	}
+	notes := map[string]string{}
+	n := 0
+	for _, e := range h.aims {
+		area := strings.TrimPrefix(strings.TrimSpace(e.Subject), memory.SubjectAimPrefix)
+		if area == "" || area == "bootstrap" {
+			continue
+		}
+		if n >= 5 {
+			break
+		}
+		n++
+		st, err := a.aims.StatsAt(ctx, area, now)
+		if err != nil {
+			a.log.Warn("aim stats failed", "area", area, "err", err)
+			continue
+		}
+		if s := aims.Suffix(st); s != "" {
+			notes[area] = s
+		}
+	}
+	return notes
+}
+
+func (a *Agent) progressStamp(ctx context.Context, h horizon, now time.Time) string {
+	if a.aims == nil {
+		return ""
+	}
+	var areas []string
+	for _, e := range h.aims {
+		area := strings.TrimPrefix(strings.TrimSpace(e.Subject), memory.SubjectAimPrefix)
+		if area == "" || area == "bootstrap" {
+			continue
+		}
+		areas = append(areas, area)
+		if len(areas) >= 5 {
+			break
+		}
+	}
+	return a.aims.ProgressText(ctx, areas, now)
 }
 
 // dropStamped filters hydration rows already on [aims] / [loops].

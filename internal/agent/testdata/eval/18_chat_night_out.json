@@ -1,0 +1,21 @@
+{
+  "name": "chat_night_out",
+  "why": "One night out touches drinking, weight, and climbing. One aim_log scores all three down, what quotes them, no lecture.",
+  "inbound": "went out with the team, 3 beers and a burger, skipped the morning climb",
+  "memory": [
+    { "kind": "insight", "subject": "aim/drinking", "content": "quit drinking; a clean day is the win" },
+    { "kind": "insight", "subject": "aim/weight", "content": "lose 20 lbs by December" },
+    { "kind": "insight", "subject": "aim/climbing", "content": "climb harder; mornings at the gym" }
+  ],
+  "expect": {
+    "round_budget": 2,
+    "tools_called": [
+      { "name": "aim_log", "max_calls": 1 },
+      { "name": "aim_log", "args_regex": "\"drinking\"\\s*:\\s*-" },
+      { "name": "aim_log", "args_regex": "\"weight\"\\s*:\\s*-" },
+      { "name": "aim_log", "args_regex": "\"climbing\"\\s*:\\s*-" }
+    ],
+    "evidence_from_turn": true,
+    "reply_not_regex": "(?i)you shouldn't|disappointed|bad choice|that's on you"
+  }
+}

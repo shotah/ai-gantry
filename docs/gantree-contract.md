@@ -118,6 +118,11 @@ contains the letters `ok`.
 
 ---
 
+## Ledger tables
+
+`aim_event`, `aim_score`, and `aim_block` are in `gantry.db`. The schema
+is not stable. Do not chart them yet. See [aims-progress.md](aims-progress.md).
+
 ## Tool errors (model + UI)
 
 Boot-skipped servers stay out of the prompt catalog (do not invite

@@ -20,6 +20,9 @@ const (
 // Tools adapts a Memory backend into agent tool defs / calls.
 type Tools struct {
 	Backend Memory
+	// ForgetAim drops the ledger for an aim when memory_forget removes
+	// insight aim/<area>. Nil skips the cascade. aim/bootstrap is not an aim.
+	ForgetAim func(ctx context.Context, area string) error
 }
 
 // ToolDefs returns the three builtin memory tool schemas.
@@ -30,7 +33,7 @@ func ToolDefs() []provider.ToolDef {
 			Description: "Store one atomic memory (fact|preference|person|episode|insight). " +
 				"Same kind+subject replaces the live row (old row kept, superseded). " +
 				"Facts about the human (food, hours, people, events) go here — not self_note. " +
-				"Months-scale plans: kind=insight, subject=aim/<area>. Events: fact subject=event/<slug>. " +
+				"Months-scale plans: kind=insight, subject=aim/<area> (the sentence stays here; what happened goes to aim_log). Events: fact subject=event/<slug>. " +
 				"Waiting: fact subject=waiting/<slug>. Follow-up note: fact subject=follow/<slug>. " +
 				"Hours: preference subject=pref/hours as sleep:/work:/quiet: HH:MM-HH:MM lines. " +
 				"Never auto-save guesses. Jokes go in self_note.",
@@ -138,20 +141,45 @@ func (t Tools) Call(ctx context.Context, name string, arguments json.RawMessage)
 			if err != nil {
 				return "", err
 			}
+			var doomed []Entry
+			if e, gerr := t.Backend.Get(ctx, id); gerr == nil {
+				doomed = []Entry{e}
+			}
 			if err := t.Backend.Forget(ctx, id); err != nil {
 				return "", err
 			}
+			t.cascadeAims(ctx, doomed)
 			return fmt.Sprintf("forgot id=%d", id), nil
 		}
 		query, _ := args["query"].(string)
+		doomed, _ := t.Backend.Recall(ctx, query, 100)
 		n, err := t.Backend.ForgetQuery(ctx, query)
 		if err != nil {
 			return "", err
 		}
+		t.cascadeAims(ctx, doomed)
 		return fmt.Sprintf("forgot %d row(s) matching %q", n, query), nil
 
 	default:
 		return "", fmt.Errorf("memory: unknown tool %q", name)
+	}
+}
+
+func (t Tools) cascadeAims(ctx context.Context, entries []Entry) {
+	if t.ForgetAim == nil {
+		return
+	}
+	for _, e := range entries {
+		if e.Kind != KindInsight || !strings.HasPrefix(e.Subject, SubjectAimPrefix) {
+			continue
+		}
+		area := strings.TrimPrefix(e.Subject, SubjectAimPrefix)
+		if area == "" || area == "bootstrap" {
+			continue
+		}
+		if err := t.ForgetAim(ctx, area); err != nil {
+			continue
+		}
 	}
 }
 

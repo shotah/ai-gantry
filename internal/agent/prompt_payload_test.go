@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/shotah/ai-gantry/internal/agent"
+	"github.com/shotah/ai-gantry/internal/aims"
 	"github.com/shotah/ai-gantry/internal/channel"
 	"github.com/shotah/ai-gantry/internal/channel/pendant"
 	"github.com/shotah/ai-gantry/internal/cron"
@@ -233,6 +234,13 @@ func TestPendantInbound_CompleterPayloadFullBoard(t *testing.T) {
 	if _, err := jobs.Schedule(ctx, cron.DefaultDailyPlannerPrompt, parsed, delivery); err != nil {
 		t.Fatal(err)
 	}
+	aimStore, err := aims.OpenDB(sessions.DB(), loc, mem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := aimStore.Log(ctx, aims.Event{What: "gym", Day: "2026-09-14"}, map[string]int{"training": 2}); err != nil {
+		t.Fatal(err)
+	}
 
 	var captured provider.Request
 	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
@@ -259,6 +267,7 @@ func TestPendantInbound_CompleterPayloadFullBoard(t *testing.T) {
 		Location: loc,
 		TZName:   "America/Los_Angeles",
 		Now:      func() time.Time { return now },
+		Aims:     aimStore,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -289,6 +298,71 @@ func TestPendantInbound_CompleterPayloadFullBoard(t *testing.T) {
 	}
 	if !strings.Contains(harnessHeader(clock), "last contact") {
 		t.Fatalf("header must name last contact:\n%s", clock)
+	}
+}
+
+func TestAimsProgress_OnlyOnPlannerTurn(t *testing.T) {
+	ctx := context.Background()
+	loc, now := payloadClock()
+	sessions, err := session.Open(t.TempDir(), 20, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sessions.Close() })
+	mem, err := memory.OpenDB(sessions.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mem.Store(ctx, memory.KindInsight, "aim/training", "3x gym this month"); err != nil {
+		t.Fatal(err)
+	}
+	aimStore, err := aims.OpenDB(sessions.DB(), loc, mem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := aimStore.Log(ctx, aims.Event{What: "gym", Day: "2026-09-14"}, map[string]int{"training": 2}); err != nil {
+		t.Fatal(err)
+	}
+	var captured provider.Request
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		captured = req
+		return &provider.Result{Content: "ok"}, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Persona:   "You are Kit.",
+		Completer: fc,
+		Sessions:  sessions,
+		Memory:    mem,
+		Model:     "m",
+		Location:  loc,
+		TZName:    "America/Los_Angeles",
+		Now:       func() time.Time { return now },
+		Aims:      aimStore,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := channel.Message{SessionID: "prog", UserID: "1", Text: "how's the gym going"}
+	if _, err := a.Handle(ctx, msg); err != nil {
+		t.Fatal(err)
+	}
+	clock := promptHarnessClock(captured.Messages)
+	if !strings.Contains(clock, "30d +0.1 · 7d +2 · streak 1") {
+		t.Fatalf("suffix missing:\n%s", clock)
+	}
+	if strings.Contains(clock, "[progress]") {
+		t.Fatalf("chat turn stamped [progress]:\n%s", clock)
+	}
+	msg.Text = cron.DailyPlannerPrefix + cron.DefaultDailyPlannerPrompt
+	if _, err := a.Handle(ctx, msg); err != nil {
+		t.Fatal(err)
+	}
+	clock = promptHarnessClock(captured.Messages)
+	if !strings.Contains(clock, "[progress]") || !strings.Contains(clock, "2026-09-14 +2") {
+		t.Fatalf("planner grid:\n%s", clock)
+	}
+	if !strings.Contains(harnessHeader(clock), "progress") {
+		t.Fatalf("header:\n%s", harnessHeader(clock))
 	}
 }
 

@@ -45,6 +45,23 @@ func TestFormatAimsEmpty(t *testing.T) {
 	}
 }
 
+func TestFormatAimsNoted_SuffixAndCap(t *testing.T) {
+	many := make([]Entry, 6)
+	for i := range many {
+		many[i] = Entry{Subject: "aim/" + string(rune('a'+i)), Content: "n"}
+	}
+	got := FormatAimsNoted(many, time.Time{}, map[string]string{"a": "30d +1.0 · 7d +2 · streak 1"})
+	if !strings.Contains(got, "a: n — 30d +1.0 · 7d +2 · streak 1") {
+		t.Fatalf("suffix %q", got)
+	}
+	if strings.Contains(got, "f: n") {
+		t.Fatalf("sixth aim leaked %q", got)
+	}
+	if !strings.Contains(got, "(+1 more — memory_recall aim/)") {
+		t.Fatalf("overflow %q", got)
+	}
+}
+
 func TestFormatAims_ClipsAndCountsOverflow(t *testing.T) {
 	got := FormatAims([]Entry{{Subject: "aim/x", Content: strings.Repeat("x", 90)}}, time.Time{})
 	if !strings.HasPrefix(got, "[aims] x: ") || !strings.HasSuffix(got, "…") {

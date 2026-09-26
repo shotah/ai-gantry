@@ -8,7 +8,7 @@ this week: Sun 09-13 past · Mon 09-14 TODAY · Tue 09-15 upcoming · Wed 09-16 
 next week starts 2026-09-20 — weekday-only notes (e.g. "Monday") are not this week
 Relative words in earlier turns, summary, and memory are stale. NOW is the split: before = past, after = upcoming. Tool date args: this timezone, offset -07:00 — never Z / UTC unless the schema requires it.
 [hours] sleep 22:00-06:00 · work 07:00-14:00 · quiet none — work is not DND; check-ins skip sleep
-[aims] training: 3x gym this month
+[aims] training: 3x gym this month — 30d +0.1 · 7d +2 · streak 1
 [loops] waiting/dentist: book cleaning · follow/visa: packet in
 [wakes] 5:02 PM Remind them to leave for the gym
 [surface] android_auto — driving; read aloud like a person: conversational prose, a few short sentences, no markdown, lists, code, links, or emoji

@@ -1,0 +1,26 @@
+{
+  "name": "chat_rescore",
+  "why": "They dispute yesterday's dinner. aim_log rewrites that event id and sets weight back to 0.",
+  "inbound": "that dinner was planned, team thing",
+  "memory": [
+    { "kind": "insight", "subject": "aim/weight", "content": "lose 20 lbs by December" }
+  ],
+  "ledger": [
+    { "day_offset": -1, "what": "team dinner: 3 beers and a burger", "aims": { "weight": -2 } }
+  ],
+  "expect": {
+    "round_budget": 2,
+    "tools_called": [
+      {
+        "name": "aim_log",
+        "args_regex": "\"event\"\\s*:\\s*{{ledger:0}}"
+      },
+      {
+        "name": "aim_log",
+        "args_regex": "\"weight\"\\s*:\\s*0"
+      }
+    ],
+    "evidence_from_turn": true,
+    "reply_not_regex": "(?i)you shouldn't|disappointed|bad choice"
+  }
+}
