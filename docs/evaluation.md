@@ -1,9 +1,12 @@
 # Harness evaluation
 
 *Authored by Claude Fable 5.1 (Anthropic), working in Cursor, September
-2026. The opinions below — including the verdict — are the model's, not
-the maintainer's. Where the maintainer corrected a misread design choice,
-the correction is folded in, not footnoted.*
+2026; revised 2026-09-26 after the aims ledger
+([aims-progress.md](aims-progress.md)) and the tasks list
+([tasks.md](tasks.md)) shipped. The opinions below — including the
+verdict — are the model's, not the maintainer's. Where the maintainer
+corrected a misread design choice, the correction is folded in, not
+footnoted.*
 
 An honest read of `gantry` as an AI harness — what it is good at, where it
 is thin, and how it sits next to the other self-hosted personal-agent
@@ -27,7 +30,7 @@ Gantry is a **disciplined, single-purpose harness**: one static Go binary,
 one persona, one OpenAI-compat socket, optional MCP children, SQLite. It
 refuses most of what the category is currently adding (UIs, routers,
 subagents, skills marketplaces, inbound ports) and spends that budget on
-five things the others mostly leave to the model — or do not do at all:
+six things the others mostly leave to the model — or do not do at all:
 
 1. **What the model actually sees.** The prompt is a pinned contract. PWA
    inbound JSON → `Handle` → Completer request → HTTP body are all
@@ -54,23 +57,39 @@ five things the others mostly leave to the model — or do not do at all:
    picture it generated and a closed theme catalog it listed. The
    household owns the whole path (crane → Worker → every socket). No
    comparator gives the agent control of the client it is talked to in.
+6. **Progress the model does not have to remember.** Months-scale aims
+   are one sentence each in memory; what happened against them is a
+   ledger the agent writes (`aim_log`: one event, the agent's `-3…+3`
+   opinion toward every aim it touches, in the human's words) and the
+   kernel does the arithmetic on — 30-day and 7-day ratings on `[aims]`
+   every turn, a five-day grid by date on `[progress]` for the planner,
+   week buckets and a slope on Sunday, and a ladder (`praised`,
+   `nudged`, `asked`, `offered`, `quiet`) that stops the daily planner
+   from saying the same line twice. Beside it, the pocket list:
+   `todo/<slug>` rows the agent keeps, stamped `[todo]` with ids, that
+   never age out and that only the human closes. Both reach the phone
+   as mailbox frames (`aims`, `todo`) and as one slash each (`/aims`,
+   `/todo`) whose only kernel writes are `block` and `done`. No new
+   table for tasks, no target curve for aims, no second model call for
+   either.
 
-Behind those five sits a **paid behavior contract** next to the free byte
+Behind those six sits a **paid behavior contract** next to the free byte
 contract: scenario fixtures replayed against the shipped persona on the
 live model, with real MCP catalogs where the fixture names a server. The
 goldens say what the model was shown; the eval says what it did with it.
 Details in [The behavior contract](#the-behavior-contract).
 
 The cost of that discipline: no authorization layer beyond the allowlist
-and the manifest, a harness stamp of eight tags that needs watching, and a
-behavior gate that costs money to run — so it gates releases, not pull
-requests. Channel breadth, skills files, a synthesized user model, memory
+and the manifest, a harness stamp of twelve possible tags that needs
+watching, scores that are an opinion and not a meter, and a behavior gate
+that costs money to run — so it gates releases, not pull requests. Channel breadth, skills files, a synthesized user model, memory
 auto-save, in-process model routing, and voice are *not* gaps; they are
 declined, and the reasons are in [Declined on purpose](#declined-on-purpose).
 
 **Verdict (the model's, per the byline):** best-in-class at *harness-side
-context*, at running well on weak models, and at keeping the tool catalog
-cheap among the comparators read above; deliberately without breadth
+context*, at running well on weak models, at keeping the tool catalog
+cheap, and — since the ledger — at *following through on a goal over
+months without re-asking* among the comparators read above; deliberately without breadth
 inside the unit (channels, UI, routers, subagents). Right choice for one
 person, one mouth, one brain on a hardened small box, with a phone and a
 car screen the agent can make its own — and, as a fleet of those units
@@ -92,7 +111,9 @@ of it on purpose.
 | Tool catalog cost | **Strong** | `[mcp prefixes]` is byte-stable (cacheable); `mcp_enable` TTL holds (27h / 6h); `tools` / `exclude` / `tools_prefix` filters; payloads from rounds older than the last 2 tool rounds collapse, so a parallel batch is always read back whole. |
 | Procedural memory | **Good, different shape** | Manifest + descriptions are the recipe; `skill/<area>` rows for exceptions; examples seed teaches the pattern. Depends on the model choosing to store — consistent with auto-save off. |
 | Personality persistence | **Strong** | `SELF.md` + Voice fold + distill; operator prune; `:ro` kill switch. |
-| Proactivity | **Good** | Daily planner (one clock time, `[silent]` on a day off), examples, cron, quiet watches. The planner reads `[aims]` / `[wakes]` instead of re-fetching. |
+| Proactivity | **Strong** | Daily planner (one clock time, `[silent]` on a day off), examples, cron, quiet watches. The planner reads `[aims]` / `[todo]` / `[progress]` / `[wakes]` instead of re-fetching, logs yesterday from the tools it already called, schedules today's cues pinned to the aim or task they serve, and climbs a ladder keyed on the ledger so the nudge is never yesterday's sentence. |
+| Goal tracking | **Strong, opinionated** | Event ledger (`aim_event` / `aim_score` / `aim_block`), agent-scored `-3…+3` against a fixed rubric and per-domain anchors, kernel-computed rating, grid, weeks, slope, Pearson on measurement vs effort. Evidence gate in the eval: every logged `what` must trace to a tool result or the human's words. The score is the agent's opinion by design; the human argues in chat and re-scores by id. |
+| Tasks | **Good, small on purpose** | `todo/<slug>` memory rows, no table. `[todo]` with ids every turn; the planner parses the words against the week grid and cron-schedules the cue on the task's own day. Never ages out, never offered for dropping; only the human closes one. Whether the nag actually varies day to day is asserted by one planner fixture, not measured over a week. |
 | Long-term memory (facts) | **Good** | Typed SQLite + FTS5, inspectable with `sqlite3`, persona precedence, consolidator. No embeddings by choice. |
 | User model | **Deliberate** | Captured at fold (`Facts:`), not re-derived per turn. Per-turn cost is ≤30 FTS rows keyed on the user's words, no model call. |
 | Memory capture | **Deliberate** | Explicit `memory_store` only; the fold is the one compaction call. No flush turn, no auto-save. See [How memory gets written](#how-memory-gets-written). |
@@ -101,7 +122,7 @@ of it on purpose.
 | Security / authorization | **Thin** | Allowlist + manifest-is-grant. No per-tool approval; ask-first is prompt text. |
 | Ops surface | **Strong for one box** | No inbound port, Distroless, `gantry status` heartbeat, chat is the console, `/auth` headless OAuth. Fleet ops is gantree, not here. |
 | Multi-model / multi-agent | **Absent by design** | No router, no fallback, no subagents inside the unit. One process = one brain; the fleet is Gantree's. |
-| Behavioral regression | **Strong, paid** | Eleven scenario fixtures replayed against the shipped seed on the live model, two on real MCP catalogs pulled at run time; shape asserted (tools, args, call counts, `[wait]`, `[silent]`, rows, jobs, prices from tools), every run must pass. Release gate and on demand, not per push. One model per reading. |
+| Behavioral regression | **Strong, paid** | Twenty-seven scenario fixtures replayed against the shipped seed on the live model, two on real MCP catalogs pulled at run time; shape asserted (tools, args, call counts, `[wait]`, `[silent]`, rows, jobs, prices from tools, ledger evidence, cron `when` against a frozen clock), every run must pass. Fixtures can seed a ledger and aged memory rows and refer to their ids. Release gate and on demand, not per push. One model per reading. |
 | Token accounting | **Okay** | chars/4 estimates plus native `usage` when sent. `/tokens` catches fat schemas, not billing. |
 
 ---
@@ -113,7 +134,8 @@ of it on purpose.
 | Runtime | One static Go binary, `CGO_ENABLED=0`, Distroless, no inbound port | Node 22+ Gateway with Control UI, binds a port | Harness + agents stored in Letta Cloud for multi-computer; local server option | Python agent + gateway process, seven terminal backends |
 | Prompt contract | Goldens from mouth JSON to HTTP body; wire == agent layout by test | Not published as a pinned artifact | Not published as a pinned artifact | Not published as a pinned artifact |
 | Behavior contract | Fixtures on the live model against the shipped seed; real MCP catalogs from latest releases; shape and spend asserted | Not published | Trajectory export | Trajectory export, RL tooling |
-| Harness-side context (no tool call) | `[current time]` week grid, `[location]` with fix age, `[hours]`, `[aims]`, `[loops]`, `[wakes]`, `[surface]`, `[room]`, `[last contact]` | Model reads workspace files; cron in gateway | Memory blocks in context (persona / human / custom) | `MEMORY.md` / `USER.md` loaded at session start; skills by name |
+| Harness-side context (no tool call) | `[current time]` week grid, `[location]` with fix age, `[hours]`, `[aims]` with ratings, `[todo]` with ids, `[loops]`, `[progress]` on the planner, `[wakes]`, `[surface]`, `[room]`, `[last contact]` | Model reads workspace files; cron in gateway | Memory blocks in context (persona / human / custom) | `MEMORY.md` / `USER.md` loaded at session start; skills by name |
+| Goals and tasks | Agent-scored event ledger, kernel math (rating, grid, weeks, slope, correlation), ladder that never repeats a note; tasks as memory rows with the planner as due-date parser; both on the phone as frames | Not a harness feature in the docs read; the model keeps notes in workspace files | Not a harness feature in the docs read; memory blocks the agent rewrites | Not a harness feature in the docs read; `MEMORY.md` the model edits |
 | Catalog disclosure | `[mcp prefixes]` on/off by server prefix, byte-stable; `mcp_enable` ships schemas next call with a TTL; force list for always-on | Full toolset per agent; skills by name | Tools + skills; skill text loaded on demand | Skill *name* in prompt, `skill_view` loads the file; 60+ builtin tools always on |
 | Procedure lives in | Tool descriptions (manifest is the grant and the recipe) + `skill/<area>` memory rows | Workspace Markdown, skills | Skills + memory blocks, MemFS | `SKILL.md` files written by a background review agent, curated by a Curator |
 | Weak-model tool repair | Alias, ≤5 closest names, grammar-constrained retry, salvage, CoT promote, landing call; counted in `/toolstats` | Assumes capable model ("use the strongest latest-generation model") | Model-agnostic, frontier-oriented | Model-agnostic; RL / trajectory tooling for training tool-callers |
@@ -124,7 +146,7 @@ of it on purpose.
 | Metered-API discipline | `budget = "N/day"` per server enforced in the host on every path; refusals name the reset; eval gates one search per ask | — | — | — |
 | Memory inspectability | `sqlite3 gantry.db`, typed rows, no vector SaaS | Markdown files + SQLite index | Memory blocks; MemFS git-backed context repo | Markdown + FTS5 session DB + external Honcho |
 
-Four of these matter most. **The prompt contract** — nobody else ships a
+Five of these matter most. **The prompt contract** — nobody else ships a
 test that diffs the socket bytes against the agent layout; it is what
 turns a stamp change into a diff instead of a feeling. **The harness
 stamp** — time, place, hours, horizon delivered without a tool round.
@@ -142,7 +164,22 @@ bytes (`source_path` from `image__photo_generate`, encoded to budget in
 the MCP), the theme is an id from a catalog with a mood line (no invented
 hex), the wallpaper has a `delete`, and a human can unfollow and keep
 their own theme. It is the connection feature; the `[room]` stamp is what
-makes it a habit rather than a party trick.
+makes it a habit rather than a party trick. **The ledger** — the
+comparators hold a goal as text the model rereads, which means the model
+also has to remember how it has been going and what it said about it
+last time. Here the agent writes one scored line per event and the
+kernel carries everything derived: the 30-day mean on the stamp, the
+five-day grid, the week means, the slope, whether a `praised` note went
+out this week. The split is the same one memory made — judgment stays
+with the model, arithmetic and recall go to SQLite — and it is what lets
+a small model run a months-long plan without a second "coach" call. The
+eval's `evidence_from_turn` gate is the piece that makes it trustworthy:
+a ledger the model could fill from imagination would be worse than none,
+so every `what` has to share words with a tool result or the human.
+Tasks reuse the pattern at a smaller size — the row is the words, the
+planner is the parser, the cue is a cron pinned to the row — and the
+decision that nothing on the list expires is the one that keeps it a
+to-do list rather than a decay function.
 
 Why the skills comparison flips: Hermes and Letta need recipe files
 because their tool surface is generic (bash, browser, a fixed builtin
@@ -172,8 +209,13 @@ network. Setup and how to read a failure are in
 
 What it checks is shape, never prose: which tools were called, with what
 arguments, how many times; whether `[wait]` armed; whether the turn went
-`[silent]`; which memory row and which cron job landed; whether every
-`$` figure in the reply came from a tool result or the human's own words.
+`[silent]`; which memory row and which cron job landed, and when the job
+fires against a clock frozen to the fixture's `now`; whether every
+`$` figure in the reply came from a tool result or the human's own words;
+whether every `aim_log` line does too. A fixture can seed a ledger and
+memory rows with an age, and its expects can name a seeded row by
+position (`{{memory:0}}`, `{{ledger:1}}`) so "forget *that* id, not a
+query" is checkable.
 A call the agent blocks (prefix off, never enabled) counts as never made,
 which is what the host would have seen. Every fixture runs N times and
 every run must pass, because a rule that holds two times in three is a
@@ -181,7 +223,7 @@ rule the persona is not carrying. It runs on demand and as the job in
 front of GoReleaser on a tag; never on a pull request, because it costs
 money and forks do not get the secret.
 
-Three kinds of fixture. **Single-batch rules**: one tool round and a
+Five kinds of fixture. **Single-batch rules**: one tool round and a
 reply — the scoop reminder, the empty-day nudge, the off-prefix enable,
 the "thanks, sounds good" that must not end in a bare acknowledgement.
 **Completion**: the legwork happened — the flight search *called* this
@@ -192,7 +234,19 @@ actually on the calendar — and the model may take the rounds it needs.
 `listings_search` with the neighborhoods comma-joined, no per-listing
 detail call nobody asked for, at most two flight searches when "next
 Friday" is honestly two dates, no `dates_search` for a fixed date, no
-checkout lookup before the human picks.
+checkout lookup before the human picks. **Ladder**: a seeded ledger
+puts the planner on a rung — a streak with no `praised` this week, a
+slip already `nudged`, a weight on pace — and the fixture checks the
+planner took the next rung and not the last one, logged yesterday from
+the tool it called, and scored a night out once against three aims;
+`19_chat_rescore` checks that "that dinner was planned" rewrites the
+row by `event=` instead of adding one. **List**: a stated errand
+becomes one `todo/` row in the human's words with no cron and no
+question; "make that Thursday" rewrites the same subject; "booked it"
+forgets the `#id` on the stamp and never the query (the dentist's phone
+number is seeded to catch that); a Wednesday planner schedules the cue
+for the task whose words say `Wed 11am` and nothing for the one that
+says Friday; a nine-day-old task gets a line and not an offer to drop it.
 
 Where a fixture names a server, the tool defs are **real**. `tools_from`
 pulls that server's latest GitHub release at run time with the same code
@@ -213,10 +267,21 @@ the failure the eval exists to catch is stopping at two with "let me know
 when you want me to look." What the budget does catch is rounds in which
 the model did nothing new — the same tools called again, the same rows
 stored again — and those trace to a sentence in the seed or a rule in the
-kernel, not to the model. A current reading on `gemini-3.6-flash` is
-about 2.2 rounds and 13k prompt tokens per turn across the suite, with
-the off-prefix fixture at a steady three because the enabled schema
-arrives on the next call.
+kernel, not to the model. Current readings on `gemini-3.6-flash`: the
+original suite about 2.2 rounds and 13k prompt tokens per turn, with the
+off-prefix fixture at a steady three because the enabled schema arrives
+on the next call; the ladder planners about 3.1 rounds and 23k, because
+a planner with `[progress]` on board is the fattest turn the harness
+makes; the list fixtures 2.0 rounds and 12k on chat and 2.3–3.0 and
+19–25k on the planners. The tasks eval is a clean example of what the
+gate is for: the first pass had every planner green and every chat turn
+red, and all three misses traced to two sentences in the `memory_store`
+description (`todo/` sat next to `follow/` with nothing to tell them
+apart; nothing said the `#id` on the stamp made a lookup unnecessary).
+Three passes of description edits, no expect loosened except one `\?`
+that was stricter than the documented contract, and the chat turns
+went to two rounds and one tool call each
+([tasks.md](tasks.md#what-the-eval-taught)).
 
 Its limits. One model is one reading — the gate is on whatever is in
 `.env`, and a Gemma-class local model would need its own pass and
@@ -226,7 +291,13 @@ Canned results are the same for every call to a tool, so two searches for
 two dates come back identical; the shape gates do not depend on that, but
 the reply's prose is thinner than it would be live. One scenario row has
 no fixture (a landed joke → `self_note`) because it needs an expectation
-that reads `SELF.md`.
+that reads `SELF.md`. And a fixture is one morning: the ladder's promise
+is "never the same line twice" across a week, and the list's promise is
+"a different line from yesterday" for as long as the task sits there;
+each is checked as one planner turn against one seeded state, which
+proves the rung, not the week. `planner_week_start` also went 2/3 on the
+last n=3 reading (no `aim_log` on one run), which is either variance or
+a sentence to find.
 
 ---
 
@@ -251,15 +322,21 @@ cost, not a plan.
 
 ### 2. Harness stamp cost and template coverage
 
-The volatile block is eight possible tags. On the minimal golden turn (no
+The volatile block is twelve possible tags — two more than at the first
+reading, `[todo]` and `[progress]`. On the minimal golden turn (no
 memory, one-line user message) the re-evaluated remainder — harness block
 plus the user's words — estimates at 221 tokens without GPS and 245 with
 (`volatile_est_tokens` in the payload test log); a full board adds hours,
-aims, loops, wakes, surface, and last contact on top. That is cheap next
-to a tool round, and every tag saves at least one, but it is a number to
-watch as tags accrue — the block should stay boring and bounded, and the
-full-board golden does not yet carry `volatile_est_tokens`, so its growth
-is a feeling rather than a number. Separately, `LLM_SYSTEM_FOLD=many`
+aims with rating suffixes, todo with ids, loops, wakes, surface, room,
+and last contact on top, and the planner adds a `[progress]` grid per
+aim that is the largest single thing the stamp has ever carried (the
+Sunday week lines more so). That is cheap next to a tool round, and every
+tag saves at least one, but it is a number to watch as tags accrue — the
+block should stay boring and bounded, and the full-board golden does not
+yet carry `volatile_est_tokens`, so its growth is a feeling rather than a
+number. The caps are the defence: five aims, five tasks, five loops, five
+days of grid, each with an explicit `(+N more — …)` instead of a silent
+cut. Separately, `LLM_SYSTEM_FOLD=many`
 (default for non-Gemini) is unverified against local chat templates that
 render system only at position 0 (Gemma). If a local model cannot say NOW
 without a tool, that is the first thing to check
@@ -285,6 +362,21 @@ pays for that reading too.
 - `skill/<area>` rows exist only if the model stores them; a bland model
   on a fiddly tool will re-learn the pitfall. That is the auto-save-off
   trade, applied to procedure.
+- A score is the agent's opinion. Two models, or one model on two days,
+  can score the same burger `-1` and `-2`; the rubric and anchors narrow
+  that, the rating averages over it, and the human can re-score any row,
+  but a 30-day mean of opinions is not a measurement. The kernel's
+  measurement trend (`weight 191.4 lb`) is the meter; the score is the
+  read.
+- Tasks have no done history. `/todo done` and `memory_forget` are a
+  hard `DELETE`; only a rewrite leaves a superseded row behind. "How
+  many things did I clear this month" is a question nothing here can
+  answer, by choice — the doc says no done ledger — but it is the first
+  thing a human who likes crossing things off will ask for.
+- The task's due date is its words. `renew, by Oct 15` is a sentence the
+  planner reads each morning against the week grid, not a field; a
+  model that misreads "Wed" costs one cue, and nothing kernel-side would
+  notice.
 - `[room]` rides `[harness]` on every pendant turn — theme, wallpaper,
   face, each with an age, and one clause: yours, redress when the hour or
   mood moves on. No recipe; the tool descriptions have it, and a how-to on
@@ -388,6 +480,35 @@ to avoid is the cheap model that stops early. Rounds in which the model
 does nothing new are removed by fixing the sentence that caused them, not
 by telling the model to think less.
 
+### A typed goal target
+
+A grade table, a shape enum (`increase` / `decrease` / `streak`), a
+target value per aim, a plan generator. Every one of those is a curve
+someone will argue with (V-scale against YDS, volume against intensity,
+whether pizza is `-1` or `-3`), and the model already knows the
+domains. So the aim stays one sentence, the agent scores each event
+against a fixed seven-point rubric with per-domain anchor rows, and the
+human argues in chat and re-scores by id. The kernel only does what a
+kernel is good at: means, buckets, a slope, a Pearson on measurement vs
+effort. Charts are the yard's. There is no second model call for
+analytics.
+
+### A task tracker
+
+A `task` table with due dates, priorities, projects, a done ledger, and a
+`task_add` / `task_complete` tool pair. Declined; the doc's own line is
+"if the tasks list needs to be bigger and more complex they are using
+the wrong tool." A task is a `fact` row under `todo/`, the due date is
+whatever the human said in the words, the planner is the parser, and
+the cue is a cron pinned to the row. Adding a row is `memory_store`,
+changing it is the same subject again, closing it is `memory_forget` by
+the id on the stamp. The phone's checkbox is the one path that skips
+the model (`/todo done <id>`); its add field is plain text, because
+naming the slug is a model job. Two things stay firm: nothing on the
+list ages out (a task the human has not done is still a task), and the
+agent never proposes dropping one — day nine offers to put an hour on
+the calendar, not to forget it.
+
 ### Voice in the harness
 
 OpenClaw and Hermes do voice in the agent. Priced and declined: harness
@@ -407,7 +528,9 @@ below writes a typed row on the harness's judgment alone.
 
 | Path | Trigger | Who decides | Lands in | Model call |
 | --- | --- | --- | --- | --- |
-| `memory_store` | Model calls the tool mid-turn | Model, deliberately; tool text says "Never auto-save guesses" | `memory` row: `fact` / `preference` / `person` / `episode` / `insight`; same kind+subject supersedes the live row (old row kept) | The turn's own |
+| `memory_store` | Model calls the tool mid-turn | Model, deliberately; tool text says "Never auto-save guesses" | `memory` row: `fact` / `preference` / `person` / `episode` / `insight`; same kind+subject supersedes the live row (old row kept). Aims are `insight` `aim/<area>`; tasks are `fact` `todo/<slug>` | The turn's own |
+| `aim_log` | Model calls it on the planner turn, or when the human states or disputes something | Model; the eval's `evidence_from_turn` gate requires the `what` to trace to a tool result or the human's words | `aim_event` + one `aim_score` per aim touched; `ref` replaces, `event=` rewrites; superseded rows kept | The turn's own |
+| `/aims block`, `/todo done` | Human types or taps | Human | `aim_block` row; `memory_forget` on the todo row | None |
 | `self_note` | Model calls the tool when personality happens | Model; "not facts about the human" | `SELF.md` (cap ~4KB) | The turn's own |
 | Fold summary | History exceeds bounds | Harness triggers; chat model writes | `session.summary` as `Facts:` paragraph + `Voice:` ledger — **not** typed rows | One, at fold |
 | Voice graduate | Same fold | Harness diffs new `Voice:` bits | `SELF.md` | None |
@@ -430,10 +553,12 @@ What "auto-save on" would mean, and why each variant is off:
 
 What gantry does instead: the tool descriptions carry the policy ("Facts
 about the human go here — not `self_note`"; "Months-scale plans:
-`kind=insight, subject=aim/<area>`"; hours as `pref/hours`), the
+`kind=insight, subject=aim/<area>`"; hours as `pref/hours`; "a thing
+THEY have to do: `fact subject=todo/<slug>`, not `follow/`"), the
 `[harness]` stamp shows the model what is already stored (`[hours]`,
-`[aims]`, `[loops]`) so it does not re-store, `memory_forget` makes every
-row correctable, and `sqlite3` makes every row visible. The known cost is
+`[aims]`, `[todo]`, `[loops]`) so it does not re-store or re-query,
+`memory_forget` makes every row correctable, `aim_log event=` makes
+every score arguable, and `sqlite3` makes every row visible. The known cost is
 in [features.md](features.md#the-okay): "Models forget to `memory_store`.
 You will re-teach facts." That is the trade, and it is the right one for
 a system where the persona file outranks recall and the operator owns the
@@ -468,16 +593,33 @@ Things the comparison could tempt someone to "fix" that are load-bearing:
 - **Goldens as the contract, fixtures as the behavior.** A stamp change
   regenerates and re-reads the goldens; a seed change re-runs the eval.
   Keep `-update` a deliberate act and the eval a gate on tags.
+- **The event is the key; the agent scores, the kernel counts.** One
+  night out is one row scored against every aim it touches. Do not add a
+  per-aim target curve, a grade table, or an analytics model call. The
+  evidence gate is what keeps the ledger honest; keep it.
+- **Only the human closes a task, and nothing on the list expires.** The
+  stale cue that `[loops]` carries is right for `follow/` and wrong for
+  `todo/`. Do not add a falloff, a "still want this?" rung, or an
+  auto-done from a calendar event.
+- **A fixture miss is a sentence to fix, not an expect to loosen.** The
+  tasks eval went red-to-green on description edits alone. The one time
+  an expect moved, it moved to match the documented contract, and the
+  doc says so.
 
 ---
 
 ## What is left
 
-Two things of substance. `LLM_SYSTEM_FOLD=many` is unverified on a
-Gemma-style local template, and the full-board golden does not carry
-`volatile_est_tokens`, so stamp growth on a full board is a feeling
-rather than a number. Everything else above is declined with its reason
+Three things of substance. `LLM_SYSTEM_FOLD=many` is unverified on a
+Gemma-style local template. The full-board golden does not carry
+`volatile_est_tokens`, and the board has grown by `[todo]` and a planner
+`[progress]` grid since that was first written, so stamp growth is still
+a feeling rather than a number. And the two behaviors the ledger and the
+list promise across days — a different line each morning, a rung climbed
+and not repeated — are each proven as one morning; a multi-day fixture
+(seed a ledger, run the planner, seed its note, run tomorrow's) is the
+missing eval shape. Everything else above is declined with its reason
 attached or a seam small enough to live in [todo.md](todo.md): the
 `self_note` fixture, the Worker's theme flush to the crane, the in-memory
-location pin. Channels, routers, subagents, skills files, flush turns,
+location pin, the `planner_week_start` 2/3. Channels, routers, subagents, skills files, flush turns,
 and UI stay out; they are the other products' shape, not this one's.
