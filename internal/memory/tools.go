@@ -35,8 +35,8 @@ func ToolDefs() []provider.ToolDef {
 				"Facts about the human (food, hours, people, events) go here — not self_note. " +
 				"Months-scale plans: kind=insight, subject=aim/<area> (the sentence stays here; what happened goes to aim_log). Events: fact subject=event/<slug>. " +
 				"Waiting on someone else: fact subject=waiting/<slug>. A note for you to follow up: fact subject=follow/<slug>. " +
-				"A thing THEY have to do (call, return, renew): fact subject=todo/<slug> (the noun), their words as content — not follow/, and no cron_schedule for it; the day's planner sets the cue, so do not offer a reminder or ask when. " +
-				"[todo] on [harness] is that whole list with #ids, so never memory_recall for it: same subject rewrites; done is memory_forget by the #id on [todo], only when they say so. Either way one short line back, no question. " +
+				"A thing THEY have to do, even in passing (call, return, renew): fact subject=todo/<slug> this turn — not follow/. Store it and say you added it; never ask whether to add it. Doable now: say do it now, not good luck and not later. A future day named in the words: no cron_schedule for it and do not offer a reminder; that day's planner sets the cue. " +
+				"[todo] on [harness] is that whole list with #ids, so never memory_recall for it: same subject rewrites; done is memory_forget by the #id on [todo], only when they say so. " +
 				"Hours: preference subject=pref/hours as sleep:/work:/quiet: HH:MM-HH:MM lines. " +
 				"Never auto-save guesses. Jokes go in self_note.",
 			Parameters: map[string]any{

@@ -566,8 +566,10 @@ func TestEvalHarness_ReactionTriage(t *testing.T) {
 
 	waiting := loadEvalFixture(t, filepath.Join(evalFixtureDir, "14_reaction_waiting_thumbs_up.json"))
 	sc = &scriptCompleter{res: []*provider.Result{
-		{ToolCalls: []provider.ToolCall{toolCall("c1", "google__calendar_create_event", map[string]any{
-			"summary": "Gym", "start": "2026-09-17T07:00:00-07:00", "end": "2026-09-17T08:00:00-07:00",
+		{ToolCalls: []provider.ToolCall{toolCall("c1", "google__calendar_create_events", map[string]any{
+			"events": []any{map[string]any{
+				"summary": "Gym", "start_time": "2026-09-17T07:00:00-07:00", "end_time": "2026-09-17T08:00:00-07:00",
+			}},
 		})}},
 		{Content: "Thursday 7–8 blocked for the gym."},
 	}}

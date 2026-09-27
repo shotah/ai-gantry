@@ -9,7 +9,7 @@
     "round_budget": 2,
     "silent": false,
     "reply_regex": "\\?",
-    "max_questions": 1,
+    "max_questions": 2,
     "wait": true
   }
 }

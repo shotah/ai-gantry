@@ -36,16 +36,18 @@ func ToolDef() provider.ToolDef {
 	return provider.ToolDef{
 		Name: ToolName,
 		Description: "Enable MCP tool-name prefixes for this chat so their schemas are sent on the next model call. " +
+			"The prefix is a key copied from [mcp prefixes]: google__calendar only when that key is listed, otherwise the server id google. " +
+			"A tool already in this turn's list is called now — do not mcp_enable it, and do not invent a key. " +
 			"Default hold is short (27h idle). hold=brief is 6h (this morning/afternoon only). " +
 			"Use brief when the job is only today-for-a-few-hours (flights this afternoon). " +
-			"Pass every prefix this turn needs in one call. Do not enable a fat server (google) when google__calendar exists.",
+			"Pass every prefix this turn needs in one call. When google__calendar is listed, enable that, not the whole google server.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"prefixes": map[string]any{
 					"type":        "array",
 					"items":       map[string]any{"type": "string"},
-					"description": "index keys, e.g. google__calendar, garmin__sleep, flights",
+					"description": "a key from [mcp prefixes], e.g. google__calendar when listed, otherwise google; garmin__sleep; flights",
 				},
 				"hold": map[string]any{
 					"type":        "string",

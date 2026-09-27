@@ -43,7 +43,7 @@
   "expect": {
     "round_budget": 3,
     "silent": false,
-    "max_questions": 1,
+    "max_questions": 2,
     "any_of": [
       { "tools_called": [{ "name": "google__calendar_update_event" }] },
       { "tools_called": [{ "name": "google__calendar_delete_event" }] },

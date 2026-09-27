@@ -182,7 +182,7 @@ not done is not a task that stopped needing doing.
 | The human states a task | Store it. One row, their words, a slug that is the noun. No confirmation paragraph; one short line or a reaction. |
 | The words change | Same subject, new words. "Make that Thursday", "the other dentist", "actually two boxes" are rewrites, not new rows. |
 | The human says it is done | `memory_forget` the id from the stamp. Not a query — a query on "dentist" deletes the dentist's phone number too. Only the human closes a task; the agent never decides one is done. |
-| Planner turn | Read the words against the week grid. A task whose words name today ("Wed 11am", "by Friday" on Friday) gets `cron_schedule when=<that time or a sensible one> memory_subject=todo/<slug>` in the same tool batch — the wake carries the row. Then one line per task that is overdue by its own words, and one line for the oldest task past a week — every planner, until it is gone. Not `[silent]` when a line exists. An empty `[todo]` is nothing; do not ask them to add tasks. |
+| Planner turn | Read the words against the week grid. A task whose words name today ("Wed 11am", "by Friday" on Friday) gets `cron_schedule when=<that time or a sensible one> memory_subject=todo/<slug>` in the same tool batch — the wake carries the row. Then one line per task that is overdue by its own words, and one line for the oldest task past a week — every planner, until it is gone. Not `[silent]` when a line exists. The chat closer stays off this turn: it was not asked by them. |
 | A day that is not the task's day | Nothing. Monday does not schedule Wednesday's cue; Wednesday's planner does. The words are the due date and the planner is the parser. |
 | The nag | Never the same sentence twice; the age is in the stamp, so the line can move: day 2 names it, day 5 asks what is in the way, day 9 offers to put an hour on the calendar (ask first — that is a calendar write). None of those rungs is "shall I drop it". Dropping is the human's word, then `memory_forget`. |
 | Long list | The `/todo` footer says it. The planner may say it once: this is a pocket list. Do not offer to reorganise it, and do not offer to prune it — the human prunes. |
@@ -215,27 +215,31 @@ There is no Phase 2. If a Phase 2 is wanted, re-read §2.
 
 Four strings change. Each gets a needle test.
 
-- `memory_store` description gains two sentences, as shipped after
-  the eval ([§7](#what-the-eval-taught)): `A thing THEY have to do
-  (call, return, renew): fact subject=todo/<slug> (the noun), their
-  words as content — not follow/, and no cron_schedule for it; the
-  day's planner sets the cue, so do not offer a reminder or ask when.
-  [todo] on [harness] is that whole list with #ids, so never
-  memory_recall for it: same subject rewrites; done is memory_forget
-  by the #id on [todo], only when they say so. Either way one short
-  line back, no question.` The `waiting/` and `follow/` clauses before
-  it now say whose ball it is (`Waiting on someone else`, `A note for
-  you to follow up`).
+- `memory_store` description, as shipped: `A thing THEY have to do,
+  even in passing (call, return, renew): fact subject=todo/<slug>
+  this turn — not follow/. Store it and say you added it; never ask
+  whether to add it. Doable now: say do it now, not good luck and not
+  later. A future day named in the words: no cron_schedule for it and
+  do not offer a reminder; that day's planner sets the cue. [todo] on
+  [harness] is that whole list with #ids, so never memory_recall for
+  it: same subject rewrites; done is memory_forget by the #id on
+  [todo], only when they say so.` The `waiting/` and `follow/` clauses
+  before it say whose ball it is (`Waiting on someone else`, `A note
+  for you to follow up`). The first eval
+  ([§7](#what-the-eval-taught)) is what put `todo/` next to `follow/`
+  apart; the capture-now wording came after.
 - `memory_forget` description gains: `A [todo] item is its #id on
   [harness]: forget that id, never a query (a query takes other rows
   with it), no memory_recall first.`
 - `plannerToolFirstNote` gains `[todo]` in the "already in [harness]"
   list and one sentence at the end (end, not middle; the eval taught
   that): `A [todo] item whose words name today: cron_schedule its cue
-  now with memory_subject=todo/<slug>. Each one overdue by its words,
-  and the oldest past a week, is one line, a different line from
-  yesterday — not the list, not [silent], never "shall I drop it". No
-  [todo] line: say nothing about tasks.`
+  now with memory_subject=todo/<slug>, and the line says do it now —
+  not good luck, not later. Each one overdue by its words, and the
+  oldest past a week, is one line, a different line from yesterday,
+  do it now — not the list, not [silent], never "shall I drop it". A
+  turn was not asked by them: no closer, no "Anything else". [silent]
+  stays [silent].`
 - `DefaultDailyPlannerPrompt` gains the same rule as its last line.
 
 Persona: `docs/persona.md` memory row gains `todo/` beside `waiting/`

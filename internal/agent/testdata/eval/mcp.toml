@@ -23,10 +23,11 @@ download_tag = "latest"
 download_url = "https://github.com/shotah/flights-search-mcp/releases/download/{tag}/flights-search-mcp_{version}_{os}_{arch}.tar.gz"
 
 # Google publishes ~100 tools; a real deploy runs a tier or an allowlist.
-# The eval takes the two calendar tools the fixtures use.
+# The eval takes list plus the batch create. A single event is a one-element
+# list; there is no singular create.
 [[server]]
 name    = "google"
 command = "google-mcp"
-tools   = ["calendar_list_events", "calendar_create_event"]
+tools   = ["calendar_list_events", "calendar_create_events"]
 download_tag = "latest"
 download_url = "https://github.com/shotah/google-mcp/releases/download/{tag}/google-mcp_{version}_{os}_{arch}.tar.gz"

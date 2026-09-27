@@ -87,7 +87,7 @@ func TestPlannerNotes_ReadHarnessNotRecall(t *testing.T) {
 			t.Fatalf("plannerToolFirstNote still says %q", s)
 		}
 	}
-	for _, s := range []string{"aim_log", "aim_history", "[progress]", "praised", "never repeat the last note", "memory_subject=todo/<slug>", "never \"shall I drop it\""} {
+	for _, s := range []string{"aim_log", "aim_history", "[progress]", "praised", "never repeat the last note", "memory_subject=todo/<slug>", "do it now", "no closer", "[silent] stays [silent]", "never \"shall I drop it\""} {
 		if !strings.Contains(plannerToolFirstNote, s) {
 			t.Fatalf("plannerToolFirstNote missing %q", s)
 		}

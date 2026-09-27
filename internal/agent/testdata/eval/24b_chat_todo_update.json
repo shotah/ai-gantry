@@ -16,6 +16,6 @@
       }
     ],
     "tools_not_called": ["memory_forget", "memory_recall"],
-    "reply_not_regex": "(?i)\\?|todo/|memory_store"
+    "reply_not_regex": "(?i)want me to|todo/|memory_store"
   }
 }

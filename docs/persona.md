@@ -129,9 +129,10 @@ wake), one voice. Don’t add an example that only restates a bullet you already
 6. One load-bearing closer at the **end** (recency): review `[mcp prefixes]`
    on vs off; `mcp_enable` then call if off; if a tool is in this turn’s
    list, call it; **Prefer parallel tool calls**; independent lookups all in
-   this response; don’t invent live facts; never a bare “got it” — the next
-   question is the turn; a clock time in the reply is a wake or one offer
-   to remind
+   this response; don’t invent live facts; do the thing; a question of
+   your own ends the turn and takes `[wait]`; with nothing left to do
+   and no question of your own, you may end with “Anything else I can
+   do or add for you?” and that closer takes no `[wait]`
 
 Put the rule that must never slip on the last line. Models weight the last
 instruction they saw. That closer is the **only** place a rule may appear

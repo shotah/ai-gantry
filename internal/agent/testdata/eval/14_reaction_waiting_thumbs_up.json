@@ -14,24 +14,34 @@
   "force": ["google"],
   "tools": [
     {
-      "name": "google__calendar_create_event",
-      "description": "Create a calendar event.",
+      "name": "google__calendar_create_events",
+      "description": "Create one or many events in one call. Required: events[{summary, start_time, end_time}]. A single event is a one-element list.",
       "params": {
         "type": "object",
         "properties": {
-          "summary": { "type": "string" },
-          "start": { "type": "string", "description": "RFC3339" },
-          "end": { "type": "string", "description": "RFC3339" }
+          "events": {
+            "type": "array",
+            "description": "One element for a single event.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "summary": { "type": "string" },
+                "start_time": { "type": "string", "description": "RFC3339" },
+                "end_time": { "type": "string", "description": "RFC3339" }
+              },
+              "required": ["summary", "start_time", "end_time"]
+            }
+          }
         },
-        "required": ["summary", "start"]
+        "required": ["events"]
       },
       "result": "{\"id\":\"evt_1\",\"status\":\"confirmed\"}"
     }
   ],
   "expect": {
     "round_budget": 2,
-    "tools_called": [{ "name": "google__calendar_create_event", "args_regex": "(?i)gym" }],
-    "max_questions": 0,
+    "tools_called": [{ "name": "google__calendar_create_events", "args_regex": "(?i)gym" }],
+    "max_questions": 1,
     "wait": false
   }
 }

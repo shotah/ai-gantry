@@ -28,16 +28,26 @@
       "result": "[]"
     },
     {
-      "name": "google__calendar_create_event",
-      "description": "Create a calendar event.",
+      "name": "google__calendar_create_events",
+      "description": "Create one or many events in one call. Required: events[{summary, start_time, end_time}]. A single event is a one-element list.",
       "params": {
         "type": "object",
         "properties": {
-          "summary": { "type": "string" },
-          "start": { "type": "string", "description": "RFC3339" },
-          "end": { "type": "string", "description": "RFC3339" }
+          "events": {
+            "type": "array",
+            "description": "One element for a single event.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "summary": { "type": "string" },
+                "start_time": { "type": "string", "description": "RFC3339" },
+                "end_time": { "type": "string", "description": "RFC3339" }
+              },
+              "required": ["summary", "start_time", "end_time"]
+            }
+          }
         },
-        "required": ["summary", "start"]
+        "required": ["events"]
       },
       "result": "{\"id\":\"evt_1\",\"status\":\"confirmed\"}"
     }
@@ -48,7 +58,7 @@
     "silent": false,
     "reply_not_regex": "(?i)crushing it|great progress|well on track|nailing it",
     "any_of": [
-      { "tools_called": [{ "name": "google__calendar_create_event" }] },
+      { "tools_called": [{ "name": "google__calendar_create_events" }] },
       { "tools_called": [{ "name": "cron_schedule" }] },
       { "reply_regex": "\\?", "wait": true }
     ]

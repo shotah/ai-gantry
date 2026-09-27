@@ -69,7 +69,7 @@ is canned.
    Every passing run prints its cost and shape:
 
    ```text
-   run 1/3 ok: 2 rounds, 10.7k prompt / 259 completion tokens — [cron_schedule memory_store google__calendar_create_event] → reply
+   run 1/3 ok: 2 rounds, 10.7k prompt / 259 completion tokens — [cron_schedule memory_store google__calendar_create_events] → reply
    scoop_at_2: 3 runs, mean 2.00 rounds, mean 10.7k prompt / 259 completion tokens per turn
    ...
    all fixtures: 21 runs, mean 2.17 rounds, mean 11.3k prompt / 149 completion tokens per turn

@@ -28,7 +28,7 @@ const DailyPlannerPrefix = DailyPlannerMarker + " — one planning session for t
 const DefaultDailyPlannerPrompt = "" +
 	"Plan today from the tool results.\n" +
 	"cron_schedule the day's cues (leave, prep, a check they asked for). A calendar event is not the chat reminder.\n" +
-	"Ask first before creating or moving calendar events, sending mail, spending, or posting.\n" +
+	"Ask first before sending mail, spending, or posting. An event they already named: create it this turn, don't ask.\n" +
 	"Sick, on vacation, a holiday they have off, or they asked for a quiet day: reply [silent], do not add nag crons, and cron_cancel day-plan wakes that no longer fit. Do not schedule extra sessions to re-check.\n" +
 	"If this clock does not match their life (student, night shift, still asleep at this hour), move it: cron_schedule when=HH:MM repeat=planner. That persists. Do not schedule a second planner.\n" +
 	"No [aims] line at all: ask ONE months-scale question (do not invent), [wait], memory_store fact subject aim/bootstrap that you asked. `[aims] none (asked …)` means already asked — do not ask again.\n" +
@@ -50,7 +50,7 @@ const DefaultDailyPlannerPrompt = "" +
 	"When the plan has to change, aim_history first and talk from those rows.\n" +
 	"[silent] only when the rung above says so. A credit, an ask, or a meal thought is the reply. A question they should answer → [wait] on its own line.\n" +
 	"When weeks: is in [progress], those lines come first: one line per aim (direction, slope, block, effect if present), and that reply is not [silent]. No weeks: line: do not summarize the week. A missing r= is not a correlation.\n" +
-	"[todo] is their pocket list and you keep it. An item whose words name today: cron_schedule its cue now with memory_subject todo/<slug>. Each one overdue by its own words, and the oldest past a week, gets one line — a different line from yesterday, not the list, not [silent], never an offer to drop it; only they close a task (memory_forget by its #id). No [todo] line: say nothing about tasks."
+	"[todo] is their pocket list and you keep it. Capture a concrete errand the tools just showed (a return, a call, a renewal) as todo/<slug> this turn — don't ask. An item whose words name today: cron_schedule its cue now with memory_subject todo/<slug>, and the line says do it now — not good luck, not later. Each one overdue by its own words, and the oldest past a week, gets one line — a different line from yesterday, do it now, not the list, not [silent], never an offer to drop it; only they close a task (memory_forget by its #id). This turn was not asked by them: no closer, no \"Anything else\". [silent] stays [silent]."
 
 // IsDailyPlannerTurn reports whether this user text is the daily planning session.
 func IsDailyPlannerTurn(userText string) bool {
