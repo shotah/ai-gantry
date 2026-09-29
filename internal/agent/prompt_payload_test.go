@@ -31,6 +31,17 @@ import (
 // Everything at once (cron wakes, Cab surface, last contact):
 // completer_fullboard_harness.txt. A pocket hold-to-talk turn ([surface]
 // browser + [input] spoken): completer_spoken.txt.
+// volatileByGolden pins chars/4 of the re-evaluated suffix (the turn plus
+// the harness block) for the minimal pendant goldens. A new tag fails here.
+var volatileByGolden = map[string]int{
+	"completer_nogeo.txt": 221,
+	"completer_geo.txt":   245,
+}
+
+// volatileFullBoard pins the same estimate when hours, aims, todos, loops,
+// wakes, surface, room, and last contact are all on the stamp.
+const volatileFullBoard = 467
+
 func payloadClock() (loc *time.Location, now time.Time) {
 	loc, err := time.LoadLocation("America/Los_Angeles")
 	if err != nil {
@@ -104,6 +115,11 @@ func TestPendantInbound_CompleterPayload(t *testing.T) {
 			}
 			got := formatCompleterRequest(captured)
 			assertGolden(t, filepath.Join("testdata", "pendant", tc.want), got)
+			if want, ok := volatileByGolden[tc.want]; ok {
+				if vol := agent.VolatileEstTokens(captured.Messages); vol != want {
+					t.Fatalf("volatile_est_tokens=%d, golden %s pins %d", vol, tc.want, want)
+				}
+			}
 			gemini := captured
 			gemini.Messages = provider.WireMessages("gemini-3.6-flash", captured.Messages)
 			assertGolden(t, filepath.Join("testdata", "pendant", strings.TrimSuffix(tc.want, ".txt")+"_gemini_wire.txt"), formatCompleterRequest(gemini))
@@ -277,6 +293,9 @@ func TestPendantInbound_CompleterPayloadFullBoard(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertGolden(t, filepath.Join("testdata", "pendant", "completer_fullboard_harness.txt"), promptHarnessClock(captured.Messages)+"\n")
+	if vol := agent.VolatileEstTokens(captured.Messages); vol != volatileFullBoard {
+		t.Fatalf("volatile_est_tokens=%d, full board pins %d", vol, volatileFullBoard)
+	}
 
 	hydration := promptBlock(captured.Messages, "[memory]")
 	if hydration == "" || !strings.Contains(hydration, "pref/food") {

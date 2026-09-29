@@ -1,6 +1,6 @@
 # Eval setup
 
-> Why it exists: [evaluation.md](evaluation.md#the-behavior-contract) ·
+> Why it exists: [evaluation_fable.md](evaluation_fable.md#the-behavior-contract) ·
 > What it checks: [persona_doc_goals.md](persona_doc_goals.md#scenario-checks) ·
 > Fixtures: `internal/agent/testdata/eval/`
 
@@ -217,7 +217,7 @@ shows up as a run of over-budget notes. A bake-off pass typically buys a
 few tenths of a round per turn — a sentence that made the model wait for
 an id it did not need, or re-read a line already stamped in `[harness]`.
 Why the round count is a note and not a gate is in
-[evaluation.md](evaluation.md#the-behavior-contract).
+[evaluation_fable.md](evaluation_fable.md#the-behavior-contract).
 
 What a bake-off is not for: cutting the work. A round worth removing is
 one in which the model did nothing new. A candidate that

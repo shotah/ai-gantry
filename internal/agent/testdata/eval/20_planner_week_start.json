@@ -15,7 +15,7 @@
       "name": "garmin__activities_list",
       "description": "Recorded workouts for a date range.",
       "params": { "type": "object", "properties": { "start": { "type": "string" }, "end": { "type": "string" } } },
-      "result": "No activities today. The gym is already on the ledger. Body weight is down from 200 lb to 184 lb."
+      "result": "No workout yet today. This morning's weigh-in is weight 183 lb, down from 184 lb last Sunday."
     },
     {
       "name": "google__calendar_list_events",
@@ -39,7 +39,8 @@
     "round_budget": 3,
     "tools_called": [
       { "name": "garmin__activities_list" },
-      { "name": "google__calendar_list_events" }
+      { "name": "google__calendar_list_events" },
+      { "name": "aim_log" }
     ],
     "silent": false,
     "evidence_from_turn": true,

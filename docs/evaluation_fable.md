@@ -451,8 +451,9 @@ Matrix) credentials at once. That is the home-computer model: one
 process, every secret, a Control UI on a port. Gantry's model is one
 hardened Distroless host per mouth, allowlist per mouth, no port — a
 compromised mouth is one container, and "many hosts" is compose, not a
-dashboard. Phone and car are the pendant and cab mouths, which the
-household owns end to end. Channel count is not the axis this is built on.
+dashboard. The household owns the phone PWA and Cab, a native Android
+app that also projects to Android Auto. Both dial the pendant
+mailbox. Channel count is not the axis this is built on.
 
 ### Model routing and failover inside one process
 
@@ -512,11 +513,11 @@ the calendar, not to forget it.
 ### Voice in the harness
 
 OpenClaw and Hermes do voice in the agent. Priced and declined: harness
-voice means paying an STT/TTS API per turn. The cab mouth uses the phone's
-on-device recognizer, the harness sees text, `[surface] android_auto` (or
-`[input] spoken` from a pendant hold-to-talk turn) asks for a few short
-plain sentences with no markdown, and the phone reads it back. Same
-experience, no bill.
+voice means paying an STT/TTS API per turn. Cab, the native Android
+app, uses the device recognizer — in the app and on Android Auto.
+The harness sees text. `[surface] android_auto` (or `[input] spoken`
+from a hold-to-talk turn) asks for a few short plain sentences with
+no markdown, and the device reads it back. Same experience, no bill.
 
 ---
 

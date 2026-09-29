@@ -22,7 +22,7 @@ Pitch: [root readme](../readme.md). Internal loop:
 | **[ai-gantry](https://github.com/shotah/ai-gantry)** (this tree) | The agent. One process, one persona, one OpenAI-compat model, optional MCP children. | Allowlist in env (`TELEGRAM_ALLOWED_USERS`, `PENDANT_ALLOWED_USERS`, …). Fail closed. |
 | **[gantree](https://github.com/shotah/gantree)** | Shipping yard. Board, grants, doctor, spend, build-a-crane. | Operator row: passphrase, role, assigned cranes. Not a chat login. |
 | **[gantry-pendant](https://github.com/shotah/gantry-pendant)** | Handheld PWA + Cloudflare Durable Object mailbox. | Google `sub` (human) or crane bearer (machine). Room list comes from the crane. |
-| **[gantry-cab](https://github.com/shotah/gantry-cab)** | Android Auto / phone APK. Same mailbox, not a second Worker. | Same Google `sub` as the PWA. |
+| **[gantry-cab](https://github.com/shotah/gantry-cab)** | Native Android app. Also Android Auto. Dials the pendant mailbox, not a second Worker. | Same Google `sub` as the PWA. |
 
 Telegram, Discord, and Slack are **vendor mouths**. The crane dials them
 the way it always has. They are not sibling git repos.

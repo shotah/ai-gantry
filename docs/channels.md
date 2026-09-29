@@ -1,10 +1,13 @@
 # Channels
 
 One `CHANNEL` per process. All mouths are outbound-only + allowlist (empty
-list fails boot). Default is Telegram. Discord, Slack, and
-[pendant](https://github.com/shotah/gantry-pendant) are opt-in.
-[Cab](https://github.com/shotah/gantry-cab) is another mouth on that same
-mailbox, not a second channel. Stdio is the local REPL (`make run`).
+list fails boot). The mouth we run is
+[pendant](https://github.com/shotah/gantry-pendant).
+[Cab](https://github.com/shotah/gantry-cab) is a native Android app on that
+same mailbox, not a second channel. Android Auto is one surface of it.
+Telegram, Discord, and Slack are vendor
+options. An unset `CHANNEL` still defaults to `telegram`. Stdio is the
+local REPL (`make run`).
 Want two mouths? Two compose services. Family diagram:
 [ecosystem.md](ecosystem.md).
 
@@ -69,8 +72,9 @@ mailbox. The crane dials; nothing listens. On dial it sends `aims` then
 push changed that board. No new socket, no `gantry status` field, no
 HTTP route.
 Setup in that repo’s `docs/setup.md`.
-[Cab](https://github.com/shotah/gantry-cab) is another client on this mailbox
-(Android Auto). The crane still uses `CHANNEL=pendant`.
+[Cab](https://github.com/shotah/gantry-cab) is a native Android app on this
+mailbox. Android Auto is one surface of that app. The crane still uses
+`CHANNEL=pendant`.
 
 ```bash
 CHANNEL=pendant

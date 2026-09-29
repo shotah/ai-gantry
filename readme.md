@@ -36,10 +36,12 @@ The engineering budget went into the **loop**: parallel tool batches,
 repairs so a small local model can finish a turn, context that does not
 rot, personality that survives a reset. Console, metrics, and fleet
 live one layer up in **[gantree](https://github.com/shotah/gantree)** —
-the shipping yard — and never sit in a chat turn. Mouths we own are
-**[gantry-pendant](https://github.com/shotah/gantry-pendant)** (phone)
-and **[gantry-cab](https://github.com/shotah/gantry-cab)** (Android
-Auto). Telegram stays the default.
+the shipping yard — and never sit in a chat turn. The mouth we run is
+**[gantry-pendant](https://github.com/shotah/gantry-pendant)** (phone
+PWA) and **[gantry-cab](https://github.com/shotah/gantry-cab)**, a
+native Android app on that same backend. Android Auto is one surface
+of Cab, not the whole app. Goals, todos, settings, and voice live
+there. Telegram stays an option.
 
 If you need a team workspace on day one, this is the wrong repo — and
 that's fine.
@@ -60,7 +62,7 @@ operate it and talk to it without anyone sitting in a token path.
 | **This repo** | The crane. One process, one person, one model. | Dials out. Reads env + files. Never learns the yard exists. |
 | **[gantree](https://github.com/shotah/gantree)** | Shipping yard. Board, grants, doctor, spend. | Writes `.env`, `mcp.toml`, persona, Docker. Pulls logs. Never in a chat turn. |
 | **[gantry-pendant](https://github.com/shotah/gantry-pendant)** | Handheld + mailbox. Phone PWA + Cloudflare Durable Object. | Phone and crane both **dial in**. Zero inbound ports on the Mini. |
-| **[gantry-cab](https://github.com/shotah/gantry-cab)** | The seat. Android Auto mouth. | Same mailbox, same crane. Not a second Worker. |
+| **[gantry-cab](https://github.com/shotah/gantry-cab)** | Native Android app. Also Android Auto. | Dials the pendant mailbox. Not a second Worker. |
 
 Telegram, Discord, and Slack are vendor mouths: the crane dials them
 directly. Pendant and cab go through the mailbox we own. MCP binaries
@@ -152,7 +154,7 @@ LLM_MODEL=gemini-3.5-flash
 | **[examples/hosting/gcp/](examples/hosting/gcp/)** · **[aws](examples/hosting/aws/)** | Small always-on VM |
 | **[gantree](https://github.com/shotah/gantree)** | Console, metrics, grant tools, several agents |
 | **[gantry-pendant](https://github.com/shotah/gantry-pendant)** | Phone chat we own (`CHANNEL=pendant`) |
-| **[gantry-cab](https://github.com/shotah/gantry-cab)** | Android Auto, same mailbox |
+| **[gantry-cab](https://github.com/shotah/gantry-cab)** | Native Android app on the pendant mailbox. Android Auto is one surface. |
 | `make init && make run` | Hack on the binary (`CHANNEL=stdio`) |
 
 Cookbook: **[examples/README.md](examples/README.md)**.
@@ -174,10 +176,12 @@ chat turn.
 | `/tools` `/examples` `/planner` `/aims` `/new` `/cancel` | Catalog, ideas, daily planning session, aim ledger, reset, abort |
 | `/auth` | Headless MCP login — paste a code; no laptop callback |
 
-Telegram is the default. Discord, Slack, and
-**[pendant](https://github.com/shotah/gantry-pendant)** (our chat
-client) are shipped (one `CHANNEL` per process). Cab is another mouth
-on that same mailbox. Headless OAuth: **[docs/auth.md](docs/auth.md)**.
+**[Pendant](https://github.com/shotah/gantry-pendant)** is the mouth
+(`CHANNEL=pendant`): goals, todos, settings, and voice on a phone we
+own. Cab is the native Android app on that same backend, Android
+Auto included. Telegram, Discord,
+and Slack stay vendor options (one `CHANNEL` per process). Headless
+OAuth: **[docs/auth.md](docs/auth.md)**.
 
 ### Two files, not a catalog
 
@@ -222,7 +226,8 @@ Setup: **[docs/eval_setup.md](docs/eval_setup.md)**.
 | --- | --- |
 | How the four repos talk | **[docs/ecosystem.md](docs/ecosystem.md)** |
 | What we actually built (honest inventory) | **[docs/features.md](docs/features.md)** |
-| How it rates as a harness, gaps, and how it sits next to OpenClaw / Letta / Hermes | **[docs/evaluation.md](docs/evaluation.md)** |
+| How it rates as a harness (Grok, 2026-09-28) | **[docs/Evaluation_Grok.md](docs/Evaluation_Grok.md)** |
+| Earlier harness grade (Fable, 2026-09-26) | **[docs/evaluation_fable.md](docs/evaluation_fable.md)** |
 | Run the live behavior eval (`make integration-test`): keys, GitHub secret, reading a failure | **[docs/eval_setup.md](docs/eval_setup.md)** |
 | How to write `PERSONA.md` (tight, no MCP catalog, where the horizon lives) | **[docs/persona.md](docs/persona.md)** |
 | How the harness is put together | **[docs/architecture.md](docs/architecture.md)** |
@@ -231,7 +236,7 @@ Setup: **[docs/eval_setup.md](docs/eval_setup.md)**.
 | Discord / Slack / pendant | **[docs/channels.md](docs/channels.md)** |
 | Console, metrics, or several agents | **[gantree](https://github.com/shotah/gantree)** |
 | Chat from a phone we own | **[gantry-pendant](https://github.com/shotah/gantry-pendant)** |
-| Chat from the car | **[gantry-cab](https://github.com/shotah/gantry-cab)** |
+| Chat from the Android app | **[gantry-cab](https://github.com/shotah/gantry-cab)** |
 
 The harness is a small static Go binary. Tools are optional MCP processes.
 We spent the budget on the loop so a **small local model** can finish a

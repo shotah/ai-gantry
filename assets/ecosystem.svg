@@ -102,17 +102,15 @@
     <text x="98" y="346" text-anchor="middle" fill="#a8a29e" font-size="9" letter-spacing="1">phone PWA</text>
   </g>
 
-  <g transform="translate(168,188)" filter="url(#soft)">
-    <rect x="8" y="36" width="88" height="52" rx="8" fill="url(#gold)" stroke="#b45309" stroke-width="1.2"/>
-    <rect x="18" y="44" width="44" height="22" rx="3" fill="#0c0d10"/>
-    <text x="40" y="59" text-anchor="middle" fill="#fde68a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8" font-weight="700">KIT</text>
-    <circle cx="24" cy="96" r="11" fill="#0c0d10" stroke="#78716c" stroke-width="3"/>
-    <circle cx="80" cy="96" r="11" fill="#0c0d10" stroke="#78716c" stroke-width="3"/>
-    <circle cx="92" cy="62" r="7" fill="#fde68a"/>
+  <g transform="translate(168,168)" filter="url(#soft)">
+    <rect x="22" y="8" width="60" height="118" rx="10" fill="url(#gold)" stroke="#b45309" stroke-width="1.2"/>
+    <rect x="28" y="18" width="48" height="90" rx="4" fill="#0c0d10"/>
+    <text x="52" y="68" text-anchor="middle" fill="#fde68a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" font-weight="700">KIT</text>
+    <circle cx="52" cy="116" r="4" fill="#0c0d10"/>
   </g>
   <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
     <text x="220" y="330" text-anchor="middle" fill="#e7e5e4" font-size="12" font-weight="700" letter-spacing="1.4">CAB</text>
-    <text x="220" y="346" text-anchor="middle" fill="#a8a29e" font-size="9" letter-spacing="1">Android Auto</text>
+    <text x="220" y="346" text-anchor="middle" fill="#a8a29e" font-size="9" letter-spacing="1">Android app</text>
   </g>
 
   <!-- Mailbox -->

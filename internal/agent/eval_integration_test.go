@@ -2,7 +2,7 @@
 
 package agent_test
 
-// Live behavioral eval — docs/evaluation.md gap 1. Never in `go test ./...`:
+// Live behavioral eval — docs/evaluation_fable.md gap 1. Never in `go test ./...`:
 //
 //	make integration-test              # sources .env, 3 runs per fixture
 //	make integration-test EVAL_ARGS='-eval.n=10 -eval.only=scoop_at_2,planner_gym_no_workout'
@@ -77,21 +77,31 @@ func TestEval_Live(t *testing.T) {
 			var sub evalTotals
 			for i := 1; i <= *evalN; i++ {
 				ctx, cancel := context.WithTimeout(context.Background(), evalTurnTimeout)
-				out := runEvalFixture(ctx, t, completer, fx)
-				fails := checkEval(ctx, out, fx.Expect)
+				mornings := runEvalMornings(ctx, t, completer, fx)
+				var fails []string
+				var last evalOutcome
+				for _, m := range mornings {
+					last = m.Out
+					fails = append(fails, checkEval(ctx, m.Out, m.Expect)...)
+					if m.Differ && sameMorningLine(m.PrevLine, morningReply(m.Out)) {
+						fails = append(fails, "same line as the previous morning")
+					}
+					sub.add(m.Out, overBudget(m.Out, m.Expect) != "")
+				}
 				cancel()
-				over := overBudget(out, fx.Expect)
-				sub.add(out, over != "")
+				over := overBudget(last, fx.Expect)
 				if len(fails) > 0 {
-					t.Errorf("run %d/%d FAIL: %s\n%s", i, *evalN, strings.Join(fails, "; "), describeEval(out))
+					t.Errorf("run %d/%d FAIL: %s\n%s", i, *evalN, strings.Join(fails, "; "), describeEval(last))
 					continue
 				}
 				if over != "" {
 					over = " (" + over + ")"
 				}
-				t.Logf("run %d/%d ok%s: %s — %s", i, *evalN, over, describeCost(out), describeBatches(out))
+				t.Logf("run %d/%d ok%s: %s — %s", i, *evalN, over, describeCost(last), describeBatches(last))
 				if *evalVerbose {
-					t.Log(describeEval(out))
+					for _, m := range mornings {
+						t.Log(describeEval(m.Out))
+					}
 				}
 			}
 			t.Logf("%s: %s", fx.Name, sub.String())

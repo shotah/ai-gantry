@@ -63,7 +63,7 @@ help: ## Show available targets
 	@echo   make test           Run all tests
 	@echo   make test-verbose   Run tests with -v
 	@echo   make race           Race detector (needs CGO)
-	@echo   make integration-test  Live-model behavior eval (LLM_* in .env; docs/evaluation.md)
+	@echo   make integration-test  Live-model behavior eval (LLM_* in .env; docs/evaluation_fable.md)
 	@echo   make coverage       Write coverage.out + func summary
 	@echo   make coverage-html  HTML report -^> coverage.html
 	@echo   make vet            go vet ./...

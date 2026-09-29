@@ -139,6 +139,18 @@ func TestEvalFixtures_WellFormed(t *testing.T) {
 				t.Errorf("%s: now %q: %v", fx.Name, fx.Now, err)
 			}
 		}
+		if fx.Next != nil {
+			if !fx.Planner {
+				t.Errorf("%s: next morning is a second planner turn", fx.Name)
+			}
+			if _, err := time.Parse(time.RFC3339, fx.Next.Now); err != nil {
+				t.Errorf("%s: next.now %q: %v", fx.Name, fx.Next.Now, err)
+			}
+			if !fx.Next.DifferentLine {
+				t.Errorf("%s: next morning must set different_line", fx.Name)
+			}
+			compileEvalRegexes(t, fx.Name+" next", fx.Next.Expect)
+		}
 		for i, row := range fx.Ledger {
 			if row.What == "" || len(row.Aims) == 0 {
 				t.Errorf("%s: ledger[%d] needs what and aims", fx.Name, i)
@@ -579,5 +591,106 @@ func TestEvalHarness_ReactionTriage(t *testing.T) {
 	}
 	if len(sc.reqs) != 2 {
 		t.Fatalf("waiting 👍 must reach the model, got %d rounds", len(sc.reqs))
+	}
+}
+
+// Sunday with a new weigh-in and no aim_log fails. The live 2/3 miss was
+// this case, recorded and left. A scripted week line without the log is a
+// failed run, not a note.
+func TestEvalHarness_WeekStartRequiresAimLog(t *testing.T) {
+	ctx := context.Background()
+	fx := loadEvalFixture(t, filepath.Join(evalFixtureDir, "20_planner_week_start.json"))
+	skip := &scriptCompleter{res: []*provider.Result{
+		{ToolCalls: []provider.ToolCall{
+			toolCall("g", "garmin__activities_list", map[string]any{"start": "2026-10-04"}),
+			toolCall("c", "google__calendar_list_events", map[string]any{"start": "2026-10-04"}),
+		}},
+		{Content: "Training and weight are down."},
+	}}
+	out := runEvalFixture(ctx, t, skip, fx)
+	fails := checkEval(ctx, out, fx.Expect)
+	joined := strings.Join(fails, "; ")
+	if !strings.Contains(joined, "aim_log") {
+		t.Fatalf("missing aim_log must fail the Sunday fixture, got %v\n%s", fails, describeEval(out))
+	}
+
+	log := &scriptCompleter{res: []*provider.Result{
+		{ToolCalls: []provider.ToolCall{
+			toolCall("g", "garmin__activities_list", map[string]any{"start": "2026-10-04"}),
+			toolCall("c", "google__calendar_list_events", map[string]any{"start": "2026-10-04"}),
+		}},
+		{ToolCalls: []provider.ToolCall{toolCall("a", "aim_log", map[string]any{
+			"what": "weight 183 lb", "aims": map[string]int{"training": 0, "weight": 0},
+			"metric": "weight", "value": 183, "unit": "lb",
+		})}},
+		{Content: "Training and weight are down."},
+	}}
+	out = runEvalFixture(ctx, t, log, fx)
+	if fails := checkEval(ctx, out, fx.Expect); len(fails) > 0 {
+		t.Fatalf("%v\n%s", fails, describeEval(out))
+	}
+}
+
+// Tuesday sees the praised note Monday's aim_log actually wrote, and a
+// repeated line fails.
+func TestEvalHarness_TwoMornings(t *testing.T) {
+	ctx := context.Background()
+	fx := loadEvalFixture(t, filepath.Join(evalFixtureDir, "26_planner_two_mornings.json"))
+	credit := "Three mornings. That's the credit."
+	quiet := "Quiet morning. Nothing to add."
+	sc := &scriptCompleter{res: []*provider.Result{
+		{ToolCalls: []provider.ToolCall{toolCall("g1", "garmin__activities_list", map[string]any{"start": "2026-10-05"})}},
+		{ToolCalls: []provider.ToolCall{toolCall("a1", "aim_log", map[string]any{
+			"what": "gym session", "aims": map[string]int{"training": 2}, "note": "praised",
+		})}},
+		{Content: credit},
+		{ToolCalls: []provider.ToolCall{toolCall("g2", "garmin__activities_list", map[string]any{"start": "2026-10-06"})}},
+		{Content: quiet},
+	}}
+	mornings := runEvalMornings(ctx, t, sc, fx)
+	if len(mornings) != 2 {
+		t.Fatalf("mornings=%d", len(mornings))
+	}
+	for _, m := range mornings {
+		fails := checkEval(ctx, m.Out, m.Expect)
+		if m.Differ && sameMorningLine(m.PrevLine, morningReply(m.Out)) {
+			fails = append(fails, "same line as the previous morning")
+		}
+		if len(fails) > 0 {
+			t.Fatalf("%v\n%s", fails, describeEval(m.Out))
+		}
+	}
+	var tuesday string
+	if len(sc.reqs) < 4 {
+		t.Fatalf("tuesday never ran, rounds=%d", len(sc.reqs))
+	}
+	for _, msg := range sc.reqs[3].Messages {
+		if strings.Contains(msg.Content, "praised") {
+			tuesday = msg.Content
+			break
+		}
+	}
+	if tuesday == "" {
+		t.Fatal("tuesday prompt has no praised note from monday's aim_log")
+	}
+
+	repeat := &scriptCompleter{res: []*provider.Result{
+		{ToolCalls: []provider.ToolCall{toolCall("g1", "garmin__activities_list", map[string]any{"start": "2026-10-05"})}},
+		{ToolCalls: []provider.ToolCall{toolCall("a1", "aim_log", map[string]any{
+			"what": "gym session", "aims": map[string]int{"training": 2}, "note": "praised",
+		})}},
+		{Content: credit},
+		{ToolCalls: []provider.ToolCall{toolCall("g2", "garmin__activities_list", map[string]any{"start": "2026-10-06"})}},
+		{Content: credit},
+	}}
+	mornings = runEvalMornings(ctx, t, repeat, fx)
+	var repeated bool
+	for _, m := range mornings {
+		if m.Differ && sameMorningLine(m.PrevLine, morningReply(m.Out)) {
+			repeated = true
+		}
+	}
+	if !repeated {
+		t.Fatal("a repeated credit line must fail the second morning")
 	}
 }

@@ -1817,6 +1817,30 @@ func estTokens(messages []provider.Message) int {
 	return n
 }
 
+// VolatileEstTokens is chars/4 of the re-evaluated suffix of a Completer
+// request: the turn's user message, every block after it, and a [memory]
+// hydration sitting immediately in front of that user message. Persona
+// and earlier history are the cached prefix. Payload tests pin the number
+// so the next harness tag is a failing diff.
+func VolatileEstTokens(messages []provider.Message) int {
+	lastUser := -1
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == provider.RoleUser {
+			lastUser = i
+			break
+		}
+	}
+	if lastUser < 0 {
+		return estTokens(messages)
+	}
+	start := lastUser
+	if start > 0 && messages[start-1].Role == provider.RoleSystem &&
+		strings.HasPrefix(strings.TrimSpace(messages[start-1].Content), "[memory]") {
+		start--
+	}
+	return estTokens(messages[start:])
+}
+
 // resultGenEst is a chars/4 estimate of what the model emitted this round
 // (visible text, thinking, and tool-call arguments).
 func resultGenEst(res *provider.Result) int {

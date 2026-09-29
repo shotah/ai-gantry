@@ -1,6 +1,6 @@
 package agent_test
 
-// Behavioral eval harness (docs/evaluation.md, gap 1).
+// Behavioral eval harness (docs/evaluation_fable.md, gap 1).
 //
 // A fixture is one turn against the shipped persona seed with a real session,
 // memory, cron, mcp_enable, and self-note store — the same composition as
@@ -92,6 +92,19 @@ type evalFixture struct {
 	// fixture does not depend on the day the eval runs. Empty uses time.Now.
 	Now    string     `json:"now,omitempty"`
 	Expect evalExpect `json:"expect"`
+	// Next is the following morning in the same session. The ledger row
+	// the first turn's aim_log wrote is what the second morning sees —
+	// the note is not re-seeded by hand.
+	Next *evalNext `json:"next,omitempty"`
+}
+
+// evalNext is one more planner morning after the fixture's own turn.
+type evalNext struct {
+	Now string `json:"now"`
+	// DifferentLine fails when this morning's reply is the same line as
+	// the morning before it.
+	DifferentLine bool       `json:"different_line,omitempty"`
+	Expect        evalExpect `json:"expect"`
 }
 
 type evalHistory struct {
@@ -487,7 +500,21 @@ func evalPersona(t *testing.T, dir string) string {
 
 // runEvalFixture builds a fresh world, runs the one turn, and gathers the
 // outcome. The stores are closed when the test ends.
+// evalMorning is one turn of a fixture, plus the line the morning before
+// it actually said when this turn must not repeat it.
+type evalMorning struct {
+	Out      evalOutcome
+	Expect   evalExpect
+	PrevLine string
+	Differ   bool
+}
+
 func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Completer, fx evalFixture) evalOutcome {
+	t.Helper()
+	return runEvalMornings(ctx, t, completer, fx)[0].Out
+}
+
+func runEvalMornings(ctx context.Context, t *testing.T, completer provider.Completer, fx evalFixture) []evalMorning {
 	t.Helper()
 	loc, err := time.LoadLocation(evalTZ)
 	if err != nil {
@@ -560,6 +587,7 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 	// Same stack as cmd/gantry/run.go, canned MCP host at the bottom,
 	// recorder on top. Canned results take the same {{+Nm}} clock as the
 	// inbound text so a "dinner at 7" fixture is still ahead at 9pm.
+	// cur moves when a fixture has a next morning; Now closures read it.
 	started := time.Now().In(loc)
 	if fx.Now != "" {
 		parsed, perr := time.Parse(time.RFC3339, fx.Now)
@@ -568,6 +596,8 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		}
 		started = parsed.In(loc)
 	}
+	cur := started
+	nowFn := func() time.Time { return cur }
 	for i, row := range fx.Memory {
 		if row.AgeDays <= 0 {
 			continue
@@ -609,7 +639,7 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 	var tools agent.Tools = newCannedTools(canned, started)
 	tools = memory.Composite{Memory: memory.Tools{Backend: mem, ForgetAim: aimStore.Forget}, Other: tools}
 	tools = aims.Composite{Aims: aims.Tools{Store: aimStore}, Other: tools}
-	tools = cron.Composite{Cron: cron.Tools{Store: jobs, TZ: evalTZ, Memory: mem, Now: func() time.Time { return started }}, Other: tools}
+	tools = cron.Composite{Cron: cron.Tools{Store: jobs, TZ: evalTZ, Memory: mem, Now: nowFn}, Other: tools}
 	tools = selfnote.Composite{Self: selfnote.Tools{Store: self}, Other: tools}
 	base := tools
 	tools = mcpenable.Composite{
@@ -635,55 +665,112 @@ func runEvalFixture(ctx context.Context, t *testing.T, completer provider.Comple
 		Model:       "eval",
 		Location:    loc,
 		TZName:      evalTZ,
-		Now:         func() time.Time { return started },
+		Now:         nowFn,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	text := evalInboundText(fx, started)
-	msg := channel.Message{
-		SessionID: sessionID,
-		UserID:    "eval",
-		Text:      text,
-		Surface:   fx.Surface,
-		Input:     fx.Input,
+	type step struct {
+		at     time.Time
+		expect evalExpect
+		differ bool
 	}
-	// A mouth that can react (Telegram, pendant): the emoji lands on the
-	// human's message, not in the text.
-	ctx, reactions := channel.AttachReactionSink(ctx)
-	reply, err := a.Handle(ctx, msg)
-	if err != nil {
-		t.Fatalf("%s: Handle: %v", fx.Name, err)
+	steps := []step{{at: started, expect: fx.Expect}}
+	if fx.Next != nil {
+		nextAt, nerr := time.Parse(time.RFC3339, fx.Next.Now)
+		if nerr != nil {
+			t.Fatalf("%s: next.now: %v", fx.Name, nerr)
+		}
+		steps = append(steps, step{at: nextAt.In(loc), expect: fx.Next.Expect, differ: fx.Next.DifferentLine})
 	}
 
-	state, err := sessions.TalkState(ctx, sessionID)
-	if err != nil {
-		t.Fatal(err)
+	var mornings []evalMorning
+	var prevLine string
+	for i, step := range steps {
+		cur = step.at
+		beforeCalls := len(rec.snapshot())
+		beforeRounds := counter.round()
+		beforeUsage := counter.usage
+		text := evalInboundText(fx, cur)
+		msg := channel.Message{
+			SessionID: sessionID,
+			UserID:    "eval",
+			Text:      text,
+			Surface:   fx.Surface,
+			Input:     fx.Input,
+		}
+		// A mouth that can react (Telegram, pendant): the emoji lands on the
+		// human's message, not in the text. A fresh sink per morning.
+		turnCtx, reactions := channel.AttachReactionSink(ctx)
+		reply, err := a.Handle(turnCtx, msg)
+		if err != nil {
+			t.Fatalf("%s morning %d: Handle: %v", fx.Name, i+1, err)
+		}
+		state, err := sessions.TalkState(ctx, sessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		list, err := jobs.ListSession(ctx, sessionID, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		calls := rec.snapshot()[beforeCalls:]
+		for c := range calls {
+			calls[c].Round -= beforeRounds
+		}
+		raw := wait.last()
+		reaction := reactions.Emoji()
+		usage := counter.usage
+		out := evalOutcome{
+			Calls:            calls,
+			Reply:            reply,
+			RawReply:         raw,
+			Reaction:         reaction,
+			Waiting:          state.WaitingForReply,
+			Silent:           (strings.TrimSpace(reply) == "" && reaction == "") || cron.IsSilentReply(raw),
+			Jobs:             list,
+			Started:          cur,
+			Rounds:           counter.round() - beforeRounds,
+			PromptTokens:     usage.PromptTokens - beforeUsage.PromptTokens,
+			CompletionTokens: usage.CompletionTokens - beforeUsage.CompletionTokens,
+			Given:            evalGiven(fx, text),
+			LedgerIDs:        ledgerIDs,
+			MemoryIDs:        memoryIDs,
+			mem:              mem,
+		}
+		line := raw
+		if strings.TrimSpace(line) == "" {
+			line = reply
+		}
+		mornings = append(mornings, evalMorning{
+			Out: out, Expect: step.expect, PrevLine: prevLine, Differ: step.differ && i > 0,
+		})
+		prevLine = line
 	}
-	list, err := jobs.ListSession(ctx, sessionID, false)
-	if err != nil {
-		t.Fatal(err)
+	return mornings
+}
+
+// sameMorningLine reports whether two planner replies are the same line
+// once wait-tokens and whitespace are gone.
+func sameMorningLine(a, b string) bool {
+	return morningLine(a) == morningLine(b)
+}
+
+func morningReply(out evalOutcome) string {
+	if strings.TrimSpace(out.RawReply) != "" {
+		return out.RawReply
 	}
-	raw := wait.last()
-	reaction := reactions.Emoji()
-	return evalOutcome{
-		Calls:            rec.snapshot(),
-		Reply:            reply,
-		RawReply:         raw,
-		Reaction:         reaction,
-		Waiting:          state.WaitingForReply,
-		Silent:           (strings.TrimSpace(reply) == "" && reaction == "") || cron.IsSilentReply(raw),
-		Jobs:             list,
-		Started:          started,
-		Rounds:           counter.round(),
-		PromptTokens:     counter.usage.PromptTokens,
-		CompletionTokens: counter.usage.CompletionTokens,
-		Given:            evalGiven(fx, text),
-		LedgerIDs:        ledgerIDs,
-		MemoryIDs:        memoryIDs,
-		mem:              mem,
+	return out.Reply
+}
+
+func morningLine(s string) string {
+	s = cron.StripWaitTokens(s)
+	if i := strings.Index(s, "\n\n— tools:"); i >= 0 {
+		s = s[:i]
 	}
+	s = strings.ToLower(strings.TrimSpace(s))
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // evalGiven joins the non-tool inputs of a turn for inventedPrices.
