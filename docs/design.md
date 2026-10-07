@@ -185,7 +185,7 @@ Boot is fail-fast: missing required env = clear error + exit 1.
 | `HISTORY_MAX_TOKENS` | no | `32000` (chars/4 estimate; older turns fold into `Facts:` / `Voice:`) |
 | `HISTORY_STRIP_FILLERS` | no | `true` (prompt-only; last 40 messages verbatim; assistant never stripped) |
 | `TOOL_RESULT_MAX_CHARS` | no | `6000` |
-| `TOOL_MAX_ITERATIONS` | no | `10` (at the cap a final no-tools call forces a text reply) |
+| `TOOL_MAX_ITERATIONS` | no | `15` (at the cap a final no-tools call forces a text reply) |
 | `TOOL_SCHEMA_MAX_TOKENS` | no | `0` (log estimate only; `>0` = hard fail if over) |
 | `TOOLS_ENABLED` | no | `true` (`false` omits all tool schemas — models that reject tools, e.g. Ollama gemma3) |
 | `WEB_SEARCH_ENABLED` | no | `true` (builtin `web_search`; leftover `google-search` MCP grants are omitted) |

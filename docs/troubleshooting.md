@@ -121,10 +121,13 @@ returns plain `session reset` and **leaves `SELF.md` alone**. Check:
 
 ## Agent keeps calling tools forever / burns tokens
 
-Default tool budget is `TOOL_MAX_ITERATIONS=10` tool rounds, then a **landing
+Default tool budget is `TOOL_MAX_ITERATIONS=15` tool rounds, then a **landing
 call with tools withheld** so the turn ends in a real reply (and history is
 saved) instead of an error that drops the work. A soft warning fires around
-70% of the budget.
+70% of the budget. If the model still asks for tools on the landing call, the
+turn lands on a plain "ran out of tool calls" reply (log:
+`model emitted tool calls on the landing call`) rather than erroring the
+channel with "something went wrong".
 
 If you still see anonymous `✓ ✓ ✓ …` with no narration, check `TOOL_TRACE`
 and whether the model is emitting a one-line reason before the **batch**

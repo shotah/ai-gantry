@@ -64,7 +64,7 @@ type Config struct {
 	// are never stripped. SQLite stays verbatim.
 	HistoryStripFillers bool `env:"HISTORY_STRIP_FILLERS" envDefault:"true"`
 	ToolResultMaxChars  int  `env:"TOOL_RESULT_MAX_CHARS" envDefault:"6000"`
-	ToolMaxIterations   int  `env:"TOOL_MAX_ITERATIONS" envDefault:"10"`
+	ToolMaxIterations   int  `env:"TOOL_MAX_ITERATIONS" envDefault:"15"`
 	// ToolSchemaMaxTokens is an optional hard cap on estimated tool-schema tokens
 	// (chars/4 of name+description+parameters). 0 = log estimate only.
 	ToolSchemaMaxTokens int `env:"TOOL_SCHEMA_MAX_TOKENS" envDefault:"0"`

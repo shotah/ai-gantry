@@ -58,6 +58,11 @@ const compactCallsHeader = "Making Calls:"
 const budgetExhaustedNote = "[system] Tool budget exhausted: all %d tool rounds for this turn are used and no more tool calls are possible. " +
 	"Write your final reply to the user now: summarize what you accomplished, what you found, and what is still unfinished."
 
+// budgetExhaustedReply is what the human hears when the model keeps asking
+// for tools on the landing call: the budget is spent and nothing more can
+// run, so say so plainly instead of erroring the channel handler.
+const budgetExhaustedReply = "I ran out of tool calls for this turn before I could finish. Ask again and I'll pick up where I left off."
+
 // toolNarrationNote is appended to the system persona when tools are wired.
 // It is recency-weighted (end of the cached prefix): fan out independent
 // calls in one Completer response so the standing prompt is not re-billed
@@ -1244,8 +1249,28 @@ func (a *Agent) runLoop(ctx context.Context, sessionID, userID string, messages 
 		}
 		if final {
 			// Tools were withheld from the landing call; a tool_call reply here
-			// means the provider ignored that, so stop rather than loop on.
-			return "", fmt.Errorf("agent: exceeded TOOL_MAX_ITERATIONS (%d)", a.maxToolIters)
+			// means the model ignored that. Nothing can execute, so land on
+			// text: the human hears what was gathered and that the budget ran
+			// out, instead of a generic "something went wrong".
+			a.log.Warn("model emitted tool calls on the landing call; landing on text",
+				"tool_calls", len(res.ToolCalls),
+				"chars", len(res.Content),
+				"iteration", iter+1,
+			)
+			reply := budgetExhaustedReply
+			if c := strings.TrimSpace(res.Content); c != "" {
+				reply = c + "\n\n" + budgetExhaustedReply
+			}
+			outcomeHint = "budget"
+			var steered bool
+			messages, reply, steered, err = a.finishText(ctx, sessionID, messages, reply)
+			if err != nil {
+				return "", err
+			}
+			if steered {
+				continue
+			}
+			return reply, nil
 		}
 
 		messages = append(messages, provider.Message{

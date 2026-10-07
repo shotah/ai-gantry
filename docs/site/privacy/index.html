@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>gantree — privacy policy</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --accent: #3d8bfd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(ellipse at top, #1a2740 0%, var(--bg) 55%);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    main {
+      width: min(40rem, 100%);
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1.75rem 1.5rem;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+    h1 { font-size: 1.5rem; margin: 0 0 0.25rem; font-weight: 600; }
+    h2 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; font-weight: 600; }
+    p, li { color: var(--muted); line-height: 1.5; }
+    p { margin: 0 0 0.9rem; }
+    ul { margin: 0 0 0.9rem; padding-left: 1.2rem; }
+    a { color: var(--accent); }
+    .meta { font-size: 0.85rem; }
+    nav { font-size: 0.9rem; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Privacy policy</h1>
+    <p class="meta">gantree household · effective October 7, 2026</p>
+
+    <p>
+      This policy covers every app that signs in with Google under the
+      <strong>gantree</strong> name: the
+      <a href="https://github.com/shotah/ai-gantry">ai-gantry</a> agent, the
+      <a href="https://github.com/shotah/gantry-pendant">gantry-pendant</a>
+      web app and mailbox, and the
+      <a href="https://github.com/shotah/gantry-cab">gantry-cab</a> (Android)
+      and <a href="https://github.com/shotah/gantry-helm">gantry-helm</a>
+      (iPhone) apps. All of it is open-source, self-hosted software. Each
+      copy is run by one person (the <em>operator</em>) on hardware or a
+      Cloudflare account they control. The developer does not operate a
+      server that receives, stores, or can see your Google data.
+    </p>
+
+    <h2>Signing in (pendant, cab, helm)</h2>
+    <p>
+      Sign in with Google is used only to identify you. The apps request your
+      Google account id, email address, and basic profile. The mailbox keeps
+      your account id and email to decide which room you may join, and the
+      operator's agent keeps the same in its allowlist. Nothing else from your
+      Google account is read by signing in.
+    </p>
+
+    <h2>What Google data the agent accesses</h2>
+    <p>
+      Only when the operator connects a Google account to the ai-gantry
+      agent, and only within the scopes shown on the Google consent screen at
+      that time. Depending on the operator's configuration this can include:
+    </p>
+    <ul>
+      <li>Gmail messages, threads, labels, and drafts; sending mail.</li>
+      <li>Calendar events and free/busy information.</li>
+      <li>Tasks and task lists.</li>
+      <li>Contacts (People API).</li>
+      <li>Drive, Docs, and Sheets files.</li>
+      <li>YouTube subscriptions, playlists, and watch data (if connected separately).</li>
+      <li>Google fitness and health data (if connected separately).</li>
+      <li>Basic profile (email address) to identify the connected account.</li>
+    </ul>
+
+    <h2>Other connected accounts</h2>
+    <p>
+      The operator may also connect non-Google accounts. The same rules in
+      this policy apply to them:
+    </p>
+    <ul>
+      <li>Strava — activities, routes, and athlete stats, via Strava's OAuth.</li>
+      <li>
+        Garmin Connect — sleep, steps, heart rate, and workouts. Garmin has no
+        public OAuth for this data; the operator supplies their own Garmin
+        login on their machine and the resulting session is stored there.
+        Garmin credentials are never sent to the developer or pasted into chat.
+      </li>
+    </ul>
+
+    <h2>How it is used</h2>
+    <p>
+      Data is read or changed only in direct response to a request from the
+      operator (or an allowlisted user the operator configured), or a
+      scheduled task the operator set up. Examples: "what's on my calendar
+      today", "find the email from the dentist", "add this to my tasks".
+    </p>
+    <p>
+      To answer, the relevant content (for example an email body or a list of
+      events) is sent to the large-language-model provider the operator
+      configured (for example Google Gemini, OpenAI, or a model running on the
+      operator's own hardware). That provider processes it under its own terms
+      and privacy policy, which the operator chose. ai-gantry does not send
+      Google data anywhere else.
+    </p>
+
+    <h2>Storage</h2>
+    <ul>
+      <li>
+        OAuth tokens (access and refresh tokens) are stored as files on the
+        operator's machine. They are not transmitted to the developer.
+      </li>
+      <li>
+        Google content is held in memory while a request is answered. The
+        operator may enable local chat history, in which case replies that
+        quote Google content are kept on the operator's machine.
+      </li>
+      <li>
+        The OAuth redirect page at
+        <code>shotah.github.io/ai-gantry/oauth-catch/</code> is static HTML
+        shared by the Google, Google Health, and Strava connections. It
+        displays the one-time authorization code from the URL and stores
+        nothing; no server receives it.
+      </li>
+    </ul>
+
+    <h2>Sharing and sale</h2>
+    <p>
+      Google user data is never sold, never used for advertising, and never
+      shared with third parties other than the operator-configured model
+      provider described above.
+    </p>
+
+    <h2>Limited Use</h2>
+    <p>
+      gantree's (including ai-gantry, gantry-pendant, gantry-cab, and
+      gantry-helm) use and transfer to any other app of information received
+      from Google APIs will adhere to the
+      <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+      including the Limited Use requirements.
+    </p>
+
+    <h2>Retention</h2>
+    <ul>
+      <li>
+        Google content fetched to answer a request is discarded when the
+        request completes, except where the operator enabled local chat
+        history, which keeps the agent's replies (and any Google content
+        quoted in them) on the operator's machine until the operator deletes
+        it.
+      </li>
+      <li>
+        OAuth tokens are kept until revoked or until the operator deletes the
+        token files.
+      </li>
+      <li>
+        Sign-in records (account id and email) in the mailbox and allowlist
+        are kept until the operator removes the user.
+      </li>
+    </ul>
+
+    <h2>Revoking access and deleting data</h2>
+    <ul>
+      <li>
+        Revoke at any time from
+        <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.
+        The stored refresh token stops working immediately.
+      </li>
+      <li>
+        Delete the token files on the operator's machine (the agent's data
+        directory) to remove local credentials; delete chat history there if
+        it was enabled.
+      </li>
+      <li>
+        Ask the operator to remove you from the mailbox and allowlist to erase
+        your sign-in record.
+      </li>
+    </ul>
+
+    <h2>Children</h2>
+    <p>
+      The software is not directed at children under 13 and the developer does
+      not knowingly collect data from them. Operators decide who they
+      allowlist.
+    </p>
+
+    <h2>Changes to this policy</h2>
+    <p>
+      This page is versioned with the source code in the ai-gantry
+      repository. Material changes update the effective date above.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions about this software: open an issue at
+      <a href="https://github.com/shotah/ai-gantry/issues">github.com/shotah/ai-gantry/issues</a>.
+      Questions about a specific running instance go to the person who
+      operates it.
+    </p>
+
+    <nav><a href="../">Back to gantree</a></nav>
+  </main>
+</body>
+</html>

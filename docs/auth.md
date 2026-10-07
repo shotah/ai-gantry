@@ -36,6 +36,13 @@ CI publishes it to the repo `gh-pages` branch alongside the coverage badge
 Forks may keep using this catch page (public, no secrets) or host their own
 Pages copy and set `*_OAUTH_REDIRECT_URI` + the matching OAuth client URI.
 
+The upstream site is also served on a custom domain,
+`https://gantry.bldhosting.com/oauth-catch/`, because Google brand
+verification needs the redirect domain to be one the developer owns
+(`github.io` is not). Set `GOOGLE_OAUTH_REDIRECT_URI` to that and register it
+on the Web client when the consent screen should show the gantree name — see
+[google_workspace_auth_options.md](google_workspace_auth_options.md).
+
 Register the same URI on each OAuth client (alongside localhost for the
 laptop flow):
 
@@ -76,6 +83,11 @@ Workspace chat `/auth`).
 Scopes for Workspace chat auth must include `openid` +
 `userinfo.email` (current `google-mcp` defaults) or userinfo returns 401 after
 a successful code paste.
+
+Expect **"Google hasn't verified this app"** on this flow (Advanced → continue).
+It comes from the Gmail/Drive scopes, not the client type — see
+[google_workspace_auth_options.md](google_workspace_auth_options.md) for why
+Pendant login does not show it and what the options are.
 
 ### Strava: Authorization Callback Domain
 

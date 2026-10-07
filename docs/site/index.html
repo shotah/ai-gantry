@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Filled by CI from the GOOGLE_SITE_VERIFICATION repository variable (Search Console → HTML tag). -->
+  <meta name="google-site-verification" content="__GOOGLE_SITE_VERIFICATION__" />
+  <meta name="description" content="gantree is an open-source personal AI agent you run on your own hardware, with a web app and phone apps that talk to it. This is the official site and privacy policy." />
+  <title>gantree — a personal AI agent that runs on your own box</title>
+  <link rel="icon" href="logo.svg" type="image/svg+xml" />
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --accent: #3d8bfd;
+      --line: #2a3548;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(ellipse at top, #1a2740 0%, var(--bg) 55%);
+      color: var(--text);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    main {
+      width: min(44rem, 100%);
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1.75rem 1.5rem;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+    header { display: flex; align-items: center; gap: 0.9rem; margin-bottom: 0.75rem; }
+    header img { width: 56px; height: 56px; }
+    h1 { font-size: 1.6rem; margin: 0; font-weight: 600; }
+    .tag { color: var(--muted); font-size: 0.95rem; margin: 0; }
+    h2 { font-size: 1.05rem; margin: 1.6rem 0 0.5rem; font-weight: 600; }
+    p, li, td { color: var(--muted); line-height: 1.5; }
+    p { margin: 0 0 0.9rem; }
+    ul { margin: 0 0 0.9rem; padding-left: 1.2rem; }
+    table { width: 100%; border-collapse: collapse; margin: 0 0 0.9rem; font-size: 0.95rem; }
+    td { padding: 0.45rem 0.5rem 0.45rem 0; vertical-align: top; border-top: 1px solid var(--line); }
+    td:first-child { color: var(--text); white-space: nowrap; font-weight: 600; }
+    code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.9em; }
+    a { color: var(--accent); }
+    footer { border-top: 1px solid var(--line); margin-top: 1.6rem; padding-top: 1rem; font-size: 0.9rem; }
+    footer a + a { margin-left: 1rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <img src="logo.svg" alt="" />
+      <div>
+        <h1>gantree</h1>
+        <p class="tag">A personal AI agent you run yourself, and the apps that talk to it.</p>
+      </div>
+    </header>
+
+    <p>
+      gantree is open-source software for running your own assistant. There
+      is no hosted service: you (or a friend who runs one for you) start one
+      process on a machine you control, point it at the language model you
+      choose, and talk to it from a web app, a phone, or a chat network. When
+      you connect your Google account it can work with your mail, calendar,
+      contacts, tasks, and documents on your behalf.
+    </p>
+
+    <h2>The pieces</h2>
+    <table>
+      <tr>
+        <td><a href="https://github.com/shotah/ai-gantry">ai-gantry</a></td>
+        <td>The agent. One process, one persona, one model. It dials out to chat and to Google; it never opens a port.</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/shotah/gantry-pendant">gantry-pendant</a></td>
+        <td>The web app and mailbox. Sign in with Google to reach your agent's room from any browser.</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/shotah/gantry-cab">gantry-cab</a></td>
+        <td>Android app (and Android Auto) on the same mailbox. Same Google sign-in.</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/shotah/gantry-helm">gantry-helm</a></td>
+        <td>iPhone app (and CarPlay) on the same mailbox. Same Google sign-in.</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/shotah/gantree">gantree</a></td>
+        <td>The operator console that installs and watches agents. Not part of any chat.</td>
+      </tr>
+    </table>
+
+    <h2>What it does with your Google account</h2>
+    <p>
+      <strong>Signing in</strong> (pendant, cab, helm) asks only for your
+      account id, email, and basic profile, to decide which room you may join.
+    </p>
+    <p>
+      <strong>Connecting the agent</strong> (<code>/auth google</code>) is a
+      separate, optional step by the person who runs it. Depending on how it
+      is configured the agent can:
+    </p>
+    <ul>
+      <li>Read and search Gmail, and send mail you ask it to send.</li>
+      <li>List, create, and update Calendar events and Tasks.</li>
+      <li>Look up Contacts to address mail or invite people.</li>
+      <li>Read and edit Docs, Sheets, and Drive files you point it at.</li>
+      <li>Read YouTube subscriptions and playlists (separate connection).</li>
+      <li>Read fitness and health data you have shared with Google (separate connection).</li>
+    </ul>
+    <p>
+      It can also connect Strava and Garmin Connect. Every token is stored
+      only on the machine running the agent. How that data is handled is in
+      the <a href="privacy/">privacy policy</a>.
+    </p>
+
+    <h2>Docs</h2>
+    <ul>
+      <li><a href="https://github.com/shotah/ai-gantry/blob/main/readme.md">Getting started</a></li>
+      <li><a href="https://github.com/shotah/ai-gantry/blob/main/docs/auth.md">Connecting accounts (OAuth)</a></li>
+      <li><a href="https://github.com/shotah/ai-gantry/blob/main/docs/ecosystem.md">How the pieces fit</a></li>
+    </ul>
+
+    <footer>
+      <a href="privacy/">Privacy policy</a>
+      <a href="oauth-catch/">OAuth code page</a>
+      <a href="https://github.com/shotah/ai-gantry/issues">Contact</a>
+    </footer>
+  </main>
+</body>
+</html>

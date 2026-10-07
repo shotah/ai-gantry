@@ -2042,16 +2042,20 @@ func TestAgent_CompleteError(t *testing.T) {
 }
 
 // A provider that keeps returning tool_calls even on the landing call (where
-// tools are withheld) must still terminate with the budget error.
+// tools are withheld) must still terminate — with a plain give-up reply the
+// channel can deliver, not an error that becomes "something went wrong".
 func TestAgent_MaxToolIterations(t *testing.T) {
+	var calls int
 	fc := &fakeCompleter{fn: func(provider.Request) (*provider.Result, error) {
+		calls++
 		return &provider.Result{ToolCalls: []provider.ToolCall{
 			{ID: "c", Name: "demo__echo", Arguments: `{}`},
 		}}, nil
 	}}
+	hist := newMemHistory()
 	a, err := agent.New(agent.Options{
 		Completer:    fc,
-		Sessions:     newMemHistory(),
+		Sessions:     hist,
 		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "demo__echo"}}},
 		MaxToolIters: 2,
 		Model:        "m",
@@ -2059,9 +2063,53 @@ func TestAgent_MaxToolIterations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "loop"})
-	if err == nil || !strings.Contains(err.Error(), "TOOL_MAX_ITERATIONS") {
-		t.Fatalf("err = %v", err)
+	reply, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "loop"})
+	if err != nil {
+		t.Fatalf("err = %v, want graceful reply", err)
+	}
+	if !strings.Contains(reply, "ran out of tool calls") {
+		t.Fatalf("reply = %q", reply)
+	}
+	if calls != 3 {
+		t.Fatalf("model calls = %d, want 2 tool rounds + landing", calls)
+	}
+	msgs, err := hist.Messages(context.Background(), "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("history = %d messages, want persisted user + assistant", len(msgs))
+	}
+}
+
+// When the model narrates alongside the ignored landing tool_calls, that
+// text leads the give-up reply so the human still hears what was found.
+func TestAgent_MaxToolIterations_LandingKeepsNarration(t *testing.T) {
+	fc := &fakeCompleter{fn: func(req provider.Request) (*provider.Result, error) {
+		res := &provider.Result{ToolCalls: []provider.ToolCall{
+			{ID: "c", Name: "demo__echo", Arguments: `{}`},
+		}}
+		if len(req.Tools) == 0 {
+			res.Content = "The sheet range was wrong; checking once more."
+		}
+		return res, nil
+	}}
+	a, err := agent.New(agent.Options{
+		Completer:    fc,
+		Sessions:     newMemHistory(),
+		Tools:        &fakeTools{defs: []provider.ToolDef{{Name: "demo__echo"}}},
+		MaxToolIters: 1,
+		Model:        "m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := a.Handle(context.Background(), channel.Message{SessionID: "s", Text: "loop"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(reply, "The sheet range was wrong; checking once more.") || !strings.Contains(reply, "ran out of tool calls") {
+		t.Fatalf("reply = %q", reply)
 	}
 }
 

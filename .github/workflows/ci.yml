@@ -62,16 +62,26 @@ jobs:
       # gh-pages hosts:
       #   badges/coverage.svg          → coverage badge
       #   oauth-catch/index.html       → OAuth redirect catch page for chat /auth
-      # URL: https://shotah.github.io/ai-gantry/oauth-catch/
-      - name: Push gh-pages (badge + oauth-catch)
+      #   index.html, privacy/, logo.svg → OAuth consent-screen home page + privacy policy
+      #                                   (docs/google_workspace_auth_options.md)
+      # URL: https://shotah.github.io/ai-gantry/
+      # Repo variables:
+      #   GOOGLE_SITE_VERIFICATION → home page <meta name="google-site-verification"> (blank when unset)
+      #   PAGES_CUSTOM_DOMAIN      → CNAME file for a GitHub Pages custom domain (e.g. gantry.bldhosting.com);
+      #                              omitted when unset so forks stay on <user>.github.io/<repo>/
+      - name: Push gh-pages (badge + oauth-catch + site)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
+          PAGES_CUSTOM_DOMAIN: ${{ vars.PAGES_CUSTOM_DOMAIN }}
         run: |
           set -euo pipefail
           REPO="${{ github.repository }}"
           BADGE="${GITHUB_WORKSPACE}/badges/coverage.svg"
           CATCH="${GITHUB_WORKSPACE}/docs/oauth-catch/index.html"
+          SITE="${GITHUB_WORKSPACE}/docs/site"
+          LOGO="${GITHUB_WORKSPACE}/assets/logo.svg"
           WORKDIR=$(mktemp -d)
           cd "$WORKDIR"
           git init
@@ -87,16 +97,23 @@ jobs:
             git rm -rf . >/dev/null 2>&1 || true
           fi
 
-          mkdir -p badges oauth-catch
+          mkdir -p badges oauth-catch privacy
           cp "$BADGE" badges/coverage.svg
           cp "$CATCH" oauth-catch/index.html
+          cp "$SITE/privacy/index.html" privacy/index.html
+          cp "$LOGO" logo.svg
+          sed "s|__GOOGLE_SITE_VERIFICATION__|${GOOGLE_SITE_VERIFICATION}|" "$SITE/index.html" > index.html
           # Keep Pages from treating this as a Jekyll site (would ignore some paths).
           touch .nojekyll
+          if [ -n "${PAGES_CUSTOM_DOMAIN}" ]; then
+            printf '%s\n' "${PAGES_CUSTOM_DOMAIN}" > CNAME
+            git add CNAME
+          fi
 
-          git add badges/coverage.svg oauth-catch/index.html .nojekyll
+          git add badges/coverage.svg oauth-catch/index.html index.html privacy/index.html logo.svg .nojekyll
           if git diff --staged --quiet; then
             echo "No gh-pages change; skipping push."
           else
-            git commit -m "chore: update gh-pages (badge + oauth-catch) [skip ci]"
+            git commit -m "chore: update gh-pages (badge + oauth-catch + site) [skip ci]"
             git push origin HEAD:gh-pages
           fi
