@@ -21,36 +21,32 @@ Full design notes: [design.md](design.md#ops-surface).
 
 ## Catch page (PKCE redirect)
 
-Authorize URLs use redirect:
+Authorize URLs redirect to the catch page:
 
 ```text
-https://shotah.github.io/ai-gantry/oauth-catch/
-
+https://gantry.bldhosting.com/oauth-catch/
 ```
 
 That page is static HTML ([oauth-catch/index.html](oauth-catch/index.html)) —
 it only displays `?code=` with a copy button. No server logic, no tokens.
 CI publishes it to the repo `gh-pages` branch alongside the coverage badge
-(so no separate Pages repo).
+and the brand site (home page, privacy policy), served on the custom domain
+above. `https://shotah.github.io/ai-gantry/oauth-catch/` still 301s there.
 
-Forks may keep using this catch page (public, no secrets) or host their own
-Pages copy and set `*_OAUTH_REDIRECT_URI` + the matching OAuth client URI.
+`gantry.bldhosting.com` is the domain Google brand-verified for the
+**gantree** consent screen (name + logo instead of a bare hostname). The MCP
+binaries still default to the old `shotah.github.io` URI, so set the env
+override and register the verified URI on each client:
 
-The upstream site is also served on a custom domain,
-`https://gantry.bldhosting.com/oauth-catch/`, because Google brand
-verification needs the redirect domain to be one the developer owns
-(`github.io` is not). Set `GOOGLE_OAUTH_REDIRECT_URI` to that and register it
-on the Web client when the consent screen should show the gantree name — see
-[google_workspace_auth_options.md](google_workspace_auth_options.md).
-
-Register the same URI on each OAuth client (alongside localhost for the
-laptop flow):
-
-| Provider | Env override | Default |
+| Provider | Env override | Set to |
 | --- | --- | --- |
-| Google Workspace | `GOOGLE_OAUTH_REDIRECT_URI` | catch page above |
-| Strava | `STRAVA_OAUTH_REDIRECT_URI` | catch page above |
-| Google Health | `GOOGLE_HEALTH_OAUTH_REDIRECT_URI` | catch page above |
+| Google Workspace | `GOOGLE_OAUTH_REDIRECT_URI` | `https://gantry.bldhosting.com/oauth-catch/` |
+| Strava | `STRAVA_OAUTH_REDIRECT_URI` | `https://gantry.bldhosting.com/oauth-catch/` |
+| Google Health | `GOOGLE_HEALTH_OAUTH_REDIRECT_URI` | `https://gantry.bldhosting.com/oauth-catch/` |
+
+(Commented examples in `.env.example`.) Forks host their own Pages copy and
+point the same variables at it — the page has no secrets. Background and the
+other options: [google_workspace_auth_options.md](google_workspace_auth_options.md).
 
 ### Google: you need a **Web application** client
 
@@ -64,7 +60,7 @@ In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/
 1. **Create OAuth client → Web application** (do not try to flip an existing Desktop client).
 2. Authorized redirect URIs — add **exactly** (trailing slash matters):
    ```text
-   https://shotah.github.io/ai-gantry/oauth-catch/
+   https://gantry.bldhosting.com/oauth-catch/
    ```
    Optional on the same Web client if you want one pair of secrets for both flows:
    ```text
@@ -85,19 +81,20 @@ Scopes for Workspace chat auth must include `openid` +
 a successful code paste.
 
 Expect **"Google hasn't verified this app"** on this flow (Advanced → continue).
-It comes from the Gmail/Drive scopes, not the client type — see
-[google_workspace_auth_options.md](google_workspace_auth_options.md) for why
-Pendant login does not show it and what the options are.
+It comes from the Gmail/Drive scopes, not the client type. Branding is
+verified, so the screen names **gantree** with its logo; the interstitial
+itself only goes away with scope verification — see
+[google_workspace_auth_options.md](google_workspace_auth_options.md).
 
 ### Strava: Authorization Callback Domain
 
 Strava’s app settings take **one domain** (not a path, not a list —
-`localhost; shotah.github.io` / commas do not work).
+`localhost; gantry.bldhosting.com` / commas do not work).
 
 For chat `/auth`, set:
 
 1. [Strava API settings](https://www.strava.com/settings/api) →
-   **Authorization Callback Domain** = `shotah.github.io`
+   **Authorization Callback Domain** = `gantry.bldhosting.com`
    (or your fork’s Pages host).
 2. Leave localhost alone — Strava always whitelists `localhost` /
    `127.0.0.1`, so laptop `gantry auth strava` still works with that domain set.
