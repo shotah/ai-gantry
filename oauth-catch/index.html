@@ -85,6 +85,21 @@
   </main>
   <script>
     (function () {
+      // navigator.clipboard only exists in a secure context. If we were reached over
+      // plain http (e.g. a Pages redirect before "Enforce HTTPS"), hop to https with
+      // the query string intact so the copy button works.
+      function httpsUpgradeUrl(loc) {
+        if (loc.protocol !== "http:") { return null; }
+        if (loc.hostname === "localhost" || loc.hostname === "127.0.0.1") { return null; }
+        return "https://" + loc.host + loc.pathname + loc.search;
+      }
+      window.__httpsUpgradeUrl = httpsUpgradeUrl;
+      var upgrade = httpsUpgradeUrl(window.location);
+      if (upgrade) {
+        window.location.replace(upgrade);
+        return;
+      }
+
       var params = new URLSearchParams(window.location.search);
       var code = params.get("code") || "";
       var err = params.get("error") || "";
@@ -107,14 +122,48 @@
       copyBtn.disabled = false;
       clearBtn.disabled = false;
 
+      function selectCode() {
+        var range = document.createRange();
+        range.selectNodeContents(el);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+
+      function copied() {
+        status.className = "status";
+        status.textContent = "Copied — paste into the bot now.";
+      }
+
+      function copyFailed() {
+        selectCode();
+        status.className = "status err";
+        status.textContent = "Copy blocked by the browser — the code is selected, press Ctrl/Cmd+C.";
+      }
+
+      // Fallback for browsers without the async Clipboard API (or insecure contexts).
+      function legacyCopy() {
+        var ta = document.createElement("textarea");
+        ta.value = code;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+      }
+
       copyBtn.addEventListener("click", function () {
-        navigator.clipboard.writeText(code).then(function () {
-          status.className = "status";
-          status.textContent = "Copied — paste into the bot now.";
-        }).catch(function () {
-          status.className = "status err";
-          status.textContent = "Copy failed — select the code manually.";
-        });
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).then(copied, function () {
+            if (legacyCopy()) { copied(); } else { copyFailed(); }
+          });
+          return;
+        }
+        if (legacyCopy()) { copied(); } else { copyFailed(); }
       });
 
       clearBtn.addEventListener("click", function () {
