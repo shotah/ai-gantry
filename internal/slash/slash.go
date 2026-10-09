@@ -36,7 +36,7 @@ func Catalog() []Command {
 		{Name: "off", Hint: "drop a prefix hold", Args: true},
 		{Name: "planner", Hint: "daily planning session (on|off|HH:MM)", Args: true},
 		{Name: "aims", Hint: "aim ledger (area | rubric | block)", Args: true},
-		{Name: "todo", Hint: "pocket list (done <id|slug>)", Args: true},
+		{Name: "todo", Hint: "pocket list (done <id|slug>, prio <id|slug> [!!|!])", Args: true},
 	}
 }
 

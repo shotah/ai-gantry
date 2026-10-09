@@ -188,10 +188,11 @@ Needs `BRAVE_SEARCH_API_KEY`. Leftover `google-search` MCP children are omitted.
   with no extra tool call. The daily planner also gets `[progress]`: a
   five-day grid, a weekly read-back on the week's first planner
   turn (Sunday), and a goals board on the phone. `[todo]` from `todo/`
-  facts: the human's pocket list, oldest first with row ids, kept by the
-  agent (`memory_store` / `memory_forget`), never aged out, `/todo` to
-  read it and `/todo done <id>` from the phone's checkbox, and a tasks
-  drawer on the phone ([tasks.md](tasks.md)). `[loops]` from
+  facts: the human's pocket list, `!!`/`!` priority first then oldest,
+  with row ids, kept by the agent (`memory_store` / `memory_forget`),
+  never aged out, `/todo` to read it, `/todo done <id>` from the phone's
+  checkbox, `/todo prio <id> [!!|!]` from its priority button, and a
+  tasks drawer on the phone ([tasks.md](tasks.md)). `[loops]` from
   `waiting/` and `follow/` facts (interleaved, with
   age and a stale cue, `+N more` instead of silent truncation). With cron:
   `[wakes]` — the next three human jobs, so no `cron_list` just to avoid a

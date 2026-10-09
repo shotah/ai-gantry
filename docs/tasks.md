@@ -61,10 +61,12 @@ already has ids, `updated_at`, prefix listing, hydration exclusion,
 already read the `memory` table. Adding a `task` table would add three
 tools the model has to choose between and a second delete path.
 
-Why one line and not a project: if the list needs priorities, projects,
-subtasks, or assignees, it is the wrong tool. This is the list you would
-write on the back of your hand. The kernel caps what it shows and says
-so when the list is long.
+Why one line and not a project: if the list needs projects, subtasks,
+or assignees, it is the wrong tool. This is the list you would write on
+the back of your hand — and on the back of your hand you underline the
+one that matters. Priority is a `!` or `!!` leading the words, nothing
+more ([§3](#3-vocabulary)). The kernel caps what it shows and says so
+when the list is long.
 
 ---
 
@@ -77,6 +79,7 @@ so when the list is long.
 | **Id** | The memory row id. On the stamp, on `/todo`, on the phone. What `/todo done` and `memory_forget` take. | `#412` |
 | **Age** | From `updated_at`, after the first day. Same `channel.Age` as `[loops]`. Never a reason to drop the row. | `(9d ago)` |
 | **Update** | Same subject, new words. Memory supersedes the old row; the id changes; the age restarts. | `todo/passport`: renew, moved to Thu |
+| **Priority** | A marker leading the words: `!!` urgent, `!` high, nothing normal. Three or more `!` read as `!!`. Set by the agent when the human says so (asap, urgent, important, whenever), changed by the same-subject rewrite, or by the kernel from `/todo prio`. Every view sorts urgent, high, normal, then oldest first inside a level. | `todo/taxes`: `!! file the extension` |
 | **Done** | The row is deleted. No done ledger. | `memory_forget id=412` |
 
 No due field. "by Oct 15" is in the content; the agent reads it against
@@ -98,9 +101,10 @@ writes exactly once: the phone's checkbox.
 
 | Who | How | Cost |
 | --- | --- | --- |
-| The agent, from chat | "I need to call the dentist this week" → `memory_store fact todo/dentist "call to book a cleaning this week"`. "Make that Thursday" → same subject, new words. "Booked it" → `memory_forget id=412` (the id is on the stamp). | one turn, no new tool |
+| The agent, from chat | "I need to call the dentist this week" → `memory_store fact todo/dentist "call to book a cleaning this week"`. "Make that Thursday" → same subject, new words. "That's urgent" → same subject, `!! ` in front of the same words. "Booked it" → `memory_forget id=412` (the id is on the stamp). | one turn, no new tool |
 | The agent, from a wake | A task's pinned cron fires; the agent nags, or asks, or forgets it if the human already said it was done in the meantime. | the wake it already scheduled |
 | The phone, checkbox | `/todo done <id>` → kernel `Forget`. The human did the thing; that does not need a model. | no model burn |
+| The phone, priority button | `/todo prio <id> !!` (or `!`, or nothing to clear) → kernel re-`Store` on the same subject with the marker leading the same words. Same shape as any update: new id, age restarts. | no model burn |
 | The phone, add field | Plain text to the agent. The pendant sends `add to my list: <words>`; the crane assumes no prefix and no fixture checks for one (`22b_chat_todo_add_phone` runs that exact wording, 3/3). The agent names the slug and keeps the words. | one turn |
 | The agent, on its own | Only when the human said it. `Never auto-save guesses` already applies. The planner does not invent errands from mail. | — |
 
@@ -120,8 +124,8 @@ phone repaints from the next board push, which follows the same turn.
 
 | Surface | Content | Cost |
 | --- | --- | --- |
-| `[todo]` every turn | `#id slug: words (age)`, oldest `updated_at` first, cap 5, `(+N more — /todo)`. No stale cue, no falloff. Absent when there are no rows. | one line; same budget rule as `[loops]` |
-| `/todo` | Every open row with ids, oldest first. When more than 10 are open the footer says `14 open — a pocket list; prune, or use a tracker`. `/todo done <id\|slug>` is the one write. Mirrors `/aims`: a board, one kernel write (`/aims block`), the rest is the agent. | kernel, no model |
+| `[todo]` every turn | `#id slug: words (age)`, urgent then high then normal, oldest `updated_at` first inside a level, cap 5, `(+N more — /todo)`. The marker stays in the words (`#430 taxes: !! file the extension`) so the agent sees it. No stale cue, no falloff. Absent when there are no rows. | one line; same budget rule as `[loops]` |
+| `/todo` | Every open row with ids, same order as the stamp. When more than 10 are open the footer says `14 open — a pocket list; prune, or use a tracker`. `/todo done <id\|slug>` and `/todo prio <id\|slug> [!!\|!]` are the two writes. Mirrors `/aims`: a board, a kernel write or two, the rest is the agent. | kernel, no model |
 | Pendant board | `todo` frame on the mailbox, room-wide, same dial-and-diff path as `aims` ([§4.4](#44-pendant-frame)). | rendered per turn, sent when changed |
 | Telegram, stdio, Discord, Slack | `/todo` text. No board. | — |
 | Gantree | Reads `memory` rows with `subject LIKE 'todo/%' AND superseded_by IS NULL`. No new table, no contract change beyond one sentence. | — |
@@ -132,7 +136,8 @@ beside it, so the header does not grow.
 
 Oldest first is deliberate. `[loops]` is newest first because a fresh
 wait is the live one. A to-do list is the other way: the thing that has
-sat nine days is the one to say out loud.
+sat nine days is the one to say out loud — unless something is marked
+`!!`, which goes first however fresh it is.
 
 ### 4.4 Pendant frame
 
@@ -146,6 +151,7 @@ are gantry-pendant's; this repo renders and sends.
 {
   "kind": "todo",
   "todo": [
+    { "id": 430, "slug": "taxes",    "text": "file the extension",       "at": "2026-10-09", "priority": 2 },
     { "id": 412, "slug": "dentist",  "text": "call to book a cleaning",  "at": "2026-09-23" },
     { "id": 418, "slug": "passport", "text": "renew, by Oct 15",         "at": "2026-09-26" }
   ]
@@ -154,11 +160,12 @@ are gantry-pendant's; this repo renders and sends.
 
 | Field | From | Rule |
 | --- | --- | --- |
-| `todo[]` | `ListBySubjectPrefix(fact, todo/)` | Oldest `updated_at` first. **No cap** on the frame (the phone scrolls; the stamp is what is capped). `[]` is a real frame: the drawer clears. |
-| `id` | `Entry.ID` | What the checkbox sends back as `/todo done <id>`. An id the kernel no longer has (the agent rewrote the row between paint and tap) answers `todo: #418 is gone — the list was updated` and the next board fixes the drawer. |
+| `todo[]` | `ListBySubjectPrefix(fact, todo/)` | Priority first, then oldest `updated_at` inside a level. **No cap** on the frame (the phone scrolls; the stamp is what is capped). `[]` is a real frame: the drawer clears. |
+| `id` | `Entry.ID` | What the checkbox sends back as `/todo done <id>` and the priority button as `/todo prio <id> [!!\|!]`. An id the kernel no longer has (the agent rewrote the row between paint and tap) answers `todo: #418 is gone — the list was updated` and the next board fixes the drawer. |
 | `slug` | subject after `todo/` | `[a-z0-9][a-z0-9_-]*`; a row that fails the pattern is dropped from the frame, not from memory. |
-| `text` | `Entry.Content` | Whitespace-collapsed, clipped to 240 runes. Empty is dropped. |
+| `text` | `Entry.Content` minus the marker | Whitespace-collapsed, clipped to 240 runes. Empty is dropped (a row that is only `!!` is dropped). |
 | `at` | `updated_at` (`created_at` fallback) | Local `YYYY-MM-DD` in the store zone. The phone shows the age; the crane does not compute it. |
+| `priority` | the marker | `2` urgent, `1` high. **Omitted** when normal, so a list without markers is byte-for-byte the old frame. The phone paints a badge; the text has no `!` in it. |
 | `user_id` | — | Omit. Room-wide, like `cmds` and `aims`. |
 
 Dial order becomes `cmds`, `aims`, `todo`, `allow`. Send again after
@@ -180,9 +187,10 @@ not done is not a task that stopped needing doing.
 | --- | --- |
 | Ordinary chat | Bring a task up only when the conversation touches it ("I'm downtown" → "the dry cleaner is on your list"). Never recite the list. |
 | The human states a task | Store it. One row, their words, a slug that is the noun. No confirmation paragraph; one short line or a reaction. |
+| The human says how much it matters | "asap", "urgent", "this is the important one" → `!! ` or `! ` in front of the same words, same subject. "Whenever" clears it. The agent never grades a task on its own; the marker is the human's word. |
 | The words change | Same subject, new words. "Make that Thursday", "the other dentist", "actually two boxes" are rewrites, not new rows. |
 | The human says it is done | `memory_forget` the id from the stamp. Not a query — a query on "dentist" deletes the dentist's phone number too. Only the human closes a task; the agent never decides one is done. |
-| Planner turn | Read the words against the week grid. A task whose words name today ("Wed 11am", "by Friday" on Friday) gets `cron_schedule when=<that time or a sensible one> memory_subject=todo/<slug>` in the same tool batch — the wake carries the row. Then one line per task that is overdue by its own words, and one line for the oldest task past a week — every planner, until it is gone. Not `[silent]` when a line exists. The chat closer stays off this turn: it was not asked by them. |
+| Planner turn | Read the words against the week grid. A task whose words name today ("Wed 11am", "by Friday" on Friday) gets `cron_schedule when=<that time or a sensible one> memory_subject=todo/<slug>` in the same tool batch — the wake carries the row. Then one line per task that is overdue by its own words, and one line for the oldest task past a week — every planner, until it is gone. A `!!` task is the first line every planner until it is gone; `!` goes before the rest. Not `[silent]` when a line exists. The chat closer stays off this turn: it was not asked by them. |
 | A day that is not the task's day | Nothing. Monday does not schedule Wednesday's cue; Wednesday's planner does. The words are the due date and the planner is the parser. |
 | The nag | Never the same sentence twice; the age is in the stamp, so the line can move: day 2 names it, day 5 asks what is in the way, day 9 offers to put an hour on the calendar (ask first — that is a calendar write). None of those rungs is "shall I drop it". Dropping is the human's word, then `memory_forget`. |
 | Long list | The `/todo` footer says it. The planner may say it once: this is a pocket list. Do not offer to reorganise it, and do not offer to prune it — the human prunes. |
@@ -346,18 +354,20 @@ calendar — reasonable, and reported, not failed.
   model already has.
 - No due field, no due-date parser. The words carry "by Friday"; the
   week grid is already stamped.
-- No priority, project, subtask, tag, assignee, or recurrence. A
-  recurring chore is `cron_schedule repeat=daily`, which exists.
+- No project, subtask, tag, assignee, or recurrence. A recurring chore
+  is `cron_schedule repeat=daily`, which exists. Priority is the one
+  exception, and it is two characters in the words, not a field.
 - No done ledger, no "you finished 4 this week". Forget deletes; that
   is the point of a pocket list.
 - No auto-capture from mail or calendar. The human says it, or it is
   not a task.
-- No reordering. Oldest first everywhere.
+- No manual reordering. Priority, then oldest first, everywhere.
 - No ageing out, no stale cue, no "still on your list?" The kernel
   never drops a row and the agent never suggests it. Done is the
   human's word.
-- No `/todo add`. The agent names and keeps the rows; the kernel's one
-  write is the checkbox.
+- No `/todo add`. The agent names and keeps the rows; the kernel's
+  writes are the checkbox and the priority button, both of which only
+  touch a row that already exists.
 - No second model call. The stamp is a query and a format.
 
 ---
@@ -447,7 +457,8 @@ Phase 0 in build order. A line is done when `go test ./...`,
 
 | Question | Answer |
 | --- | --- |
-| Who owns the list | The agent. Add, update, remove are `memory_store` / `memory_forget` on `todo/<slug>`. The kernel's only write is the phone checkbox (`/todo done <id>`). |
+| Who owns the list | The agent. Add, update, remove are `memory_store` / `memory_forget` on `todo/<slug>`. The kernel's writes are the phone checkbox (`/todo done <id>`) and priority button (`/todo prio <id> [!!\|!]`). |
+| Priority | Yes, since 2026-10-09, as `!!` / `!` leading the words. No field, no schema, no new tool. The agent sets it when the human says so; every view sorts by it before age; the frame carries `priority` (omitted when normal) with the marker stripped from `text`. The planner leads with `!!`. |
 | Stale items | Never fall off. No cue on the stamp, no "still on your list?" rung. The agent keeps nagging with a different line each planner until the human says done. |
 | `/todo add` | No. A kernel slug is worse than the agent's, and the agent has to live with the row. The phone's add field is plain text to the agent. |
 | Due dates | The words. The planner on the named day turns them into `cron_schedule … memory_subject=todo/<slug>`. Other days do nothing. |

@@ -69,8 +69,10 @@ required (`xapp-` is not the bot token).
 Outbound WSS to the [gantry-pendant](https://github.com/shotah/gantry-pendant)
 mailbox. The crane dials; nothing listens. On dial it sends `aims` then
 `todo` after `cmds`, and sends either frame again when a turn or a cron
-push changed that board. No new socket, no `gantry status` field, no
-HTTP route.
+push changed that board. A `todo` row carries `priority` (`2` urgent,
+`1` high, absent when normal) with the `!` marker stripped from `text`
+([tasks.md §4.4](tasks.md#44-pendant-frame)). No new socket, no
+`gantry status` field, no HTTP route.
 Setup in that repo’s `docs/setup.md`.
 [Cab](https://github.com/shotah/gantry-cab) is a native Android app on this
 mailbox. Android Auto is one surface of that app. The crane still uses

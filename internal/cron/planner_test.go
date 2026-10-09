@@ -105,6 +105,7 @@ func TestDailyPlannerPrompt_OneSession(t *testing.T) {
 		"[todo]",
 		"memory_subject todo/<slug>",
 		"never an offer to drop it",
+		"A !! item is the first line",
 		"do it now",
 		"no closer",
 		"[silent] stays [silent]",

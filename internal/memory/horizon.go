@@ -105,11 +105,12 @@ func FormatLoops(waiting, follow []Entry, now time.Time) string {
 	return "[loops] " + strings.Join(parts, " · ") + horizonMore(more, "memory_recall waiting/ follow/")
 }
 
-// FormatTodo is the per-turn [todo] line: the human's open tasks, oldest
-// first, each with its row id so "done" is a memory_forget by id and not
-// a query. No stale cue — a task the human has not done is still a task.
+// FormatTodo is the per-turn [todo] line: the human's open tasks, urgent
+// and high first, then oldest, each with its row id so "done" is a
+// memory_forget by id and not a query. No stale cue — a task the human
+// has not done is still a task.
 func FormatTodo(entries []Entry, now time.Time) string {
-	parts, more := horizonParts(SortOldestFirst(entries), SubjectTodoPrefix, now, 0)
+	parts, more := horizonParts(SortTodo(entries), SubjectTodoPrefix, now, 0)
 	if len(parts) == 0 {
 		return ""
 	}
@@ -176,10 +177,14 @@ func horizonParts(entries []Entry, stripPrefix string, now time.Time, staleAfter
 			continue
 		}
 		part := label
-		if stripPrefix == SubjectTodoPrefix && e.ID > 0 {
-			part = fmt.Sprintf("#%d %s", e.ID, label)
+		body := e.Content
+		if stripPrefix == SubjectTodoPrefix {
+			body = TodoWords(body)
+			if e.ID > 0 {
+				part = fmt.Sprintf("#%d %s", e.ID, label)
+			}
 		}
-		if body := clipHorizon(e.Content); body != "" {
+		if body = clipHorizon(body); body != "" {
 			part += ": " + body
 		}
 		parts = append(parts, part+horizonAge(e, now, staleAfter))

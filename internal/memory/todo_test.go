@@ -85,6 +85,80 @@ func TestTodoBoard_ShapeAndDrops(t *testing.T) {
 	}
 }
 
+func TestTodoPriority_MarkerParse(t *testing.T) {
+	for _, tc := range []struct {
+		in    string
+		level int
+		text  string
+		words string
+	}{
+		{"call to book a cleaning", TodoPriorityNormal, "call to book a cleaning", "call to book a cleaning"},
+		{"! renew, by Oct 15", TodoPriorityHigh, "renew, by Oct 15", "! renew, by Oct 15"},
+		{"!!return the box", TodoPriorityUrgent, "return the box", "!! return the box"},
+		{"  !!!  pay the fine ", TodoPriorityUrgent, "pay the fine", "!! pay the fine"},
+		{"!!", TodoPriorityUrgent, "", "!!"},
+		{"", TodoPriorityNormal, "", ""},
+	} {
+		level, text := TodoPriority(tc.in)
+		if level != tc.level || text != tc.text {
+			t.Errorf("TodoPriority(%q) = %d %q, want %d %q", tc.in, level, text, tc.level, tc.text)
+		}
+		if got := TodoWords(tc.in); got != tc.words {
+			t.Errorf("TodoWords(%q) = %q, want %q", tc.in, got, tc.words)
+		}
+	}
+}
+
+func TestFormatTodo_PriorityBeforeAge(t *testing.T) {
+	now := time.Date(2026, time.October, 9, 12, 0, 0, 0, time.UTC)
+	rows := []Entry{
+		{ID: 420, Subject: "todo/amazon", Content: "return the box", UpdatedAt: now.Add(-30 * 24 * time.Hour)},
+		{ID: 430, Subject: "todo/taxes", Content: "!! file the extension", UpdatedAt: now.Add(-1 * time.Hour)},
+		{ID: 412, Subject: "todo/dentist", Content: "! call to book a cleaning", UpdatedAt: now.Add(-3 * 24 * time.Hour)},
+		{ID: 418, Subject: "todo/passport", Content: "!renew, Wed 11am", UpdatedAt: now.Add(-9 * 24 * time.Hour)},
+	}
+	got := FormatTodo(rows, now)
+	want := "[todo] #430 taxes: !! file the extension · #418 passport: ! renew, Wed 11am (9d ago) · #412 dentist: ! call to book a cleaning (3d ago) · #420 amazon: return the box (30d ago)"
+	if got != want {
+		t.Fatalf("got  %q\nwant %q", got, want)
+	}
+	// Input order is untouched.
+	if rows[0].ID != 420 || rows[1].ID != 430 {
+		t.Fatal("sort mutated input")
+	}
+}
+
+func TestTodoBoard_PriorityFieldAndOrder(t *testing.T) {
+	at := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	rows := []Entry{
+		{ID: 420, Subject: "todo/amazon", Content: "return the box", UpdatedAt: at.Add(-72 * time.Hour)},
+		{ID: 430, Subject: "todo/taxes", Content: "!! file the extension", UpdatedAt: at},
+		{ID: 412, Subject: "todo/dentist", Content: "!  call to book a cleaning", UpdatedAt: at.Add(-24 * time.Hour)},
+		{ID: 5, Subject: "todo/bare", Content: "!!", UpdatedAt: at},
+	}
+	board := TodoBoard(rows, time.UTC)
+	if len(board) != 3 || board[0].ID != 430 || board[1].ID != 412 || board[2].ID != 420 {
+		t.Fatalf("board %+v", board)
+	}
+	if board[0].Priority != TodoPriorityUrgent || board[1].Priority != TodoPriorityHigh || board[2].Priority != TodoPriorityNormal {
+		t.Fatalf("priority %+v", board)
+	}
+	if board[0].Text != "file the extension" || board[1].Text != "call to book a cleaning" {
+		t.Fatalf("marker must not leak into text %+v", board)
+	}
+	raw, err := json.Marshal(board[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != `{"id":430,"slug":"taxes","text":"file the extension","at":"2026-10-09","priority":2}` {
+		t.Fatalf("json %s", raw)
+	}
+	raw, _ = json.Marshal(board[2])
+	if strings.Contains(string(raw), "priority") {
+		t.Fatalf("normal rows keep the old wire shape: %s", raw)
+	}
+}
+
 func TestMemoryStoreDescription_NamesTodo(t *testing.T) {
 	var desc string
 	for _, d := range ToolDefs() {
@@ -92,7 +166,7 @@ func TestMemoryStoreDescription_NamesTodo(t *testing.T) {
 			desc = d.Description
 		}
 	}
-	for _, needle := range []string{"todo/<slug>", "even in passing", "not follow/", "never ask whether to add it", "do it now", "no cron_schedule for it", "do not offer a reminder", "never memory_recall for it", "same subject rewrites", "memory_forget by the #id on [todo]", "only when they say so"} {
+	for _, needle := range []string{"todo/<slug>", "even in passing", "not follow/", "never ask whether to add it", "do it now", "no cron_schedule for it", "do not offer a reminder", "never memory_recall for it", "same subject rewrites", "memory_forget by the #id on [todo]", "only when they say so", "!! urgent", "! high", "lead the words"} {
 		if !strings.Contains(desc, needle) {
 			t.Errorf("memory_store description missing %q", needle)
 		}

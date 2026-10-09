@@ -117,6 +117,80 @@ func TestAgent_TodoCommand(t *testing.T) {
 	}
 }
 
+func TestAgent_TodoPrio(t *testing.T) {
+	ctx := context.Background()
+	a, mem := newTodoAgent(t)
+	msg := channel.Message{SessionID: "s", UserID: "1", ChatID: "1", Text: "/todo"}
+
+	dentist, err := mem.Store(ctx, memory.KindFact, "todo/dentist", "call to book a cleaning")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mem.Store(ctx, memory.KindFact, "todo/amazon", "return the box"); err != nil {
+		t.Fatal(err)
+	}
+
+	// prio by id: same subject, marker leads the words, new row id.
+	msg.Text = fmt.Sprintf("/todo prio %d !!", dentist.ID)
+	got, err := a.Handle(ctx, msg)
+	if err != nil || !strings.HasPrefix(got, "#") || !strings.HasSuffix(got, " dentist: !! call to book a cleaning") {
+		t.Fatalf("prio by id %q %v", got, err)
+	}
+	live, ok, _ := mem.ActiveByKindSubject(ctx, memory.KindFact, "todo/dentist")
+	if !ok || live.ID == dentist.ID || live.Content != "!! call to book a cleaning" {
+		t.Fatalf("live row %+v ok=%v", live, ok)
+	}
+
+	// The list now leads with it, marker visible.
+	msg.Text = "/todo"
+	if got, err = a.Handle(ctx, msg); err != nil || !strings.HasPrefix(got, fmt.Sprintf("#%d dentist: !! call to book a cleaning", live.ID)) {
+		t.Fatalf("list order %q %v", got, err)
+	}
+
+	// prio by slug, lowering to high.
+	msg.Text = "/todo prio dentist !"
+	if got, err = a.Handle(ctx, msg); err != nil || !strings.HasSuffix(got, " dentist: ! call to book a cleaning") {
+		t.Fatalf("prio by slug %q %v", got, err)
+	}
+
+	// No marker clears it; the words are untouched.
+	msg.Text = "/todo prio dentist"
+	if got, err = a.Handle(ctx, msg); err != nil || !strings.HasSuffix(got, " dentist: call to book a cleaning") {
+		t.Fatalf("clear %q %v", got, err)
+	}
+	live, _, _ = mem.ActiveByKindSubject(ctx, memory.KindFact, "todo/dentist")
+	if live.Content != "call to book a cleaning" {
+		t.Fatalf("content %q", live.Content)
+	}
+
+	// Bad marker is usage; unknown row is the gone line; the old id is gone too.
+	msg.Text = "/todo prio dentist high"
+	if got, err = a.Handle(ctx, msg); err != nil || !strings.HasPrefix(got, "usage: /todo") {
+		t.Fatalf("bad marker %q %v", got, err)
+	}
+	msg.Text = "/todo prio passport !"
+	if got, err = a.Handle(ctx, msg); err != nil || got != "todo: passport is gone — the list was updated" {
+		t.Fatalf("gone slug %q %v", got, err)
+	}
+	msg.Text = fmt.Sprintf("/todo prio %d !", dentist.ID)
+	if got, err = a.Handle(ctx, msg); err != nil || got != fmt.Sprintf("todo: #%d is gone — the list was updated", dentist.ID) {
+		t.Fatalf("superseded id %q %v", got, err)
+	}
+
+	// prio never touches a non-todo row.
+	food, err := mem.Store(ctx, memory.KindPreference, "pref/food", "tacos")
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg.Text = fmt.Sprintf("/todo prio %d !!", food.ID)
+	if got, err = a.Handle(ctx, msg); err != nil || !strings.Contains(got, "is gone") {
+		t.Fatalf("non-todo id %q %v", got, err)
+	}
+	if live, _, _ := mem.ActiveByKindSubject(ctx, memory.KindPreference, "pref/food"); live.Content != "tacos" {
+		t.Fatalf("pref touched %+v", live)
+	}
+}
+
 func TestAgent_TodoLongListFooter(t *testing.T) {
 	ctx := context.Background()
 	a, mem := newTodoAgent(t)

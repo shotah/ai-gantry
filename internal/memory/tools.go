@@ -37,6 +37,7 @@ func ToolDefs() []provider.ToolDef {
 				"Waiting on someone else: fact subject=waiting/<slug>. A note for you to follow up: fact subject=follow/<slug>. " +
 				"A thing THEY have to do, even in passing (call, return, renew): fact subject=todo/<slug> this turn — not follow/. Store it and say you added it; never ask whether to add it. Doable now: say do it now, not good luck and not later. A future day named in the words: no cron_schedule for it and do not offer a reminder; that day's planner sets the cue. " +
 				"[todo] on [harness] is that whole list with #ids, so never memory_recall for it: same subject rewrites; done is memory_forget by the #id on [todo], only when they say so. " +
+				"Priority: !! urgent, ! high, nothing normal — the marker and a space lead the words (\"!! file the extension\"), set only when they say so (asap, urgent, important, whenever), changed by the same-subject rewrite. [todo] sorts by it. " +
 				"Hours: preference subject=pref/hours as sleep:/work:/quiet: HH:MM-HH:MM lines. " +
 				"Never auto-save guesses. Jokes go in self_note.",
 			Parameters: map[string]any{
