@@ -1,0 +1,25 @@
+{
+  "name": "chat_todo_whenever",
+  "why": "A task with no stakes and no deadline in the words. The agent stores it plain — no priority marker — so the marker stays meaningful.",
+  "inbound": "at some point I should clean out the garage, no rush",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" }
+  ],
+  "expect": {
+    "round_budget": 2,
+    "tools_called": [
+      {
+        "name": "memory_store",
+        "args_regex": "\"subject\"\\s*:\\s*\"todo/[a-z0-9][a-z0-9_-]*\"",
+        "max_calls": 1
+      },
+      {
+        "name": "memory_store",
+        "args_regex": "\"content\"\\s*:\\s*\"[^!\\s\"]"
+      }
+    ],
+    "tools_not_called": ["memory_recall", "aim_log", "cron_schedule"],
+    "wait": false,
+    "reply_not_regex": "(?i)want me to|todo/|memory_store"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "chat_todo_urgent",
+  "why": "They name a task and the stakes with it (a flight in days, no passport), and say they are on it. The agent stores it with a priority marker leading the words — its own read, no instruction beyond the convention — and does not open a conversation.",
+  "inbound": "I fly out Monday and my passport is expired. I'm booking the emergency renewal appointment first thing tomorrow, just put it on my list",
+  "memory": [
+    { "kind": "insight", "subject": "aim/training", "content": "3x gym this month" }
+  ],
+  "expect": {
+    "round_budget": 2,
+    "tools_called": [
+      {
+        "name": "memory_store",
+        "args_regex": "\"subject\"\\s*:\\s*\"todo/[a-z0-9][a-z0-9_-]*\"",
+        "max_calls": 1
+      },
+      {
+        "name": "memory_store",
+        "args_regex": "\"content\"\\s*:\\s*\"!"
+      }
+    ],
+    "tools_not_called": ["memory_recall", "aim_log"],
+    "wait": false,
+    "reply_not_regex": "(?i)want me to|todo/|memory_store"
+  }
+}

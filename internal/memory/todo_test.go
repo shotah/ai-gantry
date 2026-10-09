@@ -166,7 +166,7 @@ func TestMemoryStoreDescription_NamesTodo(t *testing.T) {
 			desc = d.Description
 		}
 	}
-	for _, needle := range []string{"todo/<slug>", "even in passing", "not follow/", "never ask whether to add it", "do it now", "no cron_schedule for it", "do not offer a reminder", "never memory_recall for it", "same subject rewrites", "memory_forget by the #id on [todo]", "only when they say so", "!! urgent", "! high", "lead the words"} {
+	for _, needle := range []string{"todo/<slug>", "even in passing", "not follow/", "never ask whether to add it", "do it now", "no cron_schedule for it", "do not offer a reminder", "never memory_recall for it", "same subject rewrites", "memory_forget by the #id on [todo]", "only when they say so", "!! urgent", "! high", "leading the words", "your read of the stakes"} {
 		if !strings.Contains(desc, needle) {
 			t.Errorf("memory_store description missing %q", needle)
 		}
